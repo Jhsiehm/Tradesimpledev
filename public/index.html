@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TradeSimple | Legislative Intelligence Trading Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <meta
+      name="description"
+      content="TradeSimple connects market data, crypto, Congress.gov bills, lobbying signals, and paper trading into one secure research dashboard."
+    />
+    <link rel="stylesheet" href="/assets/styles.css?v=paper-trader-1" />
+  </head>
+  <body data-page="landing">
+    <main class="site-shell">
+      <header class="site-nav">
+        <a class="brand" href="/">
+          <span class="logo-dot" aria-hidden="true"></span>
+          <span>TradeSimple</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#policy">LegisAlert</a>
+          <a href="#sentiment">Sentiment</a>
+          <a href="#terminal">Terminal</a>
+        </nav>
+        <a class="button button-ghost" href="/dashboard?view=trade" data-session-link>Open terminal</a>
+      </header>
+
+      <div class="landing-ticker" aria-label="Market ticker preview">
+        <div class="landing-ticker-track">
+          <span><strong>NVDA</strong> <em class="up">+2.41%</em> $891.20</span>
+          <span><strong>AAPL</strong> <em class="down">-0.83%</em> $189.45</span>
+          <span><strong>TSLA</strong> <em class="up">+1.20%</em> $182.63</span>
+          <span><strong>BTC</strong> <em class="up">+3.17%</em> $68,420</span>
+          <span><strong>LLY</strong> <em class="up">+1.09%</em> $796.60</span>
+          <span><strong>GME</strong> <em class="up">+28.4%</em> $24.80</span>
+          <span><strong>ETH</strong> <em class="down">-1.44%</em> $3,291</span>
+          <span><strong>AMZN</strong> <em class="up">+1.33%</em> $189.72</span>
+          <span><strong>NVDA</strong> <em class="up">+2.41%</em> $891.20</span>
+          <span><strong>AAPL</strong> <em class="down">-0.83%</em> $189.45</span>
+          <span><strong>TSLA</strong> <em class="up">+1.20%</em> $182.63</span>
+          <span><strong>BTC</strong> <em class="up">+3.17%</em> $68,420</span>
+        </div>
+      </div>
+
+      <section class="hero brand-hero" id="product">
+        <div class="hero-copy">
+          <div class="hero-eyebrow"><span></span>Now in early access</div>
+          <h1>Bloomberg for people who <em>actually</em> have lives.</h1>
+          <p>
+            Institutional-grade market intelligence without the $24,000/year price tag
+            or the finance degree. Government lobbying signals, Reddit sentiment,
+            crypto, live prices, and AI that explains everything in plain English.
+          </p>
+          <div class="auth-panel" aria-label="Sign in options">
+            <a class="button button-primary" data-provider="demo" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Try local demo terminal</a>
+            <a class="button button-secondary" data-provider="google" href="/auth/google">Sign in with Google</a>
+            <a class="button button-ghost" data-provider="apple" href="/auth/apple">Sign in with Apple</a>
+          </div>
+          <div class="hero-social-proof">
+            <div class="proof-avatars">
+              <span>JK</span><span>MR</span><span>AL</span><span>TS</span><span>+</span>
+            </div>
+            <p><strong>4,200+</strong> traders on the waitlist. Spots limited.</p>
+          </div>
+          <p class="fine-print">
+            API keys stay server-side. Live brokerage requires a regulated broker integration;
+            this build starts with paper trading and read-only intelligence.
+          </p>
+        </div>
+
+        <div class="phone-stage" aria-label="TradeSimple mobile preview">
+          <div class="phone-glow"></div>
+          <div class="phone-frame">
+            <div class="phone-notch">
+              <span>9:41</span>
+              <i></i><i></i><i></i>
+            </div>
+            <div class="phone-screen">
+              <small>Good morning, Alex</small>
+              <strong class="phone-value">$24,831.40</strong>
+              <span class="phone-delta">+$312.18 (1.27%) today</span>
+              <div class="phone-label">Your holdings</div>
+              <div class="phone-holding">
+                <b>NVDA</b><span>12 shares - $10,694</span><em class="up">+2.41%</em>
+              </div>
+              <div class="phone-holding">
+                <b>AAPL</b><span>8 shares - $1,515</span><em class="down">-0.83%</em>
+              </div>
+              <div class="phone-label">Policy alert for your portfolio</div>
+              <div class="phone-alert green-alert">
+                <b>LegisAlert - LLY - Impact 4/5</b>
+                <strong>Drug pricing bill passed committee</strong>
+                <p>Pharma lobby spending $31M against it. 34% passage odds.</p>
+              </div>
+              <div class="phone-alert amber-alert">
+                <b>Street vs. Streets - GME</b>
+                <strong>GME up 28% and Reddit is going wild</strong>
+                <p>Wall St: Sell. Internet: rockets. Social buzz is not fundamentals.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features-strip" id="features">
+        <article>
+          <span>01</span>
+          <h2>Plain English, always</h2>
+          <p>P/E ratio of 34x becomes "investors are paying $34 for every $1 this company earns." Every number earns its place by being explained.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h2>Street vs. Streets</h2>
+          <p>Wall Street analyst consensus meets Reddit sentiment in one view. When they disagree, that's where the drama lives.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h2>Government intelligence</h2>
+          <p>Lobbying spend, regulatory actions, bill passage odds, and affected tickers are scored instead of dumped on you as raw data.</p>
+        </article>
+      </section>
+
+      <section class="site-section legis-section" id="policy">
+        <div>
+          <div class="section-tag">LegisAlert</div>
+          <h2>Government moves markets. <em>Now you'll know first.</em></h2>
+          <p>
+            Most retail traders find out about regulatory changes after the move already
+            happened. LegisAlert tracks lobbying spend, bill probability, and regulatory
+            actions in real time, filtered to what affects your portfolio.
+          </p>
+        </div>
+        <div class="signal-stack">
+          <article class="signal-card green">
+            <small>Lobbying signal - spend up 2.8x</small>
+            <h3>Pfizer, Merck and AbbVie spending $31M against drug pricing bill</h3>
+            <p>That level of coordinated spend means the industry thinks this bill has real teeth. Passage odds: 34%.</p>
+          </article>
+          <article class="signal-card amber-card">
+            <small>Regulatory - FDA - effective today</small>
+            <h3>FDA label expansion can move the stock without a vote</h3>
+            <p>Regulatory fast lanes matter because markets move the same day, not after Congress catches up.</p>
+          </article>
+          <article class="signal-card blue-card">
+            <small>Earnings signal - semiconductor sector</small>
+            <h3>4 chip CEOs mentioned CHIPS Act in earnings calls this week</h3>
+            <p>When management teams model a bill into guidance, the market starts listening.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="site-section sentiment-section" id="sentiment">
+        <div>
+          <div class="section-tag">Street vs. Streets</div>
+          <h2>Wall Street meets <em>WallStreetBets.</em></h2>
+          <p>
+            Track what 14 million Redditors are talking about next to analyst consensus.
+            Meme velocity is not a thesis, but it can explain why a ticker starts moving
+            before the fundamentals do.
+          </p>
+        </div>
+        <div class="sentiment-demo">
+          <div><b>NVDA</b><span>Wall St: Buy</span><meter min="0" max="100" value="78"></meter><em class="up">Aligned</em></div>
+          <div><b>GME</b><span>Wall St: Sell</span><meter min="0" max="100" value="96"></meter><em class="amber">Gap alert</em></div>
+          <div><b>TSLA</b><span>Wall St: Hold</span><meter min="0" max="100" value="62"></meter><em>Neutral</em></div>
+          <div><b>BTC</b><span>Wall St: Buy</span><meter min="0" max="100" value="88"></meter><em class="up">Aligned</em></div>
+        </div>
+      </section>
+
+      <section class="comparison-section" id="terminal">
+        <div>
+          <div class="section-tag">vs. the competition</div>
+          <h2>Why not just use <em>Koyfin?</em></h2>
+          <p>Because Koyfin still feels like a spreadsheet. TradeSimple is built for people who trade between meetings, not analysts who live in Excel.</p>
+        </div>
+        <div class="compare-table-wrap">
+          <table class="compare-table">
+            <thead><tr><th>Feature</th><th>TradeSimple</th><th>Koyfin</th><th>Robinhood</th></tr></thead>
+            <tbody>
+              <tr><td>Plain-English explanations</td><td class="up">Always</td><td>No</td><td>Basic</td></tr>
+              <tr><td>WSB sentiment integrated</td><td class="up">Live</td><td>No</td><td>No</td></tr>
+              <tr><td>Government lobbying intelligence</td><td class="up">Scored</td><td>No</td><td>No</td></tr>
+              <tr><td>AI chat that knows your portfolio</td><td class="up">Included</td><td>No</td><td>No</td></tr>
+              <tr><td>Paper trading guardrails</td><td class="up">Built in</td><td>No</td><td>Broker only</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="terminal-cta">
+          <a class="button button-primary" href="#waitlist">Join the waitlist</a>
+          <a class="button button-secondary" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Open the working terminal</a>
+          <a class="button button-ghost" href="#product">Back to top</a>
+        </div>
+      </section>
+
+      <section class="waitlist-section" id="waitlist">
+        <div class="waitlist-inner">
+          <div class="section-tag">Limited early access</div>
+          <h2>Stop finding out <em>after</em> the move.</h2>
+          <p>
+            Join 4,200+ traders who are getting institutional-grade intelligence
+            without the institutional price tag. Early access members get Pro free
+            for 3 months.
+          </p>
+          <form class="waitlist-form" id="waitlist-form">
+            <label class="sr-only" for="waitlist-email">Email address</label>
+            <input id="waitlist-email" name="email" type="email" placeholder="your@email.com" autocomplete="email" required />
+            <button class="button button-primary" type="submit">Join waitlist</button>
+          </form>
+          <div class="waitlist-status" id="waitlist-status" role="status">No spam. No credit card. Just early access when we launch.</div>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        <a class="brand" href="#product">
+          <span class="logo-dot" aria-hidden="true"></span>
+          <span>TradeSimple</span>
+        </a>
+        <nav aria-label="Footer">
+          <a href="#features">Features</a>
+          <a href="#terminal">Pricing</a>
+          <a href="#waitlist">Privacy</a>
+          <a href="#waitlist">Terms</a>
+          <a href="#policy">Blog</a>
+        </nav>
+        <p>Not financial advice. (c) 2026 TradeSimple.</p>
+      </footer>
+    </main>
+    <script src="/assets/app.js?v=paper-trader-1" defer></script>
+  </body>
+</html>

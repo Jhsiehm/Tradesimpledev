@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TradeSimple Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/styles.css?v=paper-trader-1" />
+  </head>
+  <body data-page="dashboard">
+    <div class="terminal-shell">
+      <aside class="sidebar">
+        <a class="brand terminal-brand" href="/dashboard">
+          <span class="brand-mark">T</span>
+          <span>TradeSimple</span>
+        </a>
+        <nav class="side-nav" aria-label="Terminal sections">
+          <button class="nav-item active" data-view="overview">Overview</button>
+          <button class="nav-item" data-view="markets">Markets</button>
+          <button class="nav-item" data-view="analysis">Analysis Lab</button>
+          <button class="nav-item" data-view="bills">LegisAlert</button>
+          <button class="nav-item" data-view="lobbying">Lobbying Radar</button>
+          <button class="nav-item" data-view="trade">Paper Trade</button>
+          <button class="nav-item" data-view="research">AI Research</button>
+          <button class="nav-item" data-view="connections">Connections</button>
+        </nav>
+        <div class="user-box">
+          <div class="avatar" data-user-initials>AJ</div>
+          <div>
+            <strong data-user-name>Loading</strong>
+            <span data-user-email>Session</span>
+          </div>
+        </div>
+      </aside>
+
+      <header class="topbar">
+        <label class="search-box">
+          <span>Search</span>
+          <input id="terminal-search" placeholder="Ticker, bill, issue area" />
+        </label>
+        <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
+        <a class="button button-ghost compact" href="/auth/logout">Sign out</a>
+      </header>
+
+      <main class="workspace">
+        <section class="view active" id="view-overview">
+          <section class="portfolio-command">
+            <div>
+              <span class="mini-pill green">TradeSimple portfolio dashboard</span>
+              <h1>Know what can move your money before the move.</h1>
+              <p id="overview-subtitle">Loading live data and policy signals.</p>
+              <div class="portfolio-command-actions">
+                <button class="button button-primary" data-view-jump="analysis">Analyze holdings</button>
+                <button class="button button-secondary" data-view-jump="bills">Open LegisAlert</button>
+                <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
+              </div>
+            </div>
+            <div class="portfolio-terminal-card">
+              <div class="portfolio-terminal-head">
+                <span>Portfolio value</span>
+                <strong id="portfolio-hero-value">$0</strong>
+              </div>
+              <div id="portfolio-sparkline" class="portfolio-sparkline" aria-label="Portfolio trend chart"></div>
+              <div class="portfolio-terminal-foot">
+                <span id="portfolio-hero-change">Calculating</span>
+                <button class="link-button" data-view-jump="research">Ask AI research</button>
+              </div>
+            </div>
+          </section>
+
+          <div class="stat-grid">
+            <article class="stat-card stat-card-hero">
+              <span>Portfolio simulation</span>
+              <strong id="portfolio-value">$0</strong>
+              <small id="portfolio-change">Calculating</small>
+            </article>
+            <article class="stat-card">
+              <span>High-impact bills</span>
+              <strong class="amber">5</strong>
+              <small>3 touch seed portfolio</small>
+            </article>
+            <article class="stat-card">
+              <span>Trading mode</span>
+              <strong id="trade-mode">Paper</strong>
+              <small id="trade-mode-sub">Live locked by default</small>
+            </article>
+            <article class="stat-card stat-card-wide">
+              <span>Lobbying spike</span>
+              <strong class="down">$31M</strong>
+              <small>Pharma against drug pricing</small>
+            </article>
+          </div>
+
+          <div class="portfolio-dashboard-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Portfolio allocation</h2>
+                <span>By position value</span>
+              </div>
+              <div id="portfolio-allocation" class="allocation-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Portfolio policy map</h2>
+                <span>Holdings -> bill pressure</span>
+              </div>
+              <div id="portfolio-policy-feed" class="portfolio-policy-feed"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Plain-English readout</h2>
+                <span>Investor mode</span>
+              </div>
+              <div id="portfolio-dashboard-summary" class="portfolio-dashboard-summary"></div>
+            </section>
+          </div>
+
+          <div class="two-column">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Holdings and policy exposure</h2>
+                <span id="holdings-updated">Waiting</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Asset</th>
+                      <th>Shares</th>
+                      <th>Price</th>
+                      <th>Value</th>
+                      <th>Today</th>
+                      <th>Policy signal</th>
+                    </tr>
+                  </thead>
+                  <tbody id="holdings-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Highest-conviction signals</h2>
+                <button class="link-button" data-view-jump="bills">All bills</button>
+              </div>
+              <div id="signal-list" class="stack-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-markets">
+          <div class="page-header">
+            <div>
+              <h1>Markets</h1>
+              <p>Server-proxied quotes with fallback data when keys are missing.</p>
+            </div>
+            <span class="status-pill" id="market-source">Connecting</span>
+          </div>
+          <section class="panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Policy</th>
+                  </tr>
+                </thead>
+                <tbody id="market-body"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="panel mt">
+            <div class="panel-head">
+              <h2>Crypto</h2>
+              <span id="crypto-source">Connecting</span>
+            </div>
+            <div class="crypto-grid" id="crypto-grid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-analysis">
+          <div class="page-header">
+            <div>
+              <h1>Analysis lab</h1>
+              <p>Plain-English charts, fundamentals, and policy impact.</p>
+            </div>
+            <div class="analysis-controls">
+              <label>
+                <span>Company</span>
+                <select id="analysis-symbol" aria-label="Select analysis ticker">
+                  <option>NVDA</option>
+                  <option>AAPL</option>
+                  <option>LLY</option>
+                  <option>TSLA</option>
+                  <option>AMZN</option>
+                  <option>MSFT</option>
+                  <option>AMD</option>
+                  <option>GOOGL</option>
+                  <option>META</option>
+                  <option>COIN</option>
+                  <option>SPY</option>
+                  <option>QQQ</option>
+                </select>
+              </label>
+              <span class="status-pill" id="analysis-source">Waiting</span>
+            </div>
+          </div>
+
+          <section class="analysis-hero panel">
+            <div>
+              <span class="mini-pill" id="analysis-sector">Loading</span>
+              <h2 id="analysis-title">Loading analysis</h2>
+              <p id="analysis-summary">Building plain-English investor view.</p>
+              <div class="analysis-price-row">
+                <strong id="analysis-price">$0</strong>
+                <span id="analysis-change">0.00%</span>
+                <span id="analysis-updated">Updating</span>
+              </div>
+            </div>
+            <div class="sparkline-card">
+              <div class="chart-title">
+                <span>Price path</span>
+                <strong id="sparkline-caption">48-session model</strong>
+              </div>
+              <div id="analysis-sparkline" class="sparkline-wrap" aria-label="Price trend chart"></div>
+            </div>
+          </section>
+
+          <div class="analysis-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Plain-English fundamentals</h2>
+                <span>Beginner mode</span>
+              </div>
+              <div class="metric-grid" id="metric-grid"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Valuation and quality charts</h2>
+                <span>Simple scoring</span>
+              </div>
+              <div class="chart-stack" id="analysis-bars"></div>
+            </section>
+          </div>
+
+          <div class="analysis-layout mt">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Lobbying -> bill -> stock impact</h2>
+                <span>Cause/effect map</span>
+              </div>
+              <div id="policy-chains" class="policy-chain-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>API signal explainability</h2>
+                <span>What each feed means</span>
+              </div>
+              <div id="api-explainer" class="api-explainer"></div>
+            </section>
+          </div>
+
+          <div class="analysis-layout mt">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>LegisAlert bill tracker</h2>
+                <span>Linked to selected ticker</span>
+              </div>
+              <div id="analysis-legisalert" class="legisalert-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Stakeholder relationship map</h2>
+                <span>People -> bills -> stocks</span>
+              </div>
+              <div id="stakeholder-map" class="stakeholder-map"></div>
+            </section>
+          </div>
+
+          <section class="panel mt">
+            <div class="panel-head">
+              <h2>Research prompts that fit this UI</h2>
+              <button class="link-button" data-view-jump="research">Open AI research</button>
+            </div>
+            <div id="analysis-prompts" class="prompt-chip-row"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-bills">
+          <div class="page-header">
+            <div>
+              <h1>LegisAlert</h1>
+              <p>Bill tracking, lobbying pressure, and Congress stakeholder relationships in one readable feed.</p>
+            </div>
+            <span class="status-pill" id="bill-source">Connecting</span>
+          </div>
+          <div class="filter-row">
+            <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
+            <button class="button button-secondary compact" id="clear-bill-filter">Clear</button>
+          </div>
+          <div class="bill-intel-layout">
+            <div id="bill-feed" class="bill-feed"></div>
+            <aside class="panel">
+              <div class="panel-head">
+                <h2>Stakeholder lens</h2>
+                <span id="bill-network-source">Modeled</span>
+              </div>
+              <div id="bill-stakeholders" class="stakeholder-side"></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-lobbying">
+          <div class="page-header">
+            <div>
+              <h1>Lobbying radar</h1>
+              <p>Spend intensity is treated as a directional signal, not proof of passage.</p>
+            </div>
+            <span class="status-pill" id="lobby-source">Connecting</span>
+          </div>
+          <section class="panel lobby-bridge-panel">
+            <div class="panel-head">
+              <h2>Lobbying -> bill bridge</h2>
+              <span>Explains the market channel</span>
+            </div>
+            <div id="lobby-bill-bridge" class="lobby-bridge"></div>
+          </section>
+          <div id="lobby-feed" class="lobby-grid mt"></div>
+        </section>
+
+        <section class="view" id="view-trade">
+          <div class="page-header">
+            <div>
+              <h1>Paper trader</h1>
+              <p>Every signed-in user starts with $100,000 of liquid simulated cash. Practice the thesis before risking real capital.</p>
+            </div>
+            <span class="status-pill" id="account-source">Loading</span>
+          </div>
+
+          <div class="paper-stat-grid" id="account-grid"></div>
+
+          <div class="trade-workspace">
+            <section class="panel trade-chart-panel">
+              <div class="panel-head">
+                <h2 id="trade-symbol-title">NVDA paper trade setup</h2>
+                <div class="trade-range-row">
+                  <button class="range-chip active" type="button" data-trade-range="1d">1D</button>
+                  <button class="range-chip" type="button" data-trade-range="1w">1W</button>
+                  <button class="range-chip" type="button" data-trade-range="1m">1M</button>
+                  <button class="range-chip" type="button" data-trade-range="3m">3M</button>
+                  <button class="range-chip" type="button" data-trade-range="6m">6M</button>
+                  <button class="range-chip" type="button" data-trade-range="1y">1Y</button>
+                </div>
+              </div>
+              <div class="trade-chart-body">
+                <div class="trade-quote-strip">
+                  <div>
+                    <span>Last price</span>
+                    <strong id="trade-symbol-price">$0</strong>
+                  </div>
+                  <div>
+                    <span>Historical range</span>
+                    <strong id="trade-history-range">Loading</strong>
+                  </div>
+                  <div>
+                    <span>Range return</span>
+                    <strong id="trade-history-return">0.00%</strong>
+                  </div>
+                </div>
+                <div id="trade-history-chart" class="trade-history-chart" aria-label="Historical stock chart"></div>
+                <div id="trade-plain-context" class="trade-plain-context">Loading historical context.</div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Order entry</h2>
+                <span id="trade-order-estimate">Market order</span>
+              </div>
+              <form id="order-form" class="trade-form">
+                <label>Symbol
+                  <select name="symbol" id="order-symbol">
+                    <option>NVDA</option>
+                    <option>AAPL</option>
+                    <option>LLY</option>
+                    <option>TSLA</option>
+                    <option>AMZN</option>
+                    <option>MSFT</option>
+                    <option>AMD</option>
+                    <option>GOOGL</option>
+                    <option>META</option>
+                    <option>COIN</option>
+                  </select>
+                </label>
+                <label>Quantity<input name="qty" id="order-qty" type="number" min="0.0001" step="0.0001" value="1" /></label>
+                <label>Side<select name="side" id="order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+                <button class="button button-primary" type="submit">Place paper order</button>
+              </form>
+              <div class="paper-order-help">
+                <strong>Plain English</strong>
+                <p>This fills at the latest quote in your simulated account. It does not send real money or real shares anywhere.</p>
+              </div>
+              <pre class="order-result" id="order-result">No order submitted.</pre>
+            </section>
+          </div>
+
+          <div class="trade-workspace mt">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Paper positions</h2>
+                <span>Live mark-to-market</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th>Qty</th>
+                      <th>Avg cost</th>
+                      <th>Price</th>
+                      <th>Market value</th>
+                      <th>P/L</th>
+                    </tr>
+                  </thead>
+                  <tbody id="paper-positions-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Recent orders</h2>
+                <span>Paper fills</span>
+              </div>
+              <div id="paper-orders" class="paper-orders"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-research">
+          <div class="page-header">
+            <div>
+              <h1>AI research</h1>
+              <p>Server-side optional Anthropic integration with local policy fallback.</p>
+            </div>
+          </div>
+          <section class="panel research-panel">
+            <div id="research-log" class="research-log"></div>
+            <form id="research-form" class="research-form">
+              <textarea id="research-question" placeholder="Ask how a bill, lobbying spike, or crypto rule could affect the portfolio"></textarea>
+              <button class="button button-primary" type="submit">Analyze</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="view-connections">
+          <div class="page-header">
+            <div>
+              <h1>Connections</h1>
+              <p>Provider readiness without exposing secret values to the browser.</p>
+            </div>
+          </div>
+          <div id="connection-grid" class="connection-grid"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/assets/app.js?v=paper-trader-1" defer></script>
+  </body>
+</html>
