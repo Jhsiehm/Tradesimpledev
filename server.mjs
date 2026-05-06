@@ -29,20 +29,152 @@ const SESSION_COOKIE = "ts_session";
 const OAUTH_COOKIE = "ts_oauth";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
-const MARKET_FALLBACK = {
-  NVDA: { symbol: "NVDA", price: 891.2, change: 20.88, pct: 2.41, high: 974, low: 460, open: 875.3 },
-  AAPL: { symbol: "AAPL", price: 189.45, change: -1.58, pct: -0.83, high: 220, low: 164, open: 190.2 },
-  LLY: { symbol: "LLY", price: 796.6, change: 8.62, pct: 1.09, high: 892, low: 648, open: 788.1 },
-  TSLA: { symbol: "TSLA", price: 182.63, change: 2.18, pct: 1.2, high: 278, low: 138, open: 180.4 },
-  AMZN: { symbol: "AMZN", price: 189.72, change: 2.49, pct: 1.33, high: 201, low: 151, open: 187.2 },
-  MSFT: { symbol: "MSFT", price: 415.8, change: 1.66, pct: 0.4, high: 441, low: 362, open: 414.1 },
-  AMD: { symbol: "AMD", price: 162.4, change: 3.27, pct: 2.05, high: 227, low: 116, open: 159.8 },
-  GOOGL: { symbol: "GOOGL", price: 172.38, change: 1.21, pct: 0.71, high: 193, low: 130, open: 171.2 },
-  META: { symbol: "META", price: 501.22, change: 3.84, pct: 0.77, high: 531, low: 355, open: 498.9 },
-  COIN: { symbol: "COIN", price: 218.44, change: -2.03, pct: -0.92, high: 283, low: 108, open: 221.1 },
-  SPY: { symbol: "SPY", price: 524.81, change: 2.82, pct: 0.54, high: 558, low: 458, open: 522.4 },
-  QQQ: { symbol: "QQQ", price: 441.33, change: 3.58, pct: 0.81, high: 480, low: 367, open: 438.7 }
+const SEC_USER_AGENT =
+  process.env.SEC_USER_AGENT ||
+  "TradeSimple/1.0 (retail research terminal; contact: you@example.com)";
+
+const RESEARCH_SYSTEM_PROMPT = `You are TradeSimple's research assistant. You explain how congressional bills, lobbying activity, federal contracts, and government appointments might affect specific stocks in plain English for retail investors.
+FORMATTING RULES: Never use markdown headers, horizontal rules, or raw markdown syntax. Use plain paragraphs separated by line breaks. Keep responses under 250 words unless the user asks for a deep dive. Lead with the single most important insight in the first sentence. End every response with a maximum of 3 bullet watch items labeled Watch for:
+TONE RULES: Never use dramatic language like existential threat, genuinely scared, or death sentence. Let numbers speak for themselves. Use this suggests not this means. Use historically not guaranteed. Never imply a buy or sell decision even indirectly.
+STRUCTURE FOR EVERY RESPONSE: One sentence bottom line up front. The signal breakdown with numbers and ratios. Historical analog if one exists with actual price move and timeframe. What the user still does not know and would need to verify. Watch for with maximum 3 bullet points.
+DISCLOSURE: Start every response that discusses position impact with exactly this line: Research signal only. Not financial advice.
+DATA HONESTY: If a number comes from a specific source name it. If a number is estimated say so. Never invent historical analogs. If you do not have enough data to answer well say so directly.
+DATA SOURCES YOU CAN REFERENCE: Congress.gov for bill stage and cosponsor data. LDA.gov for lobbying filings and spend. USASpending.gov for federal contract awards and agency budgets. SEC EDGAR for 10-K risk factors and revenue segment data. Finnhub for live equity quotes. SAM.gov for contract opportunities and recompetes.`;
+
+const METHODOLOGY = {
+  version: 1,
+  disclaimer:
+    "Every number below is a transparent scenario model inside TradeSimple. It is not a forecast, a consensus estimate, or investment advice. Live Congress.gov text and LDA filings always supersede the UI when they disagree.",
+  sections: [
+    {
+      id: "legislativeMomentum",
+      title: "Legislative momentum (0–100)",
+      summary:
+        "Eight sub-scores from 0–100 are combined with fixed weights. The weighted average is rounded to an integer and clamped between 0 and 100.",
+      weights: [
+        { name: "Stage progress", pct: 25, detail: "Maps normalized bill status: introduced 20, committee 40, markup 60, floor 80, enacted/passed 100, failed 5." },
+        { name: "Sponsor effectiveness", pct: 15, detail: "Cosponsors as a share of chamber size (218 House / 100 Senate cap). Bipartisan bills add up to +25 points." },
+        { name: "Cosponsor strength", pct: 15, detail: "Same density measure without the bipartisan bonus — captures sheer caucus scale." },
+        { name: "Bipartisan breadth", pct: 10, detail: "Uses curated bipartisanScore when present; otherwise bipartisan cosponsors ÷ total cosponsors × 100." },
+        { name: "Committee / schedule", pct: 10, detail: "Uses curated committeeScore when present; otherwise defaults from stage. Floor-scheduled bills gain +18 (capped at 100)." },
+        { name: "Recency", pct: 10, detail: "Last action date buckets: ≤10d → 100, ≤30d → 88, ≤60d → 72, ≤120d → 55, ≤200d → 40, older → 28; missing date → 35." },
+        { name: "Text enactability", pct: 10, detail: "Blend of historicalScore (55%) and floorScore (45%) when curated; else defaults from stage." },
+        { name: "Time remaining", pct: 5, detail: "Calendar-month proxy for session runway unless the bill already passed." }
+      ]
+    },
+    {
+      id: "billConfidence",
+      title: "Bill signal confidence (High / Medium / Low)",
+      summary:
+        "A points checklist — not a statistical confidence interval — describing how complete the seed bill record is.",
+      weights: [
+        { name: "Recency & action text", pct: null, detail: "Up to 45 pts from latestActionDate freshness plus 10 pts if latestAction exists." },
+        { name: "Support signals", pct: null, detail: "12 pts if cosponsors > 0; 8 pts if bipartisanCosponsors is recorded." },
+        { name: "Lobbying context", pct: null, detail: "12 pts if lobbyingAgainst or lobbyingFor dollars exist in seed data." },
+        { name: "Narrative depth", pct: null, detail: "5 pts if plainEnglish text is longer than 80 characters." },
+        { name: "Buckets", pct: null, detail: "≥72 pts → High; ≥44 → Medium; otherwise Low." }
+      ]
+    },
+    {
+      id: "lobbyingPressure",
+      title: "Lobbying pressure on disclosures (0–100)",
+      summary:
+        "Built from each LDA-style filing row (client, registrant, amount, issues, spike factor, posted date). When no nine-quarter history exists, the server synthesizes eight trailing quarters from amount ÷ spike so the z-score still runs.",
+      weights: [
+        { name: "Spend spike shape", pct: 40, detail: "Current quarter vs trailing eight-quarter mean/std → z-score; mapped to 0–100 via spendSpikeSubscore (z clipped −2…3.5)." },
+        { name: "Coalition breadth", pct: 20, detail: "Count of comma-separated issue tags: base 12 + 22 per tag (cap 100)." },
+        { name: "Topic specificity", pct: 15, detail: "Starts at 100 and penalizes extra tags so vague omnibus filings score lower." },
+        { name: "Recency", pct: 15, detail: "Posted date buckets: ≤14d best, decaying through 200d." },
+        { name: "Direction certainty", pct: 10, detail: "Higher when spike factor > 1.65; +12 when issues mention pricing, antitrust, crypto, Medicare, export, or chips." }
+      ]
+    },
+    {
+      id: "lobbyingSubscores",
+      title: "Lobby filing sub-labels (Spend / Issue / Recency confidence)",
+      summary: "Heuristic labels that explain the filing row, not statistical confidence intervals.",
+      weights: [
+        { name: "Spend signal", pct: null, detail: "High if z ≥ 1.2 or spike > 1.8×; Low if |z| < 0.35; else Medium." },
+        { name: "Issue signal", pct: null, detail: "High if ≥3 issue tokens; Medium if ≥1; else Low." },
+        { name: "Recency signal", pct: null, detail: "High if filed ≤90 days; Medium if posted date exists but older; else Low." }
+      ]
+    },
+    {
+      id: "filingConfidence",
+      title: "Filing confidence (High / Medium / Low)",
+      summary: "Points for populated client/registrant/issue/amount/posted date fields.",
+      weights: [
+        { name: "Field checklist", pct: null, detail: "28 client + 14 registrant + issue length + amount + posted date freshness (≤45d bonus). ≥74 High; ≥42 Medium; else Low." }
+      ]
+    },
+    {
+      id: "billCardLobbying",
+      title: "Lobbying pressure on LegisAlert cards",
+      summary:
+        "Matches the same lobbying-pressure engine, but the input is a synthetic filing built from the bill seed's lobbyingAgainst / lobbyingFor dollars and narrative text — useful when no LDA row is attached yet.",
+      weights: []
+    },
+    {
+      id: "marketMood",
+      title: "Overview · Market mood panel",
+      summary: "All four meters are modeled inside the browser from quotes + bill feed + lobbying feed — not third-party sentiment APIs.",
+      weights: [
+        { name: "Tape risk appetite", pct: null, detail: "SPY/QQQ blended daily % move mapped toward a 12–92 gauge." },
+        { name: "Social sentiment proxy", pct: null, detail: "Derived from the same tape move; labeled as modeled (not live Reddit)." },
+        { name: "Portfolio policy heat", pct: null, detail: "Max legislative momentum among bills touching simulated holdings, with a fallback when none match." },
+        { name: "Lobby intensity", pct: null, detail: "Mean lobbyingPressure on the most recent filings (fallback constant when empty)." }
+      ]
+    }
+  ]
 };
+
+const MARKET_FALLBACK = {
+  NVDA: { symbol: "NVDA", price: 132.4, change: 1.85, pct: 1.42, high: 148.2, low: 102.6, open: 130.55 },
+  AAPL: { symbol: "AAPL", price: 228.6, change: -0.92, pct: -0.4, high: 235.0, low: 218.4, open: 229.5 },
+  LLY: { symbol: "LLY", price: 718.2, change: 6.4, pct: 0.9, high: 742.0, low: 682.0, open: 712.1 },
+  TSLA: { symbol: "TSLA", price: 285.3, change: 3.1, pct: 1.1, high: 298.0, low: 258.0, open: 282.4 },
+  AMZN: { symbol: "AMZN", price: 212.8, change: 2.05, pct: 0.98, high: 218.0, low: 204.0, open: 210.9 },
+  MSFT: { symbol: "MSFT", price: 468.2, change: 1.42, pct: 0.31, high: 472.0, low: 452.0, open: 466.8 },
+  AMD: { symbol: "AMD", price: 118.6, change: 2.15, pct: 1.85, high: 124.0, low: 108.0, open: 116.45 },
+  GOOGL: { symbol: "GOOGL", price: 168.9, change: 0.88, pct: 0.52, high: 171.5, low: 162.0, open: 168.0 },
+  META: { symbol: "META", price: 598.4, change: 4.2, pct: 0.71, high: 612.0, low: 568.0, open: 594.2 },
+  COIN: { symbol: "COIN", price: 276.5, change: -2.8, pct: -1.0, high: 292.0, low: 248.0, open: 279.3 },
+  SPY: { symbol: "SPY", price: 598.2, change: 2.45, pct: 0.41, high: 602.0, low: 588.0, open: 595.75 },
+  QQQ: { symbol: "QQQ", price: 518.6, change: 3.05, pct: 0.59, high: 524.0, low: 508.0, open: 515.55 }
+};
+
+function mapFinnhubQuoteResponse(symbol, data) {
+  const price = Number(data.c);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error("invalid_or_missing_price");
+  }
+  return {
+    symbol,
+    price,
+    change: data.d != null ? Number(data.d) : null,
+    changePercent: data.dp != null ? Number(data.dp) : null,
+    pct: data.dp != null ? Number(data.dp) : null,
+    high: data.h != null ? Number(data.h) : null,
+    low: data.l != null ? Number(data.l) : null,
+    open: data.o != null ? Number(data.o) : null,
+    prevClose: data.pc != null ? Number(data.pc) : null,
+    previousClose: data.pc != null ? Number(data.pc) : null,
+    timestamp: data.t ? new Date(data.t * 1000).toISOString() : null,
+    source: "finnhub"
+  };
+}
+
+function enrichStaticQuote(row) {
+  if (!row || row.price == null) return null;
+  const pct = row.pct != null ? Number(row.pct) : row.changePercent != null ? Number(row.changePercent) : 0;
+  return {
+    ...row,
+    pct,
+    changePercent: row.changePercent != null ? Number(row.changePercent) : pct,
+    prevClose: row.prevClose != null ? Number(row.prevClose) : row.previousClose != null ? Number(row.previousClose) : null,
+    previousClose: row.previousClose != null ? Number(row.previousClose) : row.prevClose != null ? Number(row.prevClose) : null,
+    source: row.source || "fallback_static"
+  };
+}
 
 const FUNDAMENTALS = {
   NVDA: {
@@ -58,6 +190,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.25,
     beta: 1.72,
     analystTarget: 1050,
+    analystRating: "Strong Buy",
+    analystCount: 47,
+    catalyst: "Earnings · Blackwell GPU ramp · CHIPS Act grant flow",
     moat: "CUDA, developer mindshare, and AI accelerator supply make the business hard to copy quickly.",
     plainBull: "AI infrastructure spending is still early, and the biggest cloud buyers keep raising capex.",
     plainBear: "The valuation assumes near-perfect growth, and export controls can pressure China revenue."
@@ -75,6 +210,9 @@ const FUNDAMENTALS = {
     debtToEquity: 1.45,
     beta: 1.28,
     analystTarget: 220,
+    analystRating: "Buy",
+    analystCount: 38,
+    catalyst: "WWDC · AI features · India manufacturing ramp",
     moat: "The installed device base and services ecosystem make customers sticky.",
     plainBull: "Services revenue and buybacks can support earnings even when iPhone growth is slow.",
     plainBear: "Hardware growth is mature, and platform regulation can pressure App Store economics."
@@ -92,6 +230,9 @@ const FUNDAMENTALS = {
     debtToEquity: 1.62,
     beta: 0.41,
     analystTarget: 980,
+    analystRating: "Buy",
+    analystCount: 29,
+    catalyst: "Drug pricing calendar · FDA catalysts · GLP-1 supply print",
     moat: "GLP-1 obesity and diabetes drugs give Lilly a huge demand runway.",
     plainBull: "If GLP-1 supply keeps expanding, revenue can compound faster than typical pharma.",
     plainBear: "Drug-pricing legislation is the clearest policy risk because it targets Medicare pricing power."
@@ -109,6 +250,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.12,
     beta: 2.28,
     analystTarget: 210,
+    analystRating: "Hold",
+    analystCount: 44,
+    catalyst: "Permitting reform · Robotaxi / FSD milestones · Energy storage growth",
     moat: "Brand, manufacturing scale, charging network, and software ambition create upside optionality.",
     plainBull: "Energy storage and autonomous driving can matter more than near-term car margins if execution improves.",
     plainBear: "EV price cuts, competition, and demand softness make the current multiple harder to defend."
@@ -126,6 +270,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.52,
     beta: 1.19,
     analystTarget: 225,
+    analystRating: "Strong Buy",
+    analystCount: 52,
+    catalyst: "AWS growth · Ads · Anthropic partnership",
     moat: "AWS, Prime, logistics scale, and ads create multiple profit engines.",
     plainBull: "AWS reacceleration and advertising growth can expand margins.",
     plainBear: "Cloud competition and antitrust pressure can cap the multiple."
@@ -143,6 +290,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.31,
     beta: 0.91,
     analystTarget: 470,
+    analystRating: "Strong Buy",
+    analystCount: 51,
+    catalyst: "Azure AI growth · Copilot adoption",
     moat: "Enterprise software distribution and Azure make Microsoft one of the stickiest platforms in the market.",
     plainBull: "AI can raise software pricing and cloud demand across a massive installed base.",
     plainBear: "The stock already prices in a lot of AI success."
@@ -160,6 +310,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.05,
     beta: 1.85,
     analystTarget: 190,
+    analystRating: "Buy",
+    analystCount: 42,
+    catalyst: "MI300 / AI GPU share · Data center CPU cycle",
     moat: "AMD has strong CPU execution and an emerging AI accelerator business.",
     plainBull: "If MI300 adoption broadens, earnings can grow into the valuation.",
     plainBear: "AI GPU expectations are high, and Nvidia remains the default buyer choice."
@@ -177,6 +330,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.11,
     beta: 1.04,
     analystTarget: 205,
+    analystRating: "Buy",
+    analystCount: 45,
+    catalyst: "Search + cloud AI monetization · Regulatory headline risk",
     moat: "Search intent data, YouTube, Android, and cloud scale are hard to replicate.",
     plainBull: "Search remains very profitable, and AI can improve ad tools if managed well.",
     plainBear: "Antitrust remedies and AI search disruption are real risks."
@@ -194,6 +350,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.25,
     beta: 1.22,
     analystTarget: 565,
+    analystRating: "Buy",
+    analystCount: 48,
+    catalyst: "Reels monetization · AI ranking capex · regulatory headlines",
     moat: "Massive social graph, ad targeting, and AI ranking infrastructure support high margins.",
     plainBull: "AI ad tools are improving monetization, and cost discipline remains visible.",
     plainBear: "Privacy rules, platform regulation, and heavy AI capex can pressure returns."
@@ -211,6 +370,9 @@ const FUNDAMENTALS = {
     debtToEquity: 0.48,
     beta: 3.44,
     analystTarget: 250,
+    analystRating: "Hold",
+    analystCount: 22,
+    catalyst: "Rulemaking calendar · Rates · Token volatility",
     moat: "Regulated exchange brand, custody, and institutional relationships help Coinbase survive cycles.",
     plainBull: "Clear crypto rules and higher token prices can expand trading and custody revenue.",
     plainBear: "The business is volatile and regulation can still land in a restrictive way."
@@ -228,6 +390,9 @@ const FUNDAMENTALS = {
     debtToEquity: null,
     beta: 1,
     analystTarget: 560,
+    analystRating: "ETF",
+    analystCount: null,
+    catalyst: "Fed path · earnings breadth · mega-cap concentration",
     moat: "Diversification across the largest U.S. companies.",
     plainBull: "Broad earnings growth and falling rates can support the index.",
     plainBear: "Large-cap concentration makes the ETF sensitive to mega-cap tech valuation."
@@ -245,6 +410,9 @@ const FUNDAMENTALS = {
     debtToEquity: null,
     beta: 1.06,
     analystTarget: 480,
+    analystRating: "ETF",
+    analystCount: null,
+    catalyst: "Rates · growth earnings · semis / mega-cap tech",
     moat: "Diversified exposure to the largest Nasdaq growth companies.",
     plainBull: "AI and software earnings can keep growth above the broad market.",
     plainBear: "High multiple growth stocks are sensitive to interest rates and disappointment."
@@ -252,9 +420,9 @@ const FUNDAMENTALS = {
 };
 
 const CRYPTO_FALLBACK = {
-  bitcoin: { symbol: "BTC", price: 68420, pct: 3.17, marketCap: 1347000000000 },
-  ethereum: { symbol: "ETH", price: 3291, pct: -1.44, marketCap: 395000000000 },
-  solana: { symbol: "SOL", price: 172, pct: 4.2, marketCap: 81000000000 }
+  bitcoin: { name: "Bitcoin", symbol: "BTC", price: 68420, pct: 3.17, marketCap: 1347000000000 },
+  ethereum: { name: "Ethereum", symbol: "ETH", price: 3291, pct: -1.44, marketCap: 395000000000 },
+  solana: { name: "Solana", symbol: "SOL", price: 172, pct: 4.2, marketCap: 81000000000 }
 };
 
 const POLICY_BILLS = [
@@ -270,9 +438,21 @@ const POLICY_BILLS = [
     floorScheduled: false,
     latestAction: "Reported out of committee 14-9",
     latestActionDate: "2026-04-28",
-    passageOdds: 34,
-    confidence: "medium",
-    affected: ["LLY", "MRK", "PFE", "ABBV", "UNH"],
+    tags: ["health", "pharma", "Medicare", "drug pricing"],
+    portfolioTickers: ["LLY"],
+    historicalAnalog: {
+      title: "ACA Drug Pricing Provision (2022)",
+      outcome:
+        "Failed Senate cloture 50-50; Inflation Reduction Act passed watered-down version (10 drugs, not 50). Similar committee trajectory.",
+      impact: "Pharma stocks recovered within six months after the hardest pricing scenario faded."
+    },
+    signals: {
+      bipartisanScore: 55,
+      committeeScore: 72,
+      floorScore: 20,
+      historicalScore: 40
+    },
+    affected: ["LLY", "MRK", "PFE", "ABBV", "UNH", "CVS"],
     lobbyingAgainst: 31,
     lobbyingFor: 2.1,
     lobbyingNote: "Pfizer, Merck, AbbVie combined $31M — 2.8x their normal quarterly spend. PhRMA trade group added $12M on top. When pharma triples lobbying spend, they believe the bill actually has a path.",
@@ -282,12 +462,16 @@ const POLICY_BILLS = [
     passImpacts: [
       { sym: "LLY", dir: -1, range: "-8 to -15%", why: "Mounjaro/Zepbound hit Medicare volume threshold in 2026" },
       { sym: "MRK", dir: -1, range: "-5 to -10%", why: "Keytruda is a prime negotiation target" },
+      { sym: "PFE", dir: -1, range: "-4 to -8%", why: "Multiple drugs in the negotiation pool" },
+      { sym: "ABBV", dir: -1, range: "-6 to -12%", why: "Humira/Skyrizi pricing at risk" },
       { sym: "UNH", dir: 1, range: "+3 to +6%", why: "Lower drug costs reduce claim payouts" },
+      { sym: "CVS", dir: 1, range: "+2 to +4%", why: "PBM margins improve on negotiated drugs" }
     ],
     failImpacts: [
       { sym: "LLY", dir: 1, range: "+4 to +8%", why: "Pricing power protected, overhang removed" },
       { sym: "MRK", dir: 1, range: "+2 to +5%", why: "Revenue forecasts intact" },
-    ],
+      { sym: "PFE", dir: 1, range: "+2 to +4%", why: "Pricing overhang clears" }
+    ]
   },
   {
     id: "H.R.4521-119",
@@ -301,8 +485,19 @@ const POLICY_BILLS = [
     floorScheduled: false,
     latestAction: "Signed into law. Grant disbursements underway.",
     latestActionDate: "2026-03-15",
-    passageOdds: 100,
-    confidence: "high",
+    tags: ["technology", "semiconductors", "manufacturing", "AI"],
+    portfolioTickers: ["NVDA"],
+    historicalAnalog: {
+      title: "CHIPS Act passage (2022)",
+      outcome: "Passed 64-33 Senate, 243-187 House. Semiconductor stocks rallied 8-12% in the week following passage.",
+      impact: "NVDA +9.2%, INTC +8.1%, AMAT +11.4% in the week after final passage."
+    },
+    signals: {
+      bipartisanScore: 95,
+      committeeScore: 100,
+      floorScore: 100,
+      historicalScore: 88
+    },
     affected: ["NVDA", "INTC", "TSM", "AMAT", "ASML"],
     lobbyingAgainst: 1.2,
     lobbyingFor: 24,
@@ -314,8 +509,10 @@ const POLICY_BILLS = [
       { sym: "NVDA", dir: 1, range: "+5 to +10%", why: "TSMC US capacity expansion = supply security, geopolitical risk reduction" },
       { sym: "INTC", dir: 1, range: "+8 to +14%", why: "Direct grant recipient — Columbus OH fab funded" },
       { sym: "TSM", dir: 1, range: "+4 to +8%", why: "Arizona fab expansion grants reduce capital cost" },
+      { sym: "AMAT", dir: 1, range: "+6 to +10%", why: "Fab equipment orders surge with new US fabs" },
+      { sym: "ASML", dir: 1, range: "+3 to +6%", why: "Lithography demand from US fab expansion" }
     ],
-    failImpacts: [],
+    failImpacts: []
   },
   {
     id: "H.R.7813-119",
@@ -329,25 +526,37 @@ const POLICY_BILLS = [
     floorScheduled: false,
     latestAction: "Markup postponed — insufficient votes",
     latestActionDate: "2026-02-14",
-    passageOdds: 18,
-    confidence: "high",
+    tags: ["technology", "antitrust", "platform"],
+    portfolioTickers: ["AMZN", "AAPL", "GOOGL", "META"],
+    historicalAnalog: {
+      title: "American Choice and Innovation Online Act (2022)",
+      outcome: "Died in Senate after similar trajectory; never reached floor despite committee clearance.",
+      impact: "Mega-cap tech priced an 8-12% risk premium when active; recovered when bills stalled."
+    },
+    signals: {
+      bipartisanScore: 30,
+      committeeScore: 20,
+      floorScore: 5,
+      historicalScore: 25
+    },
     affected: ["AMZN", "AAPL", "GOOGL", "META"],
     lobbyingAgainst: 18.4,
     lobbyingFor: 0.8,
     lobbyingNote: "AMZN, AAPL, GOOGL, META combined $18.4M against. Key signal: small business groups lobbying alongside tech companies. When natural enemies align, the bill's political coalition becomes untenable.",
-    plainEnglish: "Would ban Amazon from favoring Amazon Basics, Apple from giving its own apps placement advantages, and Google from putting its own services above organic results. Passage odds collapsed after unusual coalition formed against it.",
+    plainEnglish: "Would ban Amazon from favoring Amazon Basics, Apple from giving its own apps placement advantages, and Google from putting its own services above organic results. Legislative momentum faded after an unusual coalition formed against it.",
     signal: "Small-business groups and mega-cap platforms are unusually aligned against the bill, weakening the coalition.",
     impact: "Failure removes antitrust risk premium from mega-cap platform names.",
     passImpacts: [
       { sym: "AMZN", dir: -1, range: "-8 to -14%", why: "Marketplace neutrality destroys algorithmic advantage" },
       { sym: "AAPL", dir: -1, range: "-5 to -9%", why: "App Store search placement restrictions" },
       { sym: "GOOGL", dir: -1, range: "-6 to -11%", why: "Search result self-preferencing banned" },
+      { sym: "META", dir: -1, range: "-3 to -6%", why: "Ad targeting restrictions on own-platform data" }
     ],
     failImpacts: [
       { sym: "AMZN", dir: 1, range: "+4 to +8%", why: "Antitrust overhang cleared — marketplace model intact" },
       { sym: "AAPL", dir: 1, range: "+2 to +5%", why: "App Store pricing power preserved" },
-      { sym: "GOOGL", dir: 1, range: "+3 to +6%", why: "Search ad dominance protected" },
-    ],
+      { sym: "GOOGL", dir: 1, range: "+3 to +6%", why: "Search ad dominance protected" }
+    ]
   },
   {
     id: "S.1823-119",
@@ -361,8 +570,19 @@ const POLICY_BILLS = [
     floorScheduled: false,
     latestAction: "Joint committee hearing held. 60-day comment period open.",
     latestActionDate: "2026-04-10",
-    passageOdds: 44,
-    confidence: "medium",
+    tags: ["crypto", "financial", "SEC", "regulation"],
+    portfolioTickers: ["COIN"],
+    historicalAnalog: {
+      title: "FIT21 Act (2024)",
+      outcome: "Passed House 279-136 bipartisan; stalled in Senate.",
+      impact: "COIN +22% the week FIT21 passed House; retraced when Senate did not move."
+    },
+    signals: {
+      bipartisanScore: 60,
+      committeeScore: 45,
+      floorScore: 30,
+      historicalScore: 35
+    },
     affected: ["COIN", "BTC", "ETH"],
     lobbyingAgainst: 1.1,
     lobbyingFor: 6.2,
@@ -373,10 +593,12 @@ const POLICY_BILLS = [
     passImpacts: [
       { sym: "COIN", dir: 1, range: "+15 to +30%", why: "Business certainty — Coinbase's regulatory cloud cleared" },
       { sym: "BTC", dir: 1, range: "+8 to +15%", why: "Institutional confidence unlocked with clear rules" },
+      { sym: "ETH", dir: 1, range: "+10 to +18%", why: "Likely commodity classification reduces SEC overhang" }
     ],
     failImpacts: [
       { sym: "COIN", dir: -1, range: "-8 to -15%", why: "Status quo ambiguity remains — continued regulatory risk" },
-    ],
+      { sym: "BTC", dir: -1, range: "-3 to -6%", why: "Uncertainty overhang continues" }
+    ]
   },
   {
     id: "S.3891-119",
@@ -390,8 +612,19 @@ const POLICY_BILLS = [
     floorScheduled: true,
     latestAction: "Markup session completed. Reported favorably 12-10.",
     latestActionDate: "2026-04-22",
-    passageOdds: 58,
-    confidence: "medium",
+    tags: ["energy", "environment", "EV", "clean energy"],
+    portfolioTickers: ["TSLA"],
+    historicalAnalog: {
+      title: "Fiscal Responsibility Act permitting provisions (2023)",
+      outcome: "Passed with narrower permitting reforms than standalone bills.",
+      impact: "Clean energy names moved +3-5% on headline permitting relief."
+    },
+    signals: {
+      bipartisanScore: 72,
+      committeeScore: 68,
+      floorScore: 60,
+      historicalScore: 55
+    },
     affected: ["TSLA", "ENPH", "FSLR"],
     lobbyingAgainst: 8.4,
     lobbyingFor: 11.2,
@@ -402,11 +635,93 @@ const POLICY_BILLS = [
     passImpacts: [
       { sym: "TSLA", dir: 1, range: "+3 to +7%", why: "Gigafactory and Supercharger expansion timelines compress from 6 years to 2" },
       { sym: "ENPH", dir: 1, range: "+5 to +9%", why: "Solar install permitting dramatically faster" },
+      { sym: "FSLR", dir: 1, range: "+4 to +8%", why: "Large-scale solar approvals faster" }
     ],
-    failImpacts: [
-      { sym: "TSLA", dir: -1, range: "-2 to -4%", why: "Permitting bottlenecks remain — expansion slower" },
-    ],
+    failImpacts: [{ sym: "TSLA", dir: -1, range: "-2 to -4%", why: "Permitting bottlenecks remain — expansion slower" }]
   },
+  {
+    id: "H.R.3456-119",
+    title: "AI Accountability and Transparency Act",
+    shortTitle: "Disclosures and audits for high-risk AI systems",
+    chamber: "House",
+    status: "introduced",
+    sponsor: { name: "T. Lieu", party: "D", state: "CA" },
+    cosponsors: 6,
+    bipartisanCosponsors: 1,
+    floorScheduled: false,
+    latestAction: "Referred to committee. No hearing scheduled.",
+    latestActionDate: "2026-03-02",
+    tags: ["AI", "technology", "regulation"],
+    portfolioTickers: ["NVDA", "MSFT", "GOOGL", "META"],
+    historicalAnalog: {
+      title: "EU AI Act analogues",
+      outcome: "US Congress has not passed AI-specific legislation; most bills die in committee.",
+      impact: "Limited historical US market reaction to draft AI disclosure bills."
+    },
+    signals: {
+      bipartisanScore: 15,
+      committeeScore: 10,
+      floorScore: 5,
+      historicalScore: 20
+    },
+    affected: ["NVDA", "MSFT", "GOOGL", "META"],
+    lobbyingAgainst: 4.1,
+    lobbyingFor: 0.3,
+    lobbyingNote:
+      "Big tech spending $4.1M against. Routine opposition — not the 3x spike that signals existential legislative threat. Low momentum environment.",
+    plainEnglish:
+      "Would require algorithmic audits and transparency reports for high-risk AI in healthcare, finance, hiring, and criminal justice. Disclosure burden, not a ban.",
+    signal: "Low-intensity lobbying and stalled committee calendar suggest limited near-term passage risk.",
+    impact: "Mostly compliance overhead for cloud and platform names if it ever advances.",
+    passImpacts: [
+      { sym: "NVDA", dir: -1, range: "-1 to -3%", why: "Hardware not directly regulated; sentiment drag possible" },
+      { sym: "MSFT", dir: -1, range: "-1 to -2%", why: "Compliance and audit costs" },
+      { sym: "GOOGL", dir: -1, range: "-1 to -2%", why: "Audit and disclosure overhead" }
+    ],
+    failImpacts: [{ sym: "NVDA", dir: 0, range: "Minimal", why: "Low momentum limits risk premium" }]
+  },
+  {
+    id: "H.R.6023-119",
+    title: "Foreign Investment Transparency and Security Act",
+    shortTitle: "Chinese investment restrictions in semis and AI",
+    chamber: "House",
+    status: "committee",
+    sponsor: { name: "M. McCaul", party: "R", state: "TX" },
+    cosponsors: 44,
+    bipartisanCosponsors: 22,
+    floorScheduled: false,
+    latestAction: "Passed House Foreign Affairs Committee 32-8. Referred to Intel Committee.",
+    latestActionDate: "2026-04-18",
+    tags: ["foreign policy", "technology", "China", "national security"],
+    portfolioTickers: ["NVDA", "TSM", "ASML"],
+    historicalAnalog: {
+      title: "CHIPS export controls + BIS expansions",
+      outcome: "National-security framed trade rules have repeatedly advanced with bipartisan support.",
+      impact: "NVDA sold off ~15% on initial H100 export headlines; incremental rules add headline risk."
+    },
+    signals: {
+      bipartisanScore: 78,
+      committeeScore: 65,
+      floorScore: 35,
+      historicalScore: 62
+    },
+    affected: ["NVDA", "TSM", "ASML", "INTC"],
+    lobbyingAgainst: 2.8,
+    lobbyingFor: 3.2,
+    lobbyingNote:
+      "Balanced filing environment: defense groups for, Chamber types against. Strong bipartisan cosponsor count is the bullish passage signal.",
+    plainEnglish:
+      "Would expand CFIUS-style screening for Chinese-linked investment into US semiconductor and AI companies. Highest sensitivity for China revenue exposure.",
+    signal: "Bipartisan committee momentum contrasts with typical partisan tech fights.",
+    impact: "Passage raises compliance and capital access concerns for fabs and designers with China links.",
+    passImpacts: [
+      { sym: "NVDA", dir: -1, range: "-4 to -9%", why: "China datacenter revenue further constrained" },
+      { sym: "TSM", dir: -1, range: "-3 to -7%", why: "Advanced-node China demand risk" },
+      { sym: "ASML", dir: -1, range: "-2 to -5%", why: "Further tightening of China equipment paths" },
+      { sym: "INTC", dir: 1, range: "+2 to +4%", why: "US-only manufacturing relative winner" }
+    ],
+    failImpacts: [{ sym: "NVDA", dir: 1, range: "+3 to +6%", why: "China revenue overhang partially lifts" }]
+  }
 ];
 
 const LOBBYING_FALLBACK = [
@@ -582,9 +897,15 @@ async function route(req, res) {
     if (pathname === "/api/policy/network") return policyNetwork(res, url);
     if (pathname === "/api/crypto") return cryptoPrices(res, url);
     if (pathname === "/api/congress/bills") return congressBills(res, url);
+    if (pathname.startsWith("/api/contracts/") && req.method === "GET") return contractsByCompany(res, pathname);
+    if (pathname.startsWith("/api/agency-budget/") && req.method === "GET") return agencyBudget(res, pathname);
+    if (pathname === "/api/appointments" && req.method === "GET") return recentAppointments(res);
+    if (pathname === "/api/methodology") return methodologyDoc(res);
+    if (pathname === "/api/policy/bill-metrics") return billPolicyMetrics(res, url);
     if (pathname === "/api/lobbying") return lobbying(res);
     if (pathname === "/api/trading/account") return paperAccount(res, session);
     if (pathname === "/api/trading/orders" && req.method === "POST") return paperOrder(req, res, session);
+    if (pathname.startsWith("/api/edgar/") && req.method === "GET") return edgarRiskFactors(res, pathname);
     if (pathname === "/api/research/ask" && req.method === "POST") return researchAsk(req, res, session);
   }
 
@@ -619,7 +940,8 @@ function publicConfig() {
       congress: Boolean(process.env.CONGRESS_API_KEY),
       senateLda: Boolean(process.env.SENATE_LDA_API_KEY),
       alpaca: Boolean(process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRET_KEY),
-      anthropic: Boolean(process.env.ANTHROPIC_API_KEY)
+      anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+      secEdgar: true
     },
     safety: {
       liveTradingEnabled: process.env.ALLOW_LIVE_TRADING === "true",
@@ -659,16 +981,25 @@ async function waitlistSignup(req, res) {
 }
 
 async function marketQuotes(res, url) {
-  const symbols = (url.searchParams.get("symbols") || "SPY,QQQ,NVDA,AAPL,LLY,TSLA,AMZN,MSFT,AMD,GOOGL,META,COIN")
+  const symbolsParam =
+    url.searchParams.get("symbols") || "SPY,QQQ,NVDA,AAPL,TSLA,LLY,AMZN,MSFT,AMD,META";
+  const symbols = symbolsParam
     .split(",")
     .map((symbol) => symbol.trim().toUpperCase())
     .filter(Boolean)
     .slice(0, 40);
+  console.log(
+    "QUOTES REQUEST received for symbols:",
+    symbolsParam,
+    "FINNHUB KEY present:",
+    Boolean(process.env.FINNHUB_API_KEY)
+  );
   const token = process.env.FINNHUB_API_KEY;
 
   if (!token) {
-    const quotes = symbols.map((symbol) => MARKET_FALLBACK[symbol]).filter(Boolean);
-    return sendJson(res, 200, { source: "fallback", quotes, updatedAt: new Date().toISOString() });
+    console.error("Finnhub API key missing — serving static MARKET_FALLBACK only.");
+    const quotes = symbols.map((symbol) => enrichStaticQuote(MARKET_FALLBACK[symbol])).filter(Boolean);
+    return sendJson(res, 200, { source: "fallback", quotes, confidence: "Medium", updatedAt: new Date().toISOString() });
   }
 
   const quotes = await Promise.all(
@@ -676,27 +1007,37 @@ async function marketQuotes(res, url) {
       try {
         const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
         const response = await fetchWithTimeout(quoteUrl, {}, 7000);
-        if (!response.ok) throw new Error(`finnhub_${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
-        if (!Number(data.c)) throw new Error("empty_quote");
-        return {
+        return mapFinnhubQuoteResponse(symbol, data);
+      } catch (error) {
+        console.error(
+          "Finnhub fetch failed:",
+          error?.message || String(error),
+          "symbol:",
           symbol,
-          price: data.c,
-          change: data.d,
-          pct: data.dp,
-          high: data.h,
-          low: data.l,
-          open: data.o,
-          previousClose: data.pc,
-          timestamp: data.t ? new Date(data.t * 1000).toISOString() : null
-        };
-      } catch {
-        return MARKET_FALLBACK[symbol] || null;
+          "falling back to static data"
+        );
+        return enrichStaticQuote(MARKET_FALLBACK[symbol]);
       }
     })
   );
 
-  sendJson(res, 200, { source: "finnhub", quotes: quotes.filter(Boolean), updatedAt: new Date().toISOString() });
+  const filteredQuotes = quotes.filter(Boolean);
+  const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
+  const source =
+    liveCount === 0 ? "fallback" : liveCount < filteredQuotes.length ? "mixed" : "finnhub";
+
+  sendJson(res, 200, {
+    source,
+    quotes: filteredQuotes,
+    confidence: scoreConfidence({
+      missingInputs: Math.max(0, symbols.length - filteredQuotes.length)
+    }),
+    updatedAt: new Date().toISOString()
+  });
 }
 
 async function marketHistory(res, url) {
@@ -732,6 +1073,7 @@ async function marketHistory(res, url) {
           range,
           points,
           stats: historyStats(points),
+          confidence: "High",
           updatedAt: new Date().toISOString()
         });
       }
@@ -748,6 +1090,7 @@ async function marketHistory(res, url) {
       range,
       points: yahooPoints,
       stats: historyStats(yahooPoints),
+      confidence: "Medium",
       updatedAt: new Date().toISOString()
     });
   }
@@ -760,12 +1103,13 @@ async function marketHistory(res, url) {
       range,
       points: stooqPoints,
       stats: historyStats(stooqPoints),
+      confidence: "Medium",
       updatedAt: new Date().toISOString()
     });
   }
 
   const quoteResult = await quoteSnapshot(symbol);
-  const quote = quoteResult.quote || MARKET_FALLBACK[symbol] || { symbol, price: 100, pct: 0 };
+  const quote = quoteResult.quote || enrichStaticQuote(MARKET_FALLBACK[symbol]) || { symbol, price: 100, pct: 0, changePercent: 0 };
   const points = buildHistoricalSeries(symbol, range, quote);
   sendJson(res, 200, {
     source: "modeled_history",
@@ -773,6 +1117,7 @@ async function marketHistory(res, url) {
     range,
     points,
     stats: historyStats(points),
+    confidence: "Medium",
     updatedAt: new Date().toISOString()
   });
 }
@@ -781,7 +1126,7 @@ async function stockAnalysis(res, url) {
   const requested = String(url.searchParams.get("symbol") || "NVDA").toUpperCase().replace(/[^A-Z.]/g, "");
   const symbol = FUNDAMENTALS[requested] || MARKET_FALLBACK[requested] ? requested : "NVDA";
   const quoteResult = await quoteSnapshot(symbol);
-  const quote = quoteResult.quote || MARKET_FALLBACK[symbol] || { symbol, price: 0, change: 0, pct: 0 };
+  const quote = quoteResult.quote || enrichStaticQuote(MARKET_FALLBACK[symbol]) || { symbol, price: 0, change: 0, pct: 0, changePercent: 0 };
   const fundamentals = FUNDAMENTALS[symbol] || {
     name: symbol,
     sector: "Tracked equity",
@@ -795,12 +1140,15 @@ async function stockAnalysis(res, url) {
     debtToEquity: null,
     beta: null,
     analystTarget: null,
+    analystRating: null,
+    analystCount: null,
+    catalyst: null,
     moat: "Add a fundamentals provider to replace this modeled profile with live company data.",
     plainBull: "The live price feed is connected, but fundamentals are not mapped yet.",
     plainBear: "Without fundamentals, this ticker should be treated as quote-only."
   };
   const relatedBills = POLICY_BILLS.filter((bill) => (bill.affected || []).includes(symbol));
-  const policyExposure = relatedBills.reduce((max, bill) => Math.max(max, Number(bill.passageOdds || 0)), 0);
+  const policyExposure = relatedBills.reduce((max, bill) => Math.max(max, computeLegislativeMomentum(bill)), 0);
   const valuationRisk = valuationRiskScore(fundamentals);
   const volatilityRisk = Math.min(100, Math.round(Number(fundamentals.beta || 1) * 38));
   const policyGraph = buildPolicyNetwork(symbol);
@@ -819,6 +1167,10 @@ async function stockAnalysis(res, url) {
       moat: fundamentals.moat
     },
     quote,
+    confidence: scoreConfidence({
+      staleInputs: quoteResult.source === "finnhub" ? 0 : 1,
+      estimatedInputs: 1
+    }),
     fundamentals,
     summary: {
       bull: fundamentals.plainBull,
@@ -832,7 +1184,7 @@ async function stockAnalysis(res, url) {
       businessQuality: qualityBars(fundamentals),
       riskRadar: [
         { label: "Valuation sensitivity", value: valuationRisk, explain: "Higher means the stock has less room for disappointment." },
-        { label: "Policy exposure", value: policyExposure, explain: "Highest passage odds among mapped bills touching this ticker." },
+        { label: "Policy exposure", value: policyExposure, explain: "Highest legislative momentum among mapped bills touching this ticker." },
         { label: "Market volatility", value: volatilityRisk, explain: "Based on beta. Higher beta usually means wider daily swings." },
         { label: "Balance-sheet pressure", value: debtRiskScore(fundamentals.debtToEquity), explain: "Higher debt can reduce flexibility when rates are high." }
       ]
@@ -865,6 +1217,9 @@ function buildPolicyNetwork(symbol) {
     source,
     updatedAt: new Date().toISOString(),
     focusSymbol,
+    confidence: scoreConfidence({
+      missingInputs: focusBills.length ? 0 : 2
+    }),
     summary: buildPolicySummary(focusSymbol, focusBills),
     allBills,
     focusBills,
@@ -873,18 +1228,11 @@ function buildPolicyNetwork(symbol) {
 }
 
 function enrichPolicyBill(bill, focusSymbol = "") {
+  const metrics = augmentBillMetrics(bill);
   const model = POLICY_STAKEHOLDERS[bill.id] || emptyStakeholderModel(bill);
   const focusImpact = model.tickerImpacts.find((impact) => impact.symbol === focusSymbol) ||
     model.tickerImpacts.find((impact) => (bill.affected || []).includes(impact.symbol)) ||
     null;
-  const lobbyingPressure = Number(bill.lobbyingAgainst || 0) + Number(bill.lobbyingFor || 0);
-  const impactScore = Math.max(
-    1,
-    Math.min(
-      5,
-      Math.round((Number(bill.passageOdds || 0) / 25) + (lobbyingPressure >= 20 ? 1 : 0))
-    )
-  );
   const topOpposition = model.lobbying
     .filter((item) => item.stance === "against")
     .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
@@ -894,7 +1242,7 @@ function enrichPolicyBill(bill, focusSymbol = "") {
 
   return {
     ...bill,
-    impactScore,
+    ...metrics,
     relationshipSummary: focusImpact
       ? `${focusSymbol}: ${focusImpact.mechanism}`
       : bill.impact,
@@ -911,14 +1259,14 @@ function enrichPolicyBill(bill, focusSymbol = "") {
       {
         label: "Lobbying pressure",
         text: topOpposition
-          ? `${topOpposition.name} and aligned groups are spending against the bill, which signals revenue or margin risk.`
+          ? `Lobbying pressure score ${metrics.lobbyingPressureScore}/100 (${metrics.lobbyingSignalConfidence} confidence). ${topOpposition.name} and aligned groups are spending against the bill, which signals revenue or margin risk.`
           : topSupport
-            ? `${topSupport.name} and aligned groups are spending for the bill, which signals they want faster implementation.`
-            : "No large lobbying spike has been mapped yet."
+            ? `Lobbying pressure score ${metrics.lobbyingPressureScore}/100 (${metrics.lobbyingSignalConfidence} confidence). ${topSupport.name} and aligned groups are spending for the bill, which signals they want faster implementation.`
+            : `Lobbying pressure score ${metrics.lobbyingPressureScore}/100 (${metrics.lobbyingSignalConfidence} confidence). No large lobbying spike has been mapped yet.`
       },
       {
         label: "Congress path",
-        text: `${bill.status} in the ${bill.chamber}. Latest action: ${bill.latestAction}. Modeled passage odds: ${bill.passageOdds}%.`
+        text: `${bill.status} in the ${bill.chamber}. Latest action: ${bill.latestAction}. Legislative momentum: ${metrics.legislativeMomentum}/100 (${metrics.signalConfidence} confidence).`
       },
       {
         label: "Investor mechanism",
@@ -936,8 +1284,8 @@ function buildPolicySummary(symbol, bills) {
       riskLevel: "low"
     };
   }
-  const strongest = bills.slice().sort((a, b) => Number(b.impactScore || 0) - Number(a.impactScore || 0))[0];
-  const riskLevel = strongest.impactScore >= 4 ? "high" : strongest.impactScore >= 3 ? "medium" : "watch";
+  const strongest = bills.slice().sort((a, b) => Number(b.policyExposure || 0) - Number(a.policyExposure || 0))[0];
+  const riskLevel = strongest.policyExposure >= 67 ? "high" : strongest.policyExposure >= 40 ? "medium" : "watch";
   return {
     headline: `${symbol} is linked to ${bills.length} policy ${bills.length === 1 ? "chain" : "chains"}.`,
     detail: `${strongest.title} is the highest-impact mapping: ${strongest.relationshipSummary}`,
@@ -972,11 +1320,11 @@ function buildStakeholderMap(symbol, bills) {
       type: "bill",
       label: bill.id,
       title: bill.title,
-      detail: `${bill.passageOdds}% odds - ${bill.status}`,
-      tone: bill.passageOdds >= 60 ? "green" : bill.passageOdds < 35 ? "red" : "amber"
+      detail: `Legislative momentum ${bill.legislativeMomentum}/100 - ${bill.status}`,
+      tone: bill.legislativeMomentum >= 67 ? "green" : bill.legislativeMomentum < 35 ? "red" : "amber"
     });
     if ((bill.affected || []).includes(symbol)) {
-      addLink(billId, `ticker:${symbol}`, stockImpactChannel(symbol, bill), "green", Number(bill.passageOdds || 0));
+      addLink(billId, `ticker:${symbol}`, stockImpactChannel(symbol, bill), "green", Number(bill.legislativeMomentum || 0));
     }
 
     for (const lawmaker of model.lawmakers.slice(0, 4)) {
@@ -1064,32 +1412,28 @@ function slug(value) {
 }
 
 async function quoteSnapshot(symbol) {
-  const fallback = MARKET_FALLBACK[symbol] || null;
+  const fallbackRow = enrichStaticQuote(MARKET_FALLBACK[symbol]) || null;
   const token = process.env.FINNHUB_API_KEY;
-  if (!token) return { source: "fallback", quote: fallback };
+  if (!token) return { source: "fallback", quote: fallbackRow };
 
   try {
     const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
     const response = await fetchWithTimeout(quoteUrl, {}, 7000);
-    if (!response.ok) throw new Error(`finnhub_${response.status}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    if (!Number(data.c)) throw new Error("empty_quote");
     return {
       source: "finnhub",
-      quote: {
-        symbol,
-        price: data.c,
-        change: data.d,
-        pct: data.dp,
-        high: data.h,
-        low: data.l,
-        open: data.o,
-        previousClose: data.pc,
-        timestamp: data.t ? new Date(data.t * 1000).toISOString() : null
-      }
+      quote: mapFinnhubQuoteResponse(symbol, data)
     };
-  } catch {
-    return { source: "fallback", quote: fallback };
+  } catch (error) {
+    console.error(
+      "Finnhub fetch failed:",
+      error?.message || String(error),
+      "symbol:",
+      symbol,
+      "falling back to static data"
+    );
+    return { source: "fallback", quote: fallbackRow };
   }
 }
 
@@ -1352,13 +1696,15 @@ function buildPolicyChains(symbol, bills) {
       : Number(bill.lobbyingFor || 0) >= 10
         ? `$${Number(bill.lobbyingFor).toFixed(1)}M lobbying for means the industry wants implementation speed.`
         : "Lobbying is present, but not yet a panic signal.";
+    const lm = computeLegislativeMomentum(bill);
+    const conf = billSignalConfidence(bill);
     return {
       title: `${bill.title} -> ${symbol}`,
-      tone: bill.passageOdds >= 60 ? "green" : bill.passageOdds < 35 ? "red" : "amber",
+      tone: lm >= 67 ? "green" : lm < 35 ? "red" : "amber",
       summary: stockImpactChannel(symbol, bill),
       steps: [
         { label: "1. Filing signal", text: lobbyingText },
-        { label: "2. Bill pressure", text: `${bill.status} status with ${bill.passageOdds}% modeled passage odds. Latest action: ${bill.latestAction}.` },
+        { label: "2. Bill pressure", text: `${bill.status} status. Legislative momentum ${lm}/100. Policy exposure ${lm}/100 · Confidence ${conf}. Latest action: ${bill.latestAction}.` },
         { label: "3. Stock channel", text: stockImpactChannel(symbol, bill) },
         { label: "4. Plain-English read", text: "The filing does not move the stock by itself. It tells you where political pressure is building before the market fully prices the scenario." }
       ]
@@ -1390,7 +1736,7 @@ function apiExplanations(symbol) {
       status: process.env.CONGRESS_API_KEY ? "connected" : "fallback",
       what: "Bill titles, chamber, latest action, and legislative status.",
       investorUse: "Committee movement and floor action can turn a political idea into a market event.",
-      causalChain: "Bill advances -> passage odds rise -> affected ticker risk/reward changes."
+      causalChain: "Bill advances -> legislative momentum rises -> affected ticker risk/reward changes."
     },
     {
       name: "LDA.gov lobbying",
@@ -1460,23 +1806,53 @@ async function cryptoPrices(res, url) {
   const priceUrl = `${base}/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd&include_market_cap=true&include_24hr_change=true&include_last_updated_at=true`;
   const headers = key ? { [pro ? "x-cg-pro-api-key" : "x-cg-demo-api-key"]: key } : {};
 
+  const cryptoDisplayName = (id) =>
+    ({ bitcoin: "Bitcoin", ethereum: "Ethereum", solana: "Solana" }[id] || id.replace(/-/g, " "));
+
   try {
     const response = await fetchWithTimeout(priceUrl, { headers }, 7000);
     if (!response.ok) throw new Error(`coingecko_${response.status}`);
     const data = await response.json();
     const assets = Object.entries(data).map(([id, value]) => ({
       id,
+      name: cryptoDisplayName(id),
       symbol: id === "bitcoin" ? "BTC" : id === "ethereum" ? "ETH" : id === "solana" ? "SOL" : id.toUpperCase(),
       price: value.usd,
       pct: value.usd_24h_change,
+      change24h: value.usd_24h_change,
       marketCap: value.usd_market_cap,
       lastUpdatedAt: value.last_updated_at ? new Date(value.last_updated_at * 1000).toISOString() : null
     }));
-    sendJson(res, 200, { source: key ? "coingecko" : "coingecko_public", assets, updatedAt: new Date().toISOString() });
+    sendJson(res, 200, {
+      source: key ? "coingecko" : "coingecko_public",
+      assets,
+      confidence: key ? "High" : "Medium",
+      updatedAt: new Date().toISOString()
+    });
   } catch {
+    const assets =
+      ids.length > 0
+        ? ids.map((id) => {
+            const row = CRYPTO_FALLBACK[id];
+            if (row && row.price != null) {
+              return { id, change24h: row.pct, ...row };
+            }
+            return {
+              id,
+              name: `${cryptoDisplayName(id)} (offline sample)`,
+              symbol: id === "bitcoin" ? "BTC" : id === "ethereum" ? "ETH" : id === "solana" ? "SOL" : id.slice(0, 4).toUpperCase(),
+              price: null,
+              pct: null,
+              change24h: null,
+              marketCap: null,
+              placeholder: true
+            };
+          })
+        : Object.entries(CRYPTO_FALLBACK).map(([id, row]) => ({ id, change24h: row.pct, ...row }));
     sendJson(res, 200, {
       source: "fallback",
-      assets: ids.map((id) => ({ id, ...CRYPTO_FALLBACK[id] })).filter((asset) => asset.price),
+      assets,
+      confidence: "Medium",
       updatedAt: new Date().toISOString()
     });
   }
@@ -1489,7 +1865,8 @@ async function congressBills(res, url) {
   if (!key) {
     return sendJson(res, 200, {
       source: "fallback",
-      bills: filterBills(POLICY_BILLS, query),
+      bills: filterBills(POLICY_BILLS.map(decorateBill), query),
+      confidence: "Medium",
       updatedAt: new Date().toISOString()
     });
   }
@@ -1499,25 +1876,20 @@ async function congressBills(res, url) {
     const response = await fetchWithTimeout(billUrl, {}, 9000);
     if (!response.ok) throw new Error(`congress_${response.status}`);
     const data = await response.json();
-    const liveBills = (data.bills || []).map((bill) => ({
-      id: `${bill.type}.${bill.number}-${bill.congress}`,
-      title: bill.title,
-      shortTitle: bill.title,
-      chamber: bill.originChamber || bill.type,
-      status: "Live Congress.gov",
-      latestAction: bill.latestAction?.text || "Updated by Congress.gov",
-      latestActionDate: bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText,
-      passageOdds: estimatePassageOdds(bill),
-      confidence: "low",
-      affected: inferTickers(bill.title),
-      lobbyingAgainst: null,
-      lobbyingFor: null,
-      signal: "Live Congress.gov record. Add lobbying and committee scoring to turn this into a stronger trading signal.",
-      impact: "Impact requires ticker mapping and historical analog model."
-    }));
-    sendJson(res, 200, { source: "congress.gov", bills: filterBills([...POLICY_BILLS, ...liveBills], query), updatedAt: new Date().toISOString() });
+    const liveBills = (data.bills || []).map((bill) => decorateBill(normalizeLiveCongressBill(bill)));
+    sendJson(res, 200, {
+      source: "congress.gov",
+      bills: filterBills([...POLICY_BILLS.map(decorateBill), ...liveBills], query),
+      confidence: "High",
+      updatedAt: new Date().toISOString()
+    });
   } catch {
-    sendJson(res, 200, { source: "fallback", bills: filterBills(POLICY_BILLS, query), updatedAt: new Date().toISOString() });
+    sendJson(res, 200, {
+      source: "fallback",
+      bills: filterBills(POLICY_BILLS.map(decorateBill), query),
+      confidence: "Medium",
+      updatedAt: new Date().toISOString()
+    });
   }
 }
 
@@ -1529,7 +1901,7 @@ async function lobbying(res) {
     const response = await fetchWithTimeout("https://lda.gov/api/v1/filings/?limit=20&ordering=-dt_posted&format=json", { headers }, 9000);
     if (!response.ok) throw new Error(`lda_${response.status}`);
     const data = await response.json();
-    const filings = (data.results || []).map((item) => ({
+    const filings = (data.results || []).map((item) => decorateLobbyingFiling({
       client: item.client?.name || "Unknown client",
       registrant: item.registrant?.name || "Unknown registrant",
       amount: Number(item.amount || item.expenses || 0),
@@ -1538,9 +1910,19 @@ async function lobbying(res) {
       portfolio: false,
       postedAt: item.dt_posted || null
     }));
-    sendJson(res, 200, { source: "senate_lda", filings: filings.length ? filings : LOBBYING_FALLBACK, updatedAt: new Date().toISOString() });
+    sendJson(res, 200, {
+      source: "senate_lda",
+      filings: filings.length ? filings : LOBBYING_FALLBACK.map((row) => decorateLobbyingFiling({ ...row, postedAt: row.postedAt || "2026-04-01" })),
+      confidence: filings.length ? "High" : "Medium",
+      updatedAt: new Date().toISOString()
+    });
   } catch {
-    sendJson(res, 200, { source: "fallback", filings: LOBBYING_FALLBACK, updatedAt: new Date().toISOString() });
+    sendJson(res, 200, {
+      source: "fallback",
+      filings: LOBBYING_FALLBACK.map((row) => decorateLobbyingFiling({ ...row, postedAt: row.postedAt || "2026-04-01" })),
+      confidence: "Medium",
+      updatedAt: new Date().toISOString()
+    });
   }
 }
 
@@ -1563,7 +1945,7 @@ async function paperOrder(req, res, session) {
   }
 
   const quoteResult = await quoteSnapshot(symbol);
-  const quote = quoteResult.quote || MARKET_FALLBACK[symbol];
+  const quote = quoteResult.quote || enrichStaticQuote(MARKET_FALLBACK[symbol]);
   if (!quote || !Number(quote.price)) {
     return sendJson(res, 400, { error: "quote_unavailable", message: "No quote is available for that symbol." });
   }
@@ -1626,19 +2008,29 @@ async function paperSnapshot(account) {
   const positionList = Object.values(account.positions || {});
   const quotes = await Promise.all(positionList.map((position) => quoteSnapshot(position.symbol)));
   const positions = positionList.map((position, index) => {
-    const quote = quotes[index].quote || MARKET_FALLBACK[position.symbol] || {};
-    const price = Number(quote.price || position.avgCost || 0);
-    const marketValue = price * Number(position.qty || 0);
+    const snap = quotes[index];
+    const rawQuote =
+      snap?.quote ||
+      enrichStaticQuote(MARKET_FALLBACK[position.symbol]) ||
+      {};
+    let livePrice = Number(rawQuote.price);
+    let priceBasis = "market";
+    if (!Number.isFinite(livePrice) || livePrice <= 0) {
+      livePrice = Number(position.avgCost || 0);
+      priceBasis = "cost_basis_fallback";
+    }
+    const marketValue = livePrice * Number(position.qty || 0);
     const costBasis = Number(position.avgCost || 0) * Number(position.qty || 0);
     const unrealizedPnl = marketValue - costBasis;
     return {
       ...position,
-      price,
+      price: livePrice,
+      priceBasis,
       marketValue: Number(marketValue.toFixed(2)),
       costBasis: Number(costBasis.toFixed(2)),
       unrealizedPnl: Number(unrealizedPnl.toFixed(2)),
       unrealizedPnlPct: costBasis ? (unrealizedPnl / costBasis) * 100 : 0,
-      dayPct: Number(quote.pct || 0)
+      dayPct: Number(rawQuote.pct ?? rawQuote.changePercent ?? 0)
     };
   });
   const investedValue = positions.reduce((sum, position) => sum + position.marketValue, 0);
@@ -1700,17 +2092,375 @@ function formatCurrency(value) {
   return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+let tickerMapPromise = null;
+
+function loadTickerMap() {
+  if (!tickerMapPromise) {
+    tickerMapPromise = (async () => {
+      const res = await fetch("https://www.sec.gov/files/company_tickers.json", {
+        headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/json" }
+      });
+      if (!res.ok) throw new Error("SEC company_tickers.json HTTP " + res.status);
+      const obj = await res.json();
+      const m = new Map();
+      for (const k of Object.keys(obj)) {
+        const row = obj[k];
+        if (row?.ticker && row.cik_str != null) {
+          m.set(String(row.ticker).toUpperCase(), String(row.cik_str).padStart(10, "0"));
+        }
+      }
+      return m;
+    })();
+  }
+  return tickerMapPromise;
+}
+
+function findLatest10K(recent) {
+  const { form, filingDate, accessionNumber, primaryDocument } = recent;
+  for (let i = 0; i < form.length; i++) {
+    if (form[i] === "10-K") {
+      return {
+        form: form[i],
+        filingDate: filingDate[i],
+        accessionNumber: accessionNumber[i],
+        primaryDocument: primaryDocument[i]
+      };
+    }
+  }
+  return null;
+}
+
+function accessionDir(accession) {
+  return accession.replace(/-/g, "");
+}
+
+function stripHtmlToText(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractItem1ARiskFactors(html) {
+  const patterns = [
+    /ITEM\s*1A[.\s\u00A0]*RISK\s*FACTORS([\s\S]*?)ITEM\s*1B/gi,
+    /Item\s*1A[.\s\u00A0]*Risk\s*Factors([\s\S]*?)Item\s*1B/gi,
+    /ITEM\s*1A([\s\S]{800,}?)ITEM\s*1B/gi,
+    /Item\s*1A([\s\S]{800,}?)Item\s*1B/gi
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m && m[1]) {
+      const t = stripHtmlToText(m[1]);
+      if (t.length > 400) return t.slice(0, 120000);
+    }
+  }
+  const m2 = html.match(/RISK\s*FACTORS([\s\S]{600,25000}?)ITEM\s*1B/gi);
+  if (m2) {
+    const t = stripHtmlToText(m2[0]);
+    if (t.length > 400) return t.slice(0, 120000);
+  }
+  return "";
+}
+
+async function fetchEdgarRisk(symbol) {
+  const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!sym) throw new Error("Invalid symbol");
+
+  const tickers = await loadTickerMap();
+  const cik10 = tickers.get(sym);
+  if (!cik10) throw new Error("Ticker not found in SEC company_tickers");
+
+  const subUrl = `https://data.sec.gov/submissions/CIK${cik10}.json`;
+  const sRes = await fetch(subUrl, {
+    headers: { "User-Agent": SEC_USER_AGENT, Accept: "application/json" }
+  });
+  if (!sRes.ok) throw new Error("data.sec.gov submissions HTTP " + sRes.status);
+  const sub = await sRes.json();
+  const recent = sub.filings?.recent;
+  if (!recent) throw new Error("No filings.recent on submission");
+
+  const tenk = findLatest10K(recent);
+  if (!tenk) throw new Error("No 10-K in recent filings list");
+
+  const cikInt = String(parseInt(cik10, 10));
+  const dir = accessionDir(tenk.accessionNumber);
+  const docUrl = `https://www.sec.gov/Archives/edgar/data/${cikInt}/${dir}/${tenk.primaryDocument}`;
+
+  const hRes = await fetch(docUrl, {
+    headers: { "User-Agent": SEC_USER_AGENT, Accept: "text/html,*/*" }
+  });
+  if (!hRes.ok) throw new Error("Archives filing HTTP " + hRes.status);
+  const html = await hRes.text();
+
+  let risk = extractItem1ARiskFactors(html);
+  if (!risk) {
+    const fallback = stripHtmlToText(html);
+    risk = fallback.length > 800 ? fallback.slice(0, 15000) : "";
+  }
+
+  return {
+    symbol: sym,
+    cik: cik10,
+    company: sub.name || null,
+    form: tenk.form,
+    filingDate: tenk.filingDate,
+    accessionNumber: tenk.accessionNumber,
+    primaryDocument: tenk.primaryDocument,
+    sourceUrl: docUrl,
+    riskFactors: risk
+  };
+}
+
+async function edgarRiskFactors(res, pathname) {
+  try {
+    const raw = decodeURIComponent(pathname.slice("/api/edgar/".length));
+    const sym = raw.split(/[./]/)[0] || "";
+    const data = await fetchEdgarRisk(sym);
+    if (!String(data.riskFactors || "").trim()) {
+      return sendJson(res, 200, { message: "Risk factors section unavailable for this filing." });
+    }
+    sendJson(res, 200, data);
+  } catch (e) {
+    const msg = e.message || String(e);
+    let code = 502;
+    if (/Invalid symbol/.test(msg)) code = 400;
+    sendJson(res, code, { error: msg });
+  }
+}
+
+async function contractsByCompany(res, pathname) {
+  try {
+    const company = decodeURIComponent(pathname.slice("/api/contracts/".length)).trim();
+    if (!company) return sendJson(res, 400, { error: "missing_company" });
+
+    const response = await fetchWithTimeout(
+      "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filters: {
+            keywords: [company],
+            award_type_codes: ["A", "B", "C", "D"]
+          },
+          fields: [
+            "Recipient Name",
+            "Awarding Agency",
+            "Award Amount",
+            "Start Date",
+            "End Date",
+            "Period of Performance Start Date",
+            "Period of Performance Current End Date"
+          ],
+          sort: "Award Amount",
+          order: "desc",
+          page: 1,
+          limit: 10
+        })
+      },
+      12000
+    );
+    if (!response.ok) throw new Error(`usaspending_contracts_${response.status}`);
+    const data = await response.json();
+    const results = (data.results || []).slice(0, 10).map((row) => ({
+      recipientName: row["Recipient Name"] || null,
+      awardingAgency: row["Awarding Agency"] || null,
+      obligatedAmount: Number(row["Award Amount"] || 0),
+      periodOfPerformance: {
+        startDate: row["Period of Performance Start Date"] || row["Start Date"] || null,
+        endDate: row["Period of Performance Current End Date"] || row["End Date"] || null
+      }
+    }));
+    sendJson(res, 200, { company, results });
+  } catch (e) {
+    sendJson(res, 502, { error: e.message || String(e) });
+  }
+}
+
+async function agencyBudget(res, pathname) {
+  try {
+    const agencyCode = decodeURIComponent(pathname.slice("/api/agency-budget/".length)).trim();
+    if (!agencyCode) return sendJson(res, 400, { error: "missing_agency_code" });
+    const response = await fetchWithTimeout(
+      `https://api.usaspending.gov/api/v2/agency/${encodeURIComponent(agencyCode)}/budgetary_resources/`,
+      {},
+      12000
+    );
+    if (!response.ok) throw new Error(`usaspending_agency_budget_${response.status}`);
+    const data = await response.json();
+    const byFiscalYear = {};
+    for (const row of data.budgetary_resources || []) {
+      const fy = row.fiscal_year ?? row.year;
+      const amount =
+        Number(row.total_budgetary_resources ?? row.budgetary_resources_amount ?? row.amount ?? 0);
+      if (fy == null) continue;
+      byFiscalYear[String(fy)] = (byFiscalYear[String(fy)] || 0) + amount;
+    }
+    sendJson(res, 200, { agencyCode, byFiscalYear });
+  } catch (e) {
+    sendJson(res, 502, { error: e.message || String(e) });
+  }
+}
+
+function recentAppointments(res) {
+  // TODO: Replace with live Federal Register or Senate confirmation feed when available.
+  sendJson(res, 200, [
+    { name: "Alex Harper", role: "Secretary", agency: "Department of Commerce", priorEmployer: "Global Tech Advisors", confirmedDate: "2026-04-29" },
+    { name: "Dana Liu", role: "Deputy Secretary", agency: "Department of Energy", priorEmployer: "National Grid Partners", confirmedDate: "2026-04-24" },
+    { name: "Marcus Reed", role: "Administrator", agency: "Environmental Protection Agency", priorEmployer: "Clean Future Institute", confirmedDate: "2026-04-18" },
+    { name: "Priya Natarajan", role: "Under Secretary", agency: "Department of the Treasury", priorEmployer: "Civic Capital", confirmedDate: "2026-04-12" },
+    { name: "Elena Torres", role: "Commissioner", agency: "Federal Trade Commission", priorEmployer: "State Attorney General Office", confirmedDate: "2026-04-08" },
+    { name: "Noah Whitman", role: "Director", agency: "Office of Management and Budget", priorEmployer: "Brookfield Policy Group", confirmedDate: "2026-04-03" },
+    { name: "Rachel Kim", role: "Assistant Secretary", agency: "Department of Health and Human Services", priorEmployer: "MedCore Systems", confirmedDate: "2026-03-28" },
+    { name: "Owen Patel", role: "Chair", agency: "Federal Communications Commission", priorEmployer: "Public Spectrum Alliance", confirmedDate: "2026-03-21" },
+    { name: "Maya Sullivan", role: "Administrator", agency: "Small Business Administration", priorEmployer: "Main Street Ventures", confirmedDate: "2026-03-16" },
+    { name: "Victor Chen", role: "General Counsel", agency: "Department of Transportation", priorEmployer: "Transit Infrastructure Partners", confirmedDate: "2026-03-10" }
+  ]);
+}
+
+function formatHistoricalAnalogForPrompt(bill) {
+  const h = bill.historicalAnalog || bill.analog;
+  if (!h) return "None in TradeSimple seed data — do not invent one.";
+  if (typeof h === "string") return h;
+  const parts = [h.title, h.outcome, h.impact].filter(Boolean);
+  return parts.length ? parts.join(" — ") : "None in seed data.";
+}
+
+function buildBillWhyUserContent(bill) {
+  const statusKey = normalizeStatusKey(bill.status);
+  const mom = computeLegislativeMomentum(bill);
+  const conf = billSignalConfidence(bill);
+  const sp = subscoreStageProgress(statusKey);
+  const se = subscoreSponsorEffectiveness(bill);
+  const cs = subscoreCosponsorStrength(bill);
+  const bb = subscoreBipartisanBreadth(bill);
+  const cm = subscoreCommitteeSchedule(bill);
+  const rc = subscoreRecencyDays(bill.latestActionDate);
+  const te = subscoreTextEnactability(bill);
+  const tr = subscoreTimeRemaining(bill);
+  const weighted =
+    0.25 * sp +
+    0.15 * se +
+    0.15 * cs +
+    0.1 * bb +
+    0.1 * cm +
+    0.1 * rc +
+    0.1 * te +
+    0.05 * tr;
+  const sponsor = bill.sponsor
+    ? `${bill.sponsor.name} (${bill.sponsor.party}-${bill.sponsor.state})`
+    : "—";
+  const committees = Array.isArray(bill.committees) ? bill.committees.join("; ") : "—";
+  const portfolioTickers =
+    (bill.portfolioTickers || bill.affected || []).filter(Boolean).join(", ") || "—";
+  const sig = bill.signals || {};
+
+  return `The user clicked "Ask why" on a legislative alert for this bill. Explain WHY the scores read the way they do — what each input means, how the weights combine, and what is still uncertain.
+
+CONTEXT — figures below are from TradeSimple's in-app bill seed data and scoring models (scenario / illustrative unless your workflow explicitly synced live Congress.gov or LDA).
+
+Bill: ${bill.id}
+Title: ${bill.title}
+Short title: ${bill.shortTitle || "—"}
+Chamber: ${bill.chamber || "—"} · Stage status: ${bill.status}
+Plain-language summary: ${bill.plainEnglish || "—"}
+
+Tickers linked in app (portfolio / affected): ${portfolioTickers}
+Sponsor: ${sponsor}
+Cosponsors: ${bill.cosponsors ?? "—"} total · ${bill.bipartisanCosponsors ?? "—"} bipartisan · Floor scheduled: ${bill.floorScheduled ? "yes" : "no"}
+Committees: ${committees}
+Last action (${bill.latestActionDate || "—"}): ${bill.latestAction || "—"}
+
+Lobbying scenario ($M in seed data): FOR $${bill.lobbyingFor ?? "—"}M · AGAINST $${bill.lobbyingAgainst ?? "—"}M
+Note: ${bill.lobbyingNote || bill.signal || "—"}
+
+Curated signal indices (0–100 when present): bipartisan ${sig.bipartisanScore ?? "—"}, committee ${sig.committeeScore ?? "—"}, floor ${sig.floorScore ?? "—"}, historical ${sig.historicalScore ?? "—"}
+
+Model sub-scores (each 0–100 before weighting):
+- Stage progress: ${sp} (weight 25%)
+- Sponsor effectiveness: ${se} (15%)
+- Cosponsor strength: ${cs} (15%)
+- Bipartisan breadth: ${bb} (10%)
+- Committee schedule: ${cm} (10%)${bill.floorScheduled ? " (includes floor-scheduled boost)" : ""}
+- Recency (from latestActionDate): ${rc} (10%)
+- Text enactability (historical/floor blend): ${te} (10%)
+- Time remaining (calendar proxy): ${tr} (5%)
+
+Weighted blend (before clamp): ${weighted.toFixed(1)} → Legislative momentum shown in-app: ${mom}/100
+Overall data confidence label: ${conf}
+
+Historical analog in seed data (verify before treating as market fact): ${formatHistoricalAnalogForPrompt(bill)}
+
+Answer in the required structure. If any analog or number should not be relied on without checking primary sources, say so. For position impact on named tickers, include the disclosure line.`;
+}
+
+function localBillWhyAnswer(bill, name) {
+  const mom = computeLegislativeMomentum(bill);
+  const conf = billSignalConfidence(bill);
+  const analog = formatHistoricalAnalogForPrompt(bill);
+  const greet = name && name !== "there" ? `${name}, ` : "";
+  return `Research signal only. Not financial advice.
+
+${greet}Here is a compact read on ${bill.id} without the live AI layer: legislative momentum is modeled at ${mom}/100 (${conf} data confidence). Summary: ${bill.plainEnglish || bill.signal || bill.title}. Lobbying figures in seed data: $${bill.lobbyingAgainst ?? 0}M against vs $${bill.lobbyingFor ?? 0}M for. Seed analog (verify independently): ${analog}
+
+Watch for:
+• Committee / floor updates on Congress.gov
+• New LDA filings if lobbying accelerates
+• Company commentary that cites this bill theme
+
+Add ANTHROPIC_API_KEY to the server for the full metrics walkthrough.`;
+}
+
 async function researchAsk(req, res, session) {
   const body = await readJson(req);
-  const question = String(body.question || "").slice(0, 2000);
-  if (!question.trim()) return sendJson(res, 400, { error: "empty_question" });
+  const billId = body.billId != null ? String(body.billId).trim() : "";
+  const question = String(
+    body.question || body.prompt || body.message || body.query || ""
+  ).slice(0, 2000);
+
+  let bill = null;
+  if (billId) {
+    bill = POLICY_BILLS.find((b) => b.id === billId);
+    if (!bill) return sendJson(res, 400, { error: "unknown_bill_id", billId });
+  }
+
+  if (!bill && !question.trim()) return sendJson(res, 400, { error: "empty_question" });
+
+  const name = session.user?.name || "there";
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    const answer = localPolicyAnswer(question, session.user?.name || "there");
+    const answer = bill ? localBillWhyAnswer(bill, name) : localPolicyAnswer(question, name);
     return sendJson(res, 200, { source: "local_model", answer });
   }
 
-  const prompt = `You are TradeSimple AI. Analyze market impact through legislation, lobbying intensity, passage odds, and portfolio exposure. Do not provide personalized financial advice.\n\nBills:\n${POLICY_BILLS.map((bill) => `${bill.id}: ${bill.title}, ${bill.passageOdds}% odds, affected ${bill.affected.join(", ")}, signal: ${bill.signal}`).join("\n")}\n\nUser question: ${question}`;
+  let userContent;
+  if (bill) {
+    userContent = buildBillWhyUserContent(bill);
+    if (question.trim()) userContent += `\n\nAdditional user note:\n${question}`;
+  } else {
+    const billDigest = POLICY_BILLS.map((b) => {
+      const lm = computeLegislativeMomentum(b);
+      const conf = billSignalConfidence(b);
+      const aff = (b.affected || []).join(", ");
+      return `${b.id}: ${b.title}; Legislative momentum ${lm}/100 (${conf}); affected ${aff}; signal: ${b.signal}`;
+    }).join("\n");
+    userContent = `Internal TradeSimple bill digest (scenario model for grounding, not a forecast):\n${billDigest}\n\nUser question:\n${question}`;
+  }
+
+  const model =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model.trim()
+      : process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+
+  const maxTokens = bill ? 1200 : 1024;
+
   const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -1719,9 +2469,10 @@ async function researchAsk(req, res, session) {
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
-      max_tokens: 900,
-      messages: [{ role: "user", content: prompt }]
+      model,
+      max_tokens: maxTokens,
+      system: RESEARCH_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userContent }]
     })
   }, 20000);
 
@@ -1738,7 +2489,9 @@ function localPolicyAnswer(question, name) {
     POLICY_BILLS.find((item) => item.affected.some((ticker) => lower.includes(ticker.toLowerCase()))) ||
     POLICY_BILLS.find((item) => lower.includes("crypto") && item.affected.includes("BTC")) ||
     POLICY_BILLS[0];
-  return `Here is the useful signal, ${name}: ${bill.title} is at ${bill.passageOdds}% passage odds with ${bill.confidence} confidence. The key market chain is bill movement -> lobbying intensity -> affected tickers (${bill.affected.join(", ")}). ${bill.signal} ${bill.impact} This is a scenario model, not financial advice. Add ANTHROPIC_API_KEY for deeper natural-language research.`;
+  const lm = computeLegislativeMomentum(bill);
+  const conf = billSignalConfidence(bill);
+  return `Here is the useful signal, ${name}: ${bill.title} has legislative momentum ${lm}/100 with ${conf} confidence. The key market chain is bill movement -> lobbying intensity -> affected tickers (${bill.affected.join(", ")}). ${bill.signal} ${bill.impact} This is a scenario model, not financial advice. Add ANTHROPIC_API_KEY for deeper natural-language research.`;
 }
 
 function startDemoSession(req, res) {
@@ -1992,13 +2745,392 @@ function inferTickers(title = "") {
   return [];
 }
 
-function estimatePassageOdds(bill) {
-  const action = `${bill.latestAction?.text || ""} ${bill.title || ""}`.toLowerCase();
-  if (action.includes("became public law") || action.includes("signed by president")) return 100;
-  if (action.includes("passed senate") || action.includes("passed house")) return 72;
-  if (action.includes("reported") || action.includes("ordered to be reported")) return 46;
-  if (action.includes("committee")) return 24;
-  return 12;
+function chamberCap(chamber) {
+  const c = String(chamber || "").toLowerCase();
+  return c.includes("house") || c.startsWith("h") ? 218 : 100;
+}
+
+function normalizeStatusKey(status) {
+  const s = String(status || "").toLowerCase();
+  if (s.includes("passed") || s.includes("law") || s.includes("enacted")) return "passed";
+  if (s.includes("floor")) return "floor";
+  if (s.includes("markup")) return "markup";
+  if (s.includes("committee")) return "committee";
+  if (s.includes("failed") || s.includes("dead")) return "failed";
+  if (s.includes("introduced")) return "introduced";
+  if (s.includes("live")) return "committee";
+  return "introduced";
+}
+
+function subscoreStageProgress(statusKey) {
+  const m = { introduced: 20, committee: 40, markup: 60, floor: 80, passed: 100, failed: 5 };
+  return m[statusKey] ?? 25;
+}
+
+function subscoreSponsorEffectiveness(bill) {
+  const cap = chamberCap(bill.chamber);
+  let s = Math.min(100, (Number(bill.cosponsors || 0) / Math.max(1, cap)) * 100);
+  if (bill.sponsor?.party === "B") s = Math.min(100, s + 25);
+  return Math.round(s);
+}
+
+function subscoreCosponsorStrength(bill) {
+  const cap = chamberCap(bill.chamber);
+  return Math.min(100, Math.round((Number(bill.cosponsors || 0) / Math.max(1, cap)) * 100));
+}
+
+function subscoreBipartisanBreadth(bill) {
+  if (bill.signals?.bipartisanScore != null) {
+    return Math.min(100, Math.round(Number(bill.signals.bipartisanScore)));
+  }
+  const cos = Number(bill.cosponsors || 0);
+  const bi = Number(bill.bipartisanCosponsors || 0);
+  if (!cos) return 0;
+  return Math.min(100, Math.round((bi / cos) * 100));
+}
+
+function defaultCommitteeScore(bill) {
+  const s = normalizeStatusKey(bill.status);
+  if (s === "passed") return 100;
+  if (s === "floor") return 82;
+  if (s === "markup") return 68;
+  if (s === "committee") return 48;
+  return 32;
+}
+
+function subscoreCommitteeSchedule(bill) {
+  let c = Math.min(100, bill.signals?.committeeScore != null ? Number(bill.signals.committeeScore) : defaultCommitteeScore(bill));
+  if (bill.floorScheduled) c = Math.min(100, c + 18);
+  return Math.round(c);
+}
+
+function subscoreRecencyDays(lastActionDate) {
+  if (!lastActionDate) return 35;
+  const days = Math.max(0, (Date.now() - new Date(lastActionDate).getTime()) / 864e5);
+  if (days <= 10) return 100;
+  if (days <= 30) return 88;
+  if (days <= 60) return 72;
+  if (days <= 120) return 55;
+  if (days <= 200) return 40;
+  return 28;
+}
+
+function defaultHistoricalScore(bill) {
+  const s = normalizeStatusKey(bill.status);
+  if (s === "passed") return 88;
+  if (s === "markup") return 52;
+  return 38;
+}
+
+function defaultFloorScore(bill) {
+  const s = normalizeStatusKey(bill.status);
+  if (s === "passed") return 100;
+  if (bill.floorScheduled) return 62;
+  if (s === "markup") return 48;
+  return 28;
+}
+
+function subscoreTextEnactability(bill) {
+  const h = bill.signals?.historicalScore != null ? Number(bill.signals.historicalScore) : defaultHistoricalScore(bill);
+  const f = bill.signals?.floorScore != null ? Number(bill.signals.floorScore) : defaultFloorScore(bill);
+  return Math.min(100, Math.round(h * 0.55 + f * 0.45));
+}
+
+function subscoreTimeRemaining(bill) {
+  if (normalizeStatusKey(bill.status) === "passed") return 100;
+  const m = new Date().getMonth();
+  return Math.max(18, Math.round(100 - (m / 11) * 55));
+}
+
+function computeLegislativeMomentum(bill) {
+  const statusKey = normalizeStatusKey(bill.status);
+  const raw =
+    0.25 * subscoreStageProgress(statusKey) +
+    0.15 * subscoreSponsorEffectiveness(bill) +
+    0.15 * subscoreCosponsorStrength(bill) +
+    0.1 * subscoreBipartisanBreadth(bill) +
+    0.1 * subscoreCommitteeSchedule(bill) +
+    0.1 * subscoreRecencyDays(bill.latestActionDate) +
+    0.1 * subscoreTextEnactability(bill) +
+    0.05 * subscoreTimeRemaining(bill);
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
+function billSignalConfidence(bill) {
+  let pts = 0;
+  if (bill.latestActionDate) {
+    pts += 20;
+    const d = (Date.now() - new Date(bill.latestActionDate).getTime()) / 864e5;
+    if (d <= 30) pts += 25;
+    else if (d <= 90) pts += 15;
+    else if (d <= 180) pts += 8;
+  }
+  if (Number(bill.cosponsors) > 0) pts += 12;
+  if (typeof bill.bipartisanCosponsors === "number") pts += 8;
+  if (bill.latestAction) pts += 10;
+  if (Number(bill.lobbyingAgainst) > 0 || Number(bill.lobbyingFor) > 0) pts += 12;
+  if (String(bill.plainEnglish || "").length > 80) pts += 5;
+  return pts >= 72 ? "High" : pts >= 44 ? "Medium" : "Low";
+}
+
+function scoreConfidence({ missingInputs = 0, staleInputs = 0, estimatedInputs = 0 } = {}) {
+  if (missingInputs >= 2) return "Low";
+  if (missingInputs === 0 && staleInputs === 0 && estimatedInputs === 0) return "High";
+  return "Medium";
+}
+
+function pseudoFilingFromBill(bill) {
+  const against = Number(bill.lobbyingAgainst || 0);
+  const fo = Number(bill.lobbyingFor || 0);
+  const amount = Math.max(against, fo, 0.1) * 1e6;
+  const spike = against >= 20 ? 3 : against >= 10 ? 2.2 : fo >= 10 ? 1.9 : 1;
+  return {
+    client: bill.id || "bill",
+    registrant: "Modeled aggregate",
+    amount,
+    issue: String(bill.lobbyingNote || bill.signal || bill.title || "").slice(0, 200),
+    spike,
+    postedAt: bill.latestActionDate || null,
+    portfolio: false
+  };
+}
+
+function ensureQuarterlySpend(f) {
+  if (Array.isArray(f.quarterlySpend) && f.quarterlySpend.length >= 9) return f.quarterlySpend;
+  const cur = parseFloat(f.amount || f.expenses || 0) || 0;
+  const sf = Math.max(0.4, parseFloat(f.spike || f.spikeFactor || 1));
+  const baseline = cur / sf;
+  const out = [];
+  for (let i = 0; i < 8; i++) out.push(Math.max(1, Math.round(baseline * (0.9 + ((i * 13) % 7) * 0.02))));
+  out.push(cur);
+  return out;
+}
+
+function computeSpendSpikeZ(f) {
+  const hist = ensureQuarterlySpend(f);
+  const cur = hist[8];
+  const prior = hist.slice(0, 8);
+  const mean = prior.reduce((a, b) => a + b, 0) / 8;
+  const variance = prior.reduce((a, x) => a + (x - mean) ** 2, 0) / 8;
+  const std = Math.sqrt(variance) || 1e-9;
+  return (cur - mean) / std;
+}
+
+function spendSpikeSubscore(z) {
+  const c = Math.min(3.5, Math.max(-2, z));
+  return ((c + 2) / 5.5) * 100;
+}
+
+function computeLobbyingPressure(f) {
+  const z = computeSpendSpikeZ(f);
+  const issues = String(f.issue || "")
+    .split(/,\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const coalitionBreadth = Math.min(100, 12 + issues.length * 22);
+  const topicSpecificity = Math.max(22, Math.min(100, 100 - (issues.length - 1) * 28));
+  let recency = 48;
+  if (f.postedAt) {
+    const days = (Date.now() - new Date(f.postedAt).getTime()) / 864e5;
+    if (days <= 14) recency = 100;
+    else if (days <= 40) recency = 86;
+    else if (days <= 100) recency = 62;
+    else if (days <= 200) recency = 42;
+  }
+  let directionCertainty = parseFloat(f.spike || 0) > 1.65 ? 78 : 52;
+  if (issues.some((i) => /pricing|antitrust|crypto|medicare|export|chips/i.test(i))) {
+    directionCertainty = Math.min(100, directionCertainty + 12);
+  }
+  const raw =
+    0.4 * spendSpikeSubscore(z) +
+    0.2 * coalitionBreadth +
+    0.15 * topicSpecificity +
+    0.15 * recency +
+    0.1 * directionCertainty;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
+function lobbyingFilingConfidence(f) {
+  let pts = 0;
+  if (f.client) pts += 28;
+  if (f.registrant) pts += 14;
+  if (f.postedAt) {
+    pts += 12;
+    const days = (Date.now() - new Date(f.postedAt).getTime()) / 864e5;
+    if (days <= 45) pts += 22;
+  }
+  if (String(f.issue || "").length) pts += 18;
+  if (parseFloat(f.amount || 0) > 0) pts += 16;
+  return pts >= 74 ? "High" : pts >= 42 ? "Medium" : "Low";
+}
+
+function lobbyingSubConfidences(f) {
+  const z = computeSpendSpikeZ(f);
+  const issueList = String(f.issue || "")
+    .split(/,\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const spike = parseFloat(f.spike || f.spikeFactor || 1);
+  const isSpike = spike > 1.8;
+  const spendSignalConfidence = z >= 1.2 || isSpike ? "High" : Math.abs(z) < 0.35 ? "Low" : "Medium";
+  const issueSignalConfidence = issueList.length >= 3 ? "High" : issueList.length >= 1 ? "Medium" : "Low";
+  let recencySignalConfidence = "Low";
+  if (f.postedAt) {
+    const days = (Date.now() - new Date(f.postedAt).getTime()) / 864e5;
+    recencySignalConfidence = days <= 90 ? "High" : "Medium";
+  }
+  return {
+    spendSpikeZ: Math.round(z * 100) / 100,
+    spikeVsTrail: Math.round(spike * 100) / 100,
+    spendSignalConfidence,
+    issueSignalConfidence,
+    recencySignalConfidence
+  };
+}
+
+function decorateLobbyingFiling(base) {
+  const sub = lobbyingSubConfidences(base);
+  const missingInputs =
+    (base.client ? 0 : 1) +
+    (base.registrant ? 0 : 1) +
+    (base.issue ? 0 : 1) +
+    (Number(base.amount || 0) > 0 ? 0 : 1);
+  const staleInputs = base.postedAt && (Date.now() - new Date(base.postedAt).getTime()) / 864e5 > 90 ? 1 : 0;
+  return {
+    ...base,
+    lobbyingPressure: computeLobbyingPressure(base),
+    confidence: scoreConfidence({ missingInputs, staleInputs }),
+    filingConfidence: lobbyingFilingConfidence(base),
+    spendSpikeZ: sub.spendSpikeZ,
+    spikeVsTrail: sub.spikeVsTrail,
+    spendSignalConfidence: sub.spendSignalConfidence,
+    issueSignalConfidence: sub.issueSignalConfidence,
+    recencySignalConfidence: sub.recencySignalConfidence
+  };
+}
+
+function augmentBillMetrics(bill) {
+  const legislativeMomentum = computeLegislativeMomentum(bill);
+  const signalConfidence = billSignalConfidence(bill);
+  const policyExposure = legislativeMomentum;
+  const pseudo = pseudoFilingFromBill(bill);
+  const lobbyingPressureScore = computeLobbyingPressure(pseudo);
+  const lobbyingSignalConfidence = lobbyingFilingConfidence(pseudo);
+  const missingInputs =
+    (bill.latestActionDate ? 0 : 1) +
+    (Number(bill.cosponsors || 0) > 0 ? 0 : 1) +
+    ((Number(bill.lobbyingAgainst || 0) > 0 || Number(bill.lobbyingFor || 0) > 0) ? 0 : 1);
+  const staleInputs = bill.latestActionDate && (Date.now() - new Date(bill.latestActionDate).getTime()) / 864e5 > 90 ? 1 : 0;
+  return {
+    legislativeMomentum,
+    policyExposure,
+    confidence: scoreConfidence({ missingInputs, staleInputs }),
+    signalConfidence,
+    lobbyingPressureScore,
+    lobbyingSignalConfidence
+  };
+}
+
+function computeBillMetricBreakdown(bill) {
+  const statusKey = normalizeStatusKey(bill.status);
+  const components = [
+    { key: "stageProgress", label: "Stage progress (from bill status)", value: subscoreStageProgress(statusKey), weight: 0.25 },
+    { key: "sponsorEffectiveness", label: "Sponsor effectiveness", value: subscoreSponsorEffectiveness(bill), weight: 0.15 },
+    { key: "cosponsorStrength", label: "Cosponsor strength", value: subscoreCosponsorStrength(bill), weight: 0.15 },
+    { key: "bipartisanBreadth", label: "Bipartisan breadth", value: subscoreBipartisanBreadth(bill), weight: 0.1 },
+    { key: "committeeSchedule", label: "Committee / floor posture", value: subscoreCommitteeSchedule(bill), weight: 0.1 },
+    { key: "recency", label: "Recency of last action", value: subscoreRecencyDays(bill.latestActionDate), weight: 0.1 },
+    { key: "textEnactability", label: "Text & floor enactability", value: subscoreTextEnactability(bill), weight: 0.1 },
+    { key: "timeRemaining", label: "Session timing proxy", value: subscoreTimeRemaining(bill), weight: 0.05 }
+  ];
+  const weightedRaw = components.reduce((sum, c) => sum + c.weight * c.value, 0);
+  const withContrib = components.map((c) => ({
+    key: c.key,
+    label: c.label,
+    value: c.value,
+    weight: c.weight,
+    weightPct: Math.round(c.weight * 1000) / 10,
+    contribution: Math.round(c.weight * c.value * 100) / 100
+  }));
+  const pseudo = pseudoFilingFromBill(bill);
+  return {
+    bill: {
+      id: bill.id,
+      title: bill.title,
+      status: bill.status,
+      chamber: bill.chamber || null,
+      latestActionDate: bill.latestActionDate || null
+    },
+    legislativeMomentum: {
+      score: computeLegislativeMomentum(bill),
+      weightedRawBeforeClamp: Math.round(weightedRaw * 100) / 100,
+      note: "Displayed momentum is the weighted sum rounded to an integer and clamped to 0–100.",
+      components: withContrib
+    },
+    billSignalConfidence: {
+      label: billSignalConfidence(bill),
+      rubric: "Point-based checklist on the seed record (recency, cosponsors, lobbying dollars, narrative depth); ≥72 High, ≥44 Medium, else Low."
+    },
+    lobbyingPressureOnBillCard: {
+      score: computeLobbyingPressure(pseudo),
+      pseudoSpike: pseudo.spike,
+      pseudoAmountUsd: pseudo.amount,
+      note: "Same lobbying-pressure model applied to a synthetic filing built from seed lobbyingAgainst / lobbyingFor and narrative — comparable to card lobbyingPressureScore."
+    },
+    curatedSignals: bill.signals || null
+  };
+}
+
+function methodologyDoc(res) {
+  sendJson(res, 200, METHODOLOGY);
+}
+
+function billPolicyMetrics(res, url) {
+  const id = String(url.searchParams.get("id") || "").trim();
+  if (!id) return sendJson(res, 400, { error: "missing_id" });
+  const bill = POLICY_BILLS.find((b) => b.id === id);
+  if (!bill) return sendJson(res, 404, { error: "unknown_bill_id", billId: id });
+  sendJson(res, 200, {
+    source: "policy_seed_model",
+    confidence: augmentBillMetrics(bill).confidence,
+    breakdown: computeBillMetricBreakdown(bill)
+  });
+}
+
+function decorateBill(bill) {
+  return { ...bill, ...augmentBillMetrics(bill) };
+}
+
+function normalizeLiveCongressBill(bill) {
+  const actionText = `${bill.latestAction?.text || ""} ${bill.title || ""}`.toLowerCase();
+  let status = "introduced";
+  if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
+  else if (actionText.includes("passed senate") || actionText.includes("passed house")) status = "floor";
+  else if (actionText.includes("reported") || actionText.includes("ordered to be reported")) status = "markup";
+  else if (actionText.includes("committee")) status = "committee";
+
+  const chamberRaw = bill.originChamber || bill.type || "House";
+  const chamber = String(chamberRaw).toLowerCase().includes("senate") ? "Senate" : "House";
+
+  return {
+    id: `${bill.type}.${bill.number}-${bill.congress}`,
+    title: bill.title,
+    shortTitle: bill.title,
+    chamber,
+    status,
+    sponsor: { name: "", party: "U", state: "" },
+    cosponsors: Number(bill.cosponsors?.count ?? bill.cosponsors ?? 0),
+    bipartisanCosponsors: 0,
+    floorScheduled: false,
+    latestAction: bill.latestAction?.text || "Updated by Congress.gov",
+    latestActionDate: bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText || "",
+    affected: inferTickers(bill.title),
+    lobbyingAgainst: null,
+    lobbyingFor: null,
+    plainEnglish: "",
+    signal: "Live Congress.gov record. Add lobbying and committee scoring to turn this into a stronger trading signal.",
+    impact: "Impact requires ticker mapping and historical analog model."
+  };
 }
 
 function sendJson(res, status, body) {

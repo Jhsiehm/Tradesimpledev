@@ -23,7 +23,7 @@
         <nav class="nav-links" aria-label="Primary">
           <a href="#features">Features</a>
           <a href="#policy">LegisAlert</a>
-          <a href="#sentiment">Sentiment</a>
+          <a href="#contracts">Contracts</a>
           <a href="#terminal">Terminal</a>
         </nav>
         <a class="button button-ghost" href="/dashboard?view=trade" data-session-link>Open terminal</a>
@@ -49,22 +49,18 @@
       <section class="hero brand-hero" id="product">
         <div class="hero-copy">
           <div class="hero-eyebrow"><span></span>Now in early access</div>
-          <h1>Bloomberg for people who <em>actually</em> have lives.</h1>
-          <p>
-            Institutional-grade market intelligence without the $24,000/year price tag
-            or the finance degree. Government lobbying signals, Reddit sentiment,
-            crypto, live prices, and AI that explains everything in plain English.
-          </p>
+          <h1>Track bills before they pass. See who is lobbying. Understand what it means for your portfolio.</h1>
+          <p>Most retail investors find out about legislative and regulatory changes after the stock already moved. TradeSimple tracks live congressional bills, lobbying filings, federal contracts, and agency appointments in plain English so you can understand what is developing before it becomes a headline.</p>
           <div class="auth-panel" aria-label="Sign in options">
             <a class="button button-primary" data-provider="demo" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Try local demo terminal</a>
             <a class="button button-secondary" data-provider="google" href="/auth/google">Sign in with Google</a>
             <a class="button button-ghost" data-provider="apple" href="/auth/apple">Sign in with Apple</a>
           </div>
           <div class="hero-social-proof">
-            <div class="proof-avatars">
-              <span>JK</span><span>MR</span><span>AL</span><span>TS</span><span>+</span>
+            <div class="proof-avatars" aria-hidden="true">
+              <span>TS</span><span>MR</span><span>AL</span><span>+</span>
             </div>
-            <p><strong>4,200+</strong> traders on the waitlist. Spots limited.</p>
+            <p><strong>Early access traders</strong> — Retail investors and analysts stress-testing policy-linked workflows before public launch.</p>
           </div>
           <p class="fine-print">
             API keys stay server-side. Live brokerage requires a regulated broker integration;
@@ -92,9 +88,9 @@
               </div>
               <div class="phone-label">Policy alert for your portfolio</div>
               <div class="phone-alert green-alert">
-                <b>LegisAlert - LLY - Impact 4/5</b>
+                <b>LegisAlert - LLY - Policy exposure 62/100</b>
                 <strong>Drug pricing bill passed committee</strong>
-                <p>Pharma lobby spending $31M against it. 34% passage odds.</p>
+                <p>Legislative momentum 62/100 · Lobbying pressure modeled from filings · Confidence Medium.</p>
               </div>
               <div class="phone-alert amber-alert">
                 <b>Street vs. Streets - GME</b>
@@ -113,14 +109,14 @@
           <p>P/E ratio of 34x becomes "investors are paying $34 for every $1 this company earns." Every number earns its place by being explained.</p>
         </article>
         <article>
-          <span>02</span>
-          <h2>Street vs. Streets</h2>
-          <p>Wall Street analyst consensus meets Reddit sentiment in one view. When they disagree, that's where the drama lives.</p>
-        </article>
+  <span>02</span>
+  <h2>Government contracts matter</h2>
+  <p>Federal contract awards, DOGE cancellations, and appropriations decisions move government-exposed stocks. TradeSimple connects USASpending data to the tickers in your portfolio.</p>
+</article>
         <article>
           <span>03</span>
           <h2>Government intelligence</h2>
-          <p>Lobbying spend, regulatory actions, bill passage odds, and affected tickers are scored instead of dumped on you as raw data.</p>
+          <p>Lobbying pressure scores, regulatory actions, legislative momentum (0–100), and affected tickers are summarized instead of dumped on you as raw data.</p>
         </article>
       </section>
 
@@ -130,15 +126,15 @@
           <h2>Government moves markets. <em>Now you'll know first.</em></h2>
           <p>
             Most retail traders find out about regulatory changes after the move already
-            happened. LegisAlert tracks lobbying spend, bill probability, and regulatory
+            happened. LegisAlert tracks lobbying pressure scores, legislative momentum, and regulatory
             actions in real time, filtered to what affects your portfolio.
           </p>
         </div>
         <div class="signal-stack">
           <article class="signal-card green">
-            <small>Lobbying signal - spend up 2.8x</small>
-            <h3>Pfizer, Merck and AbbVie spending $31M against drug pricing bill</h3>
-            <p>That level of coordinated spend means the industry thinks this bill has real teeth. Passage odds: 34%.</p>
+            <small>Lobbying signal — pressure score elevated</small>
+            <h3>Pfizer, Merck and AbbVie aligned against drug pricing bill</h3>
+            <p>Coordinated opposition raises lobbying pressure scores. Legislative momentum for this chain is shown as X/100 with confidence in the terminal.</p>
           </article>
           <article class="signal-card amber-card">
             <small>Regulatory - FDA - effective today</small>
@@ -153,22 +149,22 @@
         </div>
       </section>
 
-      <section class="site-section sentiment-section" id="sentiment">
-        <div>
-          <div class="section-tag">Street vs. Streets</div>
-          <h2>Wall Street meets <em>WallStreetBets.</em></h2>
-          <p>
-            Track what 14 million Redditors are talking about next to analyst consensus.
-            Meme velocity is not a thesis, but it can explain why a ticker starts moving
-            before the fundamentals do.
-          </p>
-        </div>
-        <div class="sentiment-demo">
-          <div><b>NVDA</b><span>Wall St: Buy</span><meter min="0" max="100" value="78"></meter><em class="up">Aligned</em></div>
-          <div><b>GME</b><span>Wall St: Sell</span><meter min="0" max="100" value="96"></meter><em class="amber">Gap alert</em></div>
-          <div><b>TSLA</b><span>Wall St: Hold</span><meter min="0" max="100" value="62"></meter><em>Neutral</em></div>
-          <div><b>BTC</b><span>Wall St: Buy</span><meter min="0" max="100" value="88"></meter><em class="up">Aligned</em></div>
-        </div>
+      <section class="site-section sentiment-section" id="contracts">
+<div>
+  <div class="section-tag">Federal Contracts</div>
+  <h2>Government contracts move stocks. <em>Here is which ones matter.</em></h2>
+  <p>
+    Federal contract awards, DOGE cancellations, and appropriations decisions
+    directly affect revenue for defense and government services companies.
+    TradeSimple connects USASpending data to the tickers in your portfolio
+    so you can see exposure before it shows up in earnings.
+  </p>
+</div>
+<div class="contracts-demo">
+  <div><b>BAH</b><span>Contract exposure: High</span><em class="down">-9.33% · DOGE cancellation risk</em></div>
+  <div><b>PLTR</b><span>Contract exposure: Medium</span><em class="warn">DOGE activity flagged</em></div>
+  <div><b>LDOS</b><span>Contract exposure: Medium</span><em>Appropriations dependency noted</em></div>
+</div>
       </section>
 
       <section class="comparison-section" id="terminal">
@@ -182,7 +178,7 @@
             <thead><tr><th>Feature</th><th>TradeSimple</th><th>Koyfin</th><th>Robinhood</th></tr></thead>
             <tbody>
               <tr><td>Plain-English explanations</td><td class="up">Always</td><td>No</td><td>Basic</td></tr>
-              <tr><td>WSB sentiment integrated</td><td class="up">Live</td><td>No</td><td>No</td></tr>
+              <tr><td>Bill stage tracking</td><td class="up">Live</td><td>No</td><td>No</td></tr>
               <tr><td>Government lobbying intelligence</td><td class="up">Scored</td><td>No</td><td>No</td></tr>
               <tr><td>AI chat that knows your portfolio</td><td class="up">Included</td><td>No</td><td>No</td></tr>
               <tr><td>Paper trading guardrails</td><td class="up">Built in</td><td>No</td><td>Broker only</td></tr>

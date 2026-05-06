@@ -6,7 +6,7 @@
     <title>TradeSimple Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/styles.css?v=paper-trader-1" />
   </head>
   <body data-page="dashboard">
@@ -17,14 +17,12 @@
           <span>TradeSimple</span>
         </a>
         <nav class="side-nav" aria-label="Terminal sections">
-          <button class="nav-item active" data-view="overview">Overview</button>
+          <button class="nav-item active" data-view="overview">Dashboard</button>
           <button class="nav-item" data-view="markets">Markets</button>
-          <button class="nav-item" data-view="analysis">Analysis Lab</button>
-          <button class="nav-item" data-view="bills">LegisAlert</button>
-          <button class="nav-item" data-view="lobbying">Lobbying Radar</button>
-          <button class="nav-item" data-view="trade">Paper Trade</button>
-          <button class="nav-item" data-view="research">AI Research</button>
-          <button class="nav-item" data-view="connections">Connections</button>
+          <button class="nav-item" data-view="bills">Bills</button>
+          <button class="nav-item" data-view="contracts">Contracts</button>
+          <button class="nav-item" data-view="analysis">Analysis</button>
+          <button class="nav-item" data-view="trade">Account</button>
         </nav>
         <div class="user-box">
           <div class="avatar" data-user-initials>AJ</div>
@@ -40,17 +38,26 @@
           <span>Search</span>
           <input id="terminal-search" placeholder="Ticker, bill, issue area" />
         </label>
-        <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
+        <div class="ticker-tape-wrap">
+          <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
+          <span id="quote-fallback-badge" class="mini-pill amber" hidden>Fallback prices</span>
+        </div>
+        <button type="button" class="button button-secondary compact" id="refresh-all-btn">Refresh all</button>
+        <button type="button" class="button button-ghost compact" id="methodology-open-btn" title="How scores are calculated">Explain metrics</button>
         <a class="button button-ghost compact" href="/auth/logout">Sign out</a>
       </header>
 
       <main class="workspace">
-        <section class="view active" id="view-overview">
+        <section class="view active dashboard-overview-view" id="view-overview">
           <section class="portfolio-command">
             <div>
               <span class="mini-pill green">TradeSimple portfolio dashboard</span>
               <h1>Know what can move your money before the move.</h1>
               <p id="overview-subtitle">Loading live data and policy signals.</p>
+              <div class="watchlist-strip-wrap">
+                <span class="watchlist-strip-label">Watchlist</span>
+                <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
+              </div>
               <div class="portfolio-command-actions">
                 <button class="button button-primary" data-view-jump="analysis">Analyze holdings</button>
                 <button class="button button-secondary" data-view-jump="bills">Open LegisAlert</button>
@@ -77,9 +84,9 @@
               <small id="portfolio-change">Calculating</small>
             </article>
             <article class="stat-card">
-              <span>High-impact bills</span>
-              <strong class="amber">5</strong>
-              <small>3 touch seed portfolio</small>
+              <span>Mapped bills</span>
+              <strong class="amber" id="stat-bill-count">—</strong>
+              <small id="stat-bill-momentum">Legislative momentum (max /100)</small>
             </article>
             <article class="stat-card">
               <span>Trading mode</span>
@@ -87,11 +94,44 @@
               <small id="trade-mode-sub">Live locked by default</small>
             </article>
             <article class="stat-card stat-card-wide">
-              <span>Lobbying spike</span>
-              <strong class="down">$31M</strong>
-              <small>Pharma against drug pricing</small>
+              <span>Lobbying pressure</span>
+              <strong class="down" id="stat-lobby-pressure">—/100</strong>
+              <small id="stat-lobby-confidence">Top filing score · Confidence</small>
             </article>
           </div>
+
+          <section class="panel market-mood-panel" id="market-mood-panel">
+            <div class="panel-head">
+              <h2>Market mood</h2>
+              <span>Tape · policy · lobbying (modeled) · <button type="button" class="link-button methodology-link" data-methodology-focus="marketMood">How modeled</button></span>
+            </div>
+            <div class="market-mood-body">
+              <div class="mood-meter-row">
+                <span class="mood-meter-lbl">Tape risk appetite</span>
+                <div class="mood-meter-track"><span class="mood-meter-fill mood-meter-fill-tape" id="mood-fear-greed-bar"></span></div>
+                <span class="mood-meter-val up" id="mood-fear-greed-val">—</span>
+              </div>
+              <p class="mood-meter-caption muted" id="mood-fear-greed-lbl">Loading…</p>
+              <div class="mood-meter-row">
+                <span class="mood-meter-lbl">Social sentiment proxy</span>
+                <div class="mood-meter-track"><span class="mood-meter-fill mood-meter-fill-wsb" id="mood-wsb-bar"></span></div>
+                <span class="mood-meter-val" id="mood-wsb-val">—</span>
+              </div>
+              <p class="mood-meter-caption muted" id="mood-wsb-sub">Modeled from tape — not live Reddit</p>
+              <div class="mood-meter-row">
+                <span class="mood-meter-lbl">Portfolio policy heat</span>
+                <div class="mood-meter-track"><span class="mood-meter-fill mood-meter-fill-policy" id="mood-policy-bar"></span></div>
+                <span class="mood-meter-val" id="mood-policy-val">—</span>
+              </div>
+              <div class="mood-meter-row">
+                <span class="mood-meter-lbl">Lobby intensity</span>
+                <div class="mood-meter-track"><span class="mood-meter-fill mood-meter-fill-lobby" id="mood-lobby-bar"></span></div>
+                <span class="mood-meter-val" id="mood-lobby-val">—</span>
+              </div>
+              <div class="mood-summary-divider"></div>
+              <p class="market-mood-summary" id="market-mood-summary">Loading mood readout…</p>
+            </div>
+          </section>
 
           <div class="portfolio-dashboard-grid">
             <section class="panel">
@@ -186,121 +226,161 @@
         </section>
 
         <section class="view" id="view-analysis">
-          <div class="page-header">
-            <div>
-              <h1>Analysis lab</h1>
-              <p>Plain-English charts, fundamentals, and policy impact.</p>
+          <div class="analysis-shell">
+            <div class="analysis-left">
+              <label class="analysis-ticker-label" for="analysis-symbol">You are looking at</label>
+              <select id="analysis-symbol" class="analysis-symbol-select" aria-label="Select analysis ticker">
+                <option>NVDA</option>
+                <option>AAPL</option>
+                <option>LLY</option>
+                <option>TSLA</option>
+                <option>AMZN</option>
+                <option>MSFT</option>
+                <option>AMD</option>
+                <option>GOOGL</option>
+                <option>META</option>
+                <option>COIN</option>
+                <option>SPY</option>
+                <option>QQQ</option>
+              </select>
+              <p id="analysis-left-summary" class="analysis-left-summary">Select a ticker to load a plain-English snapshot.</p>
+              <div class="analysis-score-stack">
+                <div class="analysis-score-block">
+                  <div class="analysis-score-label">How likely is key legislation to pass?</div>
+                  <span id="analysis-score-legislation" class="score-badge neutral">—</span>
+                  <p class="analysis-score-hint">Based on bill stage, cosponsors, and committee activity.</p>
+                </div>
+                <div class="analysis-score-block">
+                  <div class="analysis-score-label">How hard is the industry lobbying?</div>
+                  <span id="analysis-score-lobby" class="score-badge neutral">—</span>
+                  <p class="analysis-score-hint">Based on spend vs. historical baseline and number of firms filing.</p>
+                </div>
+                <div class="analysis-score-block">
+                  <div class="analysis-score-label">How exposed is this stock to policy risk?</div>
+                  <span id="analysis-score-policy" class="score-badge neutral">—</span>
+                  <p class="analysis-score-hint">Based on revenue segments mentioned in bill text and 10-K risk factors.</p>
+                </div>
+              </div>
+              <div class="analysis-tab-list" role="tablist" aria-label="Analysis sections">
+                <button type="button" class="analysis-tab-btn active" role="tab" aria-selected="true" data-analysis-tab="stock">What does this stock do?</button>
+                <button type="button" class="analysis-tab-btn" role="tab" aria-selected="false" data-analysis-tab="bills">Which bills affect it?</button>
+                <button type="button" class="analysis-tab-btn" role="tab" aria-selected="false" data-analysis-tab="lobby">Who is lobbying?</button>
+                <button type="button" class="analysis-tab-btn" role="tab" aria-selected="false" data-analysis-tab="contracts">What government contracts does it have?</button>
+              </div>
+              <p class="analysis-source-foot muted"><span id="analysis-source">Waiting</span></p>
             </div>
-            <div class="analysis-controls">
-              <label>
-                <span>Company</span>
-                <select id="analysis-symbol" aria-label="Select analysis ticker">
-                  <option>NVDA</option>
-                  <option>AAPL</option>
-                  <option>LLY</option>
-                  <option>TSLA</option>
-                  <option>AMZN</option>
-                  <option>MSFT</option>
-                  <option>AMD</option>
-                  <option>GOOGL</option>
-                  <option>META</option>
-                  <option>COIN</option>
-                  <option>SPY</option>
-                  <option>QQQ</option>
-                </select>
-              </label>
-              <span class="status-pill" id="analysis-source">Waiting</span>
+            <div class="analysis-right">
+              <div class="analysis-tab-panel" data-analysis-panel="stock" role="tabpanel">
+                <p id="analysis-price-context" class="analysis-price-context"></p>
+                <div class="analysis-chart-card panel">
+                  <div class="chart-title">
+                    <span>Price path</span>
+                    <strong id="sparkline-caption">Modeled trend</strong>
+                  </div>
+                  <div id="analysis-sparkline" class="sparkline-wrap" aria-label="Price trend chart"></div>
+                </div>
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>What the numbers mean</h2>
+                  </div>
+                  <div id="analysis-fundamentals-rows" class="analysis-fundamentals-rows"></div>
+                </section>
+                <section class="panel analyst-snapshot-panel">
+                  <div class="panel-head">
+                    <h2>What Wall Street thinks</h2>
+                  </div>
+                  <div id="analysis-analyst-card" class="analysis-analyst-card"></div>
+                  <p class="analysis-analyst-disclaimer">Analyst targets are modeled estimates. Not financial advice.</p>
+                </section>
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>SEC risk factors</h2>
+                  </div>
+                  <p class="edgar-intro muted">Large filings may take a few seconds. ETFs such as SPY/QQQ are not supported.</p>
+                  <div class="edgar-actions">
+                    <button type="button" class="button button-secondary" id="edgar-load-btn">Load SEC risk factors</button>
+                    <a id="edgar-source-link" class="link-button" href="#" target="_blank" rel="noopener noreferrer" hidden>Open filing on SEC.gov</a>
+                  </div>
+                  <div id="edgar-meta" class="edgar-meta muted"></div>
+                  <p class="edgar-10k-kicker">This is Item 1A from their most recent 10-K filing with the SEC. Companies are required to disclose their biggest risks here.</p>
+                  <div class="edgar-risk-scroll-wrap">
+                    <div id="edgar-risk-body" class="edgar-risk-body" aria-live="polite"></div>
+                  </div>
+                </section>
+              </div>
+              <div class="analysis-tab-panel" data-analysis-panel="bills" role="tabpanel" hidden>
+                <div class="analysis-bills-explainer">
+                  These are real bills moving through Congress right now that could change the rules for this company. The momentum score tells you how likely each bill is to advance. The lobbying pressure tells you how much the industry is fighting for or against it.
+                </div>
+                <div class="table-wrap">
+                  <table class="analysis-bills-table">
+                    <thead>
+                      <tr>
+                        <th>Bill</th>
+                        <th>What it would do</th>
+                        <th>Stage</th>
+                        <th>Momentum</th>
+                        <th>Lobby Pressure</th>
+                        <th>For or Against</th>
+                        <th>Tickers affected</th>
+                      </tr>
+                    </thead>
+                    <tbody id="analysis-bills-tbody"></tbody>
+                  </table>
+                </div>
+                <p id="analysis-bills-empty" class="analysis-bills-empty" hidden></p>
+              </div>
+              <div class="analysis-tab-panel" data-analysis-panel="lobby" role="tabpanel" hidden>
+                <p class="analysis-lobby-lede">
+                  Lobbying filings are public records. When a company or industry group files with the Senate, they have to say who paid them, how much, and what issue they were lobbying on. A sudden spike in spending usually means the industry thinks something important is about to happen.
+                </p>
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>Filings connected to bills</h2>
+                  </div>
+                  <div id="analysis-lobby-mapped" class="analysis-lobby-mapped"></div>
+                </section>
+                <section class="panel">
+                  <div class="panel-head">
+                    <h2>Other filings (no bill mapped yet)</h2>
+                  </div>
+                  <button type="button" class="button button-secondary analysis-lobby-toggle" id="analysis-lobby-other-toggle" hidden>Show other filings</button>
+                  <div id="analysis-lobby-other" class="analysis-lobby-other" hidden></div>
+                </section>
+              </div>
+              <div class="analysis-tab-panel" data-analysis-panel="contracts" role="tabpanel" hidden>
+                <p class="analysis-contracts-lede">
+                  Federal contracts are guaranteed revenue from the government. When a contract is cancelled or not renewed, that revenue disappears. USASpending.gov publishes all federal contract awards — the data may be up to 90 days old per government policy.
+                </p>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Agency</th>
+                        <th>Contract Description</th>
+                        <th>Award Amount</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="analysis-contracts-tbody"></tbody>
+                  </table>
+                </div>
+                <!-- Placeholder contract rows; replace with GET /api/contracts/:company when implemented -->
+                <div class="analysis-doge-panel">
+                  DOGE risk flag: If this company has significant contracts with agencies currently under DOGE review, those contracts may face cancellation. Check USASpending.gov directly for the most current data.
+                </div>
+              </div>
             </div>
           </div>
-
-          <section class="analysis-hero panel">
-            <div>
-              <span class="mini-pill" id="analysis-sector">Loading</span>
-              <h2 id="analysis-title">Loading analysis</h2>
-              <p id="analysis-summary">Building plain-English investor view.</p>
-              <div class="analysis-price-row">
-                <strong id="analysis-price">$0</strong>
-                <span id="analysis-change">0.00%</span>
-                <span id="analysis-updated">Updating</span>
-              </div>
-            </div>
-            <div class="sparkline-card">
-              <div class="chart-title">
-                <span>Price path</span>
-                <strong id="sparkline-caption">48-session model</strong>
-              </div>
-              <div id="analysis-sparkline" class="sparkline-wrap" aria-label="Price trend chart"></div>
-            </div>
-          </section>
-
-          <div class="analysis-layout">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Plain-English fundamentals</h2>
-                <span>Beginner mode</span>
-              </div>
-              <div class="metric-grid" id="metric-grid"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Valuation and quality charts</h2>
-                <span>Simple scoring</span>
-              </div>
-              <div class="chart-stack" id="analysis-bars"></div>
-            </section>
-          </div>
-
-          <div class="analysis-layout mt">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Lobbying -> bill -> stock impact</h2>
-                <span>Cause/effect map</span>
-              </div>
-              <div id="policy-chains" class="policy-chain-list"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-head">
-                <h2>API signal explainability</h2>
-                <span>What each feed means</span>
-              </div>
-              <div id="api-explainer" class="api-explainer"></div>
-            </section>
-          </div>
-
-          <div class="analysis-layout mt">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>LegisAlert bill tracker</h2>
-                <span>Linked to selected ticker</span>
-              </div>
-              <div id="analysis-legisalert" class="legisalert-list"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Stakeholder relationship map</h2>
-                <span>People -> bills -> stocks</span>
-              </div>
-              <div id="stakeholder-map" class="stakeholder-map"></div>
-            </section>
-          </div>
-
-          <section class="panel mt">
-            <div class="panel-head">
-              <h2>Research prompts that fit this UI</h2>
-              <button class="link-button" data-view-jump="research">Open AI research</button>
-            </div>
-            <div id="analysis-prompts" class="prompt-chip-row"></div>
-          </section>
+          <button type="button" class="analysis-ticker-ai-btn" id="analysis-ticker-ai-btn">Ask AI about this ticker</button>
         </section>
 
         <section class="view" id="view-bills">
           <div class="page-header">
             <div>
-              <h1>LegisAlert</h1>
-              <p>Bill tracking, lobbying pressure, and Congress stakeholder relationships in one readable feed.</p>
+              <h1>Bills</h1>
+              <p>Bill stage, legislative momentum, lobbying pressure, confidence, and affected tickers in one table.</p>
             </div>
             <span class="status-pill" id="bill-source">Connecting</span>
           </div>
@@ -308,41 +388,85 @@
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
             <button class="button button-secondary compact" id="clear-bill-filter">Clear</button>
           </div>
-          <div class="bill-intel-layout">
-            <div id="bill-feed" class="bill-feed"></div>
-            <aside class="panel">
-              <div class="panel-head">
-                <h2>Stakeholder lens</h2>
-                <span id="bill-network-source">Modeled</span>
-              </div>
-              <div id="bill-stakeholders" class="stakeholder-side"></div>
-            </aside>
-          </div>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Legislative intelligence table</h2>
+              <span data-freshness>Pending</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bill Number</th>
+                    <th>Title</th>
+                    <th>Stage</th>
+                    <th>Leg. Momentum</th>
+                    <th>Lobby Pressure</th>
+                    <th>Confidence</th>
+                    <th>Tickers</th>
+                    <th>Last Action</th>
+                  </tr>
+                </thead>
+                <tbody id="bill-feed"></tbody>
+              </table>
+            </div>
+          </section>
+          <aside class="panel mt">
+            <div class="panel-head">
+              <h2>Stakeholder lens</h2>
+              <span id="bill-network-source">Pending</span>
+            </div>
+            <div id="bill-stakeholders" class="stakeholder-side"></div>
+          </aside>
         </section>
 
-        <section class="view" id="view-lobbying">
+        <section class="view" id="view-contracts">
           <div class="page-header">
             <div>
-              <h1>Lobbying radar</h1>
-              <p>Spend intensity is treated as a directional signal, not proof of passage.</p>
+              <h1>Contracts</h1>
+              <p>Federal contract awards directly affect revenue for government-exposed companies. A DOGE cancellation or appropriations cut can move a stock before the earnings report reflects it.</p>
             </div>
-            <span class="status-pill" id="lobby-source">Connecting</span>
           </div>
-          <section class="panel lobby-bridge-panel">
+          <section class="panel">
             <div class="panel-head">
-              <h2>Lobbying -> bill bridge</h2>
-              <span>Explains the market channel</span>
+              <h2>Federal contract exposure monitor</h2>
+              <span data-freshness>Pending</span>
             </div>
-            <div id="lobby-bill-bridge" class="lobby-bridge"></div>
+            <p class="muted" style="padding: 0 16px 12px; margin: 0; font-size: 13px; line-height: 1.5">
+              Estimated data — not live. Rows below are static examples until <span class="mono">GET /api/contracts/:company</span> is implemented.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Company</th>
+                    <th>Exposure</th>
+                    <th>Recent Award</th>
+                    <th>Agency</th>
+                    <th>DOGE Risk</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- TODO: Fetch live from GET /api/contracts/:company -->
+                  <tr><td>BAH</td><td>Booz Allen Hamilton</td><td><span class="score-badge high">High</span></td><td>$2.4B</td><td>Department of Defense</td><td><span class="score-badge low">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
+                  <tr><td>PLTR</td><td>Palantir</td><td><span class="score-badge medium">Medium</span></td><td>$480M</td><td>Department of Homeland Security</td><td><span class="score-badge medium">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
+                  <tr><td>LDOS</td><td>Leidos</td><td><span class="score-badge medium">Medium</span></td><td>$1.1B</td><td>Defense Health Agency</td><td><span class="score-badge neutral">Clear</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
+                  <tr><td>SAIC</td><td>SAIC</td><td><span class="score-badge medium">Medium</span></td><td>$620M</td><td>U.S. Air Force</td><td><span class="score-badge neutral">Clear</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
+                  <tr><td>LMT</td><td>Lockheed Martin</td><td><span class="score-badge high">High</span></td><td>$3.2B</td><td>Missile Defense Agency</td><td><span class="score-badge medium">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted" style="padding: 12px 16px 16px; font-family: var(--mono); font-size: 11px;">When live, contract data would trace USASpending.gov; awards can lag up to ~90 days per agency disclosure policy.</p>
           </section>
-          <div id="lobby-feed" class="lobby-grid mt"></div>
         </section>
 
         <section class="view" id="view-trade">
           <div class="page-header">
             <div>
-              <h1>Paper trader</h1>
-              <p>Every signed-in user starts with $100,000 of liquid simulated cash. Practice the thesis before risking real capital.</p>
+              <h1>Account</h1>
+              <p>Holdings, orders, cash balance, and audit log in one place. Every signed-in user starts with $100,000 of simulated cash.</p>
             </div>
             <span class="status-pill" id="account-source">Loading</span>
           </div>
@@ -447,33 +571,35 @@
           </div>
         </section>
 
-        <section class="view" id="view-research">
-          <div class="page-header">
-            <div>
-              <h1>AI research</h1>
-              <p>Server-side optional Anthropic integration with local policy fallback.</p>
-            </div>
-          </div>
-          <section class="panel research-panel">
-            <div id="research-log" class="research-log"></div>
-            <form id="research-form" class="research-form">
-              <textarea id="research-question" placeholder="Ask how a bill, lobbying spike, or crypto rule could affect the portfolio"></textarea>
-              <button class="button button-primary" type="submit">Analyze</button>
-            </form>
-          </section>
-        </section>
-
-        <section class="view" id="view-connections">
-          <div class="page-header">
-            <div>
-              <h1>Connections</h1>
-              <p>Provider readiness without exposing secret values to the browser.</p>
-            </div>
-          </div>
-          <div id="connection-grid" class="connection-grid"></div>
-        </section>
       </main>
     </div>
+
+    <button type="button" class="research-drawer-btn">Ask AI</button>
+    <aside class="research-drawer research-drawer-global" aria-label="AI research drawer">
+      <div class="research-drawer-head">
+        <span>AI Research</span>
+        <button type="button" class="button button-ghost compact research-drawer-close">Close</button>
+      </div>
+      <section class="research-panel">
+        <div id="research-log" class="research-log"></div>
+        <form id="research-form" class="research-form">
+          <textarea id="research-question" placeholder="Ask how a bill, lobbying spike, or policy chain could affect a ticker"></textarea>
+          <button class="button button-primary" type="submit">Analyze</button>
+        </form>
+      </section>
+    </aside>
+
+    <div id="methodology-modal" class="methodology-modal" role="dialog" aria-modal="true" aria-labelledby="methodology-modal-title" hidden>
+      <div class="methodology-modal-backdrop" data-close-methodology tabindex="-1"></div>
+      <div class="methodology-modal-panel">
+        <header class="methodology-modal-head">
+          <h2 id="methodology-modal-title">How TradeSimple metrics work</h2>
+          <button type="button" class="button button-ghost compact" data-close-methodology aria-label="Close metrics explainer">✕</button>
+        </header>
+        <div class="methodology-modal-body" id="methodology-modal-body"></div>
+      </div>
+    </div>
+
     <script src="/assets/app.js?v=paper-trader-1" defer></script>
   </body>
 </html>
