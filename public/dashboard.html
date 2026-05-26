@@ -1,29 +1,71 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("ts_theme");
+          document.documentElement.setAttribute("data-theme", t === "light" || t === "dark" ? t : "dark");
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TradeSimple Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=paper-trader-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=taste-hierarchy-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=taste-hierarchy-1" />
   </head>
   <body data-page="dashboard">
     <div class="terminal-shell">
-      <aside class="sidebar">
+      <aside class="sidebar" id="main-sidebar">
+        <div class="sidebar-brand-row">
         <a class="brand terminal-brand" href="/dashboard">
-          <span class="brand-mark">T</span>
-          <span>TradeSimple</span>
+          <svg class="brand-monogram" width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.3)" stroke-width="1"/>
+            <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbitD)" stroke-width="1.5" stroke-dasharray="14 64">
+              <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
+            </circle>
+            <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.5)" stroke-width="0.75"/>
+            <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
+            <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
+            <defs>
+              <linearGradient id="tOrbitD" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#5bbf82"/>
+                <stop offset="100%" stop-color="#1F4A35"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div>
+            <span style="display:block;line-height:1">TradeSimple</span>
+            <span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;color:rgba(91,191,130,.6);text-transform:uppercase;margin-top:1px">Policy Signals</span>
+          </div>
         </a>
+        <button class="ham-btn" id="ham-btn" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="main-sidebar">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="2" y="5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+            <rect x="2" y="9.25" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+            <rect x="2" y="13.5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+          </svg>
+        </button>
+        </div>
         <nav class="side-nav" aria-label="Terminal sections">
           <button class="nav-item active" data-view="overview">Dashboard</button>
           <button class="nav-item" data-view="markets">Markets</button>
           <button class="nav-item" data-view="bills">Bills</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
           <button class="nav-item" data-view="analysis">Analysis</button>
+          <button class="nav-item" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="trade">Account</button>
+          <button class="nav-item nav-item-settings" data-view="settings">Settings</button>
         </nav>
+        <div class="sidebar-footer-actions">
+          <a class="button button-ghost compact sidebar-signout" href="/auth/logout">Sign out</a>
+        </div>
         <div class="user-box">
           <div class="avatar" data-user-initials>AJ</div>
           <div>
@@ -33,19 +75,29 @@
         </div>
       </aside>
 
-      <header class="topbar">
-        <label class="search-box">
-          <span>Search</span>
-          <input id="terminal-search" placeholder="Ticker, bill, issue area" />
-        </label>
-        <div class="ticker-tape-wrap">
-          <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
-          <span id="quote-fallback-badge" class="mini-pill amber" hidden>Fallback prices</span>
+      <div class="topbar-stack">
+        <header class="topbar">
+          <label class="search-box">
+            <span>Search</span>
+            <input id="terminal-search" placeholder="Ticker, bill, issue area" />
+          </label>
+          <div class="topbar-end">
+            <span id="quote-fallback-badge" class="mini-pill amber quote-fallback-prominent" hidden title="Live market data required for thesis tracking">⚠ Fallback prices — not live</span>
+            <span id="live-feed-status" class="mini-pill live-source-pill">Live feed starting</span>
+            <div class="theme-toggle" role="group" aria-label="Color theme">
+              <button type="button" class="theme-toggle-btn" data-theme-set="dark" aria-pressed="true">Dark</button>
+              <button type="button" class="theme-toggle-btn" data-theme-set="light" aria-pressed="false">Light</button>
+            </div>
+            <button type="button" class="button button-secondary compact" id="refresh-all-btn">Refresh all</button>
+            <button type="button" class="button button-ghost compact" id="methodology-open-btn" title="How scores are calculated">Explain metrics</button>
+          </div>
+        </header>
+        <div class="tape-strip" aria-label="Market tape">
+          <div class="ticker-tape-track">
+            <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
+          </div>
         </div>
-        <button type="button" class="button button-secondary compact" id="refresh-all-btn">Refresh all</button>
-        <button type="button" class="button button-ghost compact" id="methodology-open-btn" title="How scores are calculated">Explain metrics</button>
-        <a class="button button-ghost compact" href="/auth/logout">Sign out</a>
-      </header>
+      </div>
 
       <main class="workspace">
         <section class="view active dashboard-overview-view" id="view-overview">
@@ -64,7 +116,7 @@
                 <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
               </div>
             </div>
-            <div class="portfolio-terminal-card">
+            <div class="portfolio-terminal-card surface-emphasis actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
               <div class="portfolio-terminal-head">
                 <span>Portfolio value</span>
                 <strong id="portfolio-hero-value">$0</strong>
@@ -77,28 +129,55 @@
             </div>
           </section>
 
+          <section class="panel live-alert-panel" aria-live="polite">
+            <div class="panel-head">
+              <h2>Live signal tape</h2>
+              <span id="live-alert-updated">Waiting for feeds</span>
+            </div>
+            <div id="live-alerts" class="live-alerts"></div>
+          </section>
+
+          <section class="panel policy-catalyst-panel">
+            <div class="panel-head">
+              <h2>Congress catalyst queue</h2>
+              <span id="policy-catalyst-source">Waiting</span>
+            </div>
+            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
+          </section>
+
           <div class="stat-grid">
-            <article class="stat-card stat-card-hero">
+            <article class="stat-card stat-card-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
               <span>Portfolio simulation</span>
               <strong id="portfolio-value">$0</strong>
               <small id="portfolio-change">Calculating</small>
             </article>
-            <article class="stat-card">
+            <article class="stat-card actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open mapped bills">
               <span>Mapped bills</span>
               <strong class="amber" id="stat-bill-count">—</strong>
               <small id="stat-bill-momentum">Legislative momentum (max /100)</small>
             </article>
-            <article class="stat-card">
+            <article class="stat-card actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading mode">
               <span>Trading mode</span>
               <strong id="trade-mode">Paper</strong>
               <small id="trade-mode-sub">Live locked by default</small>
             </article>
-            <article class="stat-card stat-card-wide">
+            <article class="stat-card stat-card-wide actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open lobbying and bill pressure">
               <span>Lobbying pressure</span>
               <strong class="down" id="stat-lobby-pressure">—/100</strong>
               <small id="stat-lobby-confidence">Top filing score · Confidence</small>
             </article>
           </div>
+
+          <section class="panel signal-chain-panel" id="signal-chain-panel">
+            <div class="panel-head">
+              <h2>Signal chain</h2>
+              <span>Bills · contracts · market impact — unified</span>
+            </div>
+            <div id="signal-chain-feed" class="signal-chain-feed"></div>
+            <div class="signal-chain-footer" id="signal-chain-footer" hidden>
+              <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
+            </div>
+          </section>
 
           <section class="panel market-mood-panel" id="market-mood-panel">
             <div class="panel-head">
@@ -194,7 +273,7 @@
           <div class="page-header">
             <div>
               <h1>Markets</h1>
-              <p>Server-proxied quotes with fallback data when keys are missing.</p>
+              <p>Live market prices, crypto assets, and mapped policy signals. Source freshness updates as each feed polls.</p>
             </div>
             <span class="status-pill" id="market-source">Connecting</span>
           </div>
@@ -230,19 +309,27 @@
             <div class="analysis-left">
               <label class="analysis-ticker-label" for="analysis-symbol">You are looking at</label>
               <select id="analysis-symbol" class="analysis-symbol-select" aria-label="Select analysis ticker">
-                <option>NVDA</option>
-                <option>AAPL</option>
-                <option>LLY</option>
-                <option>TSLA</option>
-                <option>AMZN</option>
-                <option>MSFT</option>
-                <option>AMD</option>
-                <option>GOOGL</option>
-                <option>META</option>
-                <option>COIN</option>
-                <option>SPY</option>
-                <option>QQQ</option>
+                <option value="">Loading tickers…</option>
               </select>
+              <div class="reader-mode-control" role="group" aria-label="Reader mode">
+                <button type="button" class="reader-mode-btn" data-reader-mode="citizen">Citizen</button>
+                <button type="button" class="reader-mode-btn active" data-reader-mode="investor">Investor</button>
+                <button type="button" class="reader-mode-btn" data-reader-mode="analyst">Analyst</button>
+              </div>
+              <div class="analysis-hero-card" id="analysis-hero-card">
+                <div>
+                  <span class="mini-pill green" id="analysis-hero-symbol">—</span>
+                  <h2 id="analysis-hero-company">Loading company</h2>
+                  <p id="analysis-hero-policy-line">Loading government exposure.</p>
+                </div>
+                <div class="analysis-hero-quote">
+                  <strong id="analysis-hero-price">--</strong>
+                  <span id="analysis-hero-change" class="muted">--</span>
+                  <small id="analysis-hero-updated">Updated shortly</small>
+                </div>
+              </div>
+              <p class="analysis-disclaimer">Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.</p>
+              <button type="button" class="button button-secondary compact analysis-share-btn" id="analysis-share-btn">Share Card</button>
               <p id="analysis-left-summary" class="analysis-left-summary">Select a ticker to load a plain-English snapshot.</p>
               <div class="analysis-score-stack">
                 <div class="analysis-score-block">
@@ -260,6 +347,11 @@
                   <span id="analysis-score-policy" class="score-badge neutral">—</span>
                   <p class="analysis-score-hint">Based on revenue segments mentioned in bill text and 10-K risk factors.</p>
                 </div>
+                <div class="analysis-score-block" id="analysis-score-contract-block" hidden>
+                  <div class="analysis-score-label">How government-dependent is this stock?</div>
+                  <span id="analysis-score-contract" class="score-badge neutral">—</span>
+                  <p class="analysis-score-hint">Based on government revenue share, agency budget environment, and contract renewal risk. Only shown for tracked government contractors.</p>
+                </div>
               </div>
               <div class="analysis-tab-list" role="tablist" aria-label="Analysis sections">
                 <button type="button" class="analysis-tab-btn active" role="tab" aria-selected="true" data-analysis-tab="stock">What does this stock do?</button>
@@ -271,7 +363,56 @@
             </div>
             <div class="analysis-right">
               <div class="analysis-tab-panel" data-analysis-panel="stock" role="tabpanel">
+                <p id="analysis-quote-meta" class="analysis-quote-meta muted" hidden></p>
                 <p id="analysis-price-context" class="analysis-price-context"></p>
+                <section class="panel government-explainer-panel" id="analysis-government-explainer">
+                  <div class="panel-head">
+                    <h2>Why government matters for this stock</h2>
+                    <span id="analysis-explainer-source">Waiting</span>
+                  </div>
+                  <div class="government-explainer-grid">
+                    <article>
+                      <span>What's happening now</span>
+                      <p id="analysis-explainer-now">Loading government signal.</p>
+                    </article>
+                    <article>
+                      <span>Why it matters</span>
+                      <p id="analysis-explainer-why">Loading market mechanism.</p>
+                    </article>
+                    <article>
+                      <span>What to watch next</span>
+                      <ul id="analysis-explainer-watch"></ul>
+                    </article>
+                  </div>
+                </section>
+                <section class="panel stock-chain-panel">
+                  <div class="panel-head">
+                    <h2>Government-to-market chain</h2>
+                    <span>Government Action -> Company Exposure -> Market Mechanism -> Investor Question</span>
+                  </div>
+                  <div id="analysis-stock-policy-chains" class="analysis-policy-chains"></div>
+                </section>
+                <section class="panel analysis-news-panel" id="analysis-news-panel" hidden>
+                  <div class="panel-head">
+                    <h2>Recent company headlines</h2>
+                    <span class="muted">Last 48 hours · Finnhub</span>
+                  </div>
+                  <ul id="analysis-recent-news" class="analysis-recent-news"></ul>
+                </section>
+                <section class="panel risk-radar-panel">
+                  <div class="panel-head">
+                    <h2>Risk radar</h2>
+                    <span>Scores need captions</span>
+                  </div>
+                  <div id="analysis-risk-radar" class="analysis-risk-radar"></div>
+                </section>
+                <section class="panel evidence-stack-panel">
+                  <div class="panel-head">
+                    <h2>Evidence stack</h2>
+                    <span>Receipts before interpretation</span>
+                  </div>
+                  <div id="analysis-evidence-stack" class="analysis-evidence-stack"></div>
+                </section>
                 <div class="analysis-chart-card panel">
                   <div class="chart-title">
                     <span>Price path</span>
@@ -294,18 +435,22 @@
                 </section>
                 <section class="panel">
                   <div class="panel-head">
-                    <h2>SEC risk factors</h2>
+                    <h2>From the 10-K, in plain English</h2>
                   </div>
-                  <p class="edgar-intro muted">Large filings may take a few seconds. ETFs such as SPY/QQQ are not supported.</p>
+                  <p class="edgar-intro muted">TradeSimple extracts what the company says about money, risks, and whether the numbers are moving in the right direction.</p>
                   <div class="edgar-actions">
-                    <button type="button" class="button button-secondary" id="edgar-load-btn">Load SEC risk factors</button>
+                    <button type="button" class="button button-secondary" id="edgar-load-btn">Refresh SEC filing</button>
                     <a id="edgar-source-link" class="link-button" href="#" target="_blank" rel="noopener noreferrer" hidden>Open filing on SEC.gov</a>
                   </div>
                   <div id="edgar-meta" class="edgar-meta muted"></div>
-                  <p class="edgar-10k-kicker">This is Item 1A from their most recent 10-K filing with the SEC. Companies are required to disclose their biggest risks here.</p>
-                  <div class="edgar-risk-scroll-wrap">
-                    <div id="edgar-risk-body" class="edgar-risk-body" aria-live="polite"></div>
-                  </div>
+                  <div id="edgar-simplified" class="edgar-simplified" hidden></div>
+                  <details class="edgar-raw-details">
+                    <summary>Read original SEC risk-factor text</summary>
+                    <p class="edgar-10k-kicker">Item 1A from the most recent 10-K filing. Source: SEC EDGAR 10-K.</p>
+                    <div class="edgar-risk-scroll-wrap">
+                      <div id="edgar-risk-body" class="edgar-risk-body" aria-live="polite"></div>
+                    </div>
+                  </details>
                 </section>
               </div>
               <div class="analysis-tab-panel" data-analysis-panel="bills" role="tabpanel" hidden>
@@ -329,6 +474,7 @@
                   </table>
                 </div>
                 <p id="analysis-bills-empty" class="analysis-bills-empty" hidden></p>
+              <div id="analysis-policy-chains" class="analysis-policy-chains"></div>
               </div>
               <div class="analysis-tab-panel" data-analysis-panel="lobby" role="tabpanel" hidden>
                 <p class="analysis-lobby-lede">
@@ -338,6 +484,7 @@
                   <div class="panel-head">
                     <h2>Filings connected to bills</h2>
                   </div>
+                  <div id="analysis-lobby-map-status" class="analysis-lobby-map-status" aria-live="polite"></div>
                   <div id="analysis-lobby-mapped" class="analysis-lobby-mapped"></div>
                 </section>
                 <section class="panel">
@@ -349,26 +496,53 @@
                 </section>
               </div>
               <div class="analysis-tab-panel" data-analysis-panel="contracts" role="tabpanel" hidden>
+
+                <!-- Contract Insight banner — only shown for tracked contractors -->
+                <div id="analysis-contract-insight" class="analysis-contract-insight" hidden>
+                  <div class="contract-insight-head">
+                    <div>
+                      <span class="mini-pill" id="contract-archetype-pill">—</span>
+                      <span class="mini-pill amber" id="contract-doge-pill" hidden>Efficiency review flagged</span>
+                    </div>
+                    <p id="contract-archetype-explain" class="muted"></p>
+                  </div>
+                  <div class="contract-bull-bear">
+                    <p><span class="mini-pill green">Bull</span> <span id="contract-bull"></span></p>
+                    <p><span class="mini-pill red">Bear</span> <span id="contract-bear"></span></p>
+                  </div>
+                </div>
+
+                <!-- Government Money Trail — shown per award when expanded -->
+                <div id="analysis-money-trail" class="analysis-money-trail" hidden>
+                  <div class="money-trail-head">
+                    <strong>Government Money Trail</strong>
+                    <button type="button" class="link-button" id="money-trail-close">Close</button>
+                  </div>
+                  <div class="money-trail-chain" id="money-trail-chain"></div>
+                  <div class="money-trail-limits" id="money-trail-limits"></div>
+                </div>
+
+                <!-- Contracts table (live USASpending data + CRS per row) -->
                 <p class="analysis-contracts-lede">
-                  Federal contracts are guaranteed revenue from the government. When a contract is cancelled or not renewed, that revenue disappears. USASpending.gov publishes all federal contract awards — the data may be up to 90 days old per government policy.
+                  Federal contracts can represent meaningful revenue, but not all awards matter equally.
+                  Smaller, unexpected awards from less-covered agencies have historically produced
+                  stronger stock reactions than large pre-announced defense awards.
+                  USASpending.gov data may lag by up to 90 days for DoD; other agencies within 3 days.
                 </p>
                 <div class="table-wrap">
                   <table>
                     <thead>
                       <tr>
                         <th>Agency</th>
-                        <th>Contract Description</th>
-                        <th>Award Amount</th>
+                        <th>What it's for</th>
+                        <th>Amount</th>
                         <th>Period</th>
-                        <th>Status</th>
+                        <th>Signal</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody id="analysis-contracts-tbody"></tbody>
                   </table>
-                </div>
-                <!-- Placeholder contract rows; replace with GET /api/contracts/:company when implemented -->
-                <div class="analysis-doge-panel">
-                  DOGE risk flag: If this company has significant contracts with agencies currently under DOGE review, those contracts may face cancellation. Check USASpending.gov directly for the most current data.
                 </div>
               </div>
             </div>
@@ -388,6 +562,13 @@
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
             <button class="button button-secondary compact" id="clear-bill-filter">Clear</button>
           </div>
+          <section class="panel bill-catalyst-panel">
+            <div class="panel-head">
+              <h2>Near-term policy catalysts</h2>
+              <span>Schedule, status, lobbying, and ticker mapping</span>
+            </div>
+            <div id="bill-catalyst-feed" class="policy-catalyst-list compact"></div>
+          </section>
           <section class="panel">
             <div class="panel-head">
               <h2>Legislative intelligence table</h2>
@@ -397,7 +578,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Bill Number</th>
+                    <th>Bill / model ID</th>
                     <th>Title</th>
                     <th>Stage</th>
                     <th>Leg. Momentum</th>
@@ -424,16 +605,16 @@
           <div class="page-header">
             <div>
               <h1>Contracts</h1>
-              <p>Federal contract awards directly affect revenue for government-exposed companies. A DOGE cancellation or appropriations cut can move a stock before the earnings report reflects it.</p>
+              <p>Federal contract awards can affect revenue for government-exposed companies. Agency reviews, recompetes, cancellations, or appropriations cuts can move a stock before the earnings report reflects it.</p>
             </div>
           </div>
           <section class="panel">
             <div class="panel-head">
               <h2>Federal contract exposure monitor</h2>
-              <span data-freshness>Pending</span>
+              <span id="contracts-source">Connecting</span>
             </div>
-            <p class="muted" style="padding: 0 16px 12px; margin: 0; font-size: 13px; line-height: 1.5">
-              Estimated data — not live. Rows below are static examples until <span class="mono">GET /api/contracts/:company</span> is implemented.
+            <p id="contracts-intro" class="muted" style="padding: 0 16px 12px; margin: 0; font-size: 13px; line-height: 1.5">
+              Loading recent awards from USASpending.gov. Awards can lag agency disclosure by roughly 30-90 days.
             </p>
             <div class="table-wrap">
               <table>
@@ -444,22 +625,429 @@
                     <th>Exposure</th>
                     <th>Recent Award</th>
                     <th>Agency</th>
-                    <th>DOGE Risk</th>
+                    <th>Review Risk</th>
                     <th>Action</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <!-- TODO: Fetch live from GET /api/contracts/:company -->
-                  <tr><td>BAH</td><td>Booz Allen Hamilton</td><td><span class="score-badge high">High</span></td><td>$2.4B</td><td>Department of Defense</td><td><span class="score-badge low">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
-                  <tr><td>PLTR</td><td>Palantir</td><td><span class="score-badge medium">Medium</span></td><td>$480M</td><td>Department of Homeland Security</td><td><span class="score-badge medium">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
-                  <tr><td>LDOS</td><td>Leidos</td><td><span class="score-badge medium">Medium</span></td><td>$1.1B</td><td>Defense Health Agency</td><td><span class="score-badge neutral">Clear</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
-                  <tr><td>SAIC</td><td>SAIC</td><td><span class="score-badge medium">Medium</span></td><td>$620M</td><td>U.S. Air Force</td><td><span class="score-badge neutral">Clear</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
-                  <tr><td>LMT</td><td>Lockheed Martin</td><td><span class="score-badge high">High</span></td><td>$3.2B</td><td>Missile Defense Agency</td><td><span class="score-badge medium">Flagged</span></td><td><a class="link-button" target="_blank" rel="noopener noreferrer" href="https://www.usaspending.gov/">USASpending</a></td></tr>
-                </tbody>
+                <tbody id="contracts-body"></tbody>
               </table>
             </div>
-            <p class="muted" style="padding: 12px 16px 16px; font-family: var(--mono); font-size: 11px;">When live, contract data would trace USASpending.gov; awards can lag up to ~90 days per agency disclosure policy.</p>
+            <p class="muted" style="padding: 12px 16px 16px; font-family: var(--mono); font-size: 11px;">Live source: USASpending.gov search API via the TradeSimple server. Contract risk is a heuristic, not a legal cancellation signal.</p>
           </section>
+
+          <!-- ── CONTRACT CAUSALITY PANEL ───────────────────────── -->
+          <section class="panel causality-panel" id="causality-panel" style="margin-top:16px">
+            <div class="panel-head">
+              <div>
+                <h2>Contract causality</h2>
+                <span>Show the chain — budget → agency → award → revenue → scenario — not just a score.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div class="causality-ticker-row" role="group" aria-label="Select company"></div>
+                <form id="causality-custom-form" style="display:flex;gap:6px;align-items:center">
+                  <input id="causality-custom-input" placeholder="Any ticker…" maxlength="6"
+                    style="background:var(--bg-2);border:1px solid var(--line-2);color:var(--text);font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;width:110px;text-transform:uppercase"
+                    autocomplete="off" spellcheck="false" />
+                  <button type="submit" class="button button-secondary compact" style="font-size:11px">Analyze</button>
+                </form>
+                <span id="c-ai-badge" class="mini-pill green" style="display:none;font-family:var(--mono);font-size:10px">AI</span>
+              </div>
+            </div>
+
+            <div id="causality-loading" style="padding:24px 18px;color:var(--text-muted);font-size:13px">Loading…</div>
+            <div id="causality-body" hidden>
+
+              <!-- HERO ROW -->
+              <div class="causality-hero-row">
+                <div class="causality-hero-copy">
+                  <p id="c-plain" class="causality-plain"></p>
+                  <div class="causality-answer-box">
+                    <span class="causality-answer-dot"></span>
+                    <div>
+                      <strong id="c-archetype-label" class="causality-answer-title"></strong>
+                      <p id="c-archetype-explain" class="causality-answer-body"></p>
+                    </div>
+                  </div>
+                </div>
+                <div class="causality-score-grid">
+                  <div class="causality-score-card">
+                    <small>Gov. dependency</small>
+                    <strong id="c-dep"></strong>
+                    <p>Structural exposure to government revenue.</p>
+                  </div>
+                  <div class="causality-score-card">
+                    <small>Change risk</small>
+                    <strong id="c-change" class="amber"></strong>
+                    <p>How likely revenue conditions could shift.</p>
+                  </div>
+                  <div class="causality-score-card">
+                    <small>Archetype</small>
+                    <strong id="c-arch" style="font-size:14px;letter-spacing:-.02em;margin-top:10px"></strong>
+                    <p>Company classification by contract dependency pattern.</p>
+                  </div>
+                  <div class="causality-score-card">
+                    <small>Confidence</small>
+                    <strong id="c-conf" style="font-size:18px;margin-top:10px"></strong>
+                    <p>Public filings + award data, with lag caveats.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CAUSAL MAP -->
+              <div class="panel-head" style="margin-top:0;border-top:1px solid var(--border)">
+                <div><h2 style="font-size:17px">Relationship map</h2><span>Each node: what changed, why it matters, where the evidence came from.</span></div>
+                <span id="c-doge-pill" class="mini-pill amber" style="display:none">Efficiency review flagged</span>
+              </div>
+              <div class="causality-map" id="c-map"></div>
+
+              <!-- TRANSLATION + BARS -->
+              <div class="causality-grid-2">
+                <div class="panel" style="border:none;border-top:1px solid var(--border);border-radius:0">
+                  <div class="panel-head"><h2 style="font-size:16px">Investor translation</h2><span>No jargon</span></div>
+                  <div id="c-translation" class="causality-explain-stack"></div>
+                </div>
+                <div class="panel" style="border:none;border-top:1px solid var(--border);border-left:1px solid var(--border);border-radius:0">
+                  <div class="panel-head"><h2 style="font-size:16px">Relationship drivers</h2><span>Visuals beat abstract scores</span></div>
+                  <div id="c-bars" class="causality-bar-list"></div>
+                </div>
+              </div>
+
+              <!-- SCENARIOS -->
+              <div class="panel-head" style="border-top:1px solid var(--border)">
+                <div><h2 style="font-size:16px">Scenario card</h2><span>Not buy/sell — mechanisms only. Not financial advice.</span></div>
+              </div>
+              <div style="overflow-x:auto">
+                <table class="causality-scenario-table">
+                  <thead><tr><th>Scenario</th><th>What changes</th><th>Investor read</th></tr></thead>
+                  <tbody id="c-scenarios"></tbody>
+                </table>
+              </div>
+
+              <!-- EVIDENCE TRAY -->
+              <div class="panel-head" style="border-top:1px solid var(--border)">
+                <div><h2 style="font-size:16px">Evidence tray</h2><span>Retail-simple does not mean evidence-light. Every signal has a named source.</span></div>
+              </div>
+              <div id="c-evidence" class="causality-evidence-grid"></div>
+
+              <p class="muted" style="padding:12px 18px 16px;font-family:var(--mono);font-size:11px">CRS v2 · calibrated on 282 USASpending.gov events (LMT, BAH, LDOS, SAIC, PLTR, 2015–2024). Directional signal only. Not investment advice.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-thesis">
+          <div class="thesis-outer-tabs">
+            <button type="button" class="thesis-outer-tab active" data-thesis-outer="build">Build thesis</button>
+            <button type="button" class="thesis-outer-tab" data-thesis-outer="map">Signal map</button>
+          </div>
+          <div class="thesis-pane active" id="thesis-pane-build">
+            <div class="thesis-step-bar" id="thesisStepBar">
+              <div class="thesis-pip active" id="tpip-0"><div class="thesis-pip-num">1</div><span>The idea</span></div>
+              <div class="thesis-pip" id="tpip-1"><div class="thesis-pip-num">2</div><span>Why it moves</span></div>
+              <div class="thesis-pip" id="tpip-2"><div class="thesis-pip-num">3</div><span>What stops you</span></div>
+              <div class="thesis-pip" id="tpip-3"><div class="thesis-pip-num">4</div><span>The plan</span></div>
+            </div>
+            <div class="thesis-screen active" id="tscreen-0">
+              <div class="thesis-step-body">
+                <p class="thesis-q">What's the trade?</p>
+                <p class="thesis-hint">Pick a ticker and tell us which way you think it moves.</p>
+                <div class="thesis-ticker-row">
+                  <input class="thesis-ticker-input" id="t-ticker" placeholder="NVDA" maxlength="6" autocomplete="off" spellcheck="false" />
+                  <span class="thesis-ticker-label">I think this stock will</span>
+                </div>
+                <div class="thesis-dir-row">
+                  <div class="thesis-dir-btn" data-dir="bull" id="tdir-bull">
+                    <span class="thesis-dir-icon up">↑</span>
+                    <div class="thesis-dir-label">Go up</div>
+                    <div class="thesis-dir-sub">I'm buying</div>
+                  </div>
+                  <div class="thesis-dir-btn" data-dir="bear" id="tdir-bear">
+                    <span class="thesis-dir-icon down">↓</span>
+                    <div class="thesis-dir-label">Go down</div>
+                    <div class="thesis-dir-sub">Shorting / avoiding</div>
+                  </div>
+                  <div class="thesis-dir-btn" data-dir="watch" id="tdir-watch">
+                    <span class="thesis-dir-icon">◎</span>
+                    <div class="thesis-dir-label">Just watching</div>
+                    <div class="thesis-dir-sub">Not ready to trade</div>
+                  </div>
+                </div>
+                <div class="thesis-btn-row">
+                  <button type="button" class="button button-primary compact" id="t-next-0" disabled onclick="thesisGoTo(1)">Next</button>
+                </div>
+              </div>
+            </div>
+            <div class="thesis-screen" id="tscreen-1">
+              <div class="thesis-step-body">
+                <p class="thesis-q">Why do you think that?</p>
+                <p class="thesis-hint">Write it how you'd explain it to a friend. The more specific, the better the analysis.</p>
+                <textarea class="thesis-textarea" id="t-thesis" placeholder="e.g. NVDA keeps winning AI chip orders and there's a new government bill funding domestic chip manufacturing. Every tech company is buying their hardware right now…"></textarea>
+                <div class="thesis-char-count"><span id="t-char-count">0</span> characters — aim for at least 80</div>
+                <div class="thesis-btn-row">
+                  <button type="button" class="button button-ghost compact" onclick="thesisGoTo(0)">Back</button>
+                  <button type="button" class="button button-primary compact" id="t-next-1" disabled onclick="thesisGoTo(2)">Next</button>
+                </div>
+              </div>
+            </div>
+            <div class="thesis-screen" id="tscreen-2">
+              <div class="thesis-step-body">
+                <p class="thesis-q">What would change your mind?</p>
+                <p class="thesis-hint">Pick every scenario that would make you exit or reconsider. This separates a plan from a guess.</p>
+                <div class="thesis-exit-list" id="t-exit-list">
+                  <div class="thesis-exit-opt" data-cat="bill">
+                    <div class="thesis-exit-icon">📋</div>
+                    <div>
+                      <div class="thesis-exit-label">The bill fails or stalls</div>
+                      <div class="thesis-exit-sub">The legislation driving the thesis doesn't pass or is watered down</div>
+                    </div>
+                    <div class="thesis-exit-check"></div>
+                  </div>
+                  <div class="thesis-exit-opt" data-cat="earnings">
+                    <div class="thesis-exit-icon">📊</div>
+                    <div>
+                      <div class="thesis-exit-label">Earnings disappoint</div>
+                      <div class="thesis-exit-sub">Revenue misses, guidance gets cut, or management sounds cautious</div>
+                    </div>
+                    <div class="thesis-exit-check"></div>
+                  </div>
+                  <div class="thesis-exit-opt" data-cat="contract">
+                    <div class="thesis-exit-icon">🏛</div>
+                    <div>
+                      <div class="thesis-exit-label">Government contract cancelled or cut</div>
+                      <div class="thesis-exit-sub">Agency review, budget cut, or award goes to a competitor</div>
+                    </div>
+                    <div class="thesis-exit-check"></div>
+                  </div>
+                  <div class="thesis-exit-opt" data-cat="competitor">
+                    <div class="thesis-exit-icon">⚔</div>
+                    <div>
+                      <div class="thesis-exit-label">Competitor gains ground</div>
+                      <div class="thesis-exit-sub">A rival launches something better or steals a major customer</div>
+                    </div>
+                    <div class="thesis-exit-check"></div>
+                  </div>
+                  <div class="thesis-exit-opt" data-cat="macro">
+                    <div class="thesis-exit-icon">🌐</div>
+                    <div>
+                      <div class="thesis-exit-label">Macro conditions shift against it</div>
+                      <div class="thesis-exit-sub">Rate hike, recession signal, or sector rotation moves money elsewhere</div>
+                    </div>
+                    <div class="thesis-exit-check"></div>
+                  </div>
+                </div>
+                <div class="thesis-btn-row">
+                  <button type="button" class="button button-ghost compact" onclick="thesisGoTo(1)">Back</button>
+                  <button type="button" class="button button-ghost compact" onclick="thesisGoTo(3)" style="margin-left:auto; margin-right:8px">Skip</button>
+                  <button type="button" class="button button-primary compact" id="t-next-2" disabled onclick="thesisGoTo(3)">Next</button>
+                </div>
+              </div>
+            </div>
+            <div class="thesis-screen" id="tscreen-3">
+              <div class="thesis-step-body">
+                <p class="thesis-q">Where do you get out?</p>
+                <p class="thesis-hint">Set a target and a stop-loss. You can skip this and just see the analysis.</p>
+                <div class="thesis-price-row">
+                  <div class="thesis-price-field">
+                    <span class="thesis-price-label">Entry price ($)</span>
+                    <input class="thesis-price-input" id="t-entry" type="number" placeholder="220.00" step="0.01" />
+                  </div>
+                  <div class="thesis-price-field">
+                    <span class="thesis-price-label">Take profit at ($)</span>
+                    <input class="thesis-price-input" id="t-target" type="number" placeholder="280.00" step="0.01" />
+                  </div>
+                  <div class="thesis-price-field">
+                    <span class="thesis-price-label">Cut losses at ($)</span>
+                    <input class="thesis-price-input" id="t-stop" type="number" placeholder="195.00" step="0.01" />
+                  </div>
+                </div>
+                <div class="thesis-rr-bar" id="t-rr-bar" hidden>
+                  <span>Plan risk / reward</span>
+                  <strong id="t-rr-val">—</strong>
+                  <p class="thesis-rr-note">Plan risk/reward only — not probability-adjusted expected return.</p>
+                </div>
+                <div class="thesis-btn-row">
+                  <button type="button" class="button button-ghost compact" onclick="thesisGoTo(2)">Back</button>
+                  <button type="button" class="button button-ghost compact" onclick="thesisBuild()" style="margin-left:auto; margin-right:8px">Skip — show analysis</button>
+                  <button type="button" class="button button-primary compact" onclick="thesisBuild()">Build my thesis →</button>
+                </div>
+              </div>
+            </div>
+            <div class="thesis-screen" id="tscreen-result">
+              <div class="thesis-quote-blocker" id="tr-quote-blocker" hidden>
+                <strong>Live market data required</strong>
+                <p>Your quote feed is using fallback prices. Connect Finnhub or Yahoo live quotes before tracking this plan in paper mode.</p>
+              </div>
+              <div class="thesis-result-layout">
+                <div class="thesis-result-main">
+                  <div class="thesis-result-wrap">
+                    <div class="thesis-result-header">
+                      <span class="thesis-result-ticker" id="tr-ticker">—</span>
+                      <span class="thesis-result-dir-pill" id="tr-dir-pill">—</span>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Your idea</span>
+                      <div class="thesis-idea-card">
+                        <div class="thesis-idea-text" id="tr-thesis-text"></div>
+                        <div class="thesis-idea-divider" id="tr-exit-divider" hidden></div>
+                        <div class="thesis-idea-exit" id="tr-exit-info" hidden></div>
+                        <p class="thesis-exit-rr-note" id="tr-exit-rr-note" hidden>Plan risk/reward only — not probability-adjusted expected return.</p>
+                      </div>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Claims &amp; evidence</span>
+                      <p class="thesis-section-hint">Each claim opens an evidence drawer (modeled or live). Research context only — not causal proof.</p>
+                      <div class="thesis-claims-list" id="tr-claims"></div>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Signals to watch</span>
+                      <p class="thesis-section-hint">Ticker-specific checkpoints — timestamp, source, and why it matters to this symbol.</p>
+                      <div class="thesis-signal-grid" id="tr-signals"></div>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Three ways this plays out</span>
+                      <p class="thesis-section-hint" id="tr-scenario-hint">Illustrative ranges — not forecasts.</p>
+                      <div class="thesis-scenario-row" id="tr-scenarios"></div>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Live monitor heartbeat</span>
+                      <p class="thesis-section-hint">Alert-style rules (client heuristics v1) — status, next check, and why it matters.</p>
+                      <div class="thesis-watch-list" id="tr-watchlist"></div>
+                    </div>
+                    <div class="thesis-result-section" id="tr-live-outcome-section" hidden>
+                      <span class="thesis-result-label">Live paper outcome</span>
+                      <div class="thesis-live-outcome" id="tr-live-outcome"></div>
+                      <p class="thesis-live-note">Paper P/L uses your quote feed — not financial advice. Outcomes update when you refresh or return to this view.</p>
+                    </div>
+                    <div class="thesis-result-section">
+                      <span class="thesis-result-label">Plan structure score</span>
+                      <p class="thesis-section-hint thesis-score-subtitle">Measures how complete your plan is — not whether the trade will work.</p>
+                      <div class="thesis-overall-score" id="tr-score-row">
+                        <div>
+                          <div class="thesis-score-num" id="tr-score">—</div>
+                          <div class="thesis-score-of">/ 100 · Plan Quality</div>
+                        </div>
+                        <div class="thesis-score-verdict" id="tr-verdict">—</div>
+                      </div>
+                      <div class="thesis-conv-block" id="tr-conv-bars"></div>
+                    </div>
+                    <p class="thesis-disclaimer">Not financial advice. Signals and evidence are research context only — they do not imply causation or recommend buy/sell/hold. Paper trade before risking real capital.</p>
+                    <div class="thesis-result-actions">
+                      <button type="button" class="button button-primary compact" id="tr-track-paper" onclick="thesisTrackInPaper()">Track in paper account</button>
+                      <button type="button" class="button button-secondary compact" onclick="thesisViewMap()">View signal map →</button>
+                      <button type="button" class="button button-ghost compact" onclick="thesisReset()">Start over</button>
+                    </div>
+                  </div>
+                </div>
+                <aside class="thesis-result-rail" id="tr-sticky-rail" aria-label="Thesis snapshot">
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Current price</span>
+                    <div class="thesis-rail-value" id="tr-rail-price">—</div>
+                    <div class="thesis-rail-meta" id="tr-rail-price-fresh">—</div>
+                  </div>
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Next earnings</span>
+                    <div class="thesis-rail-value" id="tr-rail-earnings">—</div>
+                  </div>
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Thesis status</span>
+                    <div class="thesis-rail-value" id="tr-rail-status">Open plan</div>
+                  </div>
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Active alerts</span>
+                    <div class="thesis-rail-value" id="tr-rail-alerts">0</div>
+                  </div>
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Source freshness</span>
+                    <div class="thesis-rail-meta" id="tr-rail-freshness">—</div>
+                  </div>
+                  <div class="thesis-rail-card">
+                    <span class="thesis-rail-label">Plan R/R</span>
+                    <div class="thesis-rail-value" id="tr-rail-rr">—</div>
+                    <div class="thesis-rail-meta">From entry / target / stop only</div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+          <div class="thesis-pane" id="thesis-pane-map">
+            <div class="thesis-map-shell">
+              <div class="thesis-map-tabs">
+                <button type="button" class="thesis-map-tab active" data-map-tab="graph">Signal map</button>
+                <button type="button" class="thesis-map-tab" data-map-tab="timeline">Timeline</button>
+              </div>
+              <div class="thesis-map-pane active" id="thesis-map-graph">
+                <div class="thesis-map-toast" id="thesis-map-toast" hidden role="status"></div>
+                <p class="thesis-map-hint" id="thesis-map-hint" hidden>Click any node for evidence</p>
+                <div class="thesis-map-toolbar">
+                  <div class="thesis-map-heading-block">
+                    <span class="thesis-map-title" id="thesis-map-heading">How this thesis connects</span>
+                    <span class="thesis-map-meta" id="thesis-map-meta"></span>
+                  </div>
+                  <div class="thesis-filter-pills" id="thesis-filter-pills">
+                    <button type="button" class="thesis-filter-pill active" data-fp="all">All</button>
+                    <button type="button" class="thesis-filter-pill" data-fp="bill">Bills</button>
+                    <button type="button" class="thesis-filter-pill" data-fp="lobby">Lobby</button>
+                    <button type="button" class="thesis-filter-pill" data-fp="contract">Contracts</button>
+                    <button type="button" class="thesis-filter-pill" data-fp="figure">Figures</button>
+                    <button type="button" class="thesis-filter-pill" data-fp="market">Market</button>
+                  </div>
+                </div>
+                <div class="thesis-canvas-wrap">
+                  <canvas id="thesisMapCanvas" height="420" role="img" aria-label="Interactive signal map showing how data sources connect to your thesis stock">Signal map: connections between signals and your stock.</canvas>
+                  <div class="thesis-map-empty" id="thesis-map-empty" hidden>
+                    <p id="thesis-map-empty-msg">Could not load the relationship map.</p>
+                    <button type="button" class="button button-secondary compact" id="thesis-map-retry">Retry</button>
+                  </div>
+                </div>
+                <div class="thesis-node-detail" id="thesisNodeDetail">
+                  <p class="thesis-node-empty">Click any node to see how it connects to your thesis</p>
+                </div>
+                <div class="thesis-map-legend">
+                  <span class="thesis-leg-item thesis-leg-new" id="thesis-map-new-legend" hidden><span class="thesis-leg-ring"></span>Highlighted = new since last visit</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#378add"></span>Bill</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#ba7517"></span>Lobbying</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#639922"></span>Contract</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#9b6ed0"></span>Figure</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#7f77dd"></span>Market signal</span>
+                  <span class="thesis-leg-item"><span class="thesis-leg-dot" style="background:#d85a30"></span>Your stock</span>
+                </div>
+              </div>
+              <div class="thesis-map-pane" id="thesis-map-timeline">
+                <div class="thesis-hz-wrap">
+                  <div class="thesis-hz-axis">
+                    <span>Now</span><span>1 month</span><span>3 months</span><span>6 months</span><span>12 months</span>
+                  </div>
+                  <div class="thesis-hz-bar">
+                    <div class="thesis-hz-seg thesis-hz-seg-red" style="left:0;width:20%"></div>
+                    <div class="thesis-hz-seg thesis-hz-seg-amber" style="left:20%;width:35%"></div>
+                    <div class="thesis-hz-seg thesis-hz-seg-green" style="left:55%;width:45%"></div>
+                  </div>
+                  <div class="thesis-hz-events" id="thesisHzEvents"></div>
+                </div>
+                <div class="thesis-impact-grid">
+                  <div class="thesis-impact-card">
+                    <div class="thesis-impact-label">Earliest signal</div>
+                    <div class="thesis-impact-num" style="color:var(--blue)">Lobbying</div>
+                    <div class="thesis-impact-sub">Spend spikes appear 2–6 weeks before bill votes</div>
+                  </div>
+                  <div class="thesis-impact-card">
+                    <div class="thesis-impact-label">Highest single-day impact</div>
+                    <div class="thesis-impact-num" style="color:var(--amber)">Earnings</div>
+                    <div class="thesis-impact-sub">Guidance revisions can move stocks 5–15% same day</div>
+                  </div>
+                  <div class="thesis-impact-card">
+                    <div class="thesis-impact-label">Slowest to price in</div>
+                    <div class="thesis-impact-num" style="color:var(--green)">Contracts</div>
+                    <div class="thesis-impact-sub">Contract awards take 1–3 quarters to show in revenue</div>
+                  </div>
+                  <div class="thesis-impact-card">
+                    <div class="thesis-impact-label">Hardest to predict</div>
+                    <div class="thesis-impact-num" style="color:#7f77dd">Macro</div>
+                    <div class="thesis-impact-sub">Rate and policy shifts can override every other signal instantly</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="view" id="view-trade">
@@ -476,7 +1064,7 @@
           <div class="trade-workspace">
             <section class="panel trade-chart-panel">
               <div class="panel-head">
-                <h2 id="trade-symbol-title">NVDA paper trade setup</h2>
+                <h2 id="trade-symbol-title">Paper trade setup</h2>
                 <div class="trade-range-row">
                   <button class="range-chip active" type="button" data-trade-range="1d">1D</button>
                   <button class="range-chip" type="button" data-trade-range="1w">1W</button>
@@ -514,16 +1102,7 @@
               <form id="order-form" class="trade-form">
                 <label>Symbol
                   <select name="symbol" id="order-symbol">
-                    <option>NVDA</option>
-                    <option>AAPL</option>
-                    <option>LLY</option>
-                    <option>TSLA</option>
-                    <option>AMZN</option>
-                    <option>MSFT</option>
-                    <option>AMD</option>
-                    <option>GOOGL</option>
-                    <option>META</option>
-                    <option>COIN</option>
+                    <option value="">Loading tickers…</option>
                   </select>
                 </label>
                 <label>Quantity<input name="qty" id="order-qty" type="number" min="0.0001" step="0.0001" value="1" /></label>
@@ -554,6 +1133,7 @@
                       <th>Price</th>
                       <th>Market value</th>
                       <th>P/L</th>
+                      <th>Policy risk</th>
                     </tr>
                   </thead>
                   <tbody id="paper-positions-body"></tbody>
@@ -569,6 +1149,271 @@
               <div id="paper-orders" class="paper-orders"></div>
             </section>
           </div>
+
+          <section class="panel funds-panel mt" id="hypothetical-funds-panel">
+            <div class="panel-head">
+              <div>
+                <h2>Hypothetical funds</h2>
+                <p class="muted panel-sub">Weighted research baskets — simulated index only, not investable products.</p>
+              </div>
+              <span class="status-pill" id="funds-source-pill">Paper store</span>
+            </div>
+
+            <p class="funds-disclaimer muted">
+              Hypothetical baskets for comparing policy-linked tickers. Correlation with events is not causation. Not a recommendation to buy or sell.
+            </p>
+
+            <div class="funds-layout">
+              <div class="funds-create">
+                <h3 class="funds-subhead">Create fund</h3>
+                <form id="fund-create-form" class="fund-form">
+                  <label>Name
+                    <input name="name" id="fund-name" type="text" maxlength="80" placeholder="AI chip policy basket" required />
+                  </label>
+                  <label>Tag
+                    <select name="tag" id="fund-tag">
+                      <option value="legislation">Legislation</option>
+                      <option value="contracts">Contracts</option>
+                      <option value="lobbying">Lobbying</option>
+                      <option value="figures">Figures</option>
+                      <option value="custom" selected>Custom</option>
+                    </select>
+                  </label>
+                  <label>Tickers
+                    <input name="tickers" id="fund-tickers-input" type="text" placeholder="NVDA, AAPL, AMD" autocomplete="off" />
+                  </label>
+                  <div class="fund-ticker-chips" id="fund-ticker-chips" aria-live="polite"></div>
+                  <div class="fund-weight-editor" id="fund-weight-editor" hidden>
+                    <p class="muted fund-form-note">Optional weights (normalized to 100% on save). Leave blank for equal weight.</p>
+                    <div id="fund-weight-rows" class="fund-weight-rows"></div>
+                  </div>
+                  <div class="fund-bill-helper">
+                    <label for="fund-bill-picker">Add tickers from bill</label>
+                    <select id="fund-bill-picker">
+                      <option value="">Choose a bill…</option>
+                    </select>
+                    <button type="button" class="button button-ghost compact" id="fund-add-from-bill">Add affected tickers</button>
+                  </div>
+                  <label class="fund-benchmark-check">
+                    <input type="checkbox" id="fund-benchmark-spy" />
+                    Compare to SPY benchmark
+                  </label>
+                  <button class="button button-primary" type="submit">Create hypothetical fund</button>
+                  <p class="muted fund-form-note" id="fund-create-status">Equal weights apply when you omit per-ticker weights.</p>
+                </form>
+              </div>
+
+              <div class="funds-detail">
+                <div class="funds-list-head">
+                  <h3 class="funds-subhead">Your baskets</h3>
+                  <select id="fund-select" aria-label="Select hypothetical fund">
+                    <option value="">No funds yet</option>
+                  </select>
+                </div>
+
+                <div class="fund-compare-bar" id="fund-compare-bar" hidden>
+                  <h3 class="funds-subhead">Compare two funds</h3>
+                  <p class="muted panel-sub">Side-by-side 6M return and max drawdown — research context only.</p>
+                  <div class="fund-compare-controls">
+                    <label>Fund A
+                      <select id="fund-compare-a" aria-label="Compare fund A"></select>
+                    </label>
+                    <label>Fund B
+                      <select id="fund-compare-b" aria-label="Compare fund B"></select>
+                    </label>
+                    <button type="button" class="button button-ghost compact" id="fund-compare-run">Compare</button>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="fund-compare-table" id="fund-compare-table">
+                      <thead>
+                        <tr>
+                          <th>Metric</th>
+                          <th id="fund-compare-th-a">Fund A</th>
+                          <th id="fund-compare-th-b">Fund B</th>
+                        </tr>
+                      </thead>
+                      <tbody id="fund-compare-compare-body"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div id="fund-detail-empty" class="empty-state">Create a fund to see performance, attribution, and symbol leaderboard.</div>
+
+                <div id="fund-detail-body" class="fund-detail-body" hidden>
+                  <div class="fund-meta-line" id="fund-meta-line"></div>
+
+                  <div class="trade-range-row fund-range-row">
+                    <button class="range-chip active" type="button" data-fund-range="6m">6M</button>
+                  </div>
+
+                  <div id="fund-performance-chart" class="trade-history-chart fund-performance-chart" aria-label="Hypothetical fund index chart"></div>
+
+                  <div class="table-wrap">
+                    <table class="fund-compare-table">
+                      <thead>
+                        <tr>
+                          <th>Window</th>
+                          <th>Basket</th>
+                          <th>Benchmark</th>
+                          <th>Max drawdown</th>
+                        </tr>
+                      </thead>
+                      <tbody id="fund-compare-body"></tbody>
+                    </table>
+                  </div>
+
+                  <div class="fund-leaderboard">
+                    <h4>Symbol leaderboard</h4>
+                    <div id="fund-leaderboard" class="fund-leaderboard-grid"></div>
+                  </div>
+
+                  <div class="fund-relationship-matrix">
+                    <h4>Relationship matrix</h4>
+                    <p class="muted">Source × ticker visual metric for the selected fund window.</p>
+                    <div id="fund-matrix-grid" class="fund-matrix-grid"></div>
+                    <div id="fund-matrix-summary" class="fund-matrix-summary"></div>
+                  </div>
+
+                  <div class="fund-relationship-map">
+                    <h4>Relationship map</h4>
+                    <p class="muted">Signal-source graph for this basket (Phase 5).</p>
+                    <canvas id="fund-map-canvas" class="fund-map-canvas" height="220" aria-label="Fund relationship map"></canvas>
+                    <div id="fund-map-legend" class="fund-map-legend"></div>
+                  </div>
+
+                  <div class="fund-live-pulse">
+                    <h4>Live pulse</h4>
+                    <p class="muted">Public figure + market heartbeat (Phase 6).</p>
+                    <div id="fund-pulse-tray" class="fund-pulse-tray"></div>
+                  </div>
+
+                  <div class="fund-attribution">
+                    <h4>Attribution tray</h4>
+                    <p class="muted">Policy, lobbying, contract, and curated figure events mapped to basket tickers. Click an event to highlight it on the chart above (replay context — not causal attribution).</p>
+                    <div id="fund-attribution-tray" class="fund-attribution-tray"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- ── SETTINGS ───────────────────────────────────────────────── -->
+        <section class="view" id="view-settings">
+          <div class="page-header">
+            <h1>Settings</h1>
+            <p class="page-sub">Configure API keys, model preferences, and account details.</p>
+          </div>
+
+          <div class="settings-grid">
+
+            <!-- AI Brain -->
+            <div class="settings-card">
+              <div class="settings-card-head">
+                <div class="settings-card-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".6"/></svg>
+                </div>
+                <div>
+                  <h2>AI Brain</h2>
+                  <p>Powers the research assistant, scorecard analysis, and EDGAR simplifier.</p>
+                </div>
+                <span id="s-anthropic-status" class="settings-status-pill"></span>
+              </div>
+              <div class="settings-fields">
+                <div class="settings-field">
+                  <label for="s-anthropic-key">Anthropic API key</label>
+                  <div class="settings-input-row">
+                    <input id="s-anthropic-key" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+                    <button type="button" class="settings-reveal-btn" id="s-anthropic-reveal" title="Show / hide">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.75" fill="currentColor"/></svg>
+                    </button>
+                  </div>
+                  <span class="settings-field-hint">Stored server-side in <code>.env.local</code>. Never sent to the browser.</span>
+                </div>
+                <div class="settings-field">
+                  <label for="s-anthropic-model">Model</label>
+                  <select id="s-anthropic-model">
+                    <option value="claude-sonnet-4-5">claude-sonnet-4-5 (default — fast + smart)</option>
+                    <option value="claude-opus-4-7">claude-opus-4-7 (most capable)</option>
+                    <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest)</option>
+                  </select>
+                  <span class="settings-field-hint">Saved locally in your browser.</span>
+                </div>
+                <div class="settings-actions">
+                  <button class="button button-primary compact" id="s-anthropic-save">Save AI settings</button>
+                  <span id="s-anthropic-msg" class="settings-msg"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Data Sources -->
+            <div class="settings-card">
+              <div class="settings-card-head">
+                <div class="settings-card-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 3V2M11 3V2M1 7h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                  <h2>Data sources</h2>
+                  <p>Live feed connection status. Configure keys in <code>.env.local</code>.</p>
+                </div>
+              </div>
+              <div class="settings-source-list" id="s-source-list">
+                <div class="settings-source-row"><span class="settings-source-name">Finnhub</span><span class="settings-source-pill" data-source="finnhub">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Congress.gov</span><span class="settings-source-pill" data-source="congress">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Senate LDA</span><span class="settings-source-pill" data-source="senateLda">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Alpaca</span><span class="settings-source-pill" data-source="alpaca">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Anthropic AI</span><span class="settings-source-pill" data-source="anthropic">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Supabase</span><span class="settings-source-pill" data-source="supabase">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">SEC EDGAR</span><span class="settings-source-pill" data-source="secEdgar">—</span></div>
+              </div>
+            </div>
+
+            <!-- Account -->
+            <div class="settings-card">
+              <div class="settings-card-head">
+                <div class="settings-card-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 14c0-2.485 2.91-4.5 6.5-4.5s6.5 2.015 6.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                </div>
+                <div>
+                  <h2>Account</h2>
+                  <p>Your current session details.</p>
+                </div>
+              </div>
+              <div class="settings-fields">
+                <div class="settings-account-row">
+                  <div class="avatar" id="s-account-avatar">—</div>
+                  <div>
+                    <strong id="s-account-name">—</strong>
+                    <span id="s-account-email">—</span>
+                    <span id="s-account-provider" class="settings-provider-badge">—</span>
+                  </div>
+                </div>
+                <div class="settings-actions">
+                  <a class="button button-ghost compact" href="/auth/logout">Sign out</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Trading -->
+            <div class="settings-card">
+              <div class="settings-card-head">
+                <div class="settings-card-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12l4-4 3 3 5-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <h2>Trading</h2>
+                  <p>Alpaca connection and live trading safety status.</p>
+                </div>
+              </div>
+              <div class="settings-source-list">
+                <div class="settings-source-row"><span class="settings-source-name">Mode</span><span id="s-trading-mode" class="settings-source-pill">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Live trading</span><span id="s-trading-live" class="settings-source-pill">—</span></div>
+                <div class="settings-source-row"><span class="settings-source-name">Base URL</span><span id="s-trading-url" class="settings-source-url">—</span></div>
+              </div>
+              <p class="settings-field-hint" style="padding:0 18px 16px">To change trading mode, update <code>ALPACA_TRADING_BASE_URL</code> in <code>.env.local</code>.</p>
+            </div>
+
+          </div>
         </section>
 
       </main>
@@ -578,7 +1423,10 @@
     <aside class="research-drawer research-drawer-global" aria-label="AI research drawer">
       <div class="research-drawer-head">
         <span>AI Research</span>
-        <button type="button" class="button button-ghost compact research-drawer-close">Close</button>
+        <div class="research-drawer-head-actions">
+          <button type="button" class="button button-ghost compact byok-settings-btn">AI Settings</button>
+          <button type="button" class="button button-ghost compact research-drawer-close">Close</button>
+        </div>
       </div>
       <section class="research-panel">
         <div id="research-log" class="research-log"></div>
@@ -600,6 +1448,362 @@
       </div>
     </div>
 
-    <script src="/assets/app.js?v=paper-trader-1" defer></script>
+    <script src="/assets/charts.js?v=roadmap-phase9-12"></script>
+    <script src="/assets/app.js?v=taste-hierarchy-1" defer></script>
+    <script>
+    /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
+    (function () {
+      var currentCTicker = "";
+      var cache = {};
+
+      function esc(s) {
+        return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      }
+
+      function clsColor(cls) {
+        if (cls === "positive") return "color:var(--green)";
+        if (cls === "negative") return "color:var(--red)";
+        return "color:var(--amber)";
+      }
+
+      function renderCausality(data) {
+        var body = document.getElementById("causality-body");
+        var loading = document.getElementById("causality-loading");
+        if (!body || !loading) return;
+
+        // AI badge
+        var aiBadge = document.getElementById("c-ai-badge");
+        if (aiBadge) aiBadge.style.display = data.aiGenerated ? "" : "none";
+
+        document.getElementById("c-plain").textContent        = data.plainEnglish || "";
+        document.getElementById("c-archetype-label").textContent = data.archetype || (data.aiGenerated ? "AI Analysis" : "");
+        document.getElementById("c-archetype-explain").textContent = data.archetypeExplain || "";
+        document.getElementById("c-dep").textContent          = data.scores.dependency;
+        document.getElementById("c-change").textContent       = data.scores.changeRisk;
+        document.getElementById("c-arch").textContent         = data.archetype || "";
+        document.getElementById("c-conf").textContent         = data.scores.confidence || "Medium";
+
+        var dogePill = document.getElementById("c-doge-pill");
+        if (dogePill) dogePill.style.display = data.dogeRisk ? "" : "none";
+
+        // Causal map
+        var mapEl = document.getElementById("c-map");
+        mapEl.innerHTML = (data.nodes || []).map(function (n, i) {
+          return '<div class="causality-node">' +
+            '<div class="causality-node-step">' + esc(n.step) + '</div>' +
+            '<h4>' + esc(n.title) + '</h4>' +
+            '<p>' + esc(n.detail) + '</p>' +
+            '<span class="causality-node-source">' + esc(n.source) + '</span>' +
+          '</div>';
+        }).join("");
+
+        // Translation steps
+        document.getElementById("c-translation").innerHTML = (data.translation || []).map(function (t) {
+          return '<div class="causality-explain-step">' +
+            '<div class="causality-step-num">' + esc(t.step) + '</div>' +
+            '<div><strong>' + esc(t.title) + '</strong><p>' + esc(t.body) + '</p></div>' +
+          '</div>';
+        }).join("");
+
+        // Bars
+        document.getElementById("c-bars").innerHTML = (data.bars || []).map(function (b) {
+          var pct = Math.min(100, Math.max(0, Number(b.value) || 0));
+          return '<div class="causality-bar-row">' +
+            '<span class="causality-bar-label">' + esc(b.label) + '</span>' +
+            '<div class="causality-track"><span class="causality-fill" style="width:' + pct + '%"></span></div>' +
+            '<span class="causality-bar-value">' + esc(b.display) + '</span>' +
+          '</div>';
+        }).join("");
+
+        // Scenarios
+        document.getElementById("c-scenarios").innerHTML = (data.scenarios || []).map(function (s) {
+          return '<tr>' +
+            '<td style="' + clsColor(s.cls) + ';font-weight:500">' + esc(s.name) + '</td>' +
+            '<td>' + esc(s.change) + '</td>' +
+            '<td>' + esc(s.read) + '</td>' +
+          '</tr>';
+        }).join("");
+
+        // Evidence tray
+        document.getElementById("c-evidence").innerHTML = (data.evidence || []).map(function (e) {
+          return '<div class="causality-evidence-card">' +
+            '<small>' + esc(e.source) + '</small>' +
+            '<strong>' + esc(e.title) + '</strong>' +
+            '<p>' + esc(e.detail) + '</p>' +
+          '</div>';
+        }).join("");
+
+        loading.hidden = true;
+        body.hidden = false;
+      }
+
+      function loadCausality(ticker, skipCache) {
+        var loading = document.getElementById("causality-loading");
+        var body = document.getElementById("causality-body");
+        if (!loading || !body) return;
+        if (!skipCache && cache[ticker]) { renderCausality(cache[ticker]); return; }
+        loading.hidden = false;
+        var hasAiKey = document.body.dataset.anthropicReady === "true";
+        loading.textContent = hasAiKey
+          ? "Generating AI analysis for " + ticker + "… (may take a few seconds)"
+          : "Loading causality data for " + ticker + "…";
+        body.hidden = true;
+        fetch("/api/contracts/causality?symbol=" + encodeURIComponent(ticker))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            cache[ticker] = data;
+            if (currentCTicker === ticker) renderCausality(data);
+          })
+          .catch(function () {
+            loading.textContent = "Could not load causality data. Try refreshing.";
+          });
+      }
+
+      function setActiveTicker(ticker) {
+        currentCTicker = ticker;
+        document.querySelectorAll(".causality-ticker-btn").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.cticker === currentCTicker);
+        });
+        var inp = document.getElementById("causality-custom-input");
+        if (inp) inp.value = "";
+      }
+
+      function initCausality() {
+        document.querySelectorAll(".causality-ticker-btn").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            setActiveTicker(btn.dataset.cticker);
+            loadCausality(currentCTicker);
+          });
+        });
+
+        var form = document.getElementById("causality-custom-form");
+        if (form) {
+          form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var inp = document.getElementById("causality-custom-input");
+            var sym = (inp ? inp.value : "").toUpperCase().replace(/[^A-Z.]/g, "").slice(0, 6);
+            if (!sym) return;
+            // Deselect preset buttons
+            document.querySelectorAll(".causality-ticker-btn").forEach(function (b) { b.classList.remove("active"); });
+            currentCTicker = sym;
+            // Always skip cache for custom tickers so AI re-runs fresh
+            delete cache[sym];
+            loadCausality(sym, true);
+          });
+        }
+
+        loadCausality(currentCTicker);
+      }
+
+      // Init when the contracts view becomes active
+      function watchContractsView() {
+        var panel = document.getElementById("causality-panel");
+        if (!panel) return;
+        // Observe nav clicks
+        document.querySelectorAll("[data-view='contracts']").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            if (!cache[currentCTicker]) loadCausality(currentCTicker);
+          });
+        });
+        // Also init immediately if contracts is already active
+        var view = document.getElementById("view-contracts");
+        if (view && view.classList.contains("active")) loadCausality(currentCTicker);
+      }
+
+      function bootCausality() {
+        var first = document.querySelector(".causality-ticker-btn.active");
+        currentCTicker = first ? first.dataset.cticker : "";
+        if (currentCTicker) {
+          initCausality();
+          watchContractsView();
+        }
+      }
+
+      (window.__tsDashboardReady || Promise.resolve()).then(bootCausality);
+    })();
+    </script>
+
+    <!-- ── SETTINGS PAGE LOGIC ──────────────────────────────────────────── -->
+    <script>
+    (function () {
+      var configCache = null;
+
+      function loadConfig() {
+        if (configCache) return Promise.resolve(configCache);
+        return fetch("/api/config").then(function (r) { return r.json(); }).then(function (d) {
+          configCache = d; return d;
+        });
+      }
+
+      function pill(ok, trueLabel, falseLabel) {
+        var el = document.createElement("span");
+        el.className = "settings-source-pill " + (ok ? "pill-ok" : "pill-off");
+        el.textContent = ok ? (trueLabel || "Connected") : (falseLabel || "Not configured");
+        return el;
+      }
+
+      function initSettings() {
+        // ── Data sources ────────────────────────────────────────────────────
+        loadConfig().then(function (cfg) {
+          var map = {
+            finnhub:   cfg.data.finnhub,
+            congress:  cfg.data.congress,
+            senateLda: cfg.data.senateLda,
+            alpaca:    cfg.data.alpaca,
+            anthropic: cfg.data.anthropic,
+            supabase:  cfg.data.supabase,
+            secEdgar:  cfg.data.secEdgar
+          };
+          document.querySelectorAll(".settings-source-pill[data-source]").forEach(function (el) {
+            var ok = Boolean(map[el.dataset.source]);
+            el.className = "settings-source-pill " + (ok ? "pill-ok" : "pill-off");
+            el.textContent = ok ? "Connected" : "Not configured";
+          });
+
+          // Anthropic status pill in card header
+          var ap = document.getElementById("s-anthropic-status");
+          if (ap) {
+            ap.className = "settings-status-pill " + (cfg.data.anthropic ? "pill-ok" : "pill-off");
+            ap.textContent = cfg.data.anthropic ? "Active" : "Not set";
+          }
+
+          // Trading
+          var mode = cfg.safety && cfg.safety.tradingBaseUrl;
+          var isLive = cfg.safety && cfg.safety.liveTradingEnabled;
+          var isPaper = mode && mode.includes("paper-api");
+          var modeEl = document.getElementById("s-trading-mode");
+          var liveEl = document.getElementById("s-trading-live");
+          var urlEl  = document.getElementById("s-trading-url");
+          if (modeEl) { modeEl.className = "settings-source-pill " + (isPaper ? "pill-ok" : "pill-warn"); modeEl.textContent = isPaper ? "Paper" : "Live"; }
+          if (liveEl) { liveEl.className = "settings-source-pill " + (isLive ? "pill-warn" : "pill-ok"); liveEl.textContent = isLive ? "Enabled ⚠" : "Disabled (safe)"; }
+          if (urlEl)  { urlEl.textContent = mode || "—"; }
+        });
+
+        // ── Account ─────────────────────────────────────────────────────────
+        fetch("/api/session").then(function (r) { return r.json(); }).then(function (d) {
+          var user = d.user;
+          if (!user) return;
+          var av = document.getElementById("s-account-avatar");
+          var nm = document.getElementById("s-account-name");
+          var em = document.getElementById("s-account-email");
+          var pr = document.getElementById("s-account-provider");
+          if (av) av.textContent = (user.name || "?").slice(0, 2).toUpperCase();
+          if (nm) nm.textContent = user.name || "—";
+          if (em) em.textContent = user.email || "—";
+          if (pr) pr.textContent = user.provider || "—";
+        });
+
+        // ── Anthropic key form ───────────────────────────────────────────────
+        var modelKey = "ts_anthropic_model";
+        var modelEl  = document.getElementById("s-anthropic-model");
+        var keyEl    = document.getElementById("s-anthropic-key");
+        var revealEl = document.getElementById("s-anthropic-reveal");
+        var saveBtn  = document.getElementById("s-anthropic-save");
+        var msgEl    = document.getElementById("s-anthropic-msg");
+
+        if (modelEl) {
+          var saved = localStorage.getItem(modelKey);
+          if (saved) modelEl.value = saved;
+        }
+
+        if (revealEl && keyEl) {
+          revealEl.addEventListener("click", function () {
+            keyEl.type = keyEl.type === "password" ? "text" : "password";
+          });
+        }
+
+        if (saveBtn) {
+          saveBtn.addEventListener("click", function () {
+            var key   = keyEl ? keyEl.value.trim() : "";
+            var model = modelEl ? modelEl.value : "";
+            if (model) localStorage.setItem(modelKey, model);
+
+            if (!key) {
+              msgEl.textContent = "Model saved. Enter a key to update it.";
+              msgEl.className = "settings-msg msg-ok";
+              return;
+            }
+
+            saveBtn.disabled = true;
+            msgEl.textContent = "Saving…";
+            msgEl.className = "settings-msg";
+
+            fetch("/api/settings/anthropic", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ apiKey: key, model: model })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.ok) {
+                configCache = null;
+                keyEl.value = "";
+                msgEl.textContent = "Saved — activating AI layers…";
+                msgEl.className = "settings-msg msg-ok";
+                var ap = document.getElementById("s-anthropic-status");
+                if (ap) { ap.className = "settings-status-pill pill-ok"; ap.textContent = "Active"; }
+                document.querySelectorAll(".settings-source-pill[data-source='anthropic']").forEach(function (el) {
+                  el.className = "settings-source-pill pill-ok"; el.textContent = "Connected";
+                });
+                // Re-fetch config + re-run analysis so AI narration activates immediately
+                if (typeof window.__tsActivateAi === "function") {
+                  window.__tsActivateAi().then(function () {
+                    msgEl.textContent = "AI Brain active. Analysis and research drawer are live.";
+                  });
+                } else {
+                  msgEl.textContent = "Saved. Reload the page to activate all AI layers.";
+                }
+              } else {
+                msgEl.textContent = d.error || "Failed to save.";
+                msgEl.className = "settings-msg msg-err";
+              }
+            })
+            .catch(function () { msgEl.textContent = "Request failed."; msgEl.className = "settings-msg msg-err"; })
+            .finally(function () { saveBtn.disabled = false; });
+          });
+        }
+      }
+
+      // Re-init each time settings view is opened
+      var settingsView = document.getElementById("view-settings");
+      if (settingsView) {
+        new MutationObserver(function (mutations) {
+          mutations.forEach(function (m) {
+            if (m.type === "attributes" && m.attributeName === "class") {
+              if (settingsView.classList.contains("active")) initSettings();
+            }
+          });
+        }).observe(settingsView, { attributes: true });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initSettings);
+      } else {
+        initSettings();
+      }
+    })();
+    </script>
+    <script>
+    (function() {
+      var hamBtn = document.getElementById('ham-btn');
+      var sidebar = document.getElementById('main-sidebar');
+      if (!hamBtn || !sidebar) return;
+      function closeNav() {
+        sidebar.classList.remove('nav-open');
+        hamBtn.setAttribute('aria-expanded', 'false');
+      }
+      hamBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isOpen = sidebar.classList.toggle('nav-open');
+        hamBtn.setAttribute('aria-expanded', String(isOpen));
+      });
+      sidebar.querySelectorAll('.nav-item').forEach(function(btn) {
+        btn.addEventListener('click', closeNav);
+      });
+      document.addEventListener('click', function(e) {
+        if (sidebar.classList.contains('nav-open') && !sidebar.contains(e.target)) closeNav();
+      });
+    })();
+    </script>
   </body>
 </html>

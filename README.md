@@ -37,11 +37,53 @@ Provider notes:
 
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` enable Google sign-in.
 - `APPLE_CLIENT_ID` and `APPLE_CLIENT_SECRET` enable Apple sign-in. Apple's client secret is a JWT generated from your Apple developer team/key.
-- `FINNHUB_API_KEY` enables live equity quote snapshots.
+- `FINNHUB_API_KEY` enables live equity quote snapshots (primary provider).
+- Optional **yfinance sidecar** for quotes and history when Finnhub fails or is unset (see below).
 - `COINGECKO_API_KEY` enables crypto pricing; set `COINGECKO_PRO=true` for the Pro API hostname.
 - `CONGRESS_API_KEY` enables live Congress.gov bill records.
 - `SENATE_LDA_API_KEY` enables authenticated LDA.gov lobbying filings at the higher registered-user rate limit.
 - Alpaca defaults to `https://paper-api.alpaca.markets`. Live trading requires both a live endpoint and `ALLOW_LIVE_TRADING=true`.
+
+## Market data: Finnhub vs yfinance (hybrid)
+
+TradeSimple uses a **hybrid** stack:
+
+| Provider | Role | Best for |
+|----------|------|----------|
+| **Finnhub** | Primary when `FINNHUB_API_KEY` is set | Licensed/delayed live quotes and candles with a stable API key |
+| **yfinance** (Python) | Fallback and enrichment via `scripts/yf_bridge.py` | Free history and quotes without an API key; fundamentals-friendly Yahoo data |
+| **Yahoo chart HTTP** | Last resort before Stooq/modeled data | Same underlying Yahoo source, no Python install |
+
+**Opinion:** Finnhub is the better choice for **production live quotes** (clearer licensing, consistent API). yfinance is the better choice for **local dev and free history** when you do not want another API key or Finnhub is rate-limited.
+
+### Enable the yfinance sidecar
+
+```bash
+cd "/Users/joshuaugyenlhundruphsiehmetters/Documents/TradeSimple v1"
+python3 -m venv .venv-yfinance
+source .venv-yfinance/bin/activate
+pip install -r scripts/requirements-yfinance.txt
+# Recommended if you have the local clone:
+pip install -e "/Users/joshuaugyenlhundruphsiehmetters/Downloads/yfinance-main"
+```
+
+In `.env.local`:
+
+```bash
+YFINANCE_ENABLED=true
+YFINANCE_VENV=/Users/joshuaugyenlhundruphsiehmetters/Documents/TradeSimple v1/.venv-yfinance
+```
+
+Smoke-test the bridge:
+
+```bash
+python3 scripts/yf_bridge.py quote NVDA
+python3 scripts/yf_bridge.py history NVDA 6m
+```
+
+Then run `node server.mjs` — quotes/history will tag `source: "yfinance"` when the bridge succeeds.
+
+Set `YFINANCE_ENABLED=false` to skip Python entirely. Missing Python or yfinance never crashes the Node server.
 
 ## Safety Boundary
 
