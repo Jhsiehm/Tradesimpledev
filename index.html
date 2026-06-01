@@ -1018,6 +1018,7 @@ function mountGithubPagesOriginBanner(){
   });
 }
 function wireTerminalLinks(){
+  if(!TS_IS_GITHUB_PAGES) return;
   document.querySelectorAll('[data-app-path]').forEach(function(link){
     var path = link.getAttribute('data-app-path');
     if(!path) return;
@@ -1030,6 +1031,9 @@ function wireTerminalLinks(){
       link.setAttribute('href', tsAppUrl(path));
     });
   });
+}
+function tsApiUrl(path){
+  return TS_IS_GITHUB_PAGES ? tsAppUrl(path) : path;
 }
 
 /* ── THEME ── */
@@ -1072,7 +1076,7 @@ function handleWL(e){
   var email=e.target.querySelector('input').value;
   btn.style.opacity='.6';
   btn.disabled=true;
-  fetch(tsAppUrl('/api/waitlist'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+  fetch(tsApiUrl('/api/waitlist'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
     .then(function(r){return r.json()})
     .catch(function(){return{}})
     .then(function(){
@@ -1085,7 +1089,7 @@ function handleWL(e){
 }
 
 function hydrateLandingTicker(){
-  fetch(tsAppUrl('/api/landing-quotes'))
+  fetch(tsApiUrl('/api/landing-quotes'))
     .then(function(r){return r.ok?r.json():null})
     .catch(function(){return null})
     .then(function(data){
@@ -1141,7 +1145,7 @@ function hydrateLandingSignal(){
     if(confFill) confFill.style.width=pct+'%';
   }
   function fetchSignal(){
-    fetch(tsAppUrl('/api/landing-signal'))
+    fetch(tsApiUrl('/api/landing-signal'))
       .then(function(r){return r.ok?r.json():null})
       .catch(function(){return null})
       .then(updateSignal);

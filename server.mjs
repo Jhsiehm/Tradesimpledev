@@ -169,7 +169,10 @@ function authSecretIsInsecure() {
 const SESSION_COOKIE = "ts_session";
 const OAUTH_COOKIE = "ts_oauth";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
-const COOKIE_SECURE_ATTR = APP_URL.startsWith("https://") ? "; Secure" : "";
+function requestIsHttps(req) {
+  const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  return proto === "https" || APP_URL.startsWith("https://");
+}
 const BASE_SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
@@ -2338,8 +2341,11 @@ async function route(req, res) {
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
+  if (pathname === "/terminal" || pathname === "/terminal/") {
+    return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1");
+  }
   if (pathname === "/auth/demo") return startDemoSession(req, res);
-  if (pathname === "/auth/logout") return logout(res);
+  if (pathname === "/auth/logout") return logout(res, req);
   if (pathname === "/auth/google") return startOAuth(req, res, "google");
   if (pathname === "/auth/apple") return startOAuth(req, res, "apple");
   if (pathname === "/auth/callback/google") return finishOAuth(req, res, "google", url);
@@ -2352,7 +2358,7 @@ async function route(req, res) {
   // ── Email/password accounts (public — these create the session) ──
   if (pathname === "/api/auth/signup" && req.method === "POST") return authSignup(req, res);
   if (pathname === "/api/auth/login" && req.method === "POST") return authLogin(req, res);
-  if (pathname === "/api/auth/logout" && req.method === "POST") return authLogoutApi(res);
+  if (pathname === "/api/auth/logout" && req.method === "POST") return authLogoutApi(res, req);
   if (pathname === "/login" || pathname === "/signup") return sendStatic(res, "auth.html");
 
   // ── Prediction ledger (public reads — the track record is a brand asset) ──
@@ -8618,7 +8624,9 @@ function localPolicyAnswer(question, name) {
 
 async function startDemoSession(req, res) {
   if (process.env.DEMO_AUTH === "false") return sendText(res, 403, "Demo auth disabled");
-  const next = new URL(req.url || "/", APP_URL).searchParams.get("next") || "/dashboard?view=trade";
+  const url = new URL(req.url || "/", APP_URL);
+  let next = String(url.searchParams.get("next") || "/dashboard?view=thesis&welcome=1").trim();
+  if (!next.startsWith("/")) next = "/dashboard?view=thesis&welcome=1";
   // Each visitor gets an isolated demo account — no shared state between concurrent users.
   const demoId = `demo-${randomBytes(8).toString("hex")}`;
   const user = {
@@ -8628,12 +8636,12 @@ async function startDemoSession(req, res) {
     picture: "",
     provider: "demo"
   };
-  setSessionCookie(res, user);
-  redirect(res, next.startsWith("/dashboard") ? next : "/dashboard?view=trade");
+  setSessionCookie(res, user, req);
+  redirect(res, next);
 }
 
-function logout(res) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0)}`);
+function logout(res, req) {
+  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`);
   redirect(res, "/");
 }
 
@@ -8720,7 +8728,7 @@ async function authSignup(req, res) {
   } catch {
     return sendJson(res, 500, { error: "signup_failed", message: "Could not create the account. Please try again." });
   }
-  setSessionCookie(res, user);
+  setSessionCookie(res, user, req);
   return sendJson(res, 200, { ok: true, user: { id: user.id, name, email } });
 }
 
@@ -8734,12 +8742,12 @@ async function authLogin(req, res) {
     return sendJson(res, 401, { error: "invalid_credentials", message: "Invalid email or password." });
   }
   const user = { id: acct.id, name: acct.name || email.split("@")[0], email, picture: "", provider: "email" };
-  setSessionCookie(res, user);
+  setSessionCookie(res, user, req);
   return sendJson(res, 200, { ok: true, user: { id: user.id, name: user.name, email } });
 }
 
-function authLogoutApi(res) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0)}`);
+function authLogoutApi(res, req) {
+  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`);
   return sendJson(res, 200, { ok: true });
 }
 
@@ -8759,7 +8767,7 @@ function startOAuth(req, res, providerName) {
   authorize.searchParams.set("nonce", nonce);
   if (providerName === "google") authorize.searchParams.set("prompt", "select_account");
 
-  res.setHeader("set-cookie", `${OAUTH_COOKIE}=${oauthState}; ${cookieAttrs(600)}`);
+  res.setHeader("set-cookie", `${OAUTH_COOKIE}=${oauthState}; ${cookieAttrs(600, req)}`);
   redirect(res, authorize.toString());
 }
 
@@ -8797,8 +8805,8 @@ async function finishOAuth(req, res, providerName, url) {
   };
   upsertUserProfile(user).catch(() => {});
   res.setHeader("set-cookie", [
-    `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS)}`,
-    `${OAUTH_COOKIE}=; ${cookieAttrs(0)}`
+    `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`,
+    `${OAUTH_COOKIE}=; ${cookieAttrs(0, req)}`
   ]);
   redirect(res, "/dashboard?view=trade");
 }
@@ -8860,12 +8868,13 @@ function getSession(req) {
   return session;
 }
 
-function setSessionCookie(res, user) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS)}`);
+function setSessionCookie(res, user, req) {
+  res.setHeader("set-cookie", `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`);
 }
 
-function cookieAttrs(maxAge) {
-  return `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${COOKIE_SECURE_ATTR}`;
+function cookieAttrs(maxAge, req) {
+  const secure = requestIsHttps(req) ? "; Secure" : "";
+  return `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 
 function createSession(user) {
