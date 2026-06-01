@@ -2,9 +2,9 @@
 
 ## Seeing README instead of the site?
 
-The landing page is **`public/index.html`** — it is already correct. You do **not** rename or move it to the repo root.
+The landing page is **`index.html`** at the repo root (CSS/JS still live under `public/` and `/assets/`).
 
-TradeSimple is a **Node app** (`server.mjs`). At `/` the server serves `public/index.html`. If you see **README.md** text, Railway is **not** running Node — common causes:
+TradeSimple is a **Node app** (`server.mjs`). At `/` the server serves root `index.html`. If you see **README.md** text, Railway is **not** running Node — common causes:
 
 1. Service type is **Static Site** → delete it; use a **Web Service** connected to GitHub `Tradesimpledev`.
 2. **Start command** missing → set to `node server.mjs` (or redeploy latest `main` with `railway.json`).

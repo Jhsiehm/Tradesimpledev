@@ -2235,7 +2235,7 @@ async function route(req, res) {
   const url = new URL(req.url || "/", APP_URL);
   const pathname = url.pathname;
 
-  if (pathname === "/") return sendStatic(res, "index.html");
+  if (pathname === "/") return sendLandingIndex(res);
   if (pathname === "/favicon.ico") {
     res.writeHead(204, responseHeaders({ "cache-control": "public, max-age=86400" }));
     return res.end();
@@ -2494,6 +2494,17 @@ function sendDetailRouteHelp(res, pathname) {
 <p>Then open <a href="${escapeHtmlText(pathname)}">this link again</a> or return to <a href="/dashboard?view=bills">Bills</a>.</p>
 </body></html>`;
   sendHtml(res, 503, html);
+}
+
+async function sendLandingIndex(res) {
+  const filePath = join(ROOT, "index.html");
+  if (!existsSync(filePath)) return sendStatic(res, "index.html");
+  const body = await readFile(filePath);
+  res.writeHead(200, responseHeaders({
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store"
+  }));
+  res.end(body);
 }
 
 async function sendStatic(res, relativePath) {

@@ -16,7 +16,7 @@ The client is also dependency-free vanilla JS (no React, Vue, Vite, bundler).
 ```
 server.mjs          — 9,000+ line god file: HTTP server, routing, all API handlers, auth, data fetching
 public/app.js       — 8,000+ line god file: all client-side state, rendering, AI chat, charts
-public/index.html   — Landing page (public, no auth)
+index.html          — Landing page at repo root (public, no auth)
 public/dashboard.html — Dashboard shell (requires session)
 public/charts.js    — Vanilla JS charting library (TSCharts)
 ai-brain.mjs        — All Anthropic AI features: thesis, scorecard, lobby map, EDGAR, chart labels
