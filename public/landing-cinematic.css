@@ -122,7 +122,7 @@ html[data-theme="dark"] body.landing-cinematic {
 }
 
 .ts-hero-poster {
-  background-image: url("/assets/media/hero/tradesimple-hero-poster.svg");
+  background-image: url("media/hero/tradesimple-hero-poster.svg");
   background-size: cover;
   background-position: center;
   opacity: 1;
@@ -161,7 +161,7 @@ html[data-theme="light"] .ts-hero-dark-overlay {
 .ts-hero-grid-overlay {
   position: absolute;
   inset: 0;
-  background-image: url("/assets/media/overlays/signal-grid.svg");
+  background-image: url("media/overlays/signal-grid.svg");
   background-size: 64px 64px;
   mask-image: linear-gradient(90deg, transparent, black 20%, black 78%, transparent);
   opacity: 0.45;
@@ -179,7 +179,7 @@ html[data-theme="light"] .ts-hero-dark-overlay {
 .ts-hero-noise {
   position: absolute;
   inset: 0;
-  background-image: url("/assets/media/overlays/data-noise.svg");
+  background-image: url("media/overlays/data-noise.svg");
   background-repeat: repeat;
   background-size: 256px 256px;
   opacity: 0.055;
@@ -815,7 +815,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   left: 0;
   width: 52%;
   height: 48%;
-  background-image: url("/assets/media/backgrounds/shipping-port.svg");
+  background-image: url("media/backgrounds/shipping-port.svg");
 }
 
 .frame-city {
@@ -823,7 +823,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   right: 0;
   width: 48%;
   height: 48%;
-  background-image: url("/assets/media/backgrounds/night-city-glass.svg");
+  background-image: url("media/backgrounds/night-city-glass.svg");
 }
 
 .frame-street {
@@ -831,7 +831,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   bottom: 0;
   width: 56%;
   height: 52%;
-  background-image: url("/assets/media/backgrounds/capitol-corridor.svg");
+  background-image: url("media/backgrounds/capitol-corridor.svg");
 }
 
 .cinema-signal-dock {
@@ -845,7 +845,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   border-top: 1px solid rgba(232, 228, 220, 0.07);
   background:
     linear-gradient(180deg, rgba(8, 8, 8, 0.68), rgba(8, 8, 8, 0.96)),
-    url("/assets/media/backgrounds/data-center.svg") center / cover;
+    url("media/backgrounds/data-center.svg") center / cover;
   filter: grayscale(0.82);
 }
 
@@ -1866,7 +1866,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 }
 
 .ts-chapter-mech::before {
-  background-image: url("/assets/media/overlays/signal-grid.svg");
+  background-image: url("media/overlays/signal-grid.svg");
   background-size: 72px 72px;
   mask-image: linear-gradient(180deg, black, transparent 85%);
   opacity: 0.35;
@@ -2394,10 +2394,10 @@ body.briefing-open {
   overflow: hidden;
 }
 
-.bg-capitol::before { background-image: url("/assets/media/backgrounds/capitol-corridor.svg"); }
-.bg-datacenter::before { background-image: url("/assets/media/backgrounds/data-center.svg"); }
-.bg-port::before { background-image: url("/assets/media/backgrounds/shipping-port.svg"); }
-.bg-city::before { background-image: url("/assets/media/backgrounds/night-city-glass.svg"); }
+.bg-capitol::before { background-image: url("media/backgrounds/capitol-corridor.svg"); }
+.bg-datacenter::before { background-image: url("media/backgrounds/data-center.svg"); }
+.bg-port::before { background-image: url("media/backgrounds/shipping-port.svg"); }
+.bg-city::before { background-image: url("media/backgrounds/night-city-glass.svg"); }
 
 @media (max-width: 1100px) {
   .pipeline { grid-template-columns: 1fr 1fr; }
@@ -3694,7 +3694,7 @@ body.briefing-open {
 .archive-access-section {
   background:
     linear-gradient(180deg, rgba(8, 8, 8, 0.76), #080808),
-    url("/assets/media/backgrounds/night-city-glass.svg") center / cover;
+    url("media/backgrounds/night-city-glass.svg") center / cover;
 }
 
 .access-grid {
