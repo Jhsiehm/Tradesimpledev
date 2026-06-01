@@ -21,7 +21,7 @@ Get the public URL from:
 
 **Railway → your project → Tradesimpledev service → Settings → Networking → Generate Domain**
 
-Copy something like `https://tradesimpledev-production-xxxx.up.railway.app`.
+Live app URL: `https://tradesimpledev.up.railway.app`
 
 On GitHub Pages, paste that URL in the bottom banner (or visit once with  
 `?app_origin=https://YOUR-DOMAIN.up.railway.app`).
