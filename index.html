@@ -22,6 +22,8 @@
 <meta name="twitter:description" content="Bills, lobbying, contracts, tickers, thesis tools, and paper trading in one source-backed terminal."/>
 <meta name="twitter:image" content="https://tradesimple.app/media/og-image.png"/>
 <link rel="canonical" href="https://tradesimple.app/"/>
+<!-- Set your live Railway URL after generating a public domain (Settings → Networking) -->
+<meta name="ts-app-origin" content=""/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -932,6 +934,31 @@ footer nav a:hover{color:var(--text)}
 <script>
 var TS_IS_GITHUB_PAGES = /\.github\.io$/i.test(window.location.hostname);
 var TS_APP_ORIGIN_STORAGE_KEY = 'ts_app_origin';
+function tsOriginLooksLive(origin){
+  try{
+    var host = new URL(origin).hostname.toLowerCase();
+    if(/\.github\.io$/.test(host)) return false;
+    if(host === 'tradesimple.app' || host === 'www.tradesimple.app') return false;
+    if(/\.up\.railway\.app$/.test(host)) return true;
+    if(host === 'localhost' || host === '127.0.0.1') return true;
+    return !/\.github\.io$/.test(host);
+  }catch(e){ return false; }
+}
+function tsResolveOrigin(raw){
+  var candidate = String(raw || '').trim();
+  if(!candidate) return '';
+  try{
+    return new URL(candidate, window.location.href).origin;
+  }catch(e){
+    return '';
+  }
+}
+function tsPersistAppOrigin(origin){
+  if(!origin || !tsOriginLooksLive(origin)) return;
+  try{ localStorage.setItem(TS_APP_ORIGIN_STORAGE_KEY, origin); }catch(e){}
+  var meta = document.querySelector('meta[name="ts-app-origin"]');
+  if(meta) meta.setAttribute('content', origin);
+}
 function tsAppOrigin(){
   var queryOrigin = '';
   try{
@@ -941,39 +968,55 @@ function tsAppOrigin(){
   try{
     storedOrigin = localStorage.getItem(TS_APP_ORIGIN_STORAGE_KEY) || '';
   }catch(e){}
+  if(storedOrigin && !tsOriginLooksLive(storedOrigin)){
+    try{ localStorage.removeItem(TS_APP_ORIGIN_STORAGE_KEY); }catch(e){}
+    storedOrigin = '';
+  }
   var metaOrigin = document.querySelector('meta[name="ts-app-origin"]')?.getAttribute('content') || '';
-  var candidate = String(queryOrigin || storedOrigin || metaOrigin || '').trim();
-  try{
-    if(candidate){
-      var resolved = new URL(candidate, window.location.href).origin;
-      if(TS_IS_GITHUB_PAGES){
-        try{ localStorage.setItem(TS_APP_ORIGIN_STORAGE_KEY, resolved); }catch(e){}
-      }
-      return resolved;
-    }
-  }catch(e){}
+  var candidate = tsResolveOrigin(queryOrigin || storedOrigin || metaOrigin);
+  if(candidate && tsOriginLooksLive(candidate)){
+    if(TS_IS_GITHUB_PAGES) tsPersistAppOrigin(candidate);
+    return candidate;
+  }
   return window.location.origin;
 }
 var TS_APP_ORIGIN = tsAppOrigin();
 function tsAppUrl(path){
   return new URL(String(path||'/'), TS_APP_ORIGIN).toString();
 }
-function ensureAppOriginForGithubPages(){
-  if(!TS_IS_GITHUB_PAGES) return true;
-  if(TS_APP_ORIGIN && !/\.github\.io$/i.test(TS_APP_ORIGIN)) return true;
-  var input = window.prompt(
-    'Enter your live Railway app URL (example: https://your-service.up.railway.app):',
-    'https://'
-  );
-  if(!input) return false;
-  try{
-    TS_APP_ORIGIN = new URL(input).origin;
-    localStorage.setItem(TS_APP_ORIGIN_STORAGE_KEY, TS_APP_ORIGIN);
-    return true;
-  }catch(e){
-    window.alert('That URL is invalid. Please try again with a full https:// URL.');
+function tsSetAppOriginFromInput(raw){
+  var origin = tsResolveOrigin(raw);
+  if(!origin || !tsOriginLooksLive(origin)){
+    window.alert('Use your Railway public URL, e.g. https://your-service.up.railway.app (not tradesimple.app or the railway.com project link).');
     return false;
   }
+  TS_APP_ORIGIN = origin;
+  tsPersistAppOrigin(origin);
+  wireTerminalLinks();
+  return true;
+}
+function ensureAppOriginForGithubPages(){
+  if(!TS_IS_GITHUB_PAGES) return true;
+  if(TS_APP_ORIGIN && tsOriginLooksLive(TS_APP_ORIGIN) && !/\.github\.io$/i.test(TS_APP_ORIGIN)) return true;
+  var input = window.prompt(
+    'Paste your Railway PUBLIC domain (from Service → Settings → Networking → Generate Domain), e.g. https://tradesimpledev-production.up.railway.app',
+    'https://'
+  );
+  return tsSetAppOriginFromInput(input);
+}
+function mountGithubPagesOriginBanner(){
+  if(!TS_IS_GITHUB_PAGES) return;
+  if(TS_APP_ORIGIN && tsOriginLooksLive(TS_APP_ORIGIN) && !/\.github\.io$/i.test(TS_APP_ORIGIN)) return;
+  if(document.getElementById('ts-origin-banner')) return;
+  var bar = document.createElement('div');
+  bar.id = 'ts-origin-banner';
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;border-top:1px solid rgba(200,255,0,.35);padding:12px 14px;font:13px/1.4 var(--sans,sans-serif);color:#e8e4dc;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  bar.innerHTML = '<span style="flex:1;min-width:220px">Paste your live Railway URL (not tradesimple.app):</span><input id="ts-origin-input" type="url" placeholder="https://your-service.up.railway.app" style="flex:2;min-width:260px;padding:8px 10px;border-radius:6px;border:1px solid #444;background:#0a0a0a;color:#fff"/><button type="button" id="ts-origin-save" style="padding:8px 12px;border-radius:6px;border:none;background:#C8FF00;color:#111;font-weight:700">Save</button>';
+  document.body.appendChild(bar);
+  document.getElementById('ts-origin-save').addEventListener('click', function(){
+    var val = document.getElementById('ts-origin-input').value;
+    if(tsSetAppOriginFromInput(val)) bar.remove();
+  });
 }
 function wireTerminalLinks(){
   document.querySelectorAll('[data-app-path]').forEach(function(link){
@@ -1109,6 +1152,7 @@ function hydrateLandingSignal(){
 }
 
 function bootLandingScripts(){
+  mountGithubPagesOriginBanner();
   wireTerminalLinks();
   initScrollReveal();
   hydrateLandingTicker();
