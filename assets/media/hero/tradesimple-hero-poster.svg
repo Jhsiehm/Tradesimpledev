@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a1210"/>
+      <stop offset="45%" stop-color="#07110d"/>
+      <stop offset="100%" stop-color="#020706"/>
+    </linearGradient>
+    <radialGradient id="runway" cx="50%" cy="78%" r="55%">
+      <stop offset="0%" stop-color="rgba(200,148,44,0.22)"/>
+      <stop offset="55%" stop-color="rgba(91,220,145,0.06)"/>
+      <stop offset="100%" stop-color="rgba(2,7,6,0)"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(91,220,145,0.08)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.35)"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect width="1920" height="1080" fill="url(#runway)"/>
+  <ellipse cx="1180" cy="520" rx="420" ry="90" fill="rgba(20,28,24,0.85)"/>
+  <rect x="0" y="680" width="1920" height="400" fill="#050a08"/>
+  <rect x="0" y="720" width="1920" height="8" fill="rgba(200,148,44,0.35)"/>
+  <g opacity="0.55">
+    <circle cx="320" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="480" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="640" cy="760" r="4" fill="#5bdc91"/>
+    <circle cx="800" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="960" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="1120" cy="760" r="4" fill="#5bdc91"/>
+    <circle cx="1280" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="1440" cy="760" r="4" fill="#c8942c"/>
+    <circle cx="1600" cy="760" r="4" fill="#5bdc91"/>
+  </g>
+  <rect x="0" y="0" width="1920" height="1080" fill="url(#glass)" opacity="0.6"/>
+  <rect x="0" y="0" width="720" height="1080" fill="rgba(2,7,6,0.72)"/>
+</svg>
