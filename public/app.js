@@ -319,7 +319,101 @@ function industryStanceForBill(bill) {
   return { text: "Mixed industry signals", kind: "mix" };
 }
 
+function billLegislativeContext(bill) {
+  return bill?.legislativeContext || null;
+}
+
+function billCalendarCellHtml(bill) {
+  const ctx = billLegislativeContext(bill);
+  if (!ctx?.timelineRows?.length) {
+    const date = bill.latestActionDate || "—";
+    return `<div class="bill-leg-rail bill-leg-rail--sparse"><span class="bill-leg-date mono">${escapeHtml(date)}</span><span class="bill-leg-detail muted">${escapeHtml((bill.latestAction || "").slice(0, 88))}</span></div>`;
+  }
+  const vote = ctx.voteWatch || {};
+  const voteUrgent = /floor|chamber|cross-chamber/i.test(vote.label || "");
+  const rows = [
+    { key: "intro", k: "Introduced", v: ctx.introducedLabel || ctx.timelineRows.find((r) => r.key === "introduced")?.value || "—", mono: true },
+    { key: "last", k: "Last action", v: ctx.latestActionDate ? formatBillDateShort(ctx.latestActionDate) : "—", sub: (ctx.latestActionText || "").slice(0, 90), mono: true },
+    { key: "committee", k: "Committee", v: ctx.committeeSummary || ctx.primaryCommittee || "—", mono: false },
+    { key: "vote", k: "Vote timing", v: vote.label || "—", sub: vote.detail ? String(vote.detail).slice(0, 72) : "", tone: voteUrgent ? "watch" : "neutral" }
+  ];
+  return `
+    <div class="bill-leg-rail" role="group" aria-label="Legislative calendar">
+      ${rows
+        .map(
+          (row, i) => `
+        <div class="bill-leg-item bill-leg-item--${escapeHtml(row.key)} ${row.tone ? `is-${row.tone}` : ""}" style="--leg-i:${i}">
+          <span class="bill-leg-k">${escapeHtml(row.k)}</span>
+          <span class="bill-leg-v ${row.mono ? "mono" : ""}">${escapeHtml(row.v)}</span>
+          ${row.sub ? `<span class="bill-leg-sub muted">${escapeHtml(row.sub)}${row.sub.length >= 90 ? "…" : ""}</span>` : ""}
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function billLegislativeTimelineBlock(bill) {
+  const ctx = billLegislativeContext(bill);
+  if (!ctx?.timelineRows?.length) return "";
+  const vote = ctx.voteWatch || {};
+  const voteUrgent = /floor|chamber|cross-chamber/i.test(vote.label || "");
+  const next = ctx.nextMilestone || {};
+  const primaryRows = ctx.timelineRows.filter((r) => !["vote", "policy-area"].includes(r.key));
+  return `
+    <section class="bill-legislative-timeline" aria-labelledby="bill-timeline-heading-${escapeHtml(bill.id).replace(/[^a-zA-Z0-9_-]/g, "")}">
+      <div class="bill-timeline-head">
+        <div>
+          <h4 id="bill-timeline-heading-${escapeHtml(bill.id).replace(/[^a-zA-Z0-9_-]/g, "")}">Legislative calendar</h4>
+          <p class="muted bill-timeline-lead">Dates and committee gates Congress actually publishes — not a price forecast.</p>
+        </div>
+        <span class="bill-timeline-chamber mini-pill">${escapeHtml(bill.chamber || ctx.chamber || "Federal")}</span>
+      </div>
+      <div class="bill-timeline-layout">
+        <div class="bill-timeline-rail">
+          ${primaryRows
+            .map(
+              (row, i) => `
+            <article class="bill-timeline-step" style="--step-i:${i}">
+              <span class="bill-timeline-step-label">${escapeHtml(row.label)}</span>
+              <p class="bill-timeline-step-value">${escapeHtml(row.value)}</p>
+              ${row.hint ? `<p class="bill-timeline-step-hint muted">${escapeHtml(row.hint)}</p>` : ""}
+            </article>`
+            )
+            .join("")}
+        </div>
+        <aside class="bill-timeline-aside">
+          <div class="bill-vote-callout${voteUrgent ? " is-urgent" : ""}">
+            <span class="mini-label">Vote watch</span>
+            <p class="bill-vote-callout-title">${escapeHtml(vote.label || "—")}</p>
+            <p class="muted">${escapeHtml(vote.detail || "")}</p>
+          </div>
+          <div class="bill-next-milestone">
+            <span class="mini-label">Next milestone</span>
+            <p><strong>${escapeHtml(next.label || "—")}</strong></p>
+            <p class="muted">${escapeHtml(next.detail || "")}</p>
+          </div>
+        </aside>
+      </div>
+    </section>`;
+}
+
+function formatBillDateShort(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function watchForBullets(bill) {
+  const ctx = billLegislativeContext(bill);
+  if (ctx?.nextMilestone?.label) {
+    const items = [
+      `${ctx.nextMilestone.label}: ${ctx.nextMilestone.detail}`,
+      ctx.voteWatch?.detail,
+      ctx.latestActionText ? `Last action (${ctx.latestActionLabel || "recent"}): ${ctx.latestActionText.slice(0, 120)}` : null
+    ].filter(Boolean);
+    if (items.length) return items.slice(0, 4);
+  }
   if (Array.isArray(bill.nextWatchItems) && bill.nextWatchItems.length) {
     return bill.nextWatchItems.slice(0, 3);
   }
@@ -405,6 +499,16 @@ function renderPolicyCatalysts() {
   const targets = [$("#policy-catalyst-feed"), $("#bill-catalyst-feed")].filter(Boolean);
   if (!targets.length) return;
   const catalysts = catalystCandidates().slice(0, 4);
+  const warming = !state.dataMeta.bills?.updatedAt && !catalysts.length;
+  if (warming) {
+    const skel = `<div class="policy-catalyst-list">${skeletonFeedMarkup(2)}</div>`;
+    targets.forEach((target) => {
+      target.innerHTML = skel;
+    });
+    const source = $("#policy-catalyst-source");
+    if (source) source.textContent = "Loading…";
+    return;
+  }
   const html = catalysts.length
     ? catalysts.map((item) => {
         const tone = toneClassFromStatus(item.tone);
@@ -466,8 +570,33 @@ function shareCardLink(symbol, label = "Share Card") {
   return `<a class="ticker-share-link" href="${publicStockCardUrl(sym)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${escapeHtml(label)}</a>`;
 }
 
+function billPageUrl(bill) {
+  const id = String(bill?.canonicalId || bill?.id || "").trim();
+  if (!id) return "/dashboard?view=bills";
+  return `/bill/${encodeURIComponent(id)}`;
+}
+
+function contractPageUrl(symbol) {
+  const sym = String(symbol || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  if (!sym) return "/dashboard?view=contracts";
+  return `/contract/${encodeURIComponent(sym)}`;
+}
+
+function lobbyPageUrl(filing) {
+  const id = String(filing?.filingId || filing?.id || "").trim();
+  if (!id) return "/dashboard?view=lobbying";
+  return `/lobby/${encodeURIComponent(id)}`;
+}
+
 function billSourceUrl(bill) {
+  if (bill?.congressUrl) return bill.congressUrl;
   const id = String(bill?.id || "");
+  if (bill?.scenarioOnly || id.startsWith("scenario:") || bill?.sourceKind === "tradesimple_scenario") {
+    return `https://www.congress.gov/search?q=${encodeURIComponent(bill?.title || bill?.shortTitle || bill?.scenarioId || "market bill")}`;
+  }
   if (bill?.exactCongressRecord === false || bill?.sourceKind === "tradesimple_modeled_seed") {
     return `https://www.congress.gov/search?q=${encodeURIComponent(bill?.title || bill?.shortTitle || id || "market bill")}`;
   }
@@ -488,12 +617,46 @@ function billSourceUrl(bill) {
 }
 
 function billSourceLabel(bill) {
-  return bill?.exactCongressRecord === true ? "Open exact Congress.gov record" : "Search Congress.gov by title";
+  if (bill?.exactCongressRecord === true) return "Open exact Congress.gov record";
+  if (bill?.scenarioOnly || bill?.dataLayer === "scenario") return "Search Congress.gov (scenario topic)";
+  return "Search Congress.gov by title";
 }
 
 function billSourceNote(bill) {
   if (bill?.exactCongressRecord === true) return "Exact Congress.gov bill record.";
+  if (bill?.scenarioOnly) {
+    return bill?.sourceNote || "TradeSimple scenario — factual status updates when Congress.gov is linked.";
+  }
   return bill?.sourceNote || "Modeled TradeSimple seed. Its internal bill-style ID may not match a real Congress.gov bill number.";
+}
+
+function billDisplayLabel(bill) {
+  return bill?.displayId || bill?.id || "Bill";
+}
+
+function billProvenanceBadge(bill) {
+  if (bill?.exactCongressRecord) return { cls: "exact", text: "live · Congress.gov" };
+  if (bill?.scenarioOnly || bill?.dataLayer === "scenario") return { cls: "scenario", text: "scenario model" };
+  return { cls: "modeled", text: "pending live" };
+}
+
+function historicalAnalogHtml(bill) {
+  const analog = bill?.historicalAnalog;
+  if (!analog?.title) return "";
+  const facts = Array.isArray(analog.verifiedFacts) ? analog.verifiedFacts : [];
+  const factLinks = facts
+    .slice(0, 3)
+    .map(
+      (f) =>
+        `<li><a href="${escapeHtml(f.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.claim)}</a></li>`
+    )
+    .join("");
+  return `<div class="bill-historical-block">
+    <h4>Verified historical analog</h4>
+    <p><strong>${escapeHtml(analog.title)}</strong> — ${escapeHtml(analog.outcome || "")}</p>
+    <p class="muted">${escapeHtml(analog.impact || "")}</p>
+    ${factLinks ? `<ul class="verified-facts-list">${factLinks}</ul>` : ""}
+  </div>`;
 }
 
 function usaspendingSearchUrl(company, recipientId) {
@@ -720,6 +883,7 @@ function setupBillsFeedInteraction() {
     if (target) target.hidden = !target.hidden;
   };
   feed.addEventListener("click", (event) => {
+    if (event.target.closest("a.bill-page-link, a.bill-page-open")) return;
     const row = event.target.closest("[data-bill-toggle]");
     toggleRow(row);
   });
@@ -1205,6 +1369,7 @@ const state = {
   relationshipMapPayload: null,
   dashboardBootstrap: null,
   watchlistSymbols: [],
+  dataHealth: null,
   _symbolFromUrl: false
 };
 
@@ -1295,6 +1460,8 @@ async function initDashboard() {
   setupTradeControls();
   setupRefreshAllControl();
   setupMethodologyModal();
+  setupOnboardingModal();
+  setupAppConfirmModal();
   setupResearchDrawer();
   setupAnalysisTabs();
   initMoneyTrailClose();
@@ -1304,6 +1471,8 @@ async function initDashboard() {
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
+  setupLegisCardDelegation();
+  setupTrackRecordTabs();
   setupHypotheticalFunds();
 
   const [config, session] = await Promise.all([fetchJson("/api/config"), fetchJson("/api/session")]);
@@ -1314,10 +1483,12 @@ async function initDashboard() {
   renderConnections();
 
   await loadDashboardBootstrap();
+  await loadDataHealth();
 
   if (initialSymbol) {
     state.activeAnalysisSymbol = initialSymbol;
     state.tradeSymbol = initialSymbol;
+    thesisPrimeTicker(initialSymbol);
     const analysisSelect = $("#analysis-symbol");
     if (analysisSelect && ![...analysisSelect.options].some((o) => o.value === initialSymbol)) {
       const opt = document.createElement("option");
@@ -1391,8 +1562,125 @@ function rememberFeedMeta(key, payload, fallbackSource = "") {
   state.dataMeta[key] = {
     source: payload.source || fallbackSource,
     confidence: payload.confidence || "",
-    updatedAt: payload.updatedAt || new Date().toISOString()
+    updatedAt: payload.updatedAt || new Date().toISOString(),
+    dataMode: payload.dataMode || "",
+    liveBillCount: payload.liveBillCount,
+    scenarioBillCount: payload.scenarioBillCount
   };
+}
+
+async function loadDataHealth() {
+  try {
+    state.dataHealth = await fetchJson("/api/health/data");
+  } catch (e) {
+    console.warn("[data-health] load failed", e);
+    state.dataHealth = null;
+  }
+  renderDataAccuracyBanner();
+  renderSourceFreshnessBar();
+}
+
+function renderDataAccuracyBanner() {
+  const el = $("#data-accuracy-banner");
+  if (!el) return;
+  const health = state.dataHealth;
+  const production = health?.production;
+  const mode = health?.dataMode || inferClientDataMode();
+  const warnings = health?.provenance?.warnings || [];
+  const configured = health?.configured || {};
+  const parts = [];
+
+  if (production?.strict && !production?.ready) {
+    el.hidden = false;
+    el.className = "data-accuracy-banner mode-scenario";
+    el.textContent = `Production data mode — ${production.message} Impact % ranges remain scenario models only.`;
+    return;
+  }
+
+  if (mode === "live" && production?.ready) {
+    el.hidden = false;
+    el.className = "data-accuracy-banner mode-live";
+    const bills = health?.bills;
+    const billNote = bills
+      ? ` Congress: ${bills.live} live / ${bills.scenario} scenario · LDA linked: ${bills.ldaLinked ?? 0}.`
+      : "";
+    el.textContent =
+      `Live production feeds connected.${billNote} Pass/fail % ranges are illustrative scenario models, not forecasts.`;
+    return;
+  }
+
+  if (mode === "mixed") {
+    parts.push("Mixed data mode — some feeds are live and others use scenario or fallback data.");
+  } else {
+    parts.push("Scenario / demo mode — configure API keys for live Congress.gov, quotes, and lobbying.");
+  }
+  if (!configured.congress) parts.push("Set CONGRESS_API_KEY for live bill status.");
+  if (!configured.finnhub) parts.push("Set FINNHUB_API_KEY for live equity quotes.");
+  if (!configured.senateLda) parts.push("Set SENATE_LDA_API_KEY for live lobbying dollars.");
+  if (warnings.length) parts.push(warnings[0]);
+
+  el.hidden = false;
+  el.className = `data-accuracy-banner mode-${mode}`;
+  el.textContent = parts.join(" ");
+}
+
+function inferClientDataMode() {
+  const marketFb = feedsUseFallbackQuotes();
+  const billsSrc = String(state.dataMeta.bills?.source || "").toLowerCase();
+  const billsLive = billsSrc.includes("congress") && !billsSrc.includes("fallback");
+  if (!marketFb && billsLive) return "live";
+  if (!marketFb || billsLive) return "mixed";
+  return "scenario";
+}
+
+function renderSourceFreshnessBar() {
+  const bar = $("#source-freshness-bar");
+  const grid = $("#source-freshness-grid");
+  if (!bar || !grid) return;
+  bar.hidden = false;
+
+  const health = state.dataHealth;
+  const feeds = health?.feeds || {};
+  const chips = [
+    feedFreshnessChip("Markets", state.dataMeta.market, feeds.market),
+    feedFreshnessChip("Bills", state.dataMeta.bills, feeds.bills, {
+      extra:
+        state.dataMeta.bills?.liveBillCount != null
+          ? `${state.dataMeta.bills.liveBillCount} live · ${state.dataMeta.bills.scenarioBillCount ?? 0} scenario`
+          : ""
+    }),
+    feedFreshnessChip("Lobbying", state.dataMeta.lobbying, feeds.lobbying),
+    feedFreshnessChip("Contracts", state.dataMeta.contracts, feeds.contracts),
+    feedFreshnessChip("Crypto", state.dataMeta.crypto, feeds.crypto)
+  ];
+  grid.innerHTML = chips.join("");
+
+  const link = $("#data-health-details-link");
+  if (link) {
+    link.onclick = (e) => {
+      e.preventDefault();
+      openMethodologyOrDataHealth();
+    };
+  }
+}
+
+function feedFreshnessChip(label, meta, serverFeed, { extra = "" } = {}) {
+  const src = meta?.source || serverFeed?.source || "—";
+  const isLive =
+    serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback");
+  const isFallback = String(src).includes("fallback") || serverFeed?.fallback;
+  const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
+  const detail = extra ? ` · ${extra}` : "";
+  return `<span class="source-freshness-chip ${isLive ? "is-live" : isFallback ? "is-fallback" : ""}" title="${escapeHtml(sourceLabel(src))}">
+    <span class="dot" aria-hidden="true"></span>
+    <span>${escapeHtml(label)} · ${escapeHtml(when)}${escapeHtml(detail)}</span>
+  </span>`;
+}
+
+function openMethodologyOrDataHealth() {
+  const btn = $("#methodology-open-btn");
+  if (btn) btn.click();
+  else showView("settings", false);
 }
 
 function renderSourceBadges() {
@@ -1417,16 +1705,60 @@ function updateSourceBadge(selector, key) {
   el.classList.toggle("source-fallback", String(meta?.source || "").includes("fallback"));
 }
 
+function feedsUseFallbackQuotes() {
+  const src = String(state.quoteFeedSource || state.dataMeta.market?.source || "").toLowerCase();
+  return src === "fallback" || src === "mixed" || src.includes("fallback");
+}
+
+function skeletonCardMarkup(lines = 3) {
+  const widths = ["wide", "mid", "short"];
+  const inner = Array.from({ length: lines }, (_, i) =>
+    `<div class="skeleton-line skeleton-block ${widths[i] || "mid"}"></div>`
+  ).join("");
+  return `<article class="skeleton-card" aria-hidden="true">${inner}</article>`;
+}
+
+function skeletonFeedMarkup(count = 2) {
+  return Array.from({ length: count }, () => skeletonCardMarkup(3)).join("");
+}
+
+function portfolioPolicyRisk() {
+  const holdingSyms = paperPositionSymbols();
+  const bills = policyBills();
+  const relevant = bills.filter((b) => (b.affected || []).some((t) => holdingSyms.includes(t)));
+  let score = 0;
+  if (relevant.length) {
+    score = Math.round(relevant.reduce((m, b) => Math.max(m, billMomentum(b)), 0));
+  } else if (bills.length) {
+    score = Math.round(bills.reduce((m, b) => Math.max(m, billMomentum(b)), 0) * 0.55);
+  } else {
+    score = 32;
+  }
+  const label = score >= 67 ? "Elevated" : score >= 40 ? "Medium" : "Contained";
+  const sub = relevant.length
+    ? `${relevant.length} bill${relevant.length === 1 ? "" : "s"} touch your holdings`
+    : holdingSyms.length
+      ? "Benchmark-level policy heat"
+      : "Add holdings to personalize";
+  return { score, label, sub };
+}
+
 function renderLiveFeedStatus() {
   const el = $("#live-feed-status");
   if (!el) return;
   const market = state.dataMeta.market;
   const policy = state.dataMeta.bills;
+  const fallback = feedsUseFallbackQuotes();
   const parts = [
-    market ? `markets ${freshnessText(market.updatedAt)}` : "markets connecting",
-    policy ? `policy ${freshnessText(policy.updatedAt)}` : "policy connecting"
+    market ? `markets ${freshnessText(market.updatedAt)}` : "markets…",
+    policy ? `policy ${freshnessText(policy.updatedAt)}` : "policy…"
   ];
-  el.innerHTML = `<span class="live-dot" aria-hidden="true"></span>${escapeHtml(parts.join(" / "))}`;
+  const text = fallback ? `Fallback prices · ${parts.join(" · ")}` : parts.join(" · ");
+  el.className = `topbar-status-chip${fallback ? " status-warn" : market?.updatedAt ? " status-live" : ""}`;
+  el.innerHTML = `<span class="live-dot" aria-hidden="true"></span>${escapeHtml(text)}`;
+  el.title = fallback
+    ? "Quote feed is modeled or mixed — set FINNHUB_API_KEY for live marks"
+    : "Feed freshness from market and policy polls";
 }
 
 function freshnessText(value) {
@@ -1491,7 +1823,7 @@ async function refreshAccountFeed({ render = true } = {}) {
     renderAccount();
     renderLiveAlerts();
   } else {
-    patchPortfolioChartLive();
+    renderPortfolioChart();
   }
   return account;
 }
@@ -1640,11 +1972,14 @@ function renderPortfolioChart() {
       source: portfolioChartSourceLabel(),
       yLabel: "Portfolio value (USD)",
       xLabel: "Time →",
-      height: 156,
+      height: 132,
+      compact: true,
+      hideYLabels: true,
+      animateIn: true,
       emptyMessage,
       formatMoney: money,
       formatDate: formatPointDate,
-      liveLabel: "Updating with account feed"
+      liveLabel: ""
     });
     host.dataset.tsChartMounted = "1";
   } else {
@@ -1713,9 +2048,12 @@ async function refreshPolicyFeed({ render = true } = {}) {
   state.lobbying = lobbying.filings || [];
   rememberFeedMeta("bills", bills, bills.source || "bills");
   rememberFeedMeta("lobbying", lobbying, lobbying.source || "lobbying");
+  renderDataAccuracyBanner();
+  renderSourceFreshnessBar();
   if (render) {
     renderSourceBadges();
     renderOverview();
+    renderTopSignal();
     renderPolicyCatalysts();
     renderBills();
     populateFundBillPicker();
@@ -1762,13 +2100,13 @@ function renderTerminalData() {
   renderTape();
   thesisUpdateQuoteTrustUi();
   renderOverview();
+  renderTopSignal();
   renderMarkets();
   renderCrypto();
   renderBills();
   renderLobbying();
   renderAccount();
   renderContracts();
-  renderSignalFeed();
   renderLiveAlerts();
   if (state.analysis) renderAnalysis();
 }
@@ -1847,7 +2185,15 @@ function renderSession() {
 }
 
 function renderTape() {
+  const tapeEl = $("#ticker-tape");
   const symbols = [...tapeDefaultQuoteSymbols(), "BTC", "ETH"];
+  const hasQuotes = state.quotes?.length > 0 || state.crypto?.length > 0;
+  if (tapeEl && !hasQuotes && !state.dataMeta.market?.updatedAt) {
+    tapeEl.classList.add("is-loading");
+    tapeEl.textContent = "Loading market feed…";
+    return;
+  }
+  tapeEl?.classList.remove("is-loading");
   const parts = symbols.map((symbol) => {
     const quote = symbol === "BTC" || symbol === "ETH"
       ? state.crypto.find((asset) => asset.symbol === symbol)
@@ -1910,10 +2256,10 @@ function renderOverview() {
           return `
       <tr class="clickable-row" ${drilldownAttrs("analysis", { symbol: sym }, `Open ${sym} analysis`)}${stripe}>
         <td class="ticker-link-cell"><span class="ticker-swatch" style="--swatch:${accent}"></span><span>${sym}</span>${shareCardLink(sym, "Share Card")}</td>
-        <td>${fmt(shares)}</td>
-        <td>${money(quote.price)}${position.priceBasis === "cost_basis_fallback" ? ' <small class="muted">(cost basis)</small>' : ""}</td>
-        <td>${money(positionValue)}</td>
-        <td class="${quote.pct >= 0 ? "up" : "down"}">${signed(quote.pct)}%</td>
+        <td class="num">${fmt(shares)}</td>
+        <td class="num">${money(quote.price)}${position.priceBasis === "cost_basis_fallback" ? ' <small class="muted">(cost basis)</small>' : ""}</td>
+        <td class="num">${money(positionValue)}</td>
+        <td class="num ${quote.pct >= 0 ? "up" : "down"}">${signed(quote.pct)}%</td>
         <td>${policyBlurbFor(sym)}</td>
       </tr>
     `;
@@ -1935,13 +2281,17 @@ function renderOverview() {
         : 0;
   const returnDollars = Number.isFinite(totalReturn) ? totalReturn : equity - startingCash;
 
-  $("#portfolio-value").textContent = money(equity);
-  $("#portfolio-change").innerHTML = `<span class="${returnPct >= 0 ? "up" : "down"}">${signed(returnPct)}% on holdings</span> · ${money(returnDollars)} vs $100k start · ${money(dayChange)} positions today`;
+  const policyRisk = portfolioPolicyRisk();
+  const statPolicy = $("#stat-policy-exposure");
+  const statPolicySub = $("#stat-policy-exposure-sub");
+  if (statPolicy) statPolicy.textContent = `${policyRisk.score}/100`;
+  if (statPolicySub) statPolicySub.textContent = `${policyRisk.label} · ${policyRisk.sub}`;
   $("#portfolio-hero-value").textContent = money(equity);
   const heroDay = fromAccount.length
-    ? `<span class="${dayChange >= 0 ? "up" : "down"}">${dayChange >= 0 ? "+" : ""}${money(Math.abs(dayChange))} positions today</span>`
+    ? `<span class="muted">${dayChange >= 0 ? "+" : ""}${money(Math.abs(dayChange))} today</span>`
     : `<span class="muted">All cash · no open positions</span>`;
-  $("#portfolio-hero-change").innerHTML = `${heroDay} / <span class="${returnPct >= 0 ? "up" : "down"}">${signed(returnPct)}% vs start</span>`;
+  const returnCls = returnPct >= 0 ? "muted" : "down";
+  $("#portfolio-hero-change").innerHTML = `${heroDay} · <span class="${returnCls}">${signed(returnPct)}% vs start</span>`;
 
   if (state.account) recordPortfolioEquitySnapshot(state.account);
   renderPortfolioChart();
@@ -1952,7 +2302,11 @@ function renderOverview() {
       : `Tracking ${state.quotes.length} equities, ${state.crypto.length} crypto assets, and ${policyBills().length} market-relevant bills.`;
 
   const safety = state.config?.safety;
-  $("#trade-mode").textContent = safety?.liveTradingEnabled ? "Live enabled" : "Paper";
+  const tradeModeEl = $("#trade-mode");
+  if (tradeModeEl) {
+    tradeModeEl.textContent = safety?.liveTradingEnabled ? "Live enabled" : "Paper";
+    tradeModeEl.className = safety?.liveTradingEnabled ? "overview-metric-value amber" : "overview-metric-value";
+  }
   $("#trade-mode-sub").textContent = safety?.liveTradingEnabled ? "Broker live mode is unlocked" : "Live trading is locked";
 
   const bills = policyBills();
@@ -1984,10 +2338,54 @@ function renderOverview() {
     .slice(0, 4)
     .map(signalCard)
     .join("");
-  renderPortfolioDashboard(positions, value, returnPct, dayChange);
+  renderPortfolioDashboard(positions, equity, returnPct, dayChange);
   renderWatchlistStrip();
   renderMarketMood();
   renderPolicyCatalysts();
+  renderSignalFeed();
+  renderResearchJourney();
+}
+
+function renderResearchJourney() {
+  const strip = $("#research-journey-strip");
+  if (!strip) return;
+  const sym = state.activeAnalysisSymbol || "NVDA";
+  const steps = [
+    { n: 1, title: "Thesis", desc: "Write your view & map signals", view: "thesis", cta: "Thesis Lab" },
+    { n: 2, title: "Bills", desc: "Legislative momentum & stages", view: "bills", cta: "Bills" },
+    { n: 3, title: "Lobbying", desc: "Who is spending on which issues", view: "lobbying", cta: "Lobbying" },
+    { n: 4, title: "Contracts", desc: "Federal award exposure", view: "contracts", cta: "Contracts" },
+    { n: 5, title: "Analysis", desc: `Deep dive · ${sym}`, view: "analysis", cta: sym }
+  ];
+  strip.innerHTML = `
+    <div class="research-journey-head">
+      <span class="mini-label">Research path</span>
+      <button type="button" class="button button-ghost compact" id="research-journey-replay">Tour</button>
+    </div>
+    <div class="research-journey-steps">
+      ${steps
+        .map(
+          (s) =>
+            `<button type="button" class="research-journey-step" data-journey-view="${escapeHtml(s.view)}">
+              <span class="research-journey-num">${s.n}</span>
+              <span class="research-journey-copy"><strong>${escapeHtml(s.title)}</strong><small>${escapeHtml(s.desc)}</small></span>
+              <span class="research-journey-cta">${escapeHtml(s.cta)} →</span>
+            </button>`
+        )
+        .join("")}
+    </div>`;
+  strip.querySelectorAll("[data-journey-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.journeyView;
+      if (view === "analysis") {
+        state.activeAnalysisSymbol = sym;
+        const sel = $("#analysis-symbol");
+        if (sel) sel.value = sym;
+      }
+      showView(view);
+    });
+  });
+  $("#research-journey-replay")?.addEventListener("click", () => openOnboardingModal({ force: true }));
 }
 
 function renderMarketMood() {
@@ -2008,15 +2406,7 @@ function renderMarketMood() {
   const holdingSyms = paperPositionSymbols();
   const bills = policyBills();
   const relevant = bills.filter((b) => (b.affected || []).some((t) => holdingSyms.includes(t)));
-  let policyRisk = 0;
-  if (relevant.length) {
-    policyRisk = Math.round(relevant.reduce((m, b) => Math.max(m, billMomentum(b)), 0));
-  } else if (bills.length) {
-    policyRisk = Math.round(bills.reduce((m, b) => Math.max(m, billMomentum(b)), 0) * 0.55);
-  } else {
-    policyRisk = 32;
-  }
-  const policyLbl = policyRisk >= 67 ? "Elevated" : policyRisk >= 40 ? "Medium" : "Contained";
+  const { score: policyRisk, label: policyLbl } = portfolioPolicyRisk();
 
   const filings = state.lobbying || [];
   let lobbyIntensity = 0;
@@ -2091,9 +2481,13 @@ function renderLiveAlerts() {
   if (!el) return;
   const alerts = buildLiveAlerts();
   const updated = $("#live-alert-updated");
+  const latest = latestFeedTime(["market", "crypto", "bills", "lobbying", "contracts"]);
   if (updated) {
-    const latest = latestFeedTime(["market", "crypto", "bills", "lobbying", "contracts"]);
     updated.textContent = latest ? `Latest feed ${freshnessText(latest)}` : "Waiting for feeds";
+  }
+  if (!alerts.length && !latest) {
+    el.innerHTML = skeletonFeedMarkup(3);
+    return;
   }
   el.innerHTML = alerts.length
     ? alerts.map((alert) => `
@@ -2273,16 +2667,6 @@ function renderWatchlistStrip() {
   const el = $("#watchlist-strip");
   if (!el) return;
   const wlSyms = watchlistRows().map((w) => w.symbol);
-  console.log(
-    "[client] watchlist symbols requested vs quotes:",
-    JSON.stringify({
-      watchlist: wlSyms,
-      prices: wlSyms.map((sym) => {
-        const q = quoteFor(sym);
-        return { symbol: sym, price: q?.price, pct: q?.pct };
-      })
-    })
-  );
   el.innerHTML = watchlistRows().map((row) => {
     const quote = quoteFor(row.symbol);
     const pct = quote ? Number(quote.pct || 0) : null;
@@ -2302,8 +2686,6 @@ function renderWatchlistStrip() {
 }
 
 function renderMarkets() {
-  console.log("Markets view activated");
-  console.log("Fetching quotes for:", marketsDefaultSymbols());
   const tbody = $("#market-body");
   if (!tbody) return;
 
@@ -2388,6 +2770,7 @@ async function refreshContractsFeed({ render = true } = {}) {
     renderSourceBadges();
     renderContracts();
     renderLiveAlerts();
+    renderSignalFeed();
     if (state.analysis) renderAnalysisContractsTab(state.analysis.symbol, state.analysis.company?.name);
   }
   return state.contracts;
@@ -2461,19 +2844,20 @@ function renderContracts() {
 
   tbody.innerHTML = state.contracts.map((row) => {
     const detailId = `cd-${escapeHtml(row.symbol)}`;
+    const pageUrl = contractPageUrl(row.symbol);
     return `
       <tr class="clickable-row contract-summary-row"
           data-contract-toggle="${detailId}"
           data-symbol="${escapeHtml(row.symbol)}"
           role="button" tabindex="0"
-          title="Click to see individual awards">
-        <td class="mono">${escapeHtml(row.symbol)}</td>
-        <td>${escapeHtml(row.company)}</td>
+          title="Expand awards · open full page from symbol">
+        <td class="mono"><a class="bill-page-link" href="${escapeHtml(pageUrl)}">${escapeHtml(row.symbol)}</a></td>
+        <td><a class="bill-page-link" href="${escapeHtml(pageUrl)}">${escapeHtml(row.company)}</a></td>
         <td><span class="score-badge ${row.exposureClass}">${compactMoney(row.totalObligated)}</span></td>
         <td class="mono">${row.topAward ? compactMoney(row.topAward) : "—"}</td>
         <td>${escapeHtml(row.topAgency)}</td>
         <td><span class="score-badge ${row.riskClass}">${escapeHtml(row.riskLabel)}</span></td>
-        <td class="mono contract-expand-hint">▸ Awards</td>
+        <td class="mono contract-expand-hint">▸ <a class="bill-page-open muted" href="${escapeHtml(pageUrl)}">Full page</a></td>
       </tr>
       <tr id="${detailId}" class="contract-detail-row" hidden>
         <td colspan="7">
@@ -2484,7 +2868,8 @@ function renderContracts() {
   }).join("");
 
   tbody.querySelectorAll(".contract-summary-row").forEach((summaryRow) => {
-    summaryRow.addEventListener("click", () => {
+    summaryRow.addEventListener("click", (event) => {
+      if (event.target.closest("a.bill-page-link, a.bill-page-open")) return;
       const detailId = summaryRow.dataset.contractToggle;
       if (!detailId) return;
       const detail = document.getElementById(detailId);
@@ -2564,6 +2949,7 @@ function renderContractDetailPanel(row) {
       <div class="contract-detail-header">
         <span class="contract-detail-company">${escapeHtml(row.company)}</span>
         <span class="muted mono contract-detail-count">${totalLabel}</span>
+        <a class="link-button" href="${contractPageUrl(row.symbol)}">Open full contract page →</a>
         <a class="link-button" href="${companySearchUrl}" target="_blank" rel="noopener noreferrer">All on USASpending ↗</a>
       </div>
       <div class="contract-award-list">
@@ -2578,6 +2964,7 @@ function renderContractDetailPanel(row) {
 }
 
 function renderBills() {
+  clearSkeleton("#bill-feed");
   const query = ($("#bill-filter")?.value || "").toLowerCase();
   const bills = policyBills({ includeUnmapped: Boolean(query) }).filter((bill) => {
     if (!query) return true;
@@ -2601,27 +2988,36 @@ function renderBills() {
     const momentum = billMomentum(bill);
     const lobby = Number(bill.lobbyingPressureScore ?? 0);
     const catalyst = bill.catalyst || {};
+    const prov = billProvenanceBadge(bill);
     const detailsId = `bill-detail-${escapeHtml(bill.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+    const idSub = bill.exactCongressRecord ? "" : `<span class="bill-id-sub mono">${escapeHtml(bill.id)}</span>`;
+    const pageUrl = billPageUrl(bill);
     return `
-      <tr class="clickable-row" data-bill-toggle="${detailsId}" role="button" tabindex="0" title="Open bill details">
+      <tr class="clickable-row" data-bill-toggle="${detailsId}" role="button" tabindex="0" title="Expand quick preview · open full page from title">
         <td class="mono">
-          ${escapeHtml(bill.id)}
-          <small class="bill-source-mini ${bill.exactCongressRecord ? "exact" : "modeled"}">${bill.exactCongressRecord ? "exact" : "modeled seed"}</small>
+          <a class="bill-page-link" href="${escapeHtml(pageUrl)}">${escapeHtml(billDisplayLabel(bill))}</a>
+          ${idSub}
+          <small class="bill-source-mini ${prov.cls}">${escapeHtml(prov.text)}</small>
+          <a class="bill-page-open muted" href="${escapeHtml(pageUrl)}">Full page →</a>
         </td>
-        <td>${escapeHtml(bill.title || "")}</td>
-        <td>
+        <td><a class="bill-page-link" href="${escapeHtml(pageUrl)}">${escapeHtml(bill.title || "")}</a></td>
+        <td class="bill-stage-cell">
           <span class="status-stage-chip ${toneClassFromStatus(status.tone)}" style="color:${stageColor}">${escapeHtml(status.label)}</span>
+          ${billLegislativeContext(bill)?.primaryCommittee && billLegislativeContext(bill).primaryCommittee !== "—"
+            ? `<small class="stage-cell-committee">${escapeHtml(billLegislativeContext(bill).primaryCommittee)}</small>`
+            : ""}
           <small class="stage-cell-next">${escapeHtml(status.nextStep || "")}</small>
         </td>
         <td><span class="score-badge ${momentum >= 67 ? "high" : momentum < 35 ? "low" : "medium"}">${momentum}/100</span></td>
         <td><span class="score-badge ${lobby >= 67 ? "high" : lobby < 35 ? "low" : "medium"}">${lobby}/100</span></td>
         <td>${escapeHtml(billConfidenceLabel(bill))}</td>
         <td class="mono ticker-link-cell">${tickerLinks || "—"}</td>
-        <td class="mono">${escapeHtml(bill.latestActionDate || "")}</td>
+        <td class="bill-calendar-cell">${billCalendarCellHtml(bill)}</td>
       </tr>
       <tr id="${detailsId}" hidden>
         <td colspan="8">
           <div class="bill-detail-shell">
+            ${billLegislativeTimelineBlock(bill)}
             <div class="bill-detail-grid">
               <div>
                 <h4>What happens next</h4>
@@ -2646,7 +3042,10 @@ function renderBills() {
               </tbody>
             </table>
             <ul>${watchForBullets(bill).map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>
+            ${historicalAnalogHtml(bill)}
             <p class="bill-source-note">${escapeHtml(billSourceNote(bill))}</p>
+            ${bill.lobbyingSource === "senate_lda" ? `<p class="muted">Lobbying: ${escapeHtml(String(bill.lobbyingFilingsCount || 0))} matched LDA filing(s) · against $${escapeHtml(String(bill.lobbyingAgainst ?? "—"))}M · for $${escapeHtml(String(bill.lobbyingFor ?? "—"))}M</p>` : ""}
+            <a class="link-button" href="${escapeHtml(pageUrl)}">Open full bill page →</a>
             <a class="link-button" target="_blank" rel="noopener noreferrer" href="${billSourceUrl(bill)}">${escapeHtml(billSourceLabel(bill))}</a>
           </div>
         </td>
@@ -2660,8 +3059,21 @@ function renderBills() {
 function renderLobbying() {
   renderLobbyBridge();
   const feedEl = $("#lobby-feed");
+  const emptyEl = $("#lobby-feed-empty");
+  const sourceEl = $("#lobby-source");
+  if (sourceEl) {
+    const meta = state.feedMeta?.lobbying;
+    sourceEl.textContent = meta?.source === "senate_lda" ? "Senate LDA" : meta?.source === "fallback" ? "Sample filings" : "Connecting";
+  }
   if (!feedEl) return;
+  if (!state.lobbying?.length) {
+    feedEl.innerHTML = "";
+    if (emptyEl) emptyEl.hidden = false;
+    return;
+  }
+  if (emptyEl) emptyEl.hidden = true;
   feedEl.innerHTML = state.lobbying.map((filing) => {
+    const pageUrl = lobbyPageUrl(filing);
     const pressure = Number(filing.lobbyingPressure ?? 0);
     const fConf = filing.filingConfidence || "Low";
     const z = filing.spendSpikeZ;
@@ -2676,6 +3088,7 @@ function renderLobbying() {
     const connectedBill = connection?.bill;
     return `
       <article class="lobby-card">
+        <a class="lobby-card-title-link" href="${escapeHtml(pageUrl)}"><h3>${escapeHtml(filing.client)}</h3></a>
         <div class="meta-line lobby-card-metrics">
           <span class="mini-pill ${pressure >= 67 ? "red" : pressure >= 40 ? "amber" : ""}">Pressure ${pressure}/100</span>
           <span class="lobby-z-pill mini-pill ${zPillClass}">Z ${escapeHtml(zLabel)}</span>
@@ -2688,7 +3101,6 @@ function renderLobbying() {
           <span>Issue · ${escapeHtml(filing.issueSignalConfidence || "—")}</span>
           <span>Spend · ${escapeHtml(filing.spendSignalConfidence || "—")}</span>
         </div>
-        <h3>${escapeHtml(filing.client)}</h3>
         <p>${escapeHtml(filing.issue || "Issue not listed")}</p>
         <p class="muted">Filed by ${escapeHtml(filing.registrant || "unknown registrant")}</p>
         <div class="lobby-causal-box ${connectedBill ? "" : "muted-box"}">
@@ -2704,6 +3116,8 @@ function renderLobbying() {
             <p>This filing is still useful context, but it has not been tied to a specific TradeSimple bill-impact chain.</p>
           `}
         </div>
+        <a class="link-button" href="${escapeHtml(pageUrl)}">Open full filing page →</a>
+        ${connectedBill ? `<a class="link-button" href="${escapeHtml(billPageUrl(connectedBill))}">Related bill →</a>` : ""}
       </article>
     `;
   }).join("");
@@ -2717,10 +3131,10 @@ function renderAccount() {
     ["Invested", money(Number(account.portfolioValue || 0)), "Current value of paper holdings"],
     ["Total return", `${signed(account.totalReturnPct || 0)}%`, `${money(Number(account.totalReturn || 0))} since the $100,000 start`]
   ].map(([label, value, subtitle]) => `
-    <article class="connection-card paper-stat-card">
-      <span class="mini-pill">${label}</span>
-      <strong>${value}</strong>
-      <p class="muted">${escapeHtml(subtitle)}</p>
+    <article class="overview-metric-cell" role="listitem">
+      <span class="overview-metric-label">${escapeHtml(label)}</span>
+      <strong class="overview-metric-value">${value}</strong>
+      <small class="overview-metric-sub">${escapeHtml(subtitle)}</small>
     </article>
   `).join("");
 
@@ -2736,7 +3150,7 @@ function renderAccount() {
         <td>${positionPolicyRiskHtml(position.symbol)}</td>
       </tr>
     `).join("")
-    : `<tr><td colspan="7">No paper positions yet. Use the order ticket to make your first simulated trade.</td></tr>`;
+    : `<tr><td colspan="7"><div style="padding:1.5rem;text-align:center"><p style="margin:0 0 0.5rem;font-weight:600">No positions yet</p><p class="muted" style="margin:0 0 1rem;font-size:0.85rem">Search a ticker in the terminal bar above, then use the order ticket to place your first paper trade. Starting cash: $100,000.</p><button type="button" class="button button-secondary" onclick="document.querySelector('#terminal-search')?.focus()">Search a ticker →</button></div></td></tr>`;
 
   $("#paper-orders").innerHTML = (state.account?.orders || []).length
     ? state.account.orders.slice(0, 8).map((order) => `
@@ -2748,7 +3162,7 @@ function renderAccount() {
         <small>${money(order.notional)} / ${new Date(order.submittedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
       </article>
     `).join("")
-    : `<article class="empty-state">No orders yet. Paper fills will appear here.</article>`;
+    : `<article class="empty-state" style="padding:1.5rem;text-align:center"><p style="margin:0 0 0.35rem;font-weight:600">No orders yet</p><p class="muted" style="margin:0;font-size:0.85rem">Your paper trade history will appear here once you place an order.</p></article>`;
 
   renderTradePanel();
   void loadFunds();
@@ -3695,12 +4109,116 @@ function renderLobbyMappingStatus(lobby) {
     </div>`;
 }
 
+// ── Today's Top Signal ────────────────────────────────────────────────────────
+// Surfaces the single highest-momentum bill on first open so users immediately
+// understand the core value prop: policy → ticker connection.
+function policyRefreshCadenceLabel() {
+  const minutes = Math.max(1, Math.round(LIVE_FEED_INTERVALS.policyMs / 60000));
+  return minutes >= 60 ? `${Math.round(minutes / 60)}h` : `${minutes}m`;
+}
+
+function topSignalDataBasisLabel(bill) {
+  if (bill?.exactCongressRecord) return "Live Congress record";
+  if (bill?.scenarioOnly) return "Scenario model";
+  if (bill?.sourceKind === "tradesimple_modeled_seed") return "Curated policy map";
+  return "Policy feed";
+}
+
+function topSignalTrustMarkup(top, bills) {
+  const meta = state.dataMeta.bills || {};
+  const source = sourceLabel(meta.source || (top.exactCongressRecord ? "congress.gov" : "policy feed"));
+  const freshness = freshnessText(meta.updatedAt);
+  const liveCount = Number(meta.liveBillCount);
+  const scenarioCount = Number(meta.scenarioBillCount);
+  const coverage =
+    Number.isFinite(liveCount) && Number.isFinite(scenarioCount)
+      ? `${liveCount} live / ${scenarioCount} modeled`
+      : `${bills.length} market-linked bills`;
+  const basis = topSignalDataBasisLabel(top);
+  const note = top.sourceNote || "Top signal is selected automatically from the current policy feed.";
+
+  return `
+    <div class="top-signal-trust" aria-label="Top signal source and refresh details">
+      <span><span class="top-signal-trust-dot" aria-hidden="true"></span><strong>Auto-selected</strong> by highest momentum</span>
+      <span>${escapeHtml(source)} · ${escapeHtml(freshness)} · refresh ${escapeHtml(policyRefreshCadenceLabel())}</span>
+      <span>${escapeHtml(coverage)}</span>
+      <span title="${escapeHtml(note)}">${escapeHtml(basis)}</span>
+    </div>
+  `;
+}
+
+function renderTopSignal() {
+  const el = $("#overview-top-signal");
+  if (!el) return;
+  const bills = policyBills().filter((b) => !b.scenarioOnly && b.affected?.length);
+  if (!bills.length) return;
+
+  // Pick the bill with the highest legislative momentum score
+  const top = bills.slice().sort((a, b) => billMomentum(b) - billMomentum(a))[0];
+  const momentum = billMomentum(top);
+  const tickers = (top.affected || []).slice(0, 4);
+  const conf = billConfidenceLabel ? billConfidenceLabel(top) : "Medium";
+  const passImpact = (top.passImpacts || [])[0];
+  const impactLine = passImpact
+    ? `If passes → <strong>${escapeHtml(passImpact.sym)} ${passImpact.dir > 0 ? "↑" : "↓"} ${escapeHtml(passImpact.range || "")}</strong>`
+    : `Affects: <strong>${tickers.map(escapeHtml).join(", ")}</strong>`;
+
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="top-signal-inner">
+      <div class="top-signal-eyebrow">
+        <span class="top-signal-dot"></span>
+        <span>Today's top signal</span>
+        <span class="mini-pill">${momentum}/100 momentum · ${escapeHtml(conf)} confidence</span>
+        <button type="button" class="top-signal-dismiss" aria-label="Dismiss" title="Dismiss">✕</button>
+      </div>
+      <div class="top-signal-body">
+        <div class="top-signal-copy">
+          <h3>${escapeHtml(top.shortTitle || top.title)}</h3>
+          <p>${escapeHtml(top.plainEnglish || top.signal || "")}</p>
+          <p class="top-signal-impact">${impactLine}</p>
+        </div>
+        <div class="top-signal-actions">
+          <button type="button" class="button button-secondary" data-ask-why="${escapeHtml(top.id)}">Ask AI why →</button>
+          <button type="button" class="button button-ghost" data-show-view="bills">All signals</button>
+        </div>
+      </div>
+      ${topSignalTrustMarkup(top, bills)}
+    </div>
+  `;
+  el.querySelector(".top-signal-dismiss")?.addEventListener("click", () => {
+    el.hidden = true;
+  });
+}
+
+function renderAiBanner() {
+  // Show a persistent but unobtrusive banner when no AI key is configured server-side
+  // and the user hasn't set a BYOK key either.
+  const hasServerAi = Boolean(state.config?.data?.anthropic);
+  const hasByok = byokIsConfigured();
+  const existing = $("#ai-unconfigured-banner");
+  if (hasServerAi || hasByok) {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return; // already shown
+  const drawer = globalResearchDrawerEl?.() || document.querySelector(".research-drawer");
+  if (!drawer) return;
+  const banner = document.createElement("div");
+  banner.id = "ai-unconfigured-banner";
+  banner.setAttribute("role", "status");
+  banner.style.cssText = "background:rgba(200,148,44,0.12);border:1px solid rgba(200,148,44,0.35);border-radius:8px;padding:0.65rem 0.85rem;margin:0.75rem;font-size:0.82rem;line-height:1.5;display:flex;gap:0.5rem;align-items:flex-start";
+  banner.innerHTML = `<span style="font-size:1rem;flex-shrink:0">⚠️</span><span>AI features need an API key. <button type="button" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;padding:0" onclick="document.querySelector('.byok-settings-btn')?.click()">Add your key →</button></span>`;
+  drawer.prepend(banner);
+}
+
 function renderConnections() {
   const config = state.config;
   const grid = $("#connection-grid");
   if (!config || !grid) return;
   // Expose AI availability to inline scripts (e.g. causality loading message)
   document.body.dataset.anthropicReady = String(Boolean(config.data?.anthropic));
+  renderAiBanner();
   const rows = [
     ["Google OAuth", config.auth.google, "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET"],
     ["Apple OAuth", config.auth.apple, "APPLE_CLIENT_ID and APPLE_CLIENT_SECRET"],
@@ -4479,9 +4997,9 @@ function legisAlertCard(bill, options = {}) {
       <div class="legis-card-footer">
         <span class="muted" style="font-size:11px;font-family:var(--mono)">${sponsorLine}</span>
         <div class="legis-card-footer-actions">
-          <button type="button" class="button button-ghost compact" onclick="window.openMethodologyModal({ billId: ${JSON.stringify(bill.id)} })">Explain metrics</button>
-          <button type="button" class="button button-secondary compact" onclick="window.askWhyForBill(${JSON.stringify(bill.id)})">Ask why (metrics)</button>
-          <button type="button" class="button button-ghost compact" onclick="window.showView('research')">Ask AI</button>
+          <button type="button" class="button button-ghost compact" data-methodology-bill="${escapeHtml(bill.id)}">Explain metrics</button>
+          <button type="button" class="button button-secondary compact" data-ask-why="${escapeHtml(bill.id)}">Ask why (metrics)</button>
+          <button type="button" class="button button-ghost compact" data-show-view="research">Ask AI</button>
         </div>
       </div>
     </article>
@@ -4537,8 +5055,8 @@ function renderLobbyBridge() {
     .slice(0, 4);
   el.innerHTML = bills.map((bill) => `
     <article class="bridge-card ${momentumClass(bill)}">
-      <span class="mini-pill">${escapeHtml(bill.id)}</span>
-      <h3>${escapeHtml(bill.title)}</h3>
+      <a class="bill-page-link" href="${escapeHtml(billPageUrl(bill))}"><span class="mini-pill">${escapeHtml(bill.displayId || bill.id)}</span></a>
+      <h3><a class="bill-page-link" href="${escapeHtml(billPageUrl(bill))}">${escapeHtml(bill.title)}</a></h3>
       <p>${escapeHtml(bill.signal || bill.relationshipSummary || "")}</p>
       <div class="bridge-chain">
         <span>Lobbying pressure ${bill.lobbyingPressureScore ?? 0}/100</span>
@@ -4612,8 +5130,134 @@ function rawPolicyBills() {
 
 /* ── Signal Chain ──────────────────────────────────────────────────────────── */
 
-const SIGNAL_PAGE_SIZE = 8;
+const SIGNAL_OVERVIEW_VISIBLE = 3;
 let _signalFeedExpanded = false;
+
+function signalSourceLabel(sig) {
+  if (sig.type === "contract") return "USASpending.gov";
+  if (sig.type === "lobbying") return "Senate LDA";
+  return sig._billId || "Congress.gov";
+}
+
+function signalConfidenceFor(sig) {
+  if (sig._billId) {
+    const bill = policyBills().find((item) => item.id === sig._billId);
+    if (bill) return billConfidenceLabel(bill);
+  }
+  return sig.type === "contract" ? "Medium" : "Modeled";
+}
+
+function signalPlainEnglish(sig) {
+  const mechanism = sig.chain?.[1] || sig.title || "";
+  return twelveWordSummary(mechanism);
+}
+
+function signalDrillAttrs(sig) {
+  if (sig._billId) {
+    return drilldownAttrs("bills", { billId: sig._billId }, `Open ${sig._billId} in Bills`);
+  }
+  if (sig._contractSymbol) {
+    return drilldownAttrs("view", { viewName: "contracts" }, "Open contracts view");
+  }
+  return "";
+}
+
+function renderSignalRanges(sig) {
+  const impacts = sig.impacts.slice(0, 4);
+  if (!impacts.length) {
+    return sig.tickers.length
+      ? `<div class="signal-range-row"><span>${escapeHtml(sig.tickers[0])}</span><span class="muted">Exposure</span></div>`
+      : "";
+  }
+  return impacts
+    .map((imp) => {
+      const arrow = imp.dir > 0 ? "+" : imp.dir < 0 ? "−" : "±";
+      const range = imp.range ? imp.range.replace(/^\+/, "") : "—";
+      const cls = imp.dir < 0 ? "down" : "muted";
+      return `<div class="signal-range-row"><span>${escapeHtml(imp.sym)}</span><span class="${cls}">${arrow}${escapeHtml(range)}</span></div>`;
+    })
+    .join("");
+}
+
+function renderSignalTickerRow(tickers, compact) {
+  const list = tickers.slice(0, compact ? 4 : 6);
+  if (!list.length) return "";
+  return `<div class="signal-ticker-row${compact ? " signal-ticker-row--compact" : ""}">${list
+    .map((t) => `<span class="signal-ticker-chip">${escapeHtml(t)}</span>`)
+    .join("")}</div>`;
+}
+
+function renderFeaturedSignal(sig) {
+  const typeLabel = sig.type === "lobbying" ? "Lobby" : sig.type === "contract" ? "Contract" : "Bill";
+  const typeClass = `signal-type--${sig.type}`;
+  const source = signalSourceLabel(sig);
+  const confidence = signalConfidenceFor(sig);
+
+  return `
+    <article class="signal-featured ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
+      <header class="signal-featured-head">
+        <span class="signal-type-label">${typeLabel}</span>
+        <span class="signal-score-mono">${sig.score}/100</span>
+      </header>
+      <div class="signal-featured-body">
+        <div class="signal-featured-main">
+          ${renderSignalTickerRow(sig.tickers, false)}
+          <p class="signal-plain">${escapeHtml(signalPlainEnglish(sig))}</p>
+          <p class="signal-meta-mono">${escapeHtml(source)} · Confidence ${escapeHtml(confidence)}</p>
+        </div>
+        <div class="signal-ranges-col" aria-label="Predicted ranges">
+          ${renderSignalRanges(sig)}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSecondarySignal(sig) {
+  const typeLabel = sig.type === "lobbying" ? "Lobby" : sig.type === "contract" ? "Contract" : "Bill";
+  const typeClass = `signal-type--${sig.type}`;
+
+  return `
+    <article class="signal-secondary ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
+      <div class="signal-secondary-head">
+        <span class="signal-type-label">${typeLabel}</span>
+        <span class="signal-secondary-title">${escapeHtml(sig.title)}</span>
+        <span class="signal-score-mono">${sig.score}/100</span>
+      </div>
+      ${renderSignalTickerRow(sig.tickers, true)}
+    </article>
+  `;
+}
+
+function observeSignalReveal(container) {
+  if (!container || typeof IntersectionObserver === "undefined") {
+    container?.querySelectorAll(".signal-featured, .signal-secondary").forEach((el) => el.classList.add("is-visible"));
+    return;
+  }
+  const nodes = container.querySelectorAll(".signal-featured, .signal-secondary");
+  if (!nodes.length) return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { root: null, threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+  );
+  nodes.forEach((node, index) => {
+    if (index === 0) node.classList.add("is-visible");
+    observer.observe(node);
+  });
+  requestAnimationFrame(() => {
+    nodes.forEach((node) => {
+      const rect = node.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 0.92) node.classList.add("is-visible");
+    });
+  });
+}
 
 function signalRecencyFactor(dateStr) {
   if (!dateStr) return 0.4;
@@ -4702,51 +5346,6 @@ function buildSignalFeed() {
   return signals.sort((a, b) => b.sortKey - a.sortKey);
 }
 
-function renderSignalCard(sig) {
-  const typeLabel = sig.type === "lobbying" ? "Lobby" : sig.type === "contract" ? "Contract" : "Bill";
-  const typeClass = `sc-card--${sig.type}`;
-
-  const tickerHtml = sig.tickers.map((t) => `<span class="sc-ticker-pill">${escapeHtml(t)}</span>`).join("");
-
-  const chainHtml = sig.chain
-    .filter(Boolean)
-    .map((node, i, arr) =>
-      i < arr.length - 1
-        ? `<span class="sc-chain-node">${escapeHtml(node)}</span><span class="sc-chain-arrow">→</span>`
-        : `<span class="sc-chain-node">${escapeHtml(node)}</span>`
-    )
-    .join("");
-
-  const impactHtml = sig.impacts.slice(0, 4).map((imp) => {
-    const cls = imp.dir > 0 ? "sc-chip-up" : imp.dir < 0 ? "sc-chip-dn" : "sc-chip-neu";
-    const arrow = imp.dir > 0 ? "↑" : imp.dir < 0 ? "↓" : "→";
-    return `<span class="sc-chip ${cls}">${escapeHtml(imp.sym)} ${arrow}${imp.range ? " " + escapeHtml(imp.range) : ""}</span>`;
-  }).join("");
-
-  const drillAttr = sig._billId
-    ? drilldownAttrs("bills", { billId: sig._billId }, `Open ${sig._billId} in Bills`)
-    : sig._contractSymbol
-    ? drilldownAttrs("view", { viewName: "contracts" }, `Open contracts view`)
-    : "";
-
-  return `
-    <article class="sc-card ${typeClass}" ${drillAttr} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
-      <div class="sc-card-header">
-        <span class="sc-type-badge">${typeLabel}</span>
-        <div class="sc-tickers">${tickerHtml}</div>
-        <span class="sc-score">${sig.score}/100</span>
-      </div>
-      <p class="sc-title">${escapeHtml(sig.title)}</p>
-      <div class="sc-chain">${chainHtml}</div>
-      ${impactHtml ? `<div class="sc-impacts">${impactHtml}</div>` : ""}
-      <div class="sc-footer">
-        <span>${escapeHtml(sig.footer.slice(0, 80))}</span>
-        ${sig.footerDate ? `<span>${escapeHtml(sig.footerDate)}</span>` : ""}
-      </div>
-    </article>
-  `;
-}
-
 function renderSignalFeed() {
   const feed = $("#signal-chain-feed");
   const footer = $("#signal-chain-footer");
@@ -4760,11 +5359,19 @@ function renderSignalFeed() {
     return;
   }
 
-  const visible = _signalFeedExpanded ? signals : signals.slice(0, SIGNAL_PAGE_SIZE);
-  feed.innerHTML = visible.map(renderSignalCard).join("");
+  const featured = signals[0];
+  const secondary = _signalFeedExpanded ? signals.slice(1) : signals.slice(1, SIGNAL_OVERVIEW_VISIBLE);
+  feed.innerHTML = [
+    renderFeaturedSignal(featured),
+    secondary.length
+      ? `<div class="signal-secondary-list">${secondary.map(renderSecondarySignal).join("")}</div>`
+      : ""
+  ].join("");
+
+  observeSignalReveal(feed);
 
   if (footer) {
-    const hasMore = signals.length > SIGNAL_PAGE_SIZE;
+    const hasMore = signals.length > SIGNAL_OVERVIEW_VISIBLE;
     footer.hidden = !hasMore || _signalFeedExpanded;
   }
 }
@@ -4780,7 +5387,8 @@ function isMarketRelevantBill(bill) {
   const hasMappedTicker = affected.some(
     (ticker) => marketSymbols().includes(ticker) || ["BTC", "ETH"].includes(ticker)
   );
-  const isCurrentSeed = String(bill.id || "").endsWith(`-${CURRENT_CONGRESS}`);
+  const isCurrentSeed =
+    String(bill.id || "").endsWith(`-${CURRENT_CONGRESS}`) || bill.scenarioOnly || bill.scenarioId;
   const hasScenario = Boolean(bill.plainEnglish || bill.signal || bill.impact);
   if (hasMappedTicker) return true;
   if (isCurrentSeed && hasScenario && (bill.tags?.length || bill.portfolioTickers?.length)) return true;
@@ -4888,8 +5496,28 @@ function showView(view, updateUrl = true) {
   }
   if (view === "analysis" && !state.analysis) loadAnalysis(state.activeAnalysisSymbol);
   if (view === "trade" && !state.tradeHistory) loadTradeHistory(state.tradeSymbol, state.tradeRange);
-  if (view === "markets") void loadMarketsData();
-  if (view === "contracts" && !state.contractsLoadedAt) void refreshContractsFeed();
+  if (view === "markets") {
+    if (!state.quotes?.length) {
+      showSkeleton("#market-body", 8, "row");
+      void loadMarketsData().finally(() => clearSkeleton("#market-body"));
+    } else {
+      renderMarkets(); // already have quotes, just re-render
+    }
+  }
+  if (view === "bills") {
+    if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
+  }
+  if (view === "contracts" && !state.contractsLoadedAt) {
+    showSkeleton("#contracts-feed", 4, "card");
+    void refreshContractsFeed().finally(() => clearSkeleton("#contracts-feed"));
+  }
+  if (view === "lobbying") {
+    if (!state.lobbying?.length) {
+      showSkeleton("#lobby-feed", 4, "card");
+      void refreshPolicyFeed().finally(() => clearSkeleton("#lobby-feed"));
+    } else renderLobbying();
+  }
+  if (view === "track-record") void loadTrackRecord();
   if (view === "thesis") {
     ensureThesisLabReady();
     void thesisLoadTracked();
@@ -4953,7 +5581,11 @@ function setupTradeControls() {
 }
 
 function setupFilters() {
-  $("#bill-filter").addEventListener("input", renderBills);
+  let _billFilterTimer = 0;
+  $("#bill-filter").addEventListener("input", () => {
+    clearTimeout(_billFilterTimer);
+    _billFilterTimer = setTimeout(renderBills, 200);
+  });
   $("#clear-bill-filter").addEventListener("click", () => {
     $("#bill-filter").value = "";
     renderBills();
@@ -5675,6 +6307,96 @@ function methodologyModalEscape(e) {
   if (modal && !modal.hidden) closeMethodologyModal();
 }
 
+const ONBOARDING_STORAGE_KEY = "ts_onboarding_v3";
+let appConfirmResolver = null;
+
+function setupOnboardingModal() {
+  const modal = $("#onboarding-modal");
+  if (!modal || modal.dataset.bound === "true") return;
+  modal.dataset.bound = "true";
+  const close = () => closeOnboardingModal();
+  modal.querySelectorAll("[data-close-onboarding]").forEach((el) => el.addEventListener("click", close));
+  modal.querySelectorAll("[data-onboarding-go]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      showView(btn.dataset.onboardingGo);
+      close();
+    });
+  });
+  $("#onboarding-finish")?.addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.hidden) close();
+  });
+  try {
+    if (!localStorage.getItem(ONBOARDING_STORAGE_KEY)) {
+      setTimeout(() => openOnboardingModal(), 900);
+    }
+  } catch (_) {}
+}
+
+function openOnboardingModal({ force = false } = {}) {
+  const modal = $("#onboarding-modal");
+  if (!modal) return;
+  if (!force) {
+    try {
+      if (localStorage.getItem(ONBOARDING_STORAGE_KEY)) return;
+    } catch (_) {}
+  }
+  modal.hidden = false;
+  document.body.classList.add("methodology-modal-open");
+}
+
+function closeOnboardingModal() {
+  const modal = $("#onboarding-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("methodology-modal-open");
+  if ($("#onboarding-dismiss")?.checked) {
+    try {
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+    } catch (_) {}
+  }
+}
+
+function setupAppConfirmModal() {
+  const modal = $("#app-confirm-modal");
+  if (!modal || modal.dataset.bound === "true") return;
+  modal.dataset.bound = "true";
+  modal.querySelectorAll("[data-close-confirm]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ok = btn.dataset.closeConfirm === "ok";
+      closeAppConfirm(ok);
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.hidden) closeAppConfirm(false);
+  });
+}
+
+function openAppConfirm({ title = "Confirm", body = "", lines = [] } = {}) {
+  const modal = $("#app-confirm-modal");
+  const titleEl = $("#app-confirm-title");
+  const bodyEl = $("#app-confirm-body");
+  if (!modal || !bodyEl) return Promise.resolve(false);
+  if (titleEl) titleEl.textContent = title;
+  const text = lines.length ? lines.join("\n") : String(body || "");
+  bodyEl.textContent = text;
+  modal.hidden = false;
+  document.body.classList.add("methodology-modal-open");
+  return new Promise((resolve) => {
+    appConfirmResolver = resolve;
+  });
+}
+
+function closeAppConfirm(result) {
+  const modal = $("#app-confirm-modal");
+  if (modal) modal.hidden = true;
+  document.body.classList.remove("methodology-modal-open");
+  if (appConfirmResolver) {
+    appConfirmResolver(Boolean(result));
+    appConfirmResolver = null;
+  }
+}
+
 function setupMethodologyModal() {
   const modal = $("#methodology-modal");
   if (!modal || methodologyUiBound) return;
@@ -5758,6 +6480,47 @@ function $(selector) {
   return document.querySelector(selector);
 }
 
+// ── Skeleton loaders ──────────────────────────────────────────────────────────
+// Call showSkeleton(containerSelector, rowCount) before a data fetch,
+// clearSkeleton(containerSelector) once the real content renders.
+function skeletonRows(n, type) {
+  if (type === "card") {
+    return Array.from({ length: n }, () =>
+      `<div class="skeleton-wrap"><div class="sk-block"></div><div class="sk-line wide"></div><div class="sk-line med"></div></div>`
+    ).join("");
+  }
+  if (type === "row") {
+    return Array.from({ length: n }, () =>
+      `<div class="sk-row skeleton-wrap"><div class="sk-avatar sk-line"></div><div class="sk-col"><div class="sk-line wide"></div><div class="sk-line short"></div></div></div>`
+    ).join("");
+  }
+  return Array.from({ length: n }, () =>
+    `<div class="skeleton-wrap"><div class="sk-line wide"></div><div class="sk-line med"></div><div class="sk-line short"></div></div>`
+  ).join("");
+}
+function showSkeleton(selector, rowCount = 4, type = "default") {
+  const el = $(selector);
+  if (!el || el.querySelector(".skeleton-wrap")) return; // already showing
+  const placeholder = document.createElement("div");
+  placeholder.dataset.skeleton = "true";
+  placeholder.innerHTML = skeletonRows(rowCount, type);
+  el.prepend(placeholder);
+}
+function clearSkeleton(selector) {
+  $(selector)?.querySelector("[data-skeleton]")?.remove();
+}
+
+function setupLegisCardDelegation() {
+  document.addEventListener("click", (e) => {
+    const askBtn = e.target.closest("[data-ask-why]");
+    if (askBtn) { askWhyForBill(askBtn.dataset.askWhy); return; }
+    const methodBtn = e.target.closest("[data-methodology-bill]");
+    if (methodBtn) { openMethodologyModal({ billId: methodBtn.dataset.methodologyBill }); return; }
+    const viewBtn = e.target.closest("[data-show-view]");
+    if (viewBtn) { showView(viewBtn.dataset.showView); return; }
+  });
+}
+
 function setupSignalChainInteraction() {
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("#signal-chain-more");
@@ -5777,6 +6540,193 @@ function setupResearchDrawer() {
   document.querySelector(".byok-settings-btn")?.addEventListener("click", toggleByokPanel);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && drawer.classList.contains("open")) drawer.classList.remove("open");
+  });
+}
+
+// ── Track Record (prediction ledger UI) ─────────────────────────────────────
+let _trackRecordLoaded = false;
+let _trackRecordCache = null;
+let _trLogFilter = "all";
+
+async function loadTrackRecord(force = false) {
+  if (_trackRecordLoaded && !force) { renderTrackRecord(); return; }
+  const statGrid = $("#tr-stat-grid");
+  if (statGrid) statGrid.innerHTML = skeletonRows(4, "default");
+  try {
+    const [scorecard, list] = await Promise.all([
+      fetchJson("/api/predictions/scorecard"),
+      fetchJson("/api/predictions?limit=100")
+    ]);
+    _trackRecordCache = { scorecard, predictions: list.predictions || [] };
+    _trackRecordLoaded = true;
+    renderTrackRecord();
+  } catch (err) {
+    if (statGrid) statGrid.innerHTML = `<p class="tr-empty">Could not load the track record. ${escapeHtml(err.message || "")}</p>`;
+  }
+}
+
+function trPct(n, withSign = true) {
+  if (n == null || !Number.isFinite(Number(n))) return "—";
+  const v = Number(n);
+  return `${withSign && v > 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
+
+function renderTrackRecord() {
+  if (!_trackRecordCache) return;
+  const { scorecard: sc, predictions } = _trackRecordCache;
+
+  const badge = $("#tr-verify-badge");
+  const vtext = $("#tr-verify-text");
+  if (badge && vtext) {
+    if (sc.integrity?.ok) {
+      badge.classList.add("ok"); badge.classList.remove("broken");
+      vtext.textContent = `Chain verified · ${sc.integrity.length} events`;
+    } else {
+      badge.classList.add("broken"); badge.classList.remove("ok");
+      vtext.textContent = "Chain integrity FAILED";
+    }
+  }
+
+  const grid = $("#tr-stat-grid");
+  if (grid) {
+    const hitRate = sc.hitRate != null ? Math.round(sc.hitRate * 100) : null;
+    const edge = sc.directionalEdgePct;
+    const edgeCls = edge == null ? "" : edge > 0 ? "pos" : edge < 0 ? "neg" : "";
+    const skill = sc.skillVsCoinflip;
+    grid.innerHTML = `
+      <div class="tr-stat">
+        <span class="tr-stat-label">Directional hit rate</span>
+        <span class="tr-stat-value ${hitRate != null && hitRate >= 50 ? "pos" : ""}">${hitRate != null ? hitRate + "%" : "—"}</span>
+        <span class="tr-stat-sub">${sc.counts.directionalResolved} resolved directional calls</span>
+      </div>
+      <div class="tr-stat">
+        <span class="tr-stat-label">Avg edge vs ${escapeHtml(sc.benchmark || "SPY")}</span>
+        <span class="tr-stat-value ${edgeCls}">${trPct(edge)}</span>
+        <span class="tr-stat-sub">Excess return in the predicted direction</span>
+      </div>
+      <div class="tr-stat">
+        <span class="tr-stat-label">Calibration (Brier)</span>
+        <span class="tr-stat-value">${sc.meanBrier != null ? sc.meanBrier.toFixed(3) : "—"}</span>
+        <span class="tr-stat-sub">${skill != null && skill > 0 ? `Beating a coin flip by ${(skill).toFixed(3)}` : "Lower is better (0 = perfect)"}</span>
+      </div>
+      <div class="tr-stat">
+        <span class="tr-stat-label">Open / Total</span>
+        <span class="tr-stat-value">${sc.counts.open}<span style="color:var(--faint);font-size:16px"> / ${sc.counts.total}</span></span>
+        <span class="tr-stat-sub">Live predictions awaiting their horizon</span>
+      </div>`;
+  }
+
+  renderTrCalibration(sc.calibration || []);
+  renderTrCatalyst(sc.byCatalyst || {});
+  renderTrLog(predictions);
+}
+
+function renderTrCalibration(buckets) {
+  const el = $("#tr-calibration");
+  if (!el) return;
+  const withData = buckets.filter((b) => b.n > 0);
+  if (!withData.length) {
+    el.innerHTML = `<p class="tr-empty" style="margin:auto">Not enough resolved predictions yet to chart calibration.</p>`;
+    document.getElementById("tr-cal-legend-inline")?.remove();
+    return;
+  }
+  el.innerHTML = buckets.map((b) => {
+    const expectedH = Math.round((b.predictedRate || 0) * 100);
+    const actualH = b.actualRate != null ? Math.round(b.actualRate * 100) : 0;
+    const under = b.actualRate != null && b.actualRate < b.predictedRate;
+    return `
+      <div class="tr-cal-col">
+        <div class="tr-cal-bars">
+          <div class="tr-cal-bar expected" style="height:${expectedH}%" title="Predicted ${expectedH}%"></div>
+          <div class="tr-cal-bar actual ${under ? "under" : ""}" style="height:${actualH}%" title="Actual ${b.actualRate != null ? actualH + "%" : "n/a"}"></div>
+        </div>
+        <span class="tr-cal-label">${escapeHtml(b.range)}</span>
+        <span class="tr-cal-n">n=${b.n}</span>
+      </div>`;
+  }).join("");
+  if (!document.getElementById("tr-cal-legend-inline")) {
+    el.insertAdjacentHTML("afterend", `<div class="tr-cal-legend" id="tr-cal-legend-inline">
+      <span><span class="tr-cal-swatch" style="background:rgba(255,255,255,0.10)"></span>Confidence claimed</span>
+      <span><span class="tr-cal-swatch" style="background:var(--green)"></span>Actually right</span>
+    </div>`);
+  }
+}
+
+function renderTrCatalyst(byCat) {
+  const el = $("#tr-catalyst");
+  if (!el) return;
+  const rows = Object.entries(byCat).filter(([, v]) => v.n > 0);
+  if (!rows.length) {
+    el.innerHTML = `<p class="tr-empty">No resolved predictions by catalyst yet.</p>`;
+    return;
+  }
+  rows.sort((a, b) => (b[1].edgePct || 0) - (a[1].edgePct || 0));
+  el.innerHTML = rows.map(([type, v]) => {
+    const hit = v.hitRate != null ? Math.round(v.hitRate * 100) : null;
+    const edgeCls = v.edgePct == null ? "" : v.edgePct > 0 ? "pos" : "neg";
+    const label = type.replace(/_/g, " ");
+    return `
+      <div class="tr-cat-row">
+        <div class="tr-cat-name">${escapeHtml(label)}<small>${v.n} call${v.n === 1 ? "" : "s"}</small></div>
+        <div class="tr-cat-stat">${hit != null ? hit + "%" : "—"}<small>hit rate</small></div>
+        <div class="tr-cat-stat ${edgeCls === "pos" ? "up" : edgeCls === "neg" ? "down" : ""}">${trPct(v.edgePct)}<small>edge</small></div>
+      </div>`;
+  }).join("");
+}
+
+function renderTrLog(predictions) {
+  const el = $("#tr-log");
+  if (!el) return;
+  let rows = predictions;
+  if (_trLogFilter === "open") rows = rows.filter((p) => p.status === "open");
+  else if (_trLogFilter === "resolved") rows = rows.filter((p) => p.status === "resolved");
+
+  if (!rows.length) {
+    el.innerHTML = `<p class="tr-empty">No predictions logged yet. As live bill signals cross our momentum threshold, they're auto-recorded here with a timestamp and a falsifiable claim.</p>`;
+    return;
+  }
+
+  el.innerHTML = rows.map((p) => {
+    const r = p.resolution;
+    const dirLabel = p.direction === "bullish" ? "LONG" : p.direction === "bearish" ? "SHORT" : "NEUTRAL";
+    const created = new Date(p.createdAt);
+    const dateStr = created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const catalyst = p.catalyst?.title ? escapeHtml(p.catalyst.title) : "Signal";
+
+    let outcome;
+    if (p.status === "open") {
+      const ends = new Date(p.horizonEndsAt);
+      const daysLeft = Math.max(0, Math.ceil((ends - Date.now()) / 86400000));
+      outcome = `<span class="tr-log-badge open">Open</span><span class="tr-log-return"><small>${daysLeft}d left · ${p.horizonDays}d horizon</small></span>`;
+    } else if (r) {
+      const cls = r.hit ? "hit" : "miss";
+      const retCls = r.excessReturnPct > 0 ? "pos" : r.excessReturnPct < 0 ? "neg" : "";
+      outcome = `<span class="tr-log-badge ${cls}">${r.hit ? "Hit" : "Miss"}</span><span class="tr-log-return ${retCls}">${trPct(r.excessReturnPct)}<small>vs ${escapeHtml(p.benchmark || "SPY")}</small></span>`;
+    } else {
+      outcome = `<span class="tr-log-badge open">—</span>`;
+    }
+
+    const conf = Number.isFinite(Number(p.confidence)) ? `${Math.round(p.confidence)}% conf` : "";
+    return `
+      <div class="tr-log-row">
+        <span class="tr-log-dir ${p.direction}">${dirLabel}</span>
+        <div class="tr-log-body">
+          <span class="tr-log-tick">${escapeHtml(p.ticker)}</span>
+          <p class="tr-log-thesis">${escapeHtml(p.thesis || catalyst)}</p>
+          <div class="tr-log-meta-line">${dateStr} · ${catalyst}${conf ? " · " + conf : ""}</div>
+        </div>
+        <div class="tr-log-outcome">${outcome}</div>
+      </div>`;
+  }).join("");
+}
+
+function setupTrackRecordTabs() {
+  document.addEventListener("click", (e) => {
+    const tab = e.target.closest(".tr-log-tab");
+    if (!tab) return;
+    document.querySelectorAll(".tr-log-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    _trLogFilter = tab.dataset.trFilter || "all";
+    if (_trackRecordCache) renderTrLog(_trackRecordCache.predictions);
   });
 }
 
@@ -5809,6 +6759,7 @@ pattern at the bottom of this file.
 const thesisState = {
   ticker: "",
   dir: "",
+  timeHorizon: "unspecified",
   thesis: "",
   cats: new Set(),
   entry: 0,
@@ -5818,7 +6769,9 @@ const thesisState = {
   savedThesisId: null,
   savedOutcome: null,
   signalsPayload: null,
-  signalsLoading: false
+  signalsLoading: false,
+  normalizedThesis: null,
+  commandContext: null
 };
 
 const THESIS_MONITOR_REFRESH_MS = 45000;
@@ -5830,6 +6783,95 @@ const THESIS_FALLBACK_QUOTE_SOURCES = new Set(["fallback", "fallback_static"]);
 function thesisTrackQuote() {
   const sym = String(thesisState.ticker || "").toUpperCase();
   return sym ? quoteFor(sym) : null;
+}
+
+function normalizeThesisClient(raw = {}) {
+  const thesisText = String(raw.thesisText || raw.thesis || "").trim();
+  const confidence = raw.confidence || {};
+  return {
+    id: raw.id || "",
+    schemaVersion: Number(raw.schemaVersion) || 1,
+    symbol: String(raw.symbol || raw.ticker || "").toUpperCase(),
+    direction: String(raw.direction || "unclear"),
+    timeHorizon: String(raw.timeHorizon || "unspecified"),
+    thesisText,
+    thesisRestatement: String(raw.thesisRestatement || thesisText),
+    bullCase: Array.isArray(raw.bullCase) ? raw.bullCase : [],
+    bearCase: Array.isArray(raw.bearCase) ? raw.bearCase : [],
+    evidenceFor: Array.isArray(raw.evidenceFor) ? raw.evidenceFor : [],
+    evidenceAgainst: Array.isArray(raw.evidenceAgainst) ? raw.evidenceAgainst : [],
+    assumptions: Array.isArray(raw.assumptions) ? raw.assumptions : [],
+    invalidationConditions: Array.isArray(raw.invalidationConditions) ? raw.invalidationConditions : [],
+    watchTriggers: Array.isArray(raw.watchTriggers) ? raw.watchTriggers : [],
+    confidence: {
+      score: Number.isFinite(Number(confidence.score)) ? Number(confidence.score) : null,
+      label: String(confidence.label || "unscored"),
+      explanation: String(confidence.explanation || "Legacy thesis has not been scored yet.")
+    },
+    sourceStatus: String(raw.sourceStatus || "legacy_user_input"),
+    needsUpgrade: Boolean(raw.needsUpgrade || Number(raw.schemaVersion || 1) < 2),
+    entry: Number(raw.entry) || 0,
+    target: Number(raw.target) || 0,
+    stop: Number(raw.stop) || 0
+  };
+}
+
+function thesisSourceBadge(kind = "modeled", confidence = null) {
+  const normalized = String(kind || "modeled").toLowerCase().replace(/\s+/g, "_");
+  const label = normalized.replace(/_/g, " ");
+  const confLabel =
+    Number.isFinite(Number(confidence))
+      ? Number(confidence) >= 75
+        ? "High confidence"
+        : Number(confidence) >= 45
+          ? "Medium confidence"
+          : "Low confidence"
+      : "Unscored";
+  return `<span class="mini-pill">${escapeHtml(label)}</span><span class="mini-pill">${escapeHtml(confLabel)}</span>`;
+}
+
+function buildMarketThesisContextClient() {
+  const normalized = thesisState.normalizedThesis || normalizeThesisClient({
+    ticker: thesisState.ticker,
+    direction: thesisState.dir || "unclear",
+    timeHorizon: thesisState.timeHorizon,
+    thesisText: thesisState.thesis,
+    entry: thesisState.entry,
+    target: thesisState.target,
+    stop: thesisState.stop
+  });
+  const payload = thesisState.signalsPayload || {};
+  const monitors = Array.isArray(payload.monitors) ? payload.monitors : [];
+  const signals = Array.isArray(payload.signals) ? payload.signals : [];
+  const alertCount = thesisMonitorAlertCount(monitors);
+  const conf = Number(normalized.confidence?.score);
+  const monitorScore = monitors.length
+    ? Math.round((1 - alertCount / Math.max(monitors.length, 1)) * 100)
+    : null;
+  const healthScore = Number.isFinite(conf)
+    ? Math.round((conf * 0.6) + ((monitorScore ?? 50) * 0.4))
+    : monitorScore;
+  const trend = healthScore == null ? "unknown" : healthScore >= 70 ? "stable" : healthScore >= 45 ? "watch" : "fragile";
+  thesisState.commandContext = {
+    thesis: normalized,
+    monitors,
+    signals,
+    evidence: payload.evidence || {},
+    claims: payload.claims || [],
+    health: {
+      score: Number.isFinite(healthScore) ? healthScore : null,
+      trend,
+      explanation: "Health blends confidence and monitor stability. Research context only."
+    },
+    movement: monitors.slice(0, 5).map((m) => ({
+      at: new Date().toISOString(),
+      label: m.text,
+      status: m.status,
+      source: m.src
+    })),
+    outcome: thesisState.savedOutcome || null
+  };
+  return thesisState.commandContext;
 }
 
 function thesisQuotesLive() {
@@ -5849,13 +6891,10 @@ function thesisQuoteIsFallback() {
 function thesisUpdateQuoteTrustUi() {
   const fbBadge = $("#quote-fallback-badge");
   if (fbBadge) {
-    const live = thesisQuotesLive();
-    fbBadge.hidden = live;
-    fbBadge.classList.toggle("quote-fallback-prominent", thesisQuoteIsFallback());
-    fbBadge.title = live
-      ? ""
-      : "Live market data required for thesis tracking. Set FINNHUB_API_KEY or wait for Yahoo quotes.";
+    fbBadge.hidden = true;
+    fbBadge.setAttribute("aria-hidden", "true");
   }
+  renderLiveFeedStatus();
   const blocker = document.getElementById("tr-quote-blocker");
   const trackBtn = document.getElementById("tr-track-paper");
   const fallback = thesisQuoteIsFallback();
@@ -6041,9 +7080,10 @@ function thesisRenderSignalCards(signals) {
       const socialBadge = s.meta?.socialBadge
         ? `<span class="social-badge ${escapeHtml(String(s.meta.socialBadge).toLowerCase().replace(/\s+/g, "-"))}">${escapeHtml(s.meta.socialBadge)}</span>`
         : "";
+      const sourceBadges = thesisSourceBadge(s.sourceStatus || s.meta?.sourceStatus || "modeled", s.confidence);
       return `
 <div class="thesis-signal-card">
-<div class="thesis-signal-source">${escapeHtml(s.source || "Source")} ${socialBadge}</div>
+<div class="thesis-signal-source">${escapeHtml(s.source || "Source")} ${socialBadge} ${sourceBadges}</div>
 <div class="thesis-signal-meta"><span>${escapeHtml(ts)}</span><span>${escapeHtml(s.thesisPart || "Signal")}</span></div>
 <div class="thesis-signal-body"><strong>${escapeHtml(s.title || "")}</strong> — ${escapeHtml(s.summary || s.body || "")}</div>
 <div class="thesis-signal-why"><span>Why ${escapeHtml(thesisState.ticker || "this ticker")}:</span> ${escapeHtml(s.whyTicker || "")}</div>
@@ -6070,6 +7110,7 @@ function thesisRenderMonitors(monitors) {
 <div class="thesis-watch-top">
 <span class="thesis-watch-status ${thesisMonitorStatusClass(w.status)}">${escapeHtml(w.status || "Normal")}</span>
 <span class="thesis-watch-src">${escapeHtml(w.src || "")}</span>
+${thesisSourceBadge(w.sourceStatus || "modeled", w.confidence)}
 </div>
 <div class="thesis-watch-text">${escapeHtml(w.text || "")}</div>
 <div class="thesis-watch-next">Next check: ${escapeHtml(w.nextCheck || "—")}</div>
@@ -6114,6 +7155,86 @@ function thesisRenderStickyRail(t, payload) {
   }
 }
 
+function thesisRenderCommandSummary() {
+  const ctx = buildMarketThesisContextClient();
+  const q = quoteFor(thesisState.ticker);
+  const pnl = thesisState.savedOutcome?.position?.unrealizedPnl;
+  const byId = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  byId("tc-summary-ticker", thesisState.ticker || "—");
+  byId("tc-summary-health", ctx.health?.score != null ? `${ctx.health.score}/100` : "Unscored");
+  byId("tc-summary-trend", ctx.health?.trend || "unknown");
+  byId("tc-summary-price", q?.price != null ? money(q.price) : "—");
+  byId("tc-summary-pnl", Number.isFinite(Number(pnl)) ? money(pnl) : "Not linked");
+  const banner = document.getElementById("tc-upgrade-banner");
+  if (banner) banner.hidden = !ctx.thesis?.needsUpgrade;
+}
+
+function thesisHydrateIntakeFromSaved(thesis) {
+  const normalized = normalizeThesisClient(thesis || {});
+  thesisState.normalizedThesis = normalized;
+  thesisState.ticker = normalized.symbol;
+  thesisState.dir = normalized.direction === "unclear" ? "watch" : normalized.direction;
+  thesisState.timeHorizon = normalized.timeHorizon;
+  thesisState.thesis = normalized.thesisText;
+  thesisState.entry = normalized.entry;
+  thesisState.target = normalized.target;
+  thesisState.stop = normalized.stop;
+  if (document.getElementById("tc-ticker")) document.getElementById("tc-ticker").value = normalized.symbol;
+  if (document.getElementById("tc-direction")) {
+    document.getElementById("tc-direction").value = normalized.direction === "watch" ? "unclear" : normalized.direction;
+  }
+  if (document.getElementById("tc-horizon")) document.getElementById("tc-horizon").value = normalized.timeHorizon;
+  if (document.getElementById("tc-thesis")) document.getElementById("tc-thesis").value = normalized.thesisText;
+  if (document.getElementById("tc-entry")) document.getElementById("tc-entry").value = normalized.entry || "";
+  if (document.getElementById("tc-target")) document.getElementById("tc-target").value = normalized.target || "";
+  if (document.getElementById("tc-stop")) document.getElementById("tc-stop").value = normalized.stop || "";
+}
+
+async function thesisRequestUpgradePreview() {
+  if (!thesisState.savedThesisId) {
+    alert("Save the thesis first so it can be upgraded.");
+    return;
+  }
+  const data = await fetchJson(`/api/theses/${encodeURIComponent(thesisState.savedThesisId)}/upgrade-preview`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  const preview = data.upgradePreview || {};
+  const lines = [
+    `Direction: ${preview.direction || "—"}`,
+    `Horizon: ${preview.timeHorizon || "—"}`,
+    `Bull case items: ${(preview.bullCase || []).length}`,
+    `Bear case items: ${(preview.bearCase || []).length}`,
+    `Evidence for: ${(preview.evidenceFor || []).length}`,
+    `Evidence against: ${(preview.evidenceAgainst || []).length}`,
+    `Watch triggers: ${(preview.watchTriggers || []).length}`,
+    "",
+    "Accept this upgrade? Existing thesis text stays preserved."
+  ];
+  const ok = await openAppConfirm({
+    title: "Upgrade thesis structure?",
+    lines
+  });
+  if (!ok) return;
+  const accepted = await fetchJson(`/api/theses/${encodeURIComponent(thesisState.savedThesisId)}/accept-upgrade`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  const upgraded = accepted?.thesis || null;
+  if (upgraded) {
+    thesisHydrateIntakeFromSaved(upgraded);
+    thesisState.savedOutcome = upgraded.outcome || thesisState.savedOutcome;
+    thesisState.normalizedThesis = normalizeThesisClient(upgraded);
+    thesisRenderResult();
+    alert("Thesis upgraded.");
+  }
+}
+
 function setupThesisLab() {
   document.querySelectorAll("[data-thesis-outer]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -6125,7 +7246,7 @@ function setupThesisLab() {
       if (btn.dataset.thesisOuter === "map") {
         setTimeout(thesisDrawMap, 60);
         thesisBuildTimeline();
-        if (thesisState.built && thesisState.ticker) void thesisLoadRelationshipMap();
+        if (thesisCurrentMapSymbol()) void thesisLoadRelationshipMap();
       }
     });
   });
@@ -6202,6 +7323,69 @@ function setupThesisLab() {
 
   void thesisLoadTracked();
   thesisApplyMapContext();
+
+  const intakeTicker = document.getElementById("tc-ticker");
+  const intakeDirection = document.getElementById("tc-direction");
+  const intakeHorizon = document.getElementById("tc-horizon");
+  const intakeThesis = document.getElementById("tc-thesis");
+  const intakeEntry = document.getElementById("tc-entry");
+  const intakeTarget = document.getElementById("tc-target");
+  const intakeStop = document.getElementById("tc-stop");
+  const applyIntakeToState = () => {
+    thesisState.ticker = String(intakeTicker?.value || "").toUpperCase().replace(/[^A-Z]/g, "");
+    const selectedDirection = String(intakeDirection?.value || "unclear");
+    thesisState.dir = selectedDirection === "unclear" ? "watch" : selectedDirection;
+    thesisState.timeHorizon = String(intakeHorizon?.value || "unspecified");
+    thesisState.thesis = String(intakeThesis?.value || "");
+    thesisState.entry = Number(intakeEntry?.value) || 0;
+    thesisState.target = Number(intakeTarget?.value) || 0;
+    thesisState.stop = Number(intakeStop?.value) || 0;
+    if (tickerInput) tickerInput.value = thesisState.ticker;
+    if (thesisArea) thesisArea.value = thesisState.thesis;
+    if (document.getElementById("t-entry")) document.getElementById("t-entry").value = thesisState.entry || "";
+    if (document.getElementById("t-target")) document.getElementById("t-target").value = thesisState.target || "";
+    if (document.getElementById("t-stop")) document.getElementById("t-stop").value = thesisState.stop || "";
+  };
+  [intakeTicker, intakeDirection, intakeHorizon, intakeThesis, intakeEntry, intakeTarget, intakeStop].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("input", applyIntakeToState);
+    el.addEventListener("change", applyIntakeToState);
+  });
+  const generateBtn = document.getElementById("tc-generate-btn");
+  if (generateBtn) {
+    generateBtn.addEventListener("click", () => {
+      applyIntakeToState();
+      thesisBuild();
+    });
+  }
+  const saveBtn = document.getElementById("tc-save-btn");
+  if (saveBtn) saveBtn.addEventListener("click", () => void thesisTrackInPaper());
+  const paperBtn = document.getElementById("tc-paper-btn");
+  if (paperBtn) paperBtn.addEventListener("click", () => void thesisTrackInPaper());
+  const upgradeBtn = document.getElementById("tc-upgrade-ai-btn");
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener("click", async () => {
+      try {
+        await thesisRequestUpgradePreview();
+      } catch (err) {
+        alert(err.message || "Upgrade preview failed.");
+      }
+    });
+  }
+  const keepBtn = document.getElementById("tc-upgrade-keep-btn");
+  if (keepBtn) {
+    keepBtn.addEventListener("click", () => {
+      const banner = document.getElementById("tc-upgrade-banner");
+      if (banner) banner.hidden = true;
+    });
+  }
+  const editBtn = document.getElementById("tc-upgrade-edit-btn");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      const thesisInput = document.getElementById("tc-thesis");
+      if (thesisInput) thesisInput.focus();
+    });
+  }
 }
 
 function thesisCheckStep0() {
@@ -6265,6 +7449,7 @@ function thesisBuild() {
   });
   thesisApplyMapContext();
   thesisViewMap({ toast: true, firstVisit: true });
+  thesisRenderCommandSummary();
 }
 
 function thesisViewMap(options = {}) {
@@ -6479,6 +7664,7 @@ ${note}
       .join("");
   }
   thesisRenderStickyRail(t, payload || {});
+  thesisRenderCommandSummary();
   thesisRenderLiveOutcome();
   thesisBuildTimeline();
 }
@@ -6515,6 +7701,7 @@ async function thesisLoadTracked() {
     if (match) {
       thesisState.savedThesisId = match.id;
       thesisState.savedOutcome = match.outcome || null;
+      thesisHydrateIntakeFromSaved(match);
       if (thesisState.built) thesisRenderLiveOutcome();
     }
   } catch {
@@ -6557,6 +7744,8 @@ async function thesisTrackInPaper() {
       body: JSON.stringify({
         ticker: t.ticker,
         direction: t.dir,
+        timeHorizon: t.timeHorizon || "unspecified",
+        schemaVersion: 2,
         thesisText: t.thesis,
         exitCats: [...t.cats],
         entry: t.entry,
@@ -6661,11 +7850,90 @@ let thesisMapNewEdgeIds = new Set();
 let thesisMapPulseT = 0;
 let thesisMapPulseRaf = null;
 let thesisMapLoadFailed = false;
+let thesisMapEditMode = false;
+let thesisMapDragNode = null;
+let thesisMapDragMoved = false;
+let thesisMapPanState = null;
+const thesisMapViewport = { scale: 1, x: 0, y: 0 };
+const THESIS_MAP_MIN_ZOOM = 0.55;
+const THESIS_MAP_MAX_ZOOM = 3.2;
 
 const THESIS_MAP_HINT_KEY = "ts_map_hint_seen";
 
 function thesisMapSeenKey(sym) {
   return `ts_map_seen_${sym}`;
+}
+
+function thesisMapLayoutKey(sym) {
+  return `ts_map_layout_${String(sym || "").toUpperCase()}`;
+}
+
+function thesisUrlSymbol() {
+  try {
+    return String(new URLSearchParams(window.location.search).get("symbol") || "")
+      .toUpperCase()
+      .replace(/[^A-Z.]/g, "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function thesisCurrentMapSymbol() {
+  return String(thesisState.ticker || state.activeAnalysisSymbol || state.tradeSymbol || thesisUrlSymbol() || "")
+    .toUpperCase()
+    .replace(/[^A-Z.]/g, "");
+}
+
+function thesisPrimeTicker(symbol) {
+  const sym = String(symbol || "")
+    .toUpperCase()
+    .replace(/[^A-Z.]/g, "");
+  if (!sym) return "";
+  thesisState.ticker = sym;
+  const intakeTicker = document.getElementById("tc-ticker");
+  const tickerInput = document.getElementById("t-ticker");
+  if (intakeTicker && !intakeTicker.value) intakeTicker.value = sym;
+  if (tickerInput && !tickerInput.value) tickerInput.value = sym;
+  thesisRenderCommandSummary();
+  return sym;
+}
+
+function thesisLoadLayoutOverrides(sym) {
+  try {
+    return JSON.parse(localStorage.getItem(thesisMapLayoutKey(sym)) || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function thesisSaveLayoutOverrides(sym, overrides) {
+  try {
+    localStorage.setItem(thesisMapLayoutKey(sym), JSON.stringify(overrides));
+  } catch (_) {}
+}
+
+function thesisApplyLayoutOverrides() {
+  const sym = thesisCurrentMapSymbol();
+  const overrides = thesisLoadLayoutOverrides(sym);
+  thesisMapNodesActive.forEach((n) => {
+    const o = overrides[n.id];
+    if (o && Number.isFinite(o.x) && Number.isFinite(o.y)) {
+      n.x = o.x;
+      n.y = o.y;
+    }
+  });
+}
+
+function thesisNodePageLink(n) {
+  if (!n) return null;
+  const sym = thesisCurrentMapSymbol();
+  if (n.cat === "stock") return `/stock/${encodeURIComponent(sym || n.label)}`;
+  if (n.cat === "bill" && String(n.id).startsWith("bill_")) {
+    return billPageUrl({ id: n.id.slice(5) });
+  }
+  if (n.cat === "contract") return contractPageUrl(sym || n.label);
+  if (n.url) return n.url;
+  return null;
 }
 
 function thesisMapToast(message) {
@@ -6690,9 +7958,7 @@ function thesisApplyMapContext() {
 }
 
 function thesisUpdateMapChrome(payload) {
-  const sym = String(thesisState.ticker || "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  const sym = thesisCurrentMapSymbol();
   const heading = document.getElementById("thesis-map-heading");
   const meta = document.getElementById("thesis-map-meta");
   if (heading) heading.textContent = sym ? `How ${sym} connects` : "How this thesis connects";
@@ -6770,9 +8036,7 @@ function thesisStopMapPulse() {
 }
 
 async function thesisLoadRelationshipMap() {
-  const sym = String(thesisState.ticker || "")
-    .toUpperCase()
-    .replace(/[^A-Z]/g, "");
+  const sym = thesisPrimeTicker(thesisCurrentMapSymbol());
   if (!sym) {
     thesisMapNodesActive = [];
     thesisMapEdgesActive = [];
@@ -6815,13 +8079,14 @@ function thesisApplyRelationshipMap(data) {
     return;
   }
   const refs = data.evidenceRefs || {};
+  const fitCoord = (value) => Math.max(0.08, Math.min(0.92, Number(value) || 0.5));
   thesisMapNodesActive = data.nodes.map((n) => ({
     id: n.id,
     label: n.label,
     sub: n.sub || "",
     cat: n.cat,
-    x: n.x,
-    y: n.y,
+    x: fitCoord(n.x),
+    y: fitCoord(n.y),
     r: n.r || 16,
     color: n.color || "#888",
     desc: n.detail || n.desc || "",
@@ -6832,6 +8097,7 @@ function thesisApplyRelationshipMap(data) {
     evidence: n.evidence || refs[n.id] || []
   }));
   thesisMapEdgesActive = (data.edges || []).map((e) => ({ ...e }));
+  thesisApplyLayoutOverrides();
 }
 
 function thesisMapNodes() {
@@ -6848,16 +8114,92 @@ function thesisNodeVisible(n) {
   return n.cat === thesisMapFilter;
 }
 
+function thesisMapShell() {
+  return document.querySelector(".thesis-map-shell");
+}
+
+function thesisMapIsFullscreen() {
+  return thesisMapShell()?.classList.contains("map-fullscreen") || false;
+}
+
+function thesisMapHeight(wrap) {
+  if (thesisMapIsFullscreen()) return Math.max(520, Math.round(wrap.clientHeight || window.innerHeight * 0.58));
+  return 420;
+}
+
+function thesisClampMapViewport(W, H) {
+  const scale = Math.max(THESIS_MAP_MIN_ZOOM, Math.min(THESIS_MAP_MAX_ZOOM, thesisMapViewport.scale || 1));
+  thesisMapViewport.scale = scale;
+  if (scale <= 1) {
+    thesisMapViewport.x = (W - W * scale) / 2;
+    thesisMapViewport.y = (H - H * scale) / 2;
+    return;
+  }
+  const pad = thesisMapIsFullscreen() ? 120 : 60;
+  const minX = W - W * scale - pad;
+  const minY = H - H * scale - pad;
+  thesisMapViewport.x = Math.max(minX, Math.min(pad, thesisMapViewport.x));
+  thesisMapViewport.y = Math.max(minY, Math.min(pad, thesisMapViewport.y));
+}
+
+function thesisResetMapViewport({ draw = true } = {}) {
+  thesisMapViewport.scale = 1;
+  thesisMapViewport.x = 0;
+  thesisMapViewport.y = 0;
+  if (draw) thesisDrawMap();
+}
+
+function thesisZoomMap(multiplier, focusX, focusY) {
+  const canvas = document.getElementById("thesisMapCanvas");
+  if (!canvas) return;
+  const W = canvas.width || canvas.getBoundingClientRect().width || 640;
+  const H = canvas.height || thesisMapHeight(canvas.parentElement);
+  const oldScale = thesisMapViewport.scale || 1;
+  const nextScale = Math.max(THESIS_MAP_MIN_ZOOM, Math.min(THESIS_MAP_MAX_ZOOM, oldScale * multiplier));
+  const fx = Number.isFinite(focusX) ? focusX : W / 2;
+  const fy = Number.isFinite(focusY) ? focusY : H / 2;
+  const mapX = (fx - thesisMapViewport.x) / oldScale;
+  const mapY = (fy - thesisMapViewport.y) / oldScale;
+  thesisMapViewport.scale = nextScale;
+  thesisMapViewport.x = fx - mapX * nextScale;
+  thesisMapViewport.y = fy - mapY * nextScale;
+  thesisClampMapViewport(W, H);
+  thesisDrawMap();
+}
+
+function thesisToggleMapFullscreen(force) {
+  const shell = thesisMapShell();
+  if (!shell) return;
+  const next = typeof force === "boolean" ? force : !thesisMapIsFullscreen();
+  shell.classList.toggle("map-fullscreen", next);
+  document.body.classList.toggle("thesis-map-fullscreen-open", next);
+  const btn = document.getElementById("thesis-map-fullscreen");
+  if (btn) {
+    btn.setAttribute("aria-pressed", String(next));
+    btn.textContent = next ? "Exit full screen" : "Full screen";
+  }
+  const hint = document.getElementById("thesis-map-hint");
+  if (hint) {
+    hint.hidden = false;
+    hint.textContent = next
+      ? "Drag the map to pan - scroll or use +/- to zoom - Esc exits full screen"
+      : "Drag the map to pan - scroll to zoom - click any node for evidence";
+  }
+  setTimeout(thesisDrawMap, 60);
+}
+
 function thesisDrawMap() {
   const canvas = document.getElementById("thesisMapCanvas");
   if (!canvas) return;
   const wrap = canvas.parentElement;
   const W = wrap.clientWidth || 640;
-  const H = 420;
+  const H = thesisMapHeight(wrap);
   canvas.width = W;
   canvas.height = H;
+  canvas.style.height = `${H}px`;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, W, H);
+  thesisClampMapViewport(W, H);
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
   const gridLine = isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.03)";
   const textMuted = isDark ? "#555" : "#999";
@@ -6896,7 +8238,10 @@ function thesisDrawMap() {
     return;
   }
   const stockNode = nodes.find((n) => n.id === "stock");
-  if (stockNode) stockNode.label = thesisState.ticker || "Stock";
+  if (stockNode) stockNode.label = thesisCurrentMapSymbol() || "Stock";
+  ctx.save();
+  ctx.translate(thesisMapViewport.x, thesisMapViewport.y);
+  ctx.scale(thesisMapViewport.scale, thesisMapViewport.scale);
   edges.forEach((e) => {
     const from = nodes.find((n) => n.id === e.from);
     const to = nodes.find((n) => n.id === e.to);
@@ -6974,6 +8319,7 @@ function thesisDrawMap() {
     ctx.fillStyle = textMuted;
     ctx.fillText(n.sub.split("·")[0].trim(), x, y + 7);
   });
+  ctx.restore();
 }
 
 function thesisGetNodeAt(x, y, W, H) {
@@ -7014,6 +8360,10 @@ function thesisShowNodeDetail(n) {
 <div class="thesis-evidence-drawer">${renderEvidenceDrawerItems(evidenceItems)}<p class="thesis-section-hint">Research context only — modeled or seed sources are labeled in each row.</p></div>
 </details>`
     : `<p class="thesis-section-hint">No evidence receipts mapped for this node yet.</p>`;
+  const pageLink = thesisNodePageLink(n);
+  const pageBtn = pageLink
+    ? `<a class="link-button" href="${escapeHtml(pageLink)}">Open detail page →</a>`
+    : "";
   det.innerHTML = `
 <div class="thesis-node-header">
 <div>
@@ -7024,6 +8374,7 @@ function thesisShowNodeDetail(n) {
 <div class="thesis-node-story">${escapeHtml(story)}</div>
 ${sourceRow}
 ${n.path ? `<div class="thesis-node-path"><span style="color:var(--muted);margin-right:5px">Signal path:</span>${escapeHtml(n.path)}</div>` : ""}
+<div class="thesis-node-actions">${pageBtn}</div>
 ${evidenceHtml}`;
 }
 
@@ -7032,32 +8383,152 @@ function thesisClearNodeDetail() {
   if (det) det.innerHTML = '<p class="thesis-node-empty">Click any node to see how it connects to your thesis</p>';
 }
 
+function thesisCanvasCoords(canvas, clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const x = (clientX - rect.left) * sx;
+  const y = (clientY - rect.top) * sy;
+  const scale = thesisMapViewport.scale || 1;
+  const mapX = (x - thesisMapViewport.x) / scale;
+  const mapY = (y - thesisMapViewport.y) / scale;
+  return {
+    x,
+    y,
+    mapX,
+    mapY,
+    nx: mapX / canvas.width,
+    ny: mapY / canvas.height
+  };
+}
+
 function thesisBindMapCanvas() {
   const canvas = document.getElementById("thesisMapCanvas");
   if (!canvas || canvas.dataset.bound === "true") return;
   canvas.dataset.bound = "true";
-  canvas.addEventListener("mousemove", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width,
-      sy = canvas.height / rect.height;
-    const node = thesisGetNodeAt((e.clientX - rect.left) * sx, (e.clientY - rect.top) * sy, canvas.width, canvas.height);
-    canvas.style.cursor = node ? "pointer" : "default";
+
+  const editToggle = document.getElementById("thesis-map-edit-toggle");
+  const resetBtn = document.getElementById("thesis-map-reset-layout");
+  const fullscreenBtn = document.getElementById("thesis-map-fullscreen");
+  const zoomInBtn = document.getElementById("thesis-map-zoom-in");
+  const zoomOutBtn = document.getElementById("thesis-map-zoom-out");
+  const resetViewBtn = document.getElementById("thesis-map-reset-view");
+  fullscreenBtn?.addEventListener("click", () => thesisToggleMapFullscreen());
+  zoomInBtn?.addEventListener("click", () => thesisZoomMap(1.18));
+  zoomOutBtn?.addEventListener("click", () => thesisZoomMap(1 / 1.18));
+  resetViewBtn?.addEventListener("click", () => thesisResetMapViewport());
+  editToggle?.addEventListener("click", () => {
+    thesisMapEditMode = !thesisMapEditMode;
+    editToggle.classList.toggle("active", thesisMapEditMode);
+    editToggle.setAttribute("aria-pressed", String(thesisMapEditMode));
+    editToggle.textContent = thesisMapEditMode ? "Lock layout" : "Edit layout";
+    if (resetBtn) resetBtn.hidden = !thesisMapEditMode;
+    const hint = document.getElementById("thesis-map-hint");
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = thesisMapEditMode
+        ? "Drag nodes to arrange your map · positions save per ticker"
+        : "Click any node for evidence";
+    }
+    thesisDrawMap();
+  });
+  resetBtn?.addEventListener("click", () => {
+    const sym = thesisCurrentMapSymbol();
+    try {
+      localStorage.removeItem(thesisMapLayoutKey(sym));
+    } catch (_) {}
+    thesisResetMapViewport({ draw: false });
+    void thesisLoadRelationshipMap();
+  });
+
+  canvas.addEventListener("pointerdown", (e) => {
+    const { x, y, mapX, mapY } = thesisCanvasCoords(canvas, e.clientX, e.clientY);
+    const node = thesisGetNodeAt(mapX, mapY, canvas.width, canvas.height);
+    thesisMapDragMoved = false;
+    if (thesisMapEditMode && node && node.id !== "stock") {
+      thesisMapDragNode = node;
+      canvas.style.cursor = "grabbing";
+    } else {
+      thesisMapPanState = {
+        startX: x,
+        startY: y,
+        originX: thesisMapViewport.x,
+        originY: thesisMapViewport.y
+      };
+      canvas.style.cursor = "grabbing";
+    }
+    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    const { x, y, mapX, mapY, nx, ny } = thesisCanvasCoords(canvas, e.clientX, e.clientY);
+    if (thesisMapEditMode && thesisMapDragNode) {
+      thesisMapDragNode.x = Math.max(0.06, Math.min(0.94, nx));
+      thesisMapDragNode.y = Math.max(0.06, Math.min(0.94, ny));
+      thesisMapDragMoved = true;
+      thesisDrawMap();
+      return;
+    }
+    if (thesisMapPanState) {
+      const dx = x - thesisMapPanState.startX;
+      const dy = y - thesisMapPanState.startY;
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) thesisMapDragMoved = true;
+      thesisMapViewport.x = thesisMapPanState.originX + dx;
+      thesisMapViewport.y = thesisMapPanState.originY + dy;
+      thesisClampMapViewport(canvas.width, canvas.height);
+      thesisDrawMap();
+      return;
+    }
+    const node = thesisGetNodeAt(mapX, mapY, canvas.width, canvas.height);
+    canvas.style.cursor = node ? (thesisMapEditMode ? "grab" : "pointer") : "grab";
     if (node !== thesisHoveredNode) {
       thesisHoveredNode = node;
       thesisDrawMap();
     }
   });
+
+  canvas.addEventListener("pointerup", (e) => {
+    if (thesisMapEditMode && thesisMapDragNode && thesisMapDragMoved) {
+      const sym = thesisCurrentMapSymbol();
+      const overrides = thesisLoadLayoutOverrides(sym);
+      thesisMapNodesActive.forEach((n) => {
+        overrides[n.id] = { x: n.x, y: n.y };
+      });
+      thesisSaveLayoutOverrides(sym, overrides);
+    }
+    thesisMapDragNode = null;
+    thesisMapPanState = null;
+    if (canvas.releasePointerCapture) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
+  });
+
   canvas.addEventListener("click", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width,
-      sy = canvas.height / rect.height;
-    const node = thesisGetNodeAt((e.clientX - rect.left) * sx, (e.clientY - rect.top) * sy, canvas.width, canvas.height);
+    if (thesisMapDragMoved) {
+      thesisMapDragMoved = false;
+      return;
+    }
+    const { mapX, mapY } = thesisCanvasCoords(canvas, e.clientX, e.clientY);
+    const node = thesisGetNodeAt(mapX, mapY, canvas.width, canvas.height);
     if (node) thesisShowNodeDetail(node);
     else thesisClearNodeDetail();
   });
-  canvas.addEventListener("mouseleave", () => {
+  canvas.addEventListener("wheel", (e) => {
+    if (!thesisMapNodesActive.length) return;
+    const { x, y } = thesisCanvasCoords(canvas, e.clientX, e.clientY);
+    thesisZoomMap(e.deltaY < 0 ? 1.12 : 1 / 1.12, x, y);
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("pointerleave", () => {
     thesisHoveredNode = null;
+    if (!thesisMapPanState) thesisMapDragNode = null;
     thesisDrawMap();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && thesisMapIsFullscreen()) thesisToggleMapFullscreen(false);
   });
   window.addEventListener("resize", thesisDrawMap);
 }

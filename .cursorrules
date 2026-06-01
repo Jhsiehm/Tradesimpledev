@@ -1,0 +1,148 @@
+# TradeSimple v1 — Cursor AI Handoff Rules
+
+## Project Identity
+TradeSimple is a policy-to-markets intelligence terminal. It traces US congressional bills,
+lobbying filings, federal contracts, and government appointments to publicly traded tickers —
+in plain English, before headlines. It is NOT a brokerage. Paper trading is a demo feature only.
+
+## Critical Architecture Rules — Read Before Touching Anything
+
+### Zero npm dependencies (intentional, do not break)
+The entire server runs on Node.js built-ins: `http`, `fs`, `crypto`, `path`, `child_process`.
+No Express, no Axios, no ORM. Adding an npm dep requires explicit discussion with the founder.
+The client is also dependency-free vanilla JS (no React, Vue, Vite, bundler).
+
+### File layout
+```
+server.mjs          — 9,000+ line god file: HTTP server, routing, all API handlers, auth, data fetching
+public/app.js       — 8,000+ line god file: all client-side state, rendering, AI chat, charts
+public/index.html   — Landing page (public, no auth)
+public/dashboard.html — Dashboard shell (requires session)
+public/charts.js    — Vanilla JS charting library (TSCharts)
+ai-brain.mjs        — All Anthropic AI features: thesis, scorecard, lobby map, EDGAR, chart labels
+scripts/yf_bridge.py — Python sidecar for yfinance market data fallback
+data/               — Seed JSON/JSONL files (bills, lobbying, contracts, paper accounts, waitlist)
+src/lib/supabase.mjs — Zero-dep Supabase REST client (server-side only)
+```
+
+### Module system
+`"type": "module"` in package.json — everything is ESM. Use `import`/`export`, NOT `require`.
+Server entry: `node server.mjs`. Start command: `npm run dev` (port 3000).
+
+### Data flow
+1. `server.mjs` seeds POLICY_BILLS from `data/bills-seed.json` at startup
+2. Market data: Finnhub (live) → yfinance Python sidecar → Yahoo HTTP → static fallback
+3. Auth: HMAC-signed session cookie (`ts_session`). Google OAuth + Apple OAuth + Demo mode
+4. Paper trading: stored in `data/paper-accounts.json` (flat JSON, write-locked via `fileLock` Map)
+5. AI: server-side proxy to Anthropic (`/api/research/ask`) + BYOK browser-direct fallback
+
+### Session & auth model
+- `AUTH_SECRET` env var signs session cookies. Default "dev-only-secret" must be overridden in prod.
+- Demo sessions use a unique `demo-{8-hex-chars}` ID per visitor (NOT shared "demo-user").
+- `getSession(req)` → `{ user: { id, name, email, picture, provider } }` or null
+- All `/api/*` routes require a valid session EXCEPT: `/api/config`, `/api/landing-quotes`,
+  `/api/session`, `/api/waitlist`, `/api/share/*`, `/api/ai/*`
+
+### Paper accounts
+- Stored in `data/paper-accounts.json` as `{ [userId]: { cash, positions, orders, theses, funds } }`
+- Write via `writePaperStore()` which uses `fileLock` Map to prevent concurrent write corruption
+- Demo accounts keyed by `demo-{uuid}` — each visitor gets their own isolated paper account
+- Starting cash: `PAPER_STARTING_CASH` (default $100,000)
+
+### AI configuration
+- `ANTHROPIC_API_KEY` env var controls server-side AI. When absent, local fallback answers are served.
+- Model is LOCKED server-side to `process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"`.
+  Clients CANNOT override the model via request body (security hardening applied 2026-05-29).
+- Rate limiting: `checkResearchRateLimit(userId)` — 10 req/min per user (configurable via env).
+- BYOK (Bring Your Own Key): user can enter their own Anthropic/OpenAI/Gemini key in the UI.
+  Stored in `state.byok` client-side only, never sent to the server.
+- `/api/research/ask` POST endpoint: `{ billId?, question?, prompt?, message? }`
+
+### Rendering patterns (client)
+- All rendering is direct DOM manipulation or `innerHTML` template literals. No virtual DOM.
+- Global state: `state` object in app.js. Mutate carefully — no reactivity system.
+- Event delegation used for dynamically rendered buttons (data-ask-why, data-methodology-bill,
+  data-show-view attributes) — see `setupLegisCardDelegation()`.
+- `renderBills()` has a 200ms debounce on filter input to prevent excessive DOM rebuilds.
+- `$()` is shorthand for `document.querySelector()` (defined at bottom of app.js).
+
+### Security headers
+`BASE_SECURITY_HEADERS` in server.mjs contains: `x-content-type-options`, `x-frame-options`,
+`referrer-policy`, `permissions-policy`, `content-security-policy`.
+
+### Known god-file pattern
+Both server.mjs and app.js are intentionally kept as single files during v1 to minimize deployment
+complexity. Do NOT split into modules without founder sign-off. Work within the existing structure.
+
+---
+
+## Current State (as of 2026-05-29)
+
+### Completed fixes
+- [x] Landing ticker tape hydrated with live prices from `/api/landing-quotes` (public, cached 5min)
+- [x] `body.model` client override removed from `researchAsk` — model is now server-locked
+- [x] Inline onclick handlers in `legisAlertCard` replaced with data attributes + event delegation
+- [x] Demo session isolation — each visitor gets unique `demo-{hex}` ID
+- [x] File write locking on `paper-accounts.json` via `fileLock` Map
+- [x] "AI not configured" banner rendered in research drawer when no key is set
+- [x] `renderBills()` debounced 200ms on filter input
+- [x] Security headers include Content-Security-Policy
+- [x] Production safety: server refuses to start with default AUTH_SECRET when NODE_ENV=production
+- [x] Python sidecar health-checked at startup, warning logged if unavailable
+- [x] OG / Twitter Card meta tags added to index.html
+- [x] Hero terminal signal panel rotates through real POLICY_BILLS data via `/api/landing-signal`
+
+### Pending / known issues
+- [ ] Mobile layout: bills table, AI drawer, positions grid need responsive fixes at 375px
+- [ ] Skeleton loaders: Markets, Bills, Trade tabs show blank on slow connections
+- [ ] Empty state guidance: new users need a "start here" path per tab
+- [ ] `legisAlertCard()` function is defined but never called — needs wiring to a bills card view
+- [ ] Waitlist has no admin view — add `/api/admin/waitlist` behind a secret header
+- [ ] No `robots.txt` or sitemap
+
+---
+
+## Environment Variables (`.env.local`)
+```
+AUTH_SECRET=<random-32-char-string>          # Required in production
+ANTHROPIC_API_KEY=<key>                      # Required for AI features
+FINNHUB_API_KEY=<key>                        # Required for live market data
+CONGRESS_API_KEY=<key>                       # Optional: live bill data from Congress.gov
+SENATE_LDA_API_KEY=<key>                     # Optional: live lobbying from Senate LDA
+ALPACA_API_KEY_ID=<key>                      # Optional: Alpaca paper/live broker
+ALPACA_API_SECRET_KEY=<key>                  # Optional: Alpaca paper/live broker
+ALLOW_LIVE_TRADING=false                     # Safety gate — never set true without full audit
+PORT=3000
+APP_URL=http://localhost:3000
+```
+
+---
+
+## Coding Conventions
+
+### Server (server.mjs)
+- All handlers: `async function handlerName(req, res, session?, ...args)`
+- JSON responses: `sendJson(res, statusCode, object)`
+- Text responses: `sendText(res, statusCode, string)`
+- Redirects: `redirect(res, url)`
+- Error format: `{ error: "snake_case_code", message?: "human readable" }`
+- Fetch with timeout: `fetchWithTimeout(url, init, timeoutMs)` (wraps native fetch)
+- HTML escape: `escapeHtmlText(str)` for text nodes, `escapeHtml(str)` for attributes
+- Never use `console.log` in hot paths — use `console.warn` / `console.error` only
+
+### Client (app.js)
+- Template literals for HTML — always escape user-derived content with `escapeHtml()`
+- State reads: `state.quotes`, `state.account`, `state.config`, `state.lobbying`, etc.
+- State writes: direct mutation then call the specific render function (no global re-render)
+- Async data fetch: `fetchJson(url, init?)` — throws on non-ok response
+- Money formatting: `money(value)`, `compactMoney(value)`
+- Never use `eval()` or `innerHTML` with unescaped user input
+
+---
+
+## Deployment
+- Single process: `node server.mjs`
+- No build step — static files served directly from `public/`
+- Python dependency: `pip install yfinance` for market data fallback (optional but recommended)
+- Data dir: `data/` must be writable at runtime
+- Recommended: run behind nginx/Cloudflare for TLS and IP header forwarding

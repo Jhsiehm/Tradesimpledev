@@ -27,12 +27,47 @@ import {
   aiEdgarHandler,
   aiLobbyMapHandler,
   aiChartLabelHandler,
+  aiThesisHandler,
+  runThesisAnalyzer,
   enrichSnapshotWithRecentNews,
   runScorecardNarrator,
   runEdgarSimplifier,
   runCausalityAnalyzer
 } from "./ai-brain.mjs";
 import { getSocialPulse } from "./social-pulse.mjs";
+import {
+  recordPrediction,
+  resolveDuePredictions,
+  listPredictions,
+  computeScorecard,
+  verifyLedger
+} from "./prediction-ledger.mjs";
+import { normalizeThesis } from "./src/core/normalizeThesis.mjs";
+import { buildMarketThesisContext } from "./src/core/marketThesisContext.mjs";
+import { billFieldMap, buildDataMode, provenanceEnvelope } from "./src/core/dataProvenance.mjs";
+import {
+  initializePolicyBills,
+  remapLinkedBillIds,
+  remapStakeholderKeys,
+  parseBillIdToCongressRef,
+  resolveBillIdCanonical
+} from "./src/core/policySeedRegistry.mjs";
+import {
+  buildBillLegislativeContext,
+  parseCongressCommitteesResponse
+} from "./src/core/billLegislativeContext.mjs";
+import { validatePolicySeeds } from "./src/core/validatePolicySeeds.mjs";
+import {
+  initDataRefresh,
+  noteFeedSuccess,
+  noteFeedError,
+  startBackgroundRefresh,
+  buildHealthPayload,
+  readCongressCache,
+  writeCongressCache
+} from "./src/core/dataRefreshState.mjs";
+import { aggregateLobbyingForBills, fetchLdaFilings } from "./src/core/ldaLobbying.mjs";
+import { isStrictDataMode, productionReadiness } from "./src/core/productionDataMode.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, "public");
@@ -56,7 +91,18 @@ const BASE_SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "strict-origin-when-cross-origin",
-  "permissions-policy": "camera=(), microphone=(), geolocation=()"
+  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  // CSP: allow same-origin scripts/styles + Google Fonts + GSAP CDN + Anthropic API (for BYOK browser calls)
+  "content-security-policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https:",
+    "media-src 'self' https://assets.mixkit.co",
+    "connect-src 'self' https://api.anthropic.com https://openai.com https://generativelanguage.googleapis.com",
+    "frame-ancestors 'none'"
+  ].join("; ")
 };
 const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 15_000);
 const quoteCache = new Map();
@@ -66,6 +112,25 @@ const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
 const SHARE_RATE_LIMIT_WINDOW_MS = Number(process.env.SHARE_RATE_LIMIT_WINDOW_MS || 60_000);
 const EDGAR_SNAPSHOT_CACHE_TTL_MS = Number(process.env.EDGAR_SNAPSHOT_CACHE_TTL_MS || 6 * 60 * 60_000);
 const edgarSnapshotCache = new Map();
+// File-level write lock — prevents concurrent writes corrupting flat JSON/JSONL data files.
+// Usage: await withFileLock(path, async () => { /* read-modify-write */ });
+const fileLocks = new Map();
+async function withFileLock(filePath, fn) {
+  while (fileLocks.get(filePath)) {
+    await new Promise((r) => setTimeout(r, 12));
+  }
+  fileLocks.set(filePath, true);
+  try {
+    return await fn();
+  } finally {
+    fileLocks.delete(filePath);
+  }
+}
+
+const LANDING_QUOTES_TICKERS = ["GME", "AMZN", "RTX", "PLTR", "NOC", "NVDA", "AAPL", "LLY"];
+const LANDING_QUOTES_TTL_MS = 5 * 60 * 1000;
+let landingQuotesCache = null;
+let landingQuotesCachedAt = 0;
 // Per-user research request tracking — in-memory, resets on server restart.
 // Map<userId, { count: number, windowStart: number }>
 const researchRateLimit = new Map();
@@ -245,7 +310,8 @@ TONE RULES: Never use dramatic language like existential threat, genuinely scare
 STRUCTURE FOR EVERY RESPONSE: One sentence bottom line up front. The signal breakdown with numbers and ratios. Historical analog if one exists with actual price move and timeframe. What the user still does not know and would need to verify. Watch for with maximum 3 bullet points.
 DISCLOSURE: Start every response that discusses position impact with exactly this line: Research signal only. Not financial advice.
 DATA HONESTY: If a number comes from a specific source name it. If a number is estimated say so. Never invent historical analogs. If you do not have enough data to answer well say so directly.
-DATA SOURCES YOU CAN REFERENCE: Congress.gov for bill stage and cosponsor data. LDA.gov for lobbying filings and spend. USASpending.gov for federal contract awards and agency budgets. SEC EDGAR for 10-K risk factors and revenue segment data. Finnhub for delayed equity quotes (not exchange-real-time). SAM.gov for contract opportunities and recompetes.`;
+DATA SOURCES YOU CAN REFERENCE: Congress.gov for bill stage and cosponsor data. LDA.gov for lobbying filings and spend. USASpending.gov for federal contract awards and agency budgets. SEC EDGAR for 10-K risk factors and revenue segment data. Finnhub for equity quotes when configured (label source; free tier may be delayed). SAM.gov for contract opportunities and recompetes.
+DATA HONESTY RULES: Only cite bill status, sponsors, and dates when the payload marks exactCongressRecord or dataLayer live. Scenario-only bills (scenarioOnly or id starting with scenario:) are educational models — do not present them as live Congress records. Pass/fail stock ranges are scenario models, not forecasts. If dataHealth shows fallback feeds, say so.`;
 
 const METHODOLOGY = {
   version: 2,
@@ -435,7 +501,7 @@ function buildContractWatchlist() {
   }));
 }
 
-async function dashboardBootstrapRoute(res, session) {
+async function dashboardBootstrapPayload(session) {
   let watchlistSymbols = [];
   if (dbReady) {
     const rows = await dbSelect(
@@ -445,7 +511,7 @@ async function dashboardBootstrapRoute(res, session) {
     if (rows?.[0]?.symbols?.length) watchlistSymbols = rows[0].symbols;
   }
 
-  sendJson(res, 200, {
+  return {
     source: "dashboard_config",
     updatedAt: new Date().toISOString(),
     paperStartingCash: PAPER_STARTING_CASH,
@@ -459,6 +525,65 @@ async function dashboardBootstrapRoute(res, session) {
     contractWatchlist: buildContractWatchlist(),
     policyBlurbs: buildDashboardPolicyBlurbs(),
     holdingPalette: ["#5eead4", "#93c5fd", "#fcd34d", "#f87171", "#c4b5fd", "#a78bfa", "#fb923c", "#60a5fa", "#e879f9", "#4ade80"]
+  };
+}
+
+async function dashboardBootstrapRoute(res, session) {
+  sendJson(res, 200, await dashboardBootstrapPayload(session));
+}
+
+function thesisSummaryForUi(thesis) {
+  return {
+    id: thesis.id,
+    ticker: thesis.ticker,
+    direction: thesis.direction,
+    thesisText: thesis.thesisText,
+    status: thesis.status || "active",
+    createdAt: thesis.createdAt,
+    updatedAt: thesis.updatedAt,
+    entry: thesis.entry,
+    target: thesis.target,
+    stop: thesis.stop,
+    invalidation: thesis.invalidation,
+    health: thesis.health || thesis.snapshotAtCreate?.health || null
+  };
+}
+
+async function uiBootstrapRoute(res, session) {
+  const store = await readPaperStore();
+  const key = paperAccountKey(session);
+  const account = ensurePaperAccount(store, key);
+  const [dashboard, paper] = await Promise.all([
+    dashboardBootstrapPayload(session),
+    paperSnapshot(account)
+  ]);
+  await writePaperStore(store);
+
+  sendJson(res, 200, {
+    source: "ui_bootstrap",
+    version: "v1-ui-bridge",
+    updatedAt: new Date().toISOString(),
+    session: {
+      user: session.user
+    },
+    dashboard,
+    paper,
+    theses: {
+      count: Array.isArray(account.theses) ? account.theses.length : 0,
+      items: Array.isArray(account.theses)
+        ? account.theses.slice(0, 12).map(thesisSummaryForUi)
+        : []
+    },
+    integration: {
+      canonicalRuntime: "TradeSimple v1",
+      preserveRoutes: ["/dashboard", "/api/trading/account", "/api/trading/orders", "/api/research/ask"],
+      recommendedNextSurfaces: ["overview", "analysis", "signals", "thesis", "paper-trading"],
+      notes: [
+        "Use this endpoint as the initial shell payload for any upgraded UI.",
+        "Keep data providers and trading validation server-side.",
+        "Label modeled, fallback, and live data distinctly in the UI."
+      ]
+    }
   });
 }
 
@@ -923,7 +1048,7 @@ const GOVERNMENT_SIGNAL_EXPOSURES = {
   ]
 };
 
-const POLICY_BILLS = [
+const RAW_POLICY_BILLS = [
   {
     id: "S.2547-119",
     title: "Drug Price Negotiation Expansion Act",
@@ -1230,7 +1355,7 @@ const LOBBYING_FALLBACK = [
   { client: "Coinbase Global Inc.", registrant: "Crypto Council for Innovation", amount: 2200000, issue: "Digital assets", spike: 1.8, portfolio: false }
 ];
 
-const POLICY_STAKEHOLDERS = {
+const RAW_POLICY_STAKEHOLDERS = {
   "S.2547-119": {
     lawmakers: [
       { name: "Sen. Bernie Sanders", party: "I", state: "VT", role: "Sponsor", stance: "for", influence: 88, note: "Drug-pricing advocate; sponsor pressure keeps the issue alive." },
@@ -1342,6 +1467,17 @@ const POLICY_STAKEHOLDERS = {
   }
 };
 
+let POLICY_BILLS = initializePolicyBills(RAW_POLICY_BILLS);
+const POLICY_STAKEHOLDERS = remapStakeholderKeys(RAW_POLICY_STAKEHOLDERS);
+
+/** In-memory Congress.gov overlays refreshed on interval and /api/congress/bills. */
+const congressLiveCache = new Map();
+/** Bills discovered from Congress.gov list (not in POLICY_BILLS seeds). */
+const liveCongressBillRegistry = new Map();
+/** Live LDA aggregates per bill id (no seed lobbying dollars). */
+const billLobbyingOverlay = new Map();
+let lastSeedValidation = null;
+
 // ══════════════════════════════════════════════════════════════════════════════
 // GOVERNMENT CONTRACT INTELLIGENCE
 //
@@ -1427,7 +1563,7 @@ const CONTRACT_PROFILES = {
     dogeRisk: true,
     agencyBudgetRisk: "medium",
     archetype: "Narrative-Sensitive Contractor",
-    linkedBillIds: ["H.R.4521-119"],
+    linkedBillIds: remapLinkedBillIds(["H.R.4521-119"]),
     note: "PLTR is the only company in our calibration dataset with statistically significant post-award drift (+9.1% mean 20-day AR, p=0.003). Smaller, unexpected awards produce the most drift. Large IDIQ task orders are typically pre-priced.",
     archetypeExplain: "Investors use government AI adoption as evidence that PLTR's software platform is gaining durable institutional demand. A smaller award from a new agency can shift the narrative more than a big renewal of an existing program.",
     bull: "DoD AI spending is bipartisan and growing. New task orders expand both revenue and the platform adoption story.",
@@ -1785,13 +1921,118 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`TradeSimple running at ${APP_URL}`);
   if (AUTH_SECRET === "dev-only-secret-change-before-deploying") {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[FATAL] AUTH_SECRET is the default dev value. Set AUTH_SECRET in .env before deploying. Exiting.");
+      process.exit(1);
+    }
     console.warn("[WARN] AUTH_SECRET is using the default dev value. Set AUTH_SECRET in .env.local before deploying.");
   }
   if (SEC_USER_AGENT.includes("you@example.com")) {
     console.warn("[WARN] SEC_USER_AGENT contains placeholder email. Set SEC_USER_AGENT in .env.local for EDGAR access (SEC fair-access policy requires a real contact).");
+  }
+
+  // Python sidecar health check
+  if (isYfinanceEnabled()) {
+    const { existsSync: _exists } = await import("node:fs");
+    if (!_exists(YFINANCE_BRIDGE_SCRIPT)) {
+      console.warn(`[WARN] yfinance bridge not found at ${YFINANCE_BRIDGE_SCRIPT}. Market data will use static fallback. Run: pip install yfinance`);
+    } else {
+      const { execFile } = await import("node:child_process");
+      execFile(YFINANCE_PYTHON, ["--version"], { timeout: 3000 }, (err, stdout) => {
+        if (err) console.warn(`[WARN] Python (${YFINANCE_PYTHON}) not available: ${err.message}. Install Python 3 and run: pip install yfinance`);
+        else console.log(`[data] Python sidecar ready: ${stdout.trim()}`);
+      });
+    }
+  }
+
+  initDataRefresh({ dataDir: DATA_DIR });
+  for (const bill of POLICY_BILLS) {
+    if (bill.scenarioOnly) continue;
+    const cached = await readCongressCache(bill.id);
+    if (cached) congressLiveCache.set(bill.id, cached);
+  }
+
+  lastSeedValidation = await validatePolicySeeds(POLICY_BILLS, {
+    congressApiKey: process.env.CONGRESS_API_KEY || ""
+  });
+  if (!lastSeedValidation.ok) {
+    console.warn("[data] Policy seed validation:", lastSeedValidation.message);
+    for (const issue of lastSeedValidation.structural || []) {
+      console.warn(`  · ${issue.billId}: ${issue.message}`);
+    }
+  } else {
+    console.log("[data] Policy seeds:", lastSeedValidation.message);
+  }
+
+  void resolveLobbyFilingsForShare().catch(() => {});
+
+  if (!process.env.CONGRESS_API_KEY) {
+    console.warn("[data] CONGRESS_API_KEY not set — Bills tab uses scenario narratives until configured.");
+  }
+  if (!process.env.FINNHUB_API_KEY) {
+    console.warn("[data] FINNHUB_API_KEY not set — equity quotes may use Yahoo or modeled fallback.");
+  }
+
+  const production = productionReadiness(process.env);
+  if (isStrictDataMode()) {
+    if (!production.ready) {
+      console.error("[data] PRODUCTION DATA MODE — not ready:", production.message);
+      for (const m of production.missing) console.error(`  · missing ${m.key} (${m.label})`);
+      for (const i of production.invalid) console.error(`  · invalid ${i.key} (${i.label})`);
+    } else {
+      console.log("[data] Production data mode — all required feeds configured.");
+    }
+  }
+
+  startBackgroundRefresh({
+    refreshCongress: refreshCongressLiveCache,
+    refreshLobbying: refreshLdaLobbyingCache
+  });
+
+  // ── Prediction ledger lifecycle ──────────────────────────────────────────
+  // Verify chain integrity on boot, then keep the ledger self-populating and
+  // self-resolving so the track record grows from real signals without manual work.
+  verifyLedger()
+    .then((v) =>
+      console.log(
+        v.ok
+          ? `[ledger] integrity OK · ${v.length} events`
+          : `[ledger] ⚠ integrity broken at seq ${v.brokenAtSeq}`
+      )
+    )
+    .catch(() => {});
+  if (process.env.LEDGER_AUTO_RECORD !== "false") {
+    setTimeout(() => autoRecordSignalPredictions(), 8_000);
+    setInterval(() => autoRecordSignalPredictions(), 24 * 60 * 60 * 1000); // daily
+  }
+  setTimeout(() => resolveDuePredictions(ledgerDeps).then((r) => {
+    if (r.resolved) console.log(`[ledger] resolved ${r.resolved} prediction(s)`);
+  }).catch(() => {}), 20_000);
+  setInterval(() => resolveDuePredictions(ledgerDeps).then((r) => {
+    if (r.resolved) console.log(`[ledger] resolved ${r.resolved} prediction(s)`);
+  }).catch(() => {}), 6 * 60 * 60 * 1000); // every 6h
+
+  if (process.env.CONGRESS_API_KEY) {
+    refreshCongressLiveCache().catch((err) => console.warn("[data] Initial Congress refresh failed:", err.message));
+  }
+  if (process.env.SENATE_LDA_API_KEY) {
+    refreshLdaLobbyingCache().catch((err) => console.warn("[data] Initial LDA refresh failed:", err.message));
+  }
+
+  if (process.env.FINNHUB_API_KEY) {
+    Promise.all(["SPY", "NVDA", "QQQ"].map((sym) => quoteSnapshot(sym)))
+      .then((rows) => {
+        const quotes = rows.map((r) => r.quote).filter(Boolean);
+        const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
+        noteFeedSuccess("market", {
+          source: fallbackCount === quotes.length ? "fallback" : "finnhub",
+          recordCount: quotes.length
+        });
+      })
+      .catch((err) => console.warn("[data] Initial quote warm failed:", err.message));
   }
 });
 
@@ -1860,6 +2101,18 @@ async function route(req, res) {
     if (!session) return redirect(res, "/");
     return sendStatic(res, "dashboard.html");
   }
+  if (pathname === "/bill" || pathname === "/bill/") return redirect(res, "/dashboard?view=bills");
+  if (pathname.startsWith("/bill/") && (req.method === "GET" || req.method === "HEAD")) {
+    return publicBillCard(res, pathname, { head: req.method === "HEAD" });
+  }
+  if (pathname === "/contract" || pathname === "/contract/") return redirect(res, "/dashboard?view=contracts");
+  if (pathname.startsWith("/contract/") && (req.method === "GET" || req.method === "HEAD")) {
+    return publicContractCard(res, pathname, { head: req.method === "HEAD" });
+  }
+  if (pathname === "/lobby" || pathname === "/lobby/") return redirect(res, "/dashboard?view=lobbying");
+  if (pathname.startsWith("/lobby/") && (req.method === "GET" || req.method === "HEAD")) {
+    return publicLobbyCard(res, pathname, { head: req.method === "HEAD" });
+  }
   if (pathname === "/stock" || pathname === "/stock/") return redirect(res, "/stock/NVDA");
   if (pathname.startsWith("/stock/") && (req.method === "GET" || req.method === "HEAD")) {
     return publicStockCard(res, pathname, { head: req.method === "HEAD" });
@@ -1871,10 +2124,14 @@ async function route(req, res) {
     return sendJson(res, 200, publicConfig());
   }
   if (pathname === "/api/share/stock" && req.method === "GET") return shareStockSnapshot(req, res, url);
+  if (pathname === "/api/share/bill" && req.method === "GET") return shareBillSnapshot(req, res, url);
+  if (pathname === "/api/share/contract" && req.method === "GET") return shareContractSnapshot(req, res, url);
+  if (pathname === "/api/share/lobby" && req.method === "GET") return shareLobbySnapshot(req, res, url);
   if (pathname === "/api/ai/scorecard" && req.method === "POST") return aiScorecardHandler(req, res);
   if (pathname === "/api/ai/edgar" && req.method === "POST") return aiEdgarHandler(req, res);
   if (pathname === "/api/ai/lobby-map" && req.method === "POST") return aiLobbyMapHandler(req, res);
   if (pathname === "/api/ai/chart-label" && req.method === "POST") return aiChartLabelHandler(req, res);
+  if (pathname === "/api/ai/thesis" && req.method === "POST") return aiThesisHandler(req, res);
   if (pathname.startsWith("/api/share/edgar/") && req.method === "GET") {
     return shareEdgarRiskFactors(res, pathname);
   }
@@ -1882,12 +2139,22 @@ async function route(req, res) {
     return sendJson(res, 200, { user: getSession(req)?.user || null });
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
+  if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
   if (pathname === "/auth/demo") return startDemoSession(req, res);
   if (pathname === "/auth/logout") return logout(res);
   if (pathname === "/auth/google") return startOAuth(req, res, "google");
   if (pathname === "/auth/apple") return startOAuth(req, res, "apple");
   if (pathname === "/auth/callback/google") return finishOAuth(req, res, "google", url);
   if (pathname === "/auth/callback/apple") return finishOAuth(req, res, "apple", url);
+
+  if (pathname === "/robots.txt") return sendStatic(res, "robots.txt");
+  if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
+  if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
+
+  // ── Prediction ledger (public reads — the track record is a brand asset) ──
+  if (pathname === "/api/predictions/scorecard" && req.method === "GET") return predictionScorecardHandler(res, url);
+  if (pathname === "/api/predictions/verify" && req.method === "GET") return predictionVerifyHandler(res);
+  if (pathname === "/api/predictions" && req.method === "GET") return predictionListHandler(res, url);
 
   if (pathname.startsWith("/api/")) {
     const session = getSession(req);
@@ -1912,6 +2179,12 @@ async function route(req, res) {
     if (pathname === "/api/dashboard/bootstrap" && req.method === "GET") {
       return dashboardBootstrapRoute(res, session);
     }
+    if (pathname === "/api/ui/bootstrap" && req.method === "GET") {
+      return uiBootstrapRoute(res, session);
+    }
+    if (pathname === "/api/health/data" && req.method === "GET") {
+      return dataHealthRoute(res);
+    }
     if (pathname === "/api/relationship-map" && req.method === "GET") return relationshipMapRoute(res, url);
     const fundPerfMatch = pathname.match(/^\/api\/funds\/([^/]+)\/performance$/);
     if (fundPerfMatch && req.method === "GET") return fundPerformanceRoute(res, session, fundPerfMatch[1], url);
@@ -1924,6 +2197,14 @@ async function route(req, res) {
     if (pathname === "/api/thesis/signals" && req.method === "GET") return thesisSignalsHandler(res, url);
     if (pathname === "/api/theses" && req.method === "GET") return listTheses(res, session);
     if (pathname === "/api/theses" && req.method === "POST") return createThesis(req, res, session);
+  const thesisUpgradePreviewMatch = pathname.match(/^\/api\/theses\/([^/]+)\/upgrade-preview$/);
+  if (thesisUpgradePreviewMatch && req.method === "POST") {
+    return thesisUpgradePreview(req, res, session, thesisUpgradePreviewMatch[1]);
+  }
+  const thesisAcceptUpgradeMatch = pathname.match(/^\/api\/theses\/([^/]+)\/accept-upgrade$/);
+  if (thesisAcceptUpgradeMatch && req.method === "POST") {
+    return thesisAcceptUpgrade(req, res, session, thesisAcceptUpgradeMatch[1]);
+  }
     const thesisMonitorsMatch = pathname.match(/^\/api\/theses\/([^/]+)\/monitors$/);
     if (thesisMonitorsMatch && req.method === "GET") {
       return thesisMonitorsRoute(res, session, thesisMonitorsMatch[1]);
@@ -1937,9 +2218,29 @@ async function route(req, res) {
     if (pathname === "/api/settings/anthropic" && req.method === "POST") return saveAnthropicSettings(req, res);
     if (pathname.startsWith("/api/edgar/") && req.method === "GET") return edgarRiskFactors(res, pathname);
     if (pathname === "/api/research/ask" && req.method === "POST") return researchAsk(req, res, session);
+    if (pathname === "/api/predictions" && req.method === "POST") return predictionRecordHandler(req, res, session);
+  }
+
+  if (/^\/(bill|contract|lobby|stock)\//.test(pathname)) {
+    return sendDetailRouteHelp(res, pathname);
   }
 
   sendStatic(res, pathname.slice(1));
+}
+
+function sendDetailRouteHelp(res, pathname) {
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Restart required | TradeSimple</title>
+<style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e8e6e0;padding:2rem;max-width:40rem;margin:auto}code{background:#1a1a1a;padding:.15rem .35rem;border-radius:4px}a{color:#5bbf82}</style>
+</head><body>
+<h1>Detail page unavailable</h1>
+<p>The server handling <code>${escapeHtmlText(pathname)}</code> does not have bill/contract/lobby routes loaded. This usually means an <strong>older Node process</strong> is still running.</p>
+<p>Stop the process on your port and restart:</p>
+<pre><code>node server.mjs</code></pre>
+<p>Then open <a href="${escapeHtmlText(pathname)}">this link again</a> or return to <a href="/dashboard?view=bills">Bills</a>.</p>
+</body></html>`;
+  sendHtml(res, 503, html);
 }
 
 async function sendStatic(res, relativePath) {
@@ -1990,7 +2291,9 @@ function publicConfig() {
       alpaca: Boolean(process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRET_KEY),
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
       supabase: dbReady,
-      secEdgar: true
+      secEdgar: true,
+      healthEndpoint: "/api/health/data",
+      strictDataMode: isStrictDataMode()
     },
     safety: {
       liveTradingEnabled: process.env.ALLOW_LIVE_TRADING === "true",
@@ -2117,6 +2420,20 @@ async function patchWatchlist(req, res, session) {
   sendJson(res, 200, { ok: true, symbols: result.symbols });
 }
 
+async function waitlistAdmin(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  try {
+    const raw = await readFile(WAITLIST_FILE, "utf8").catch(() => "");
+    const entries = raw.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    return sendJson(res, 200, { count: entries.length, entries });
+  } catch {
+    return sendJson(res, 200, { count: 0, entries: [] });
+  }
+}
+
 async function waitlistSignup(req, res) {
   const body = await readJson(req);
   const email = String(body.email || "").trim().toLowerCase();
@@ -2154,10 +2471,12 @@ async function waitlistSignup(req, res) {
     if (alreadyOn) return sendJson(res, 200, { ok: true, message: alreadyMsg });
   } catch { /* file doesn't exist yet */ }
 
-  await appendFile(
-    WAITLIST_FILE,
-    JSON.stringify({ email, source, userAgent: req.headers["user-agent"] || "", createdAt: new Date().toISOString() }) + "\n",
-    "utf8"
+  await withFileLock(WAITLIST_FILE, () =>
+    appendFile(
+      WAITLIST_FILE,
+      JSON.stringify({ email, source, userAgent: req.headers["user-agent"] || "", createdAt: new Date().toISOString() }) + "\n",
+      "utf8"
+    )
   );
   sendJson(res, 200, { ok: true, message: successMsg });
 }
@@ -2207,7 +2526,190 @@ async function marketQuotes(res, url) {
     envelope.fallbackNote =
       "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
   }
+  noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
   sendJson(res, 200, envelope);
+}
+
+// Returns a single real bill signal for the landing page hero terminal — rotates every 30s.
+function landingSignalHandler(res) {
+  const live = POLICY_BILLS.filter(
+    (b) => !b.scenarioOnly && b.affected?.length && b.plainEnglish
+  );
+  const pool = live.length ? live : POLICY_BILLS.filter((b) => b.affected?.length);
+  if (!pool.length) return sendJson(res, 200, null);
+  // Rotate based on time bucket (changes every 30 seconds)
+  const idx = Math.floor(Date.now() / 30_000) % pool.length;
+  const bill = pool[idx];
+  const momentum = computeLegislativeMomentum(bill);
+  const tickers = (bill.affected || []).slice(0, 3);
+  const chain = `Congress.gov → ${bill.status || "Introduced"} → ${tickers.join(", ")}`;
+  sendJson(res, 200, {
+    billId: bill.id,
+    label: `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
+    headline: bill.shortTitle || bill.title,
+    chain,
+    confidence: momentum,
+    signal: bill.signal || bill.plainEnglish || ""
+  });
+}
+
+// ── Prediction ledger ────────────────────────────────────────────────────────
+// Shared dependency: a quote getter the ledger uses for entry/exit prices.
+const ledgerDeps = {
+  getQuote: async (symbol) => {
+    const { quote } = await quoteSnapshot(symbol);
+    return quote ? { price: quote.price, source: quote.source } : null;
+  }
+};
+
+async function predictionScorecardHandler(res, url) {
+  try {
+    const filter = {};
+    const t = url.searchParams.get("ticker");
+    const c = url.searchParams.get("catalystType");
+    if (t) filter.ticker = t;
+    if (c) filter.catalystType = c;
+    const scorecard = await computeScorecard(filter);
+    return sendJson(res, 200, scorecard);
+  } catch (err) {
+    return sendJson(res, 500, { error: "scorecard_failed", detail: err.message });
+  }
+}
+
+async function predictionVerifyHandler(res) {
+  try {
+    return sendJson(res, 200, await verifyLedger());
+  } catch (err) {
+    return sendJson(res, 500, { error: "verify_failed", detail: err.message });
+  }
+}
+
+async function predictionListHandler(res, url) {
+  try {
+    const filter = { limit: Math.min(200, Number(url.searchParams.get("limit")) || 50) };
+    const t = url.searchParams.get("ticker");
+    const s = url.searchParams.get("status");
+    if (t) filter.ticker = t;
+    if (s) filter.status = s;
+    const predictions = await listPredictions(filter);
+    return sendJson(res, 200, { predictions, count: predictions.length });
+  } catch (err) {
+    return sendJson(res, 500, { error: "list_failed", detail: err.message });
+  }
+}
+
+async function predictionRecordHandler(req, res, session) {
+  // Manual recording is gated to admins (or any authed user if no ADMIN_SECRET set).
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (adminSecret && req.headers["x-admin-secret"] !== adminSecret) {
+    return sendJson(res, 403, { error: "forbidden" });
+  }
+  try {
+    const body = await readJson(req);
+    const event = await recordPrediction(
+      {
+        ticker: body.ticker,
+        direction: body.direction,
+        horizonDays: body.horizonDays,
+        thesis: body.thesis,
+        confidence: body.confidence,
+        catalyst: body.catalyst,
+        predictedRange: body.predictedRange,
+        origin: body.origin || `manual:${session?.user?.id || "anon"}`
+      },
+      ledgerDeps
+    );
+    return sendJson(res, 200, { ok: true, prediction: event });
+  } catch (err) {
+    return sendJson(res, 400, { error: "record_failed", detail: err.message });
+  }
+}
+
+/**
+ * Auto-populate the ledger from the product's own highest-conviction signals.
+ * For each live bill with a clear directional impact on a ticker, record a
+ * 30-day prediction — deduped so we never double-log the same open call.
+ * This is what makes the track record grow on its own from real usage.
+ */
+async function autoRecordSignalPredictions() {
+  try {
+    const open = await listPredictions({ status: "open" });
+    const openKeys = new Set(
+      open.map((p) => `${p.catalyst?.id || ""}:${p.ticker}:${p.direction}`)
+    );
+
+    const live = POLICY_BILLS.filter(
+      (b) => !b.scenarioOnly && Array.isArray(b.passImpacts) && b.passImpacts.length
+    );
+    // Rank by legislative momentum; only auto-log the strongest signals.
+    const ranked = live
+      .map((b) => ({ bill: b, momentum: computeLegislativeMomentum(b) }))
+      .sort((a, b) => b.momentum - a.momentum)
+      .slice(0, 8);
+
+    let recorded = 0;
+    for (const { bill, momentum } of ranked) {
+      // Only log meaningfully-moving bills (avoid noise from dormant ones).
+      if (momentum < 45) continue;
+      const top = bill.passImpacts[0];
+      // Seed shape: { sym, dir (1|-1), range, why }
+      if (!top?.sym || !top?.dir) continue;
+      const direction = top.dir > 0 ? "bullish" : top.dir < 0 ? "bearish" : "neutral";
+      if (direction === "neutral") continue;
+
+      const symbol = String(top.sym).toUpperCase();
+      const key = `${bill.id}:${symbol}:${direction}`;
+      if (openKeys.has(key)) continue;
+
+      try {
+        await recordPrediction(
+          {
+            ticker: symbol,
+            direction,
+            horizonDays: 30,
+            confidence: momentum,
+            predictedRange: top.range,
+            thesis:
+              bill.signal ||
+              `${bill.shortTitle || bill.title}: ${top.why || "policy catalyst"} → ${symbol}`,
+            catalyst: {
+              type: "bill_stage",
+              id: bill.id,
+              title: bill.shortTitle || bill.title
+            },
+            origin: "auto:legis_signal"
+          },
+          ledgerDeps
+        );
+        recorded++;
+      } catch {
+        /* skip tickers we can't price right now */
+      }
+    }
+    if (recorded) console.log(`[ledger] auto-recorded ${recorded} new prediction(s)`);
+  } catch (err) {
+    console.warn("[ledger] auto-record failed:", err.message);
+  }
+}
+
+async function landingQuotesHandler(res) {
+  const now = Date.now();
+  if (landingQuotesCache && now - landingQuotesCachedAt < LANDING_QUOTES_TTL_MS) {
+    return sendJson(res, 200, landingQuotesCache);
+  }
+  try {
+    const quotes = await Promise.all(
+      LANDING_QUOTES_TICKERS.map(async (symbol) => {
+        const result = await quoteSnapshot(symbol);
+        return result.quote ? { symbol, price: result.quote.price, changePercent: result.quote.changePercent, source: result.quote.source } : null;
+      })
+    );
+    landingQuotesCache = { quotes: quotes.filter(Boolean), updatedAt: new Date().toISOString() };
+    landingQuotesCachedAt = now;
+    return sendJson(res, 200, landingQuotesCache);
+  } catch {
+    return sendJson(res, 200, { quotes: [], updatedAt: new Date().toISOString() });
+  }
 }
 
 /** Shared path for GET /api/market/history and analysis chart (real closes when APIs succeed). */
@@ -2336,6 +2838,411 @@ function publicStockCard(res, pathname, { head = false } = {}) {
       </section>
     </main>
     <script src="/assets/stock-card.js?v=roadmap-phase9-12" defer></script>
+  </body>
+</html>`;
+  sendHtml(res, 200, html, { head });
+}
+
+function resolvePolicyBill(billIdRaw) {
+  const billId = resolveBillIdCanonical(billIdRaw);
+  if (!billId) return null;
+  const direct = POLICY_BILLS.find((b) => b.id === billId);
+  if (direct) return direct;
+  const live = liveCongressBillRegistry.get(billId);
+  if (live) return live;
+  return null;
+}
+
+function buildBillSharePayload(billIdRaw) {
+  const bill = resolvePolicyBill(billIdRaw);
+  if (!bill) {
+    const err = new Error("unknown_bill_id");
+    err.code = "unknown_bill_id";
+    throw err;
+  }
+  const merged = decorateBill(mergeCongressLiveIntoBill(bill));
+  const focusSymbol = (merged.affected || merged.portfolioTickers || [])[0] || "";
+  const detail = focusSymbol ? enrichPolicyBill(merged, focusSymbol) : merged;
+  const breakdown = computeBillMetricBreakdown(merged);
+  const statusInfo = statusInfoForBill(merged);
+  const billId = merged.id;
+  return {
+    billId,
+    bill: detail,
+    statusInfo,
+    breakdown,
+    relatedTickers: (merged.affected || []).slice(0, 12),
+    passImpacts: merged.passImpacts || [],
+    failImpacts: merged.failImpacts || [],
+    historicalAnalog: merged.historicalAnalog || null,
+    legislativeContext: detail.legislativeContext || merged.legislativeContext || null,
+    methodologyDisclaimer: METHODOLOGY.disclaimer,
+    updatedAt: new Date().toISOString(),
+    share: {
+      canonicalPath: `/bill/${encodeURIComponent(billId)}`,
+      canonicalUrl: `${APP_URL}/bill/${encodeURIComponent(billId)}`,
+      title: merged.shortTitle || merged.title || billId,
+      disclaimer:
+        "Legislative status from Congress.gov when linked. Scenario impact ranges are illustrative models, not investment advice."
+    }
+  };
+}
+
+async function shareBillSnapshot(req, res, url) {
+  if (enforceShareRateLimit(req, res)) return;
+  const billId = url.searchParams.get("billId") || url.searchParams.get("id") || "";
+  try {
+    const payload = buildBillSharePayload(billId);
+    sendJson(res, 200, { ...payload, public: true });
+  } catch (err) {
+    const code = err.code === "unknown_bill_id" ? 404 : 502;
+    sendJson(res, code, {
+      error: err.code || "share_bill_unavailable",
+      message: err.message || "Could not load bill."
+    });
+  }
+}
+
+function publicBillCard(res, pathname, { head = false } = {}) {
+  const raw = decodeURIComponent(pathname.slice("/bill/".length).split(/[/?#]/)[0]);
+  const canonical = resolveBillIdCanonical(raw);
+  if (canonical && canonical !== raw && resolvePolicyBill(canonical)) {
+    return redirect(res, `/bill/${encodeURIComponent(canonical)}`);
+  }
+  const bill = resolvePolicyBill(raw);
+  const billId = bill?.id || canonical || raw;
+  const title = bill ? `${bill.shortTitle || bill.title || billId} | TradeSimple` : `Bill not found | TradeSimple`;
+  const description = bill
+    ? `Legislative status, lobbying, and scenario impacts for ${bill.shortTitle || bill.title}. Research context only.`
+    : "Bill record not found in TradeSimple.";
+  const html = `<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${escapeHtmlText(title)}</title>
+    <meta name="description" content="${escapeHtmlText(description)}" />
+    <meta property="og:title" content="${escapeHtmlText(title)}" />
+    <meta property="og:description" content="${escapeHtmlText(description)}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=bill-page-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-calendar-taste-2" />
+  </head>
+  <body data-bill-id="${escapeHtmlText(billId)}">
+    <main id="bill-card-root" class="bill-card-root" aria-live="polite">
+      <section class="stock-card-loading">
+        <span class="mini-label">TradeSimple bill brief</span>
+        <h1>${escapeHtmlText(bill?.displayId || billId)}</h1>
+        <p>Loading bill details.</p>
+      </section>
+    </main>
+    <script src="/assets/bill-card.js?v=bill-calendar-taste-2" defer></script>
+  </body>
+</html>`;
+  sendHtml(res, bill ? 200 : 404, html, { head });
+}
+
+function contractCausalitySnapshot(symbol) {
+  const sym = String(symbol || "").toUpperCase().trim();
+  const profile = CONTRACT_PROFILES[sym] || null;
+  const depScore = computeGovernmentDependencyScore(sym);
+  const relatedBills = POLICY_BILLS.filter((b) => (b.affected || []).includes(sym));
+  const govPct = profile ? Math.round(profile.governmentRevenuePct * 100) : null;
+  const renewalPct = profile ? Math.round(profile.renewalRisk * 100) : null;
+  const budgetNum = profile
+    ? profile.agencyBudgetRisk === "high"
+      ? 80
+      : profile.agencyBudgetRisk === "medium"
+        ? 55
+        : 25
+    : null;
+  const primaryAgency = profile?.primaryAgencies?.[0] || "Federal agencies";
+  const agSig = agencySignalScore(primaryAgency);
+  const bars = profile
+    ? [
+        { label: `${primaryAgency.split(" ").slice(-1)[0]} exposure`, value: govPct, display: `${govPct}%` },
+        { label: "Renewal risk", value: renewalPct, display: String(renewalPct) },
+        { label: "Award novelty", value: 100 - agSig, display: String(100 - agSig) },
+        { label: "Budget risk", value: budgetNum, display: profile.agencyBudgetRisk }
+      ]
+    : [];
+  const evidence = [
+    { source: "USASpending", title: "What was awarded?", detail: "Federal award amount, agency, recipient, date, and program fields." },
+    { source: "SAM.gov", title: "Was it expected?", detail: "Solicitations, sources-sought notices, deadlines, and incumbent context." },
+    { source: "Congress.gov", title: "What funds it?", detail: "Appropriations bills, authorization, committee actions, and latest status." },
+    {
+      source: "10-K / SEC",
+      title: "Does revenue depend on it?",
+      detail: govPct
+        ? `~${govPct}% government revenue${profile?.archetype ? ` (${profile.archetype})` : ""}.`
+        : "Check 10-K for government revenue concentration."
+    },
+    { source: "LDA / lobbying", title: "Who is pushing?", detail: "Lobbying spend and bill-aligned activity around agency budgets." }
+  ];
+  if (!profile) {
+    return {
+      symbol: sym,
+      archetype: null,
+      dogeRisk: false,
+      scores: { dependency: depScore, changeRisk: 50, confidence: "Low" },
+      plainEnglish: `${sym} is not in TradeSimple's government-contractor database. ${relatedBills.length ? `${relatedBills.length} mapped bill(s) may create indirect exposure.` : "No direct policy exposure is currently mapped."}`,
+      archetypeExplain: "",
+      nodes: [],
+      bars: [],
+      scenarios: [],
+      translation: [],
+      evidence,
+      aiGenerated: false,
+      billCount: relatedBills.length,
+      relatedBills: relatedBills.slice(0, 6).map((b) => ({ id: b.id, title: b.shortTitle || b.title, displayId: b.displayId || b.id }))
+    };
+  }
+  const isNarrative = profile.archetype === "Narrative-Sensitive Contractor";
+  const primaryProgram = profile.primaryPrograms?.[0] || "Government programs";
+  const changeRisk = Math.round(0.5 * renewalPct + 0.3 * budgetNum + 0.2 * (profile.dogeRisk ? 70 : 20));
+  return {
+    symbol: sym,
+    archetype: profile.archetype,
+    dogeRisk: profile.dogeRisk,
+    scores: { dependency: depScore, changeRisk, confidence: depScore > 70 ? "Medium-high" : "Medium" },
+    plainEnglish: profile.note,
+    archetypeExplain: profile.archetypeExplain,
+    nodes: [
+      { step: "1 · Budget source", title: `${primaryAgency} appropriations set the funding pool`, detail: `If Congress expands or cuts this account, ${sym}'s opportunity set changes directly.`, source: "Congress.gov" },
+      { step: "2 · Agency buyer", title: `${primaryAgency} is the primary demand center`, detail: agSig >= 70 ? "Civilian agencies can surprise more than routine DoD awards." : "DoD awards are often expected months ahead.", source: "USASpending" },
+      { step: "3 · Procurement signal", title: "Solicitation history sets the surprise bar", detail: agSig <= 40 ? "Large defense awards are often pre-announced." : "Awards from this agency can carry more informational value.", source: "SAM.gov" },
+      { step: "4 · Company exposure", title: `${govPct}% of ${sym} revenue is government-linked`, detail: `${profile.archetype}. Budget decisions map to earnings.`, source: "10-K filing" },
+      { step: "5 · Market mechanism", title: isNarrative ? "Investors price adoption curve" : "Investors price durability and renewal risk", detail: isNarrative ? "Contract awards validate platform adoption beyond revenue alone." : "Renewal risk and program durability drive scenario modeling.", source: "Model logic" },
+      { step: "6 · Watch next", title: `Track ${primaryProgram} and recompete timing`, detail: profile.bull, source: "Alert rule" }
+    ],
+    bars,
+    scenarios: [
+      { name: "Upside", change: profile.bull, read: isNarrative ? "Supports adoption narrative." : "Confirms revenue durability.", cls: "positive" },
+      { name: "Base", change: "Funding stays stable and contract flow continues.", read: "Confirms business quality more than a new surprise.", cls: "warning" },
+      { name: "Downside", change: profile.bear, read: "Raises renewal risk and can pressure forward revenue assumptions.", cls: "negative" }
+    ],
+    translation: [
+      { step: "A", title: "What happened?", body: `A contract award or budget signal appeared for ${sym} in public government data.` },
+      { step: "B", title: "Why does it matter?", body: `${govPct}% of ${sym} revenue runs through government agencies.` },
+      { step: "C", title: "What could change?", body: "Future sales, renewal odds, margin durability, or investor confidence." },
+      { step: "D", title: "What to watch?", body: profile.dogeRisk ? "Agency efficiency reviews, budget markups, and recompete schedules." : `NDAA markup, ${primaryAgency} appropriations, and SAM.gov solicitations for ${primaryProgram}.` }
+    ],
+    evidence,
+    aiGenerated: false,
+    billCount: relatedBills.length,
+    relatedBills: relatedBills.slice(0, 6).map((b) => ({ id: b.id, title: b.shortTitle || b.title, displayId: b.displayId || b.id })),
+    profile: {
+      governmentRevenuePct: profile.governmentRevenuePct,
+      renewalRisk: profile.renewalRisk,
+      primaryAgencies: profile.primaryAgencies,
+      primaryPrograms: profile.primaryPrograms,
+      archetype: profile.archetype
+    }
+  };
+}
+
+async function buildContractSharePayload(symbolRaw) {
+  const symbol = String(symbolRaw || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  if (!symbol) {
+    const err = new Error("missing_symbol");
+    err.code = "missing_symbol";
+    throw err;
+  }
+  const profile = CONTRACT_PROFILES[symbol];
+  if (!profile) {
+    const err = new Error("unknown_contract_symbol");
+    err.code = "unknown_contract_symbol";
+    throw err;
+  }
+  const company = CONTRACT_COMPANY_NAMES[symbol] || FUNDAMENTALS[symbol]?.name || symbol;
+  const rawResults = await fetchUsaspendingAwards(company);
+  const awards = (rawResults || []).map((row) => {
+    const enriched = {
+      ...row,
+      eventSignal: computeContractEventSignal(symbol, row.obligatedAmount, row.awardingAgency),
+      moneyTrail: buildGovernmentMoneyTrail(symbol, row.obligatedAmount, row.awardingAgency, row.description)
+    };
+    return enriched;
+  });
+  const causality = contractCausalitySnapshot(symbol);
+  return {
+    symbol,
+    company,
+    awards,
+    awardCount: awards.length,
+    totalObligated: awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0),
+    causality,
+    source: awards.length ? "usaspending.gov" : "profile_only",
+    updatedAt: new Date().toISOString(),
+    share: {
+      canonicalPath: `/contract/${encodeURIComponent(symbol)}`,
+      canonicalUrl: `${APP_URL}/contract/${encodeURIComponent(symbol)}`,
+      title: `${company} federal contracts`,
+      disclaimer: "Award data from USASpending.gov when available. Scenario text is research context, not investment advice."
+    }
+  };
+}
+
+async function shareContractSnapshot(req, res, url) {
+  if (enforceShareRateLimit(req, res)) return;
+  const symbol = String(url.searchParams.get("symbol") || url.searchParams.get("id") || "")
+    .toUpperCase()
+    .trim();
+  try {
+    const payload = await buildContractSharePayload(symbol);
+    sendJson(res, 200, { ...payload, public: true });
+  } catch (err) {
+    const code = err.code === "unknown_contract_symbol" || err.code === "missing_symbol" ? 404 : 502;
+    sendJson(res, code, {
+      error: err.code || "share_contract_unavailable",
+      message: err.message || "Could not load contract brief."
+    });
+  }
+}
+
+function publicContractCard(res, pathname, { head = false } = {}) {
+  const raw = decodeURIComponent(pathname.slice("/contract/".length).split(/[/?#]/)[0]);
+  const symbol = String(raw || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  const profile = CONTRACT_PROFILES[symbol];
+  const company = profile ? CONTRACT_COMPANY_NAMES[symbol] || symbol : symbol;
+  const title = profile ? `${company} (${symbol}) contracts | TradeSimple` : `Contract brief | TradeSimple`;
+  const description = profile
+    ? `Federal contract exposure, USASpending awards, and policy causality for ${company}.`
+    : "Government contract profile not found.";
+  const html = `<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${escapeHtmlText(title)}</title>
+    <meta name="description" content="${escapeHtmlText(description)}" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=detail-pages-1" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=detail-pages-1" />
+    <link rel="stylesheet" href="/assets/contract-card.css?v=detail-pages-1" />
+  </head>
+  <body data-contract-symbol="${escapeHtmlText(symbol)}">
+    <main id="contract-card-root" class="bill-card-root" aria-live="polite">
+      <section class="stock-card-loading"><h1>${escapeHtmlText(symbol || "Contract")}</h1><p>Loading contract brief…</p></section>
+    </main>
+    <script src="/assets/contract-card.js?v=detail-pages-1" defer></script>
+  </body>
+</html>`;
+  sendHtml(res, profile ? 200 : 404, html, { head });
+}
+
+async function resolveLobbyFilingsForShare() {
+  if (cachedLobbyFilingsForShare.length) return cachedLobbyFilingsForShare;
+  const ldaKey = process.env.SENATE_LDA_API_KEY;
+  if (ldaKey) {
+    try {
+      const raw = await fetchLdaFilings({ apiKey: ldaKey, fetchFn: fetchWithTimeout, limit: 80 });
+      cachedLobbyFilingsForShare = raw.map((item) =>
+        decorateLobbyingFiling({
+          client: item.client,
+          registrant: item.registrant,
+          amount: item.amount,
+          issue: item.issue,
+          spike: null,
+          portfolio: false,
+          postedAt: item.postedAt,
+          source: "senate_lda"
+        })
+      );
+      return cachedLobbyFilingsForShare;
+    } catch {
+      /* fall through */
+    }
+  }
+  cachedLobbyFilingsForShare = LOBBYING_FALLBACK.map((row) =>
+    decorateLobbyingFiling({ ...row, postedAt: row.postedAt || new Date().toISOString().slice(0, 10) })
+  );
+  return cachedLobbyFilingsForShare;
+}
+
+function findLobbyFilingById(filingIdRaw) {
+  const id = String(filingIdRaw || "").trim();
+  if (!id) return null;
+  const decoded = decodeURIComponent(id);
+  return (
+    cachedLobbyFilingsForShare.find((f) => f.filingId === id || f.filingId === decoded) || null
+  );
+}
+
+async function buildLobbySharePayload(filingIdRaw) {
+  await resolveLobbyFilingsForShare();
+  const filing = findLobbyFilingById(filingIdRaw);
+  if (!filing) {
+    const err = new Error("unknown_filing_id");
+    err.code = "unknown_filing_id";
+    throw err;
+  }
+  const relatedBills = POLICY_BILLS.filter((bill) => {
+    const text = `${bill.title || ""} ${(bill.tags || []).join(" ")} ${(bill.affected || []).join(" ")}`.toLowerCase();
+    const issue = String(filing.issue || "").toLowerCase();
+    const client = String(filing.client || "").toLowerCase();
+    return issue.split(/,\s*/).some((tag) => tag.length > 4 && text.includes(tag.slice(0, 12)))
+      || (bill.affected || []).some((t) => client.includes(String(t).toLowerCase()));
+  }).slice(0, 6);
+  return {
+    filing,
+    relatedBills: relatedBills.map((b) => ({
+      id: b.id,
+      displayId: b.displayId || b.id,
+      title: b.shortTitle || b.title,
+      momentum: computeLegislativeMomentum(b),
+      affected: (b.affected || []).slice(0, 6)
+    })),
+    source: filing.source || "senate_lda",
+    updatedAt: new Date().toISOString(),
+    share: {
+      canonicalPath: `/lobby/${encodeURIComponent(filing.filingId)}`,
+      canonicalUrl: `${APP_URL}/lobby/${encodeURIComponent(filing.filingId)}`,
+      title: `${filing.client} lobbying filing`,
+      disclaimer: "Lobbying data from Senate LDA when configured; otherwise illustrative samples. Research context only."
+    }
+  };
+}
+
+async function shareLobbySnapshot(req, res, url) {
+  if (enforceShareRateLimit(req, res)) return;
+  const filingId = url.searchParams.get("filingId") || url.searchParams.get("id") || "";
+  try {
+    const payload = await buildLobbySharePayload(filingId);
+    sendJson(res, 200, { ...payload, public: true });
+  } catch (err) {
+    const code = err.code === "unknown_filing_id" ? 404 : 502;
+    sendJson(res, code, {
+      error: err.code || "share_lobby_unavailable",
+      message: err.message || "Could not load lobbying filing."
+    });
+  }
+}
+
+function publicLobbyCard(res, pathname, { head = false } = {}) {
+  const raw = decodeURIComponent(pathname.slice("/lobby/".length).split(/[/?#]/)[0]);
+  const filingId = raw;
+  const title = `Lobbying filing | TradeSimple`;
+  const html = `<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${escapeHtmlText(title)}</title>
+    <link rel="stylesheet" href="/assets/stock-card.css?v=detail-pages-1" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=detail-pages-1" />
+    <link rel="stylesheet" href="/assets/lobby-card.css?v=detail-pages-1" />
+  </head>
+  <body data-lobby-id="${escapeHtmlText(filingId)}">
+    <main id="lobby-card-root" class="bill-card-root" aria-live="polite">
+      <section class="stock-card-loading"><h1>Lobbying brief</h1><p>Loading filing…</p></section>
+    </main>
+    <script src="/assets/lobby-card.js?v=detail-pages-1" defer></script>
   </body>
 </html>`;
   sendHtml(res, 200, html, { head });
@@ -2828,14 +3735,15 @@ function buildLobbyMappingStatus(symbol, focusBills) {
         reasoning: row.relationship || bill.relationshipSummary || bill.impact || ""
       });
     }
-    if (!lobbyRows.length && (Number(bill.lobbyingAgainst || 0) > 0 || Number(bill.lobbyingFor || 0) > 0)) {
+    for (const row of bill._ldaRows || []) {
       matches.push({
         billId: bill.id,
-        client: "Modeled industry filing set",
-        amount: Math.max(Number(bill.lobbyingAgainst || 0), Number(bill.lobbyingFor || 0)) * 1_000_000,
-        direction: Number(bill.lobbyingAgainst || 0) > Number(bill.lobbyingFor || 0) ? "against" : "for",
-        issue: bill.shortTitle || bill.title,
-        reasoning: bill.lobbyingNote || bill.signal || ""
+        client: row.name,
+        amount: row.amount || null,
+        direction: row.stance || "neutral",
+        issue: row.issue || bill.shortTitle || bill.title,
+        reasoning: row.relationship || bill.lobbyingNote || bill.signal || "",
+        source: "senate_lda"
       });
     }
   }
@@ -2922,7 +3830,11 @@ function buildEvidenceStack({ symbol, payload, policyNetwork, fundamentals, cont
       latestAction: bill.latestAction,
       legislativeMomentum: bill.legislativeMomentum,
       policyExposure: bill.policyExposure,
-      sourceLabel: bill.exactCongressRecord ? "Congress.gov" : "Congress.gov search",
+      sourceLabel: bill.exactCongressRecord
+        ? "Congress.gov"
+        : bill.scenarioOnly
+          ? "TradeSimple scenario"
+          : "Scenario · pending Congress.gov",
       sourceType: "Congress.gov",
       sourceUrl: congressSearchUrl(bill.title || bill.id),
       freshness: bill.latestActionDate || payload.updatedAt,
@@ -3059,7 +3971,7 @@ async function policyNetwork(res, url) {
 
 function buildPolicyNetwork(symbol) {
   const focusSymbol = String(symbol || "NVDA").toUpperCase();
-  const allBills = POLICY_BILLS.map((bill) => enrichPolicyBill(bill, focusSymbol));
+  const allBills = POLICY_BILLS.map((bill) => enrichPolicyBill(mergeCongressLiveIntoBill(bill), focusSymbol));
   const focusBills = allBills.filter((bill) => (bill.affected || []).includes(focusSymbol));
   const source = {
     bills: process.env.CONGRESS_API_KEY ? "congress.gov + modeled impact layer" : "modeled bills",
@@ -3083,11 +3995,16 @@ function buildPolicyNetwork(symbol) {
 }
 
 function enrichPolicyBill(bill, focusSymbol = "") {
-  const model = POLICY_STAKEHOLDERS[bill.id] || emptyStakeholderModel(bill);
-  const base = {
-    ...bill,
+  const merged = mergeCongressLiveIntoBill(bill);
+  const model = POLICY_STAKEHOLDERS[bill.id] || emptyStakeholderModel(merged);
+  const base = decorateBill({
+    ...merged,
     nextWatch: bill.nextWatch || model.nextWatch || null
-  };
+  });
+  const lobbyingStakeholders =
+    base._ldaRows?.length > 0
+      ? base._ldaRows
+      : (model.lobbying || []).map((row) => ({ ...row, amount: null, relationship: `${row.relationship || ""} (narrative — no LDA dollar match)`.trim() }));
   const metrics = augmentBillMetrics(base);
   const statusInfo = statusInfoForBill(base);
   const focusImpact = model.tickerImpacts.find((impact) => impact.symbol === focusSymbol) ||
@@ -3103,11 +4020,6 @@ function enrichPolicyBill(bill, focusSymbol = "") {
   return {
     ...base,
     ...metrics,
-    exactCongressRecord: base.exactCongressRecord === true,
-    sourceKind: base.exactCongressRecord === true ? "congress_exact" : "tradesimple_modeled_seed",
-    sourceNote: base.exactCongressRecord === true
-      ? "Exact Congress.gov record."
-      : "Modeled TradeSimple policy seed. The bill-style ID is internal and may not match Congress.gov.",
     statusInfo,
     stagePath: statusInfo.stagePath,
     momentumDrivers: momentumDriversForBill(base),
@@ -3120,7 +4032,7 @@ function enrichPolicyBill(bill, focusSymbol = "") {
     stakeholders: {
       lawmakers: model.lawmakers,
       committees: model.committees,
-      lobbying: model.lobbying
+      lobbying: lobbyingStakeholders
     },
     tickerImpacts: model.tickerImpacts,
     analog: model.analog,
@@ -4025,11 +4937,14 @@ function buildPolicyChains(symbol, bills) {
       }]
     : bills.map((bill) => {
         const against = Number(bill.lobbyingAgainst || 0);
-        const lobbyingText = against >= 10
-          ? `$${against.toFixed(1)}M lobbying against — opponents are treating this as a real revenue threat.`
-          : Number(bill.lobbyingFor || 0) >= 10
-            ? `$${Number(bill.lobbyingFor).toFixed(1)}M lobbying for — the industry wants implementation speed.`
-            : "Lobbying is present, but not yet a panic signal.";
+        const lobbyingText =
+          bill.lobbyingSource === "senate_lda" && against >= 1
+            ? `$${against.toFixed(1)}M LDA-reported spend against (matched filings).`
+            : bill.lobbyingSource === "senate_lda" && Number(bill.lobbyingFor || 0) >= 1
+              ? `$${Number(bill.lobbyingFor).toFixed(1)}M LDA-reported spend for (matched filings).`
+              : bill.lobbyingFilingsCount > 0
+                ? `${bill.lobbyingFilingsCount} LDA filing(s) matched — review amounts in Bills detail.`
+                : "No LDA filings matched this bill yet.";
         const lm = computeLegislativeMomentum(bill);
         const conf = billSignalConfidence(bill);
         return {
@@ -4242,17 +5157,112 @@ async function cryptoPrices(res, url) {
 }
 
 function parseSeedBillId(id) {
-  const dashIdx = id.lastIndexOf("-");
-  if (dashIdx < 0) return null;
-  const congress = id.slice(dashIdx + 1);
-  const typeAndNum = id.slice(0, dashIdx);
-  const dotIdx = typeAndNum.lastIndexOf(".");
-  if (dotIdx < 0) return null;
-  const typeRaw = typeAndNum.slice(0, dotIdx).toUpperCase();
-  const number = typeAndNum.slice(dotIdx + 1);
-  const TYPE_MAP = { S: "s", "H.R": "hr", "H.J.RES": "hjres", "S.J.RES": "sjres", "H.RES": "hres", "S.RES": "sres" };
-  const type = TYPE_MAP[typeRaw] || typeRaw.toLowerCase().replace(/\./g, "");
-  return { congress, type, number };
+  return parseBillIdToCongressRef(id);
+}
+
+function congressRefForBill(bill) {
+  if (bill?.congressRef) return bill.congressRef;
+  if (bill?.scenarioOnly || String(bill?.id || "").startsWith("scenario:")) return null;
+  return parseBillIdToCongressRef(bill.id);
+}
+
+function applyLobbyingOverlay(bill) {
+  const overlay = billLobbyingOverlay.get(bill.id);
+  if (!overlay || overlay.lobbyingSource !== "senate_lda") return bill;
+  return {
+    ...bill,
+    lobbyingAgainst: overlay.lobbyingAgainst,
+    lobbyingFor: overlay.lobbyingFor,
+    lobbyingSource: overlay.lobbyingSource,
+    lobbyingFilingsCount: overlay.lobbyingFilingsCount,
+    lobbyingNote: overlay.lobbyingNote || bill.lobbyingNote,
+    _ldaRows: overlay.lobbyingRows || []
+  };
+}
+
+function mergeCongressLiveIntoBill(bill) {
+  const cached = congressLiveCache.get(bill.id);
+  if (!cached) return applyLobbyingOverlay(bill);
+  if (!seedMetadataMatchesBill(cached, bill)) return applyLobbyingOverlay(bill);
+  return applyLobbyingOverlay({
+    ...bill,
+    title: cached.title || bill.title,
+    introducedDate: cached.introducedDate || bill.introducedDate || null,
+    policyArea: cached.policyArea || bill.policyArea || null,
+    committees: cached.committees?.length ? cached.committees : bill.committees,
+    _committeeNames: cached._committeeNames || bill._committeeNames,
+    latestAction: cached.latestAction || bill.latestAction,
+    latestActionDate: cached.latestActionDate || bill.latestActionDate,
+    cosponsors: cached.cosponsors ?? bill.cosponsors,
+    status: cached.status || bill.status,
+    exactCongressRecord: true,
+    _placeholderFacts: false,
+    sponsor: cached.sponsor || bill.sponsor,
+    sourceKind: "congress_exact",
+    sourceNote: "Exact Congress.gov record (live refresh)."
+  });
+}
+
+async function refreshCongressLiveCache() {
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key) return { updated: 0 };
+  const updates = await refreshSeedBillMetadata(key);
+  for (const [id, payload] of updates.entries()) {
+    congressLiveCache.set(id, payload);
+    await writeCongressCache(id, payload);
+  }
+  const decorated = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
+  const liveBillCount = decorated.filter((b) => b.exactCongressRecord).length;
+  noteFeedSuccess("bills", {
+    source: "congress.gov",
+    recordCount: decorated.length,
+    liveCount: liveBillCount,
+    scenarioCount: decorated.length - liveBillCount
+  });
+  return { updated: updates.size };
+}
+
+async function refreshLdaLobbyingCache() {
+  const key = process.env.SENATE_LDA_API_KEY;
+  if (!key) {
+    billLobbyingOverlay.clear();
+    return { matched: 0, filings: 0 };
+  }
+  const filings = await fetchLdaFilings({
+    apiKey: key,
+    fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000)
+  });
+  const overlays = aggregateLobbyingForBills(POLICY_BILLS, filings);
+  billLobbyingOverlay.clear();
+  let matched = 0;
+  for (const [id, payload] of overlays.entries()) {
+    billLobbyingOverlay.set(id, payload);
+    if (payload.lobbyingFilingsCount > 0) matched += 1;
+  }
+  noteFeedSuccess("lobbying", {
+    source: "senate_lda",
+    recordCount: filings.length
+  });
+  return { matched, filings: filings.length };
+}
+
+function dataHealthRoute(res) {
+  const bills = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
+  const liveBillCount = bills.filter((b) => b.exactCongressRecord).length;
+  const scenarioBillCount = bills.filter((b) => b.scenarioOnly || !b.exactCongressRecord).length;
+  const ldaLinked = bills.filter((b) => b.lobbyingSource === "senate_lda").length;
+  const production = productionReadiness(process.env);
+  const payload = buildHealthPayload(process.env, {
+    blockingIssues: [
+      ...(lastSeedValidation?.structural || []).map((i) => `${i.billId}: ${i.message}`),
+      ...(production.strict && !production.ready ? [production.message] : [])
+    ],
+    seedValidation: lastSeedValidation,
+    production
+  });
+  payload.bills = { live: liveBillCount, scenario: scenarioBillCount, total: bills.length, ldaLinked };
+  payload.strictDataMode = isStrictDataMode();
+  sendJson(res, 200, payload);
 }
 
 const BILL_TITLE_STOP_WORDS = new Set([
@@ -4308,14 +5318,28 @@ function seedMetadataMatchesBill(update, seedBill) {
 async function refreshSeedBillMetadata(key) {
   const settled = await Promise.allSettled(
     POLICY_BILLS.map(async (bill) => {
-      const parsed = parseSeedBillId(bill.id);
+      if (bill.scenarioOnly) return null;
+      const parsed = congressRefForBill(bill);
       if (!parsed) return null;
-      const url = `https://api.congress.gov/v3/bill/${parsed.congress}/${parsed.type}/${parsed.number}?format=json&api_key=${encodeURIComponent(key)}`;
-      const resp = await fetchWithTimeout(url, {}, 8000);
-      if (!resp.ok) return null;
-      const data = await resp.json();
+      const baseUrl = `https://api.congress.gov/v3/bill/${parsed.congress}/${parsed.type}/${parsed.number}`;
+      const qs = `format=json&api_key=${encodeURIComponent(key)}`;
+      const [detailResp, commResp] = await Promise.all([
+        fetchWithTimeout(`${baseUrl}?${qs}`, {}, 8000),
+        fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 8000).catch(() => null)
+      ]);
+      if (!detailResp.ok) return null;
+      const data = await detailResp.json();
       const b = data.bill;
       if (!b) return null;
+      let committees = [];
+      if (commResp?.ok) {
+        try {
+          const commData = await commResp.json();
+          committees = parseCongressCommitteesResponse(commData);
+        } catch {
+          committees = [];
+        }
+      }
       const actionText = (b.latestAction?.text || "").toLowerCase();
       let status = bill.status;
       if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
@@ -4324,9 +5348,14 @@ async function refreshSeedBillMetadata(key) {
       else if (actionText.includes("committee")) status = "committee";
       const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
       const sp = sponsors[0];
+      const policyArea = b.policyArea?.name || b.policyArea || null;
       return {
         id: bill.id,
         title: b.title || bill.title,
+        introducedDate: b.introducedDate || bill.introducedDate || null,
+        policyArea: policyArea ? String(policyArea) : null,
+        committees,
+        _committeeNames: committees.map((c) => c.name).filter(Boolean),
         latestAction: b.latestAction?.text || bill.latestAction,
         latestActionDate: b.latestAction?.actionDate || bill.latestActionDate,
         cosponsors: b.cosponsors?.count != null ? Number(b.cosponsors.count) : bill.cosponsors,
@@ -4348,13 +5377,34 @@ async function congressBills(res, url) {
   const query = (url.searchParams.get("q") || "").toLowerCase();
 
   if (!key) {
-    const fallbackBills = filterBills(POLICY_BILLS.map(decorateBill), query);
+    if (isStrictDataMode()) {
+      return sendJson(res, 503, {
+        error: "congress_not_configured",
+        message: "CONGRESS_API_KEY is required in production data mode.",
+        dataMode: "unavailable"
+      });
+    }
+    const fallbackBills = filterBills(POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b))), query);
+    const scenarioCount = fallbackBills.filter((b) => b.scenarioOnly || !b.exactCongressRecord).length;
+    noteFeedSuccess("bills", {
+      source: "fallback",
+      recordCount: fallbackBills.length,
+      liveCount: fallbackBills.length - scenarioCount,
+      scenarioCount
+    });
     return sendJson(res, 200, {
       source: "fallback",
+      dataMode: "scenario",
       bills: fallbackBills,
       catalysts: buildPolicyCatalysts(fallbackBills),
       confidence: "Medium",
-      updatedAt: new Date().toISOString()
+      liveBillCount: fallbackBills.filter((b) => b.exactCongressRecord).length,
+      scenarioBillCount: scenarioCount,
+      updatedAt: new Date().toISOString(),
+      provenance: provenanceEnvelope({
+        dataMode: "scenario",
+        warnings: ["CONGRESS_API_KEY not set — bill status is scenario narrative until configured."]
+      })
     });
   }
 
@@ -4376,6 +5426,7 @@ async function congressBills(res, url) {
 
   try {
     const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
+    liveCongressBillRegistry.clear();
 
     const [seedUpdates, liveResp] = await Promise.all([
       refreshSeedBillMetadata(key),
@@ -4387,17 +5438,22 @@ async function congressBills(res, url) {
     ]);
 
     const refreshedSeeds = POLICY_BILLS.map((bill) => {
+      const base = mergeCongressLiveIntoBill(bill);
       const u = seedUpdates.get(bill.id);
-      if (!u) return decorateBill(bill);
-      if (!seedMetadataMatchesBill(u, bill)) return decorateBill(bill);
+      if (!u) return decorateBill(base);
+      if (!seedMetadataMatchesBill(u, bill)) return decorateBill(base);
+      congressLiveCache.set(bill.id, u);
+      void writeCongressCache(bill.id, u);
       return decorateBill({
-        ...bill,
+        ...base,
+        title: u.title || base.title,
         latestAction: u.latestAction,
         latestActionDate: u.latestActionDate,
         cosponsors: u.cosponsors,
         status: u.status,
         exactCongressRecord: true,
-        sponsor: u.sponsor || bill.sponsor
+        _placeholderFacts: false,
+        sponsor: u.sponsor || base.sponsor
       });
     });
 
@@ -4411,23 +5467,44 @@ async function congressBills(res, url) {
         const normalized = decorateBill(normalizeLiveCongressBill(bill));
         if (!seenIds.has(normalized.id) && normalized.affected?.length > 0) {
           seenIds.add(normalized.id);
+          liveCongressBillRegistry.set(normalized.id, normalized);
           liveBills.push(normalized);
         }
       }
     }
 
     const bills = filterBills([...refreshedSeeds, ...liveBills], query);
+    const liveBillCount = bills.filter((b) => b.exactCongressRecord).length;
+    const scenarioBillCount = bills.length - liveBillCount;
+    noteFeedSuccess("bills", {
+      source: "congress.gov",
+      recordCount: bills.length,
+      liveCount: liveBillCount,
+      scenarioCount: scenarioBillCount
+    });
     sendJson(res, 200, {
       source: "congress.gov",
+      dataMode: buildDataMode({ bills: { status: "connected", fallback: false } }),
       bills,
       catalysts: buildPolicyCatalysts(bills),
       confidence: "High",
-      updatedAt: new Date().toISOString()
+      liveBillCount,
+      scenarioBillCount,
+      updatedAt: new Date().toISOString(),
+      provenance: provenanceEnvelope({
+        dataMode: liveBillCount === bills.length ? "live" : "mixed",
+        warnings:
+          scenarioBillCount > 0
+            ? [`${scenarioBillCount} bill(s) are scenario-only or awaiting Congress.gov match.`]
+            : []
+      })
     });
-  } catch {
-    const fallbackBills = filterBills(POLICY_BILLS.map(decorateBill), query);
+  } catch (err) {
+    noteFeedError("bills", err);
+    const fallbackBills = filterBills(POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b))), query);
     sendJson(res, 200, {
       source: "fallback",
+      dataMode: "scenario",
       bills: fallbackBills,
       catalysts: buildPolicyCatalysts(fallbackBills),
       confidence: "Medium",
@@ -4437,34 +5514,59 @@ async function congressBills(res, url) {
 }
 
 async function lobbying(res) {
+  const ldaKey = process.env.SENATE_LDA_API_KEY;
+  if (!ldaKey && isStrictDataMode()) {
+    return sendJson(res, 503, {
+      error: "lda_not_configured",
+      message: "SENATE_LDA_API_KEY is required in production data mode.",
+      filings: [],
+      source: "unavailable"
+    });
+  }
   try {
-    const headers = process.env.SENATE_LDA_API_KEY
-      ? { Authorization: `Token ${process.env.SENATE_LDA_API_KEY}` }
-      : {};
-    const response = await fetchWithTimeout("https://lda.gov/api/v1/filings/?limit=20&ordering=-dt_posted&format=json", { headers }, 9000);
-    if (!response.ok) throw new Error(`lda_${response.status}`);
-    const data = await response.json();
-    const filings = (data.results || []).map((item) => decorateLobbyingFiling({
-      client: item.client?.name || "Unknown client",
-      registrant: item.registrant?.name || "Unknown registrant",
-      amount: Number(item.amount || item.expenses || 0),
-      issue: (item.issues || []).slice(0, 3).join(", ") || "Issue not listed",
-      spike: null,
-      portfolio: false,
-      postedAt: item.dt_posted || null
-    }));
+    if (!ldaKey) throw new Error("lda_not_configured");
+    const raw = await fetchLdaFilings({ apiKey: ldaKey, fetchFn: fetchWithTimeout, limit: 80 });
+    const filings = raw.map((item) =>
+      decorateLobbyingFiling({
+        client: item.client,
+        registrant: item.registrant,
+        amount: item.amount,
+        issue: item.issue,
+        spike: null,
+        portfolio: false,
+        postedAt: item.postedAt,
+        source: "senate_lda"
+      })
+    );
+    void refreshLdaLobbyingCache().catch((err) => console.warn("[lda] bill overlay refresh failed:", err.message));
+    noteFeedSuccess("lobbying", { source: "senate_lda", recordCount: filings.length });
+    cachedLobbyFilingsForShare = filings;
     sendJson(res, 200, {
       source: "senate_lda",
-      filings: filings.length ? filings : LOBBYING_FALLBACK.map((row) => decorateLobbyingFiling({ ...row, postedAt: row.postedAt || "2026-04-01" })),
-      confidence: filings.length ? "High" : "Medium",
+      filings,
+      confidence: filings.length ? "High" : "Low",
       updatedAt: new Date().toISOString()
     });
-  } catch {
+  } catch (err) {
+    noteFeedError("lobbying", err);
+    if (isStrictDataMode()) {
+      return sendJson(res, 503, {
+        error: "lda_unavailable",
+        message: err?.message || "LDA feed failed",
+        filings: [],
+        source: "unavailable"
+      });
+    }
+    const fallbackFilings = LOBBYING_FALLBACK.map((row) =>
+      decorateLobbyingFiling({ ...row, postedAt: row.postedAt || new Date().toISOString().slice(0, 10) })
+    );
+    cachedLobbyFilingsForShare = fallbackFilings;
     sendJson(res, 200, {
       source: "fallback",
-      filings: LOBBYING_FALLBACK.map((row) => decorateLobbyingFiling({ ...row, postedAt: row.postedAt || "2026-04-01" })),
+      filings: fallbackFilings,
       confidence: "Medium",
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      disclaimer: "Illustrative sample filings — set SENATE_LDA_API_KEY for live LDA data."
     });
   }
 }
@@ -4677,7 +5779,9 @@ async function readPaperStore() {
 
 async function writePaperStore(store) {
   await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(PAPER_ACCOUNTS_FILE, JSON.stringify(store, null, 2), "utf8");
+  await withFileLock(PAPER_ACCOUNTS_FILE, () =>
+    writeFile(PAPER_ACCOUNTS_FILE, JSON.stringify(store, null, 2), "utf8")
+  );
 }
 
 function ensurePaperAccount(store, key) {
@@ -4704,6 +5808,21 @@ function normalizeTickerSymbol(value) {
 
 function billCongressUrl(bill) {
   const id = String(bill?.id || "");
+  if (bill?.scenarioOnly || id.startsWith("scenario:")) {
+    return congressSearchUrl(bill?.title || bill?.shortTitle || bill?.scenarioId || id);
+  }
+  const ref = congressRefForBill(bill);
+  if (ref) {
+    const typePath = {
+      hr: "house-bill",
+      hres: "house-resolution",
+      hjres: "house-joint-resolution",
+      s: "senate-bill",
+      sres: "senate-resolution",
+      sjres: "senate-joint-resolution"
+    }[ref.type] || "bill";
+    return `https://www.congress.gov/bill/${ref.congress}th-congress/${typePath}/${ref.number}`;
+  }
   if (bill?.exactCongressRecord === false) {
     return congressSearchUrl(bill?.title || bill?.shortTitle || id);
   }
@@ -5675,6 +6794,27 @@ function findThesis(account, thesisId) {
   return (account.theses || []).find((row) => row.id === thesisId) || null;
 }
 
+function thesisDirectionForSignals(direction) {
+  const d = String(direction || "").toLowerCase();
+  if (d === "unclear") return "watch";
+  return ["bull", "bear", "watch"].includes(d) ? d : "watch";
+}
+
+function normalizeThesisRecord(rawThesis, extra = {}) {
+  const normalized = normalizeThesis({
+    ...rawThesis,
+    symbol: rawThesis?.symbol || rawThesis?.ticker,
+    thesisText: rawThesis?.thesisText || rawThesis?.thesis,
+    ...extra
+  });
+  return {
+    ...rawThesis,
+    ...normalized,
+    ticker: normalized.symbol || rawThesis?.ticker || "",
+    symbol: normalized.symbol || rawThesis?.symbol || ""
+  };
+}
+
 async function computeThesisOutcome(thesis, account) {
   const symbol = String(thesis.ticker || "").toUpperCase();
   const quoteResult = await quoteSnapshot(symbol);
@@ -5798,10 +6938,15 @@ async function buildThesisMonitorContext(symbol, thesisText, direction, extra = 
 }
 
 async function monitorsForThesis(thesis) {
-  const context = await buildThesisMonitorContext(thesis.ticker, thesis.thesisText, thesis.direction, {
+  const context = await buildThesisMonitorContext(
+    thesis.ticker || thesis.symbol,
+    thesis.thesisText || thesis.thesis,
+    thesisDirectionForSignals(thesis.direction),
+    {
     exitCats: thesis.exitCats,
     snapshotPolicy: thesis.snapshotAtCreate?.policyExposure
-  });
+    }
+  );
   return evaluateThesisMonitors(thesis, context);
 }
 
@@ -5810,11 +6955,21 @@ async function listTheses(res, session) {
   const key = paperAccountKey(session);
   const account = ensurePaperAccount(store, key);
   const rows = await Promise.all(
-    (account.theses || []).map(async (thesis) => ({
-      ...thesis,
-      outcome: await computeThesisOutcome(thesis, account),
-      monitors: await monitorsForThesis(thesis)
-    }))
+    (account.theses || []).map(async (thesis) => {
+      const outcome = await computeThesisOutcome(thesis, account);
+      const monitors = await monitorsForThesis(thesis);
+      const normalized = normalizeThesisRecord(thesis, { outcome, monitors });
+      return {
+        ...normalized,
+        outcome,
+        monitors,
+        context: buildMarketThesisContext({
+          thesis: normalized,
+          outcome,
+          signalsPayload: { monitors }
+        })
+      };
+    })
   );
   sendJson(res, 200, { theses: rows });
 }
@@ -5830,7 +6985,7 @@ async function createThesis(req, res, session) {
   const ticker = normalizeStockSymbol(body.ticker);
   const direction = String(body.direction || "").trim().toLowerCase();
   if (!ticker) return sendJson(res, 400, { error: "missing_ticker" });
-  if (!["bull", "bear", "watch"].includes(direction)) {
+  if (!["bull", "bear", "watch", "unclear"].includes(direction)) {
     return sendJson(res, 400, { error: "invalid_direction" });
   }
 
@@ -5846,7 +7001,9 @@ async function createThesis(req, res, session) {
 
   const thesis = {
     id: `thesis_${randomBytes(8).toString("hex")}`,
+    schemaVersion: Number(body.schemaVersion) || 1,
     ticker,
+    symbol: ticker,
     direction,
     thesisText,
     exitCats: Array.isArray(body.exitCats) ? body.exitCats.map(String) : [],
@@ -5857,7 +7014,9 @@ async function createThesis(req, res, session) {
     orderId: null,
     status: "open",
     createdAt: new Date().toISOString(),
-    closedAt: null
+    closedAt: null,
+    updatedAt: new Date().toISOString(),
+    sourceStatus: "legacy_user_input"
   };
 
   let saved;
@@ -5879,7 +7038,19 @@ async function createThesis(req, res, session) {
   const account = ensurePaperAccount(store, paperAccountKey(session));
   const outcome = await computeThesisOutcome(saved, account);
   const monitors = await monitorsForThesis(saved);
-  sendJson(res, 201, { thesis: { ...saved, outcome, monitors } });
+  const normalized = normalizeThesisRecord(saved, { outcome, monitors });
+  sendJson(res, 201, {
+    thesis: {
+      ...normalized,
+      outcome,
+      monitors,
+      context: buildMarketThesisContext({
+        thesis: normalized,
+        outcome,
+        signalsPayload: { monitors }
+      })
+    }
+  });
 }
 
 async function thesisMonitorsRoute(res, session, thesisId) {
@@ -5891,7 +7062,7 @@ async function thesisMonitorsRoute(res, session, thesisId) {
   const monitors = await monitorsForThesis(thesis);
   sendJson(res, 200, {
     thesisId,
-    ticker: thesis.ticker,
+    ticker: thesis.ticker || thesis.symbol,
     monitors,
     updatedAt: new Date().toISOString(),
     disclaimer: "Monitor rules are heuristic research context only — not investment advice."
@@ -5925,11 +7096,25 @@ async function patchThesis(req, res, session, thesisId) {
       if (body.orderId != null) {
         thesis.orderId = String(body.orderId).trim() || null;
       }
+      if (body.timeHorizon != null) thesis.timeHorizon = String(body.timeHorizon || "unspecified");
+      if (body.direction != null) thesis.direction = String(body.direction || "unclear").toLowerCase();
+      if (body.thesisText != null) thesis.thesisText = String(body.thesisText || thesis.thesisText || "");
+      if (body.thesisRestatement != null) thesis.thesisRestatement = String(body.thesisRestatement || "");
+      if (body.bullCase != null) thesis.bullCase = Array.isArray(body.bullCase) ? body.bullCase.map(String) : [];
+      if (body.bearCase != null) thesis.bearCase = Array.isArray(body.bearCase) ? body.bearCase.map(String) : [];
+      if (body.evidenceFor != null) thesis.evidenceFor = Array.isArray(body.evidenceFor) ? body.evidenceFor.map(String) : [];
+      if (body.evidenceAgainst != null) thesis.evidenceAgainst = Array.isArray(body.evidenceAgainst) ? body.evidenceAgainst.map(String) : [];
+      if (body.assumptions != null) thesis.assumptions = Array.isArray(body.assumptions) ? body.assumptions.map(String) : [];
+      if (body.invalidationConditions != null) thesis.invalidationConditions = Array.isArray(body.invalidationConditions) ? body.invalidationConditions.map(String) : [];
+      if (body.watchTriggers != null) thesis.watchTriggers = Array.isArray(body.watchTriggers) ? body.watchTriggers.map(String) : [];
+      if (body.confidence != null && typeof body.confidence === "object") thesis.confidence = body.confidence;
+      if (body.schemaVersion != null) thesis.schemaVersion = Number(body.schemaVersion) || thesis.schemaVersion || 1;
       if (body.closed === true || body.status === "closed") {
         thesis.status = "closed";
         thesis.closedAt = new Date().toISOString();
       }
 
+      thesis.updatedAt = new Date().toISOString();
       account.updatedAt = new Date().toISOString();
       await writePaperStore(store);
       result = { thesis };
@@ -5944,7 +7129,127 @@ async function patchThesis(req, res, session, thesisId) {
   const thesis = findThesis(account, thesisId);
   const outcome = await computeThesisOutcome(thesis, account);
   const monitors = await monitorsForThesis(thesis);
-  sendJson(res, 200, { thesis: { ...thesis, outcome, monitors } });
+  const normalized = normalizeThesisRecord(thesis, { outcome, monitors });
+  sendJson(res, 200, {
+    thesis: {
+      ...normalized,
+      outcome,
+      monitors,
+      context: buildMarketThesisContext({
+        thesis: normalized,
+        outcome,
+        signalsPayload: { monitors }
+      })
+    }
+  });
+}
+
+async function thesisUpgradePreview(req, res, session, thesisId) {
+  const store = await readPaperStore();
+  const key = paperAccountKey(session);
+  const account = ensurePaperAccount(store, key);
+  const thesis = findThesis(account, thesisId);
+  if (!thesis) return sendJson(res, 404, { error: "thesis_not_found" });
+
+  const normalized = normalizeThesisRecord(thesis);
+  try {
+    const analysis = await runThesisAnalyzer({
+      symbol: normalized.symbol,
+      thesisText: normalized.thesisText,
+      direction: thesisDirectionForSignals(normalized.direction),
+      horizonHint: normalized.timeHorizon
+    });
+    return sendJson(res, 200, {
+      thesisId,
+      originalSchemaVersion: Number(normalized.schemaVersion) || 1,
+      proposedSchemaVersion: 2,
+      originalThesisText: normalized.originalThesisText || normalized.thesisText,
+      upgradePreview: {
+        direction: normalized.direction === "unclear" ? "watch" : normalized.direction,
+        timeHorizon: normalized.timeHorizon || "unspecified",
+        thesisRestatement: analysis.thesisRestatement || normalized.thesisText,
+        bullCase: analysis.bullCase || [],
+        bearCase: analysis.bearCase || [],
+        evidenceFor: analysis.evidenceFor || [],
+        evidenceAgainst: analysis.evidenceAgainst || [],
+        assumptions: analysis.missingInfo || [],
+        invalidationConditions: analysis.missingInfo || [],
+        watchTriggers: analysis.watchTriggers || [],
+        confidence: analysis.confidence || { score: null, label: "unscored", explanation: "" },
+        thesisQualityScore: Number(analysis.confidence?.score) || null
+      },
+      warnings: [
+        "Evidence fields may include inferred reasoning and should be reviewed."
+      ]
+    });
+  } catch (err) {
+    return sendJson(res, 502, { error: "upgrade_preview_failed", detail: err.message });
+  }
+}
+
+async function thesisAcceptUpgrade(req, res, session, thesisId) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch {
+    return sendJson(res, 400, { error: "invalid_json" });
+  }
+  let saved = null;
+  await new Promise((resolve) => {
+    enqueuePaperWrite(async () => {
+      const store = await readPaperStore();
+      const key = paperAccountKey(session);
+      const account = ensurePaperAccount(store, key);
+      const thesis = findThesis(account, thesisId);
+      if (!thesis) {
+        saved = { error: "thesis_not_found" };
+        resolve();
+        return;
+      }
+      const preview = body.upgradePreview || {};
+      thesis.originalThesisText = thesis.originalThesisText || thesis.thesisText || thesis.thesis || "";
+      thesis.schemaVersion = Number(body.proposedSchemaVersion) || 2;
+      thesis.direction = String(preview.direction || thesis.direction || "unclear");
+      thesis.timeHorizon = String(preview.timeHorizon || thesis.timeHorizon || "unspecified");
+      thesis.thesisRestatement = String(preview.thesisRestatement || thesis.thesisRestatement || thesis.thesisText || "");
+      thesis.bullCase = Array.isArray(preview.bullCase) ? preview.bullCase.map(String) : [];
+      thesis.bearCase = Array.isArray(preview.bearCase) ? preview.bearCase.map(String) : [];
+      thesis.evidenceFor = Array.isArray(preview.evidenceFor) ? preview.evidenceFor.map(String) : [];
+      thesis.evidenceAgainst = Array.isArray(preview.evidenceAgainst) ? preview.evidenceAgainst.map(String) : [];
+      thesis.assumptions = Array.isArray(preview.assumptions) ? preview.assumptions.map(String) : [];
+      thesis.invalidationConditions = Array.isArray(preview.invalidationConditions)
+        ? preview.invalidationConditions.map(String)
+        : [];
+      thesis.watchTriggers = Array.isArray(preview.watchTriggers) ? preview.watchTriggers.map(String) : [];
+      thesis.confidence = preview.confidence || thesis.confidence || null;
+      thesis.thesisQualityScore = Number(preview.thesisQualityScore) || thesis.thesisQualityScore || null;
+      thesis.updatedAt = new Date().toISOString();
+      account.updatedAt = thesis.updatedAt;
+      await writePaperStore(store);
+      saved = { thesis };
+      resolve();
+    });
+  });
+
+  if (saved?.error) return sendJson(res, 404, saved);
+  const store = await readPaperStore();
+  const account = ensurePaperAccount(store, paperAccountKey(session));
+  const thesis = findThesis(account, thesisId);
+  const outcome = await computeThesisOutcome(thesis, account);
+  const monitors = await monitorsForThesis(thesis);
+  const normalized = normalizeThesisRecord(thesis, { outcome, monitors });
+  return sendJson(res, 200, {
+    thesis: {
+      ...normalized,
+      outcome,
+      monitors,
+      context: buildMarketThesisContext({
+        thesis: normalized,
+        outcome,
+        signalsPayload: { monitors }
+      })
+    }
+  });
 }
 
 function thesisTextMatches(text, patterns) {
@@ -6796,7 +8101,7 @@ Cosponsors: ${bill.cosponsors ?? "—"} total · ${bill.bipartisanCosponsors ?? 
 Committees: ${committees}
 Last action (${bill.latestActionDate || "—"}): ${bill.latestAction || "—"}
 
-Lobbying scenario ($M in seed data): FOR $${bill.lobbyingFor ?? "—"}M · AGAINST $${bill.lobbyingAgainst ?? "—"}M
+Lobbying (LDA matched, $M): FOR $${bill.lobbyingFor ?? "—"}M · AGAINST $${bill.lobbyingAgainst ?? "—"}M · source: ${bill.lobbyingSource || "none"}
 Note: ${bill.lobbyingNote || bill.signal || "—"}
 
 Curated signal indices (0–100 when present): bipartisan ${sig.bipartisanScore ?? "—"}, committee ${sig.committeeScore ?? "—"}, floor ${sig.floorScore ?? "—"}, historical ${sig.historicalScore ?? "—"}
@@ -6826,7 +8131,7 @@ function localBillWhyAnswer(bill, name) {
   const greet = name && name !== "there" ? `${name}, ` : "";
   return `Research signal only. Not financial advice.
 
-${greet}Here is a compact read on ${bill.id} without the live AI layer: legislative momentum is modeled at ${mom}/100 (${conf} data confidence). Summary: ${bill.plainEnglish || bill.signal || bill.title}. Lobbying figures in seed data: $${bill.lobbyingAgainst ?? 0}M against vs $${bill.lobbyingFor ?? 0}M for. Seed analog (verify independently): ${analog}
+${greet}Here is a compact read on ${bill.id} without the live AI layer: legislative momentum is modeled at ${mom}/100 (${conf} data confidence). Summary: ${bill.plainEnglish || bill.signal || bill.title}. Lobbying (LDA): $${bill.lobbyingAgainst ?? "—"}M against vs $${bill.lobbyingFor ?? "—"}M for (${bill.lobbyingSource || "no LDA match"}). Historical analog: ${analog}
 
 Watch for:
 • Committee / floor updates on Congress.gov
@@ -6907,10 +8212,7 @@ async function researchAsk(req, res, session) {
     userContent = `Internal TradeSimple bill digest (scenario model for grounding, not a forecast):\n${billDigest}\n\nUser question:\n${question}`;
   }
 
-  const model =
-    typeof body.model === "string" && body.model.trim()
-      ? body.model.trim()
-      : process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
   const maxTokens = bill ? 1200 : 1024;
 
@@ -6977,14 +8279,15 @@ function localPolicyAnswer(question, name) {
 async function startDemoSession(req, res) {
   if (process.env.DEMO_AUTH === "false") return sendText(res, 403, "Demo auth disabled");
   const next = new URL(req.url || "/", APP_URL).searchParams.get("next") || "/dashboard?view=trade";
+  // Each visitor gets an isolated demo account — no shared state between concurrent users.
+  const demoId = `demo-${randomBytes(8).toString("hex")}`;
   const user = {
-    id: "demo-user",
-    name: "Alex Johnson",
-    email: "alex@example.com",
+    id: demoId,
+    name: "Demo User",
+    email: `${demoId}@demo.tradesimple.app`,
     picture: "",
     provider: "demo"
   };
-  upsertUserProfile(user).catch(() => {});
   setSessionCookie(res, user);
   redirect(res, next.startsWith("/dashboard") ? next : "/dashboard?view=trade");
 }
@@ -7513,7 +8816,9 @@ function billSignalConfidence(bill) {
   if (Number(bill.cosponsors) > 0) pts += 12;
   if (typeof bill.bipartisanCosponsors === "number") pts += 8;
   if (bill.latestAction) pts += 10;
-  if (Number(bill.lobbyingAgainst) > 0 || Number(bill.lobbyingFor) > 0) pts += 12;
+  if (bill.lobbyingSource === "senate_lda" && (Number(bill.lobbyingFilingsCount) > 0 || Number(bill.lobbyingAgainst) > 0 || Number(bill.lobbyingFor) > 0)) {
+    pts += 12;
+  }
   if (String(bill.plainEnglish || "").length > 80) pts += 5;
   return pts >= 72 ? "High" : pts >= 44 ? "Medium" : "Low";
 }
@@ -7525,18 +8830,21 @@ function scoreConfidence({ missingInputs = 0, staleInputs = 0, estimatedInputs =
 }
 
 function pseudoFilingFromBill(bill) {
+  if (bill.lobbyingSource !== "senate_lda") return null;
   const against = Number(bill.lobbyingAgainst || 0);
   const fo = Number(bill.lobbyingFor || 0);
-  const amount = Math.max(against, fo, 0.1) * 1e6;
+  const amount = Math.max(against, fo, 0) * 1e6;
+  if (amount <= 0) return null;
   const spike = against >= 20 ? 3 : against >= 10 ? 2.2 : fo >= 10 ? 1.9 : 1;
   return {
-    client: bill.id || "bill",
-    registrant: "Modeled aggregate",
+    client: bill.title || bill.id || "bill",
+    registrant: "Senate LDA aggregate",
     amount,
     issue: String(bill.lobbyingNote || bill.signal || bill.title || "").slice(0, 200),
     spike,
     postedAt: bill.latestActionDate || null,
-    portfolio: false
+    portfolio: false,
+    source: "senate_lda"
   };
 }
 
@@ -7633,6 +8941,17 @@ function lobbyingSubConfidences(f) {
   };
 }
 
+function lobbyingFilingId(base) {
+  const raw = [base.client, base.registrant, base.postedAt, base.amount, base.issue, base.source]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .join("|");
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) hash = (hash * 31 + raw.charCodeAt(i)) | 0;
+  return `lf_${Math.abs(hash).toString(36)}`;
+}
+
+let cachedLobbyFilingsForShare = [];
+
 function decorateLobbyingFiling(base) {
   const sub = lobbyingSubConfidences(base);
   const missingInputs =
@@ -7641,8 +8960,9 @@ function decorateLobbyingFiling(base) {
     (base.issue ? 0 : 1) +
     (Number(base.amount || 0) > 0 ? 0 : 1);
   const staleInputs = base.postedAt && (Date.now() - new Date(base.postedAt).getTime()) / 864e5 > 90 ? 1 : 0;
-  return {
+  const filing = {
     ...base,
+    filingId: base.filingId || lobbyingFilingId(base),
     lobbyingPressure: computeLobbyingPressure(base),
     confidence: scoreConfidence({ missingInputs, staleInputs }),
     filingConfidence: lobbyingFilingConfidence(base),
@@ -7652,6 +8972,7 @@ function decorateLobbyingFiling(base) {
     issueSignalConfidence: sub.issueSignalConfidence,
     recencySignalConfidence: sub.recencySignalConfidence
   };
+  return filing;
 }
 
 function driverTone(value) {
@@ -7800,12 +9121,15 @@ function augmentBillMetrics(bill) {
   const signalConfidence = billSignalConfidence(bill);
   const policyExposure = legislativeMomentum;
   const pseudo = pseudoFilingFromBill(bill);
-  const lobbyingPressureScore = computeLobbyingPressure(pseudo);
-  const lobbyingSignalConfidence = lobbyingFilingConfidence(pseudo);
+  const lobbyingPressureScore = pseudo ? computeLobbyingPressure(pseudo) : 0;
+  const lobbyingSignalConfidence = pseudo ? lobbyingFilingConfidence(pseudo) : "Low";
+  const hasLdaLobbying =
+    bill.lobbyingSource === "senate_lda" &&
+    (Number(bill.lobbyingFilingsCount) > 0 || Number(bill.lobbyingAgainst) > 0 || Number(bill.lobbyingFor) > 0);
   const missingInputs =
     (bill.latestActionDate ? 0 : 1) +
     (Number(bill.cosponsors || 0) > 0 ? 0 : 1) +
-    ((Number(bill.lobbyingAgainst || 0) > 0 || Number(bill.lobbyingFor || 0) > 0) ? 0 : 1);
+    (hasLdaLobbying ? 0 : 1);
   const staleInputs = bill.latestActionDate && (Date.now() - new Date(bill.latestActionDate).getTime()) / 864e5 > 90 ? 1 : 0;
   return {
     legislativeMomentum,
@@ -7857,14 +9181,19 @@ function computeBillMetricBreakdown(bill) {
     },
     billSignalConfidence: {
       label: billSignalConfidence(bill),
-      rubric: "Point-based checklist on the seed record (recency, cosponsors, lobbying dollars, narrative depth); ≥72 High, ≥44 Medium, else Low."
+      rubric: "Point-based checklist (recency, cosponsors, matched LDA filings, narrative depth); ≥72 High, ≥44 Medium, else Low."
     },
-    lobbyingPressureOnBillCard: {
-      score: computeLobbyingPressure(pseudo),
-      pseudoSpike: pseudo.spike,
-      pseudoAmountUsd: pseudo.amount,
-      note: "Same lobbying-pressure model applied to a synthetic filing built from seed lobbyingAgainst / lobbyingFor and narrative — comparable to card lobbyingPressureScore."
-    },
+    lobbyingPressureOnBillCard: pseudo
+      ? {
+          score: computeLobbyingPressure(pseudo),
+          ldaSpike: pseudo.spike,
+          ldaAmountUsd: pseudo.amount,
+          note: "Lobbying pressure from Senate LDA matched filings aggregated to this bill."
+        }
+      : {
+          score: 0,
+          note: "No matched LDA filings — lobbying pressure not scored until SENATE_LDA_API_KEY returns matches."
+        },
     curatedSignals: bill.signals || null
   };
 }
@@ -7887,26 +9216,60 @@ function billPolicyMetrics(res, url) {
 
 function decorateBill(bill) {
   const stake = POLICY_STAKEHOLDERS[bill.id] || null;
+  const scenarioOnly = bill.scenarioOnly === true || String(bill.id || "").startsWith("scenario:");
+  const exact = bill.exactCongressRecord === true;
+  const displayId = exact
+    ? bill.id
+    : scenarioOnly
+      ? `Scenario · ${bill.scenarioId || bill.id.replace(/^scenario:/, "")}`
+      : bill.id;
   const base = {
     ...bill,
+    displayId,
+    scenarioOnly,
     nextWatch: bill.nextWatch || stake?.nextWatch || null
   };
+  if (base._placeholderFacts && !exact) {
+    base.status = "scenario";
+    base.latestActionDate = null;
+    base.cosponsors = base.cosponsors == null ? null : base.cosponsors;
+  }
   const metrics = augmentBillMetrics(base);
   const statusInfo = statusInfoForBill(base);
+  const sourceKind = exact
+    ? "congress_exact"
+    : scenarioOnly
+      ? "tradesimple_scenario"
+      : "tradesimple_modeled_seed";
+  const sourceNote = exact
+    ? "Exact Congress.gov record."
+    : scenarioOnly
+      ? "TradeSimple scenario — not a live bill record. Status and dates fill in when Congress.gov is linked and refreshed."
+      : "Linked seed — refresh with CONGRESS_API_KEY for live status. Impact ranges remain scenario models.";
+  const stakeholders = stake
+    ? { lawmakers: stake.lawmakers, committees: stake.committees, lobbying: [] }
+    : bill.stakeholders || null;
+  const legislativeContext = buildBillLegislativeContext(
+    { ...base, statusInfo, floorScheduled: base.floorScheduled },
+    statusInfo,
+    { stakeholders }
+  );
   return {
     ...base,
     ...metrics,
-    exactCongressRecord: base.exactCongressRecord === true,
-    sourceKind: base.exactCongressRecord === true ? "congress_exact" : "tradesimple_modeled_seed",
-    sourceNote: base.exactCongressRecord === true
-      ? "Exact Congress.gov record."
-      : "Modeled TradeSimple policy seed. The bill-style ID is internal and may not match Congress.gov.",
+    exactCongressRecord: exact,
+    sourceKind,
+    sourceNote,
+    dataLayer: exact ? "live" : scenarioOnly ? "scenario" : "mixed",
+    provenance: billFieldMap({ ...base, exactCongressRecord: exact, scenarioOnly }),
+    congressUrl: billCongressUrl(base),
     statusInfo,
     stagePath: statusInfo.stagePath,
     momentumDrivers: momentumDriversForBill(base),
     catalyst: catalystForBill({ ...base, statusInfo }, metrics),
     nextWatchItems: nextWatchItemsForBill(base, statusInfo),
-    stakeholders: stake || bill.stakeholders || null
+    stakeholders: stake || bill.stakeholders || null,
+    legislativeContext
   };
 }
 
@@ -7938,6 +9301,8 @@ function normalizeLiveCongressBill(bill) {
     bipartisanCosponsors: 0,
     floorScheduled: false,
     exactCongressRecord: true,
+    introducedDate: bill.introducedDate || null,
+    policyArea: bill.policyArea?.name || bill.policyArea || null,
     latestAction: bill.latestAction?.text || "Updated by Congress.gov",
     latestActionDate: bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText || "",
     tags,

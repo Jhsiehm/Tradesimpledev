@@ -92,19 +92,22 @@
   function buildShell(state) {
     const mode = state.mode === "candle" && hasOhlc(state.points) ? "candle" : "line";
     state.mode = mode;
-    const liveLabel = state.liveLabel ? `<span class="ts-chart-live">${escapeHtml(state.liveLabel)}</span>` : "";
+    const liveLabel = state.liveLabel && !state.compact ? `<span class="ts-chart-live">${escapeHtml(state.liveLabel)}</span>` : "";
     const sourceLabel = state.source
       ? `<span class="ts-chart-source">${escapeHtml(state.source)}</span>`
       : "";
+    const modeToggle = state.compact
+      ? ""
+      : `<div class="ts-chart-mode-toggle" role="group" aria-label="Chart style">
+            <button type="button" class="ts-chart-mode-btn ${mode === "line" ? "active" : ""}" data-ts-mode="line">Line</button>
+            <button type="button" class="ts-chart-mode-btn ${mode === "candle" ? "active" : ""}" data-ts-mode="candle" ${hasOhlc(state.points) ? "" : "disabled"}>Candles</button>
+          </div>`;
     return `
       <div class="ts-chart" data-mode="${mode}">
         <div class="ts-chart-head">
           ${sourceLabel}
           ${liveLabel}
-          <div class="ts-chart-mode-toggle" role="group" aria-label="Chart style">
-            <button type="button" class="ts-chart-mode-btn ${mode === "line" ? "active" : ""}" data-ts-mode="line">Line</button>
-            <button type="button" class="ts-chart-mode-btn ${mode === "candle" ? "active" : ""}" data-ts-mode="candle" ${hasOhlc(state.points) ? "" : "disabled"}>Candles</button>
-          </div>
+          ${modeToggle}
         </div>
         <div class="ts-chart-plot" style="min-height:${state.height}px">
           <div class="ts-chart-y-title">${escapeHtml(state.yLabel)}</div>
@@ -144,10 +147,11 @@
     return { min, max, xAt, yAt, innerW, innerH };
   }
 
-  function drawGrid(svg, layout, pad, width, height) {
+  function drawGrid(svg, layout, pad, width, height, tickCount = 4) {
     const lines = [];
-    for (let i = 0; i <= 4; i += 1) {
-      const y = pad.top + (layout.innerH * i) / 4;
+    const steps = Math.max(1, tickCount);
+    for (let i = 0; i <= steps; i += 1) {
+      const y = pad.top + (layout.innerH * i) / steps;
       lines.push(
         `<line x1="${pad.left}" y1="${y.toFixed(1)}" x2="${width - pad.right}" y2="${y.toFixed(1)}" class="ts-chart-grid-line" />`
       );
@@ -155,11 +159,12 @@
     return lines.join("");
   }
 
-  function drawYLabels(state, layout, pad, formatMoney) {
+  function drawYLabels(state, layout, pad, formatMoney, tickCount = 4) {
     const labels = [];
-    for (let i = 0; i <= 4; i += 1) {
-      const v = layout.max - ((layout.max - layout.min) * i) / 4;
-      const y = pad.top + (layout.innerH * i) / 4;
+    const steps = Math.max(1, tickCount);
+    for (let i = 0; i <= steps; i += 1) {
+      const v = layout.max - ((layout.max - layout.min) * i) / steps;
+      const y = pad.top + (layout.innerH * i) / steps;
       labels.push(
         `<text x="${pad.left - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" class="ts-chart-y-tick">${escapeHtml(formatMoney(v))}</text>`
       );
@@ -275,7 +280,10 @@
 
     const width = Math.max(280, plot.clientWidth || 460);
     const height = state.height;
-    const pad = { top: 12, right: 12, bottom: 8, left: 52 };
+    const tickCount = state.compact ? 2 : 4;
+    const pad = state.compact
+      ? { top: 8, right: 8, bottom: 4, left: 12 }
+      : { top: 12, right: 12, bottom: 8, left: 52 };
     const layout = scaleLayout(points, width, height, pad);
     state.layout = layout;
     state.pad = pad;
@@ -290,11 +298,25 @@
 
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     svg.innerHTML = `
-      ${drawGrid(svg, layout, pad, width, height)}
+      ${drawGrid(svg, layout, pad, width, height, tickCount)}
       ${body}
       ${markers}
-      ${drawYLabels(state, layout, pad, state.formatMoney)}
+      ${state.hideYLabels ? "" : drawYLabels(state, layout, pad, state.formatMoney, tickCount)}
     `;
+
+    if (state.animateIn && !state.animateInPlayed && state.mode !== "candle") {
+      const line = svg.querySelector(".ts-chart-line");
+      if (line && typeof line.getTotalLength === "function") {
+        const len = line.getTotalLength();
+        line.style.strokeDasharray = `${len}`;
+        line.style.strokeDashoffset = `${len}`;
+        requestAnimationFrame(() => {
+          line.style.transition = "stroke-dashoffset 1.05s cubic-bezier(0.16, 1, 0.3, 1)";
+          line.style.strokeDashoffset = "0";
+        });
+        state.animateInPlayed = true;
+      }
+    }
 
     const markersHost = root?.querySelector(".ts-chart-markers-host");
     if (markersHost) {
@@ -416,9 +438,14 @@
       height: Number(options.height) || 156,
       formatMoney: typeof options.formatMoney === "function" ? options.formatMoney : defaultMoney,
       formatDate: typeof options.formatDate === "function" ? options.formatDate : defaultFormatDate,
-      markers: Array.isArray(options.markers) ? options.markers : []
+      markers: Array.isArray(options.markers) ? options.markers : [],
+      compact: Boolean(options.compact),
+      hideYLabels: Boolean(options.hideYLabels ?? options.compact),
+      animateIn: Boolean(options.animateIn),
+      animateInPlayed: false
     };
 
+    root.classList.toggle("ts-chart-compact", state.compact);
     root.innerHTML = buildShell(state);
     state.plotEl = root.querySelector(".ts-chart-plot");
     instances.set(root, state);

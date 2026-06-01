@@ -696,3 +696,196 @@ export async function aiChartLabelHandler(req, res) {
     return jsonResp(res, 400, { error: err.message });
   }
 }
+
+function normalizeStringList(input, limit = 6) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function normalizeThesisConfidence(confidence) {
+  const scoreRaw = Number(confidence?.score);
+  const score = Number.isFinite(scoreRaw) ? Math.max(0, Math.min(100, Math.round(scoreRaw))) : null;
+  return {
+    score,
+    label: String(confidence?.label || (score == null ? "" : score >= 75 ? "High" : score >= 45 ? "Medium" : "Low")),
+    explanation: String(confidence?.explanation || "")
+  };
+}
+
+function normalizeThesisAnalysis(payload = {}) {
+  return {
+    thesisRestatement: String(payload.thesisRestatement || ""),
+    bullCase: normalizeStringList(payload.bullCase, 8),
+    bearCase: normalizeStringList(payload.bearCase, 8),
+    marketMechanism: String(payload.marketMechanism || ""),
+    policyMechanism: String(payload.policyMechanism || ""),
+    evidenceFor: normalizeStringList(payload.evidenceFor, 10),
+    evidenceAgainst: normalizeStringList(payload.evidenceAgainst, 10),
+    missingInfo: normalizeStringList(payload.missingInfo, 10),
+    watchTriggers: normalizeStringList(payload.watchTriggers, 10),
+    confidence: normalizeThesisConfidence(payload.confidence),
+    timeHorizon: String(payload.timeHorizon || ""),
+    investorPlainEnglishSummary: String(payload.investorPlainEnglishSummary || ""),
+    notInvestmentAdvice: String(payload.notInvestmentAdvice || AI_RESEARCH_DISCLAIMER)
+  };
+}
+
+function hasRequiredThesisFields(thesis) {
+  return Boolean(
+    Array.isArray(thesis?.evidenceFor) &&
+      thesis.evidenceFor.length > 0 &&
+      Array.isArray(thesis?.evidenceAgainst) &&
+      thesis.evidenceAgainst.length > 0 &&
+      Array.isArray(thesis?.watchTriggers) &&
+      thesis.watchTriggers.length > 0 &&
+      thesis?.confidence &&
+      Number.isFinite(Number(thesis.confidence.score)) &&
+      String(thesis.confidence.label || "").trim() &&
+      String(thesis.confidence.explanation || "").trim()
+  );
+}
+
+async function repairThesisAnalysis(rawText, context = {}) {
+  const system = `You repair malformed thesis-analysis JSON for TradeSimple.
+${AI_RESEARCH_DISCLAIMER}
+Return ONLY valid JSON with this exact shape:
+{
+  "thesisRestatement": "string",
+  "bullCase": ["string"],
+  "bearCase": ["string"],
+  "marketMechanism": "string",
+  "policyMechanism": "string",
+  "evidenceFor": ["string"],
+  "evidenceAgainst": ["string"],
+  "missingInfo": ["string"],
+  "watchTriggers": ["string"],
+  "confidence": {
+    "score": 0-100,
+    "label": "Low|Medium|High",
+    "explanation": "string"
+  },
+  "timeHorizon": "string",
+  "investorPlainEnglishSummary": "string",
+  "notInvestmentAdvice": "Research signal only. Not financial advice. Do not recommend buying, selling, or holding any security."
+}
+Required and non-empty: evidenceFor, evidenceAgainst, watchTriggers, confidence.score, confidence.label, confidence.explanation.`;
+
+  const user = `Repair this model output so it matches the required schema and required fields.
+If details are missing, infer cautiously from provided context and explicitly note uncertainty in missingInfo.
+
+Context:
+${JSON.stringify(context, null, 2).slice(0, 9000)}
+
+Broken output:
+${String(rawText || "").slice(0, 12000)}`;
+
+  const repairedText = await fetchAnthropic({ system, user, maxTokens: 1500, timeoutMs: 30_000 });
+  return normalizeThesisAnalysis(parseJsonFromText(repairedText));
+}
+
+export async function runThesisAnalyzer({
+  symbol,
+  thesisText,
+  direction = "bull",
+  policySignals = [],
+  contractSignals = [],
+  lobbyingSignals = [],
+  horizonHint = ""
+}) {
+  const cleanSymbol = String(symbol || "")
+    .toUpperCase()
+    .replace(/[^A-Z.]/g, "")
+    .slice(0, 12);
+  const cleanDirection = ["bull", "bear", "watch"].includes(String(direction).toLowerCase())
+    ? String(direction).toLowerCase()
+    : "watch";
+  const cleanThesisText = String(thesisText || "").trim().slice(0, 4000);
+
+  if (!cleanSymbol) throw new Error("symbol_required");
+  if (!cleanThesisText) throw new Error("thesis_text_required");
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+
+  const context = {
+    symbol: cleanSymbol,
+    direction: cleanDirection,
+    thesisText: cleanThesisText,
+    policySignals: Array.isArray(policySignals) ? policySignals.slice(0, 12) : [],
+    contractSignals: Array.isArray(contractSignals) ? contractSignals.slice(0, 12) : [],
+    lobbyingSignals: Array.isArray(lobbyingSignals) ? lobbyingSignals.slice(0, 12) : [],
+    horizonHint: String(horizonHint || "").slice(0, 180)
+  };
+
+  const system = `You are TradeSimple's thesis analyzer.
+${AI_RESEARCH_DISCLAIMER}
+Generate a balanced research memo with explicit confirming and disconfirming evidence.
+Return ONLY valid JSON in this exact schema:
+{
+  "thesisRestatement": "string",
+  "bullCase": ["string"],
+  "bearCase": ["string"],
+  "marketMechanism": "string",
+  "policyMechanism": "string",
+  "evidenceFor": ["string"],
+  "evidenceAgainst": ["string"],
+  "missingInfo": ["string"],
+  "watchTriggers": ["string"],
+  "confidence": {
+    "score": 0-100,
+    "label": "Low|Medium|High",
+    "explanation": "string"
+  },
+  "timeHorizon": "string",
+  "investorPlainEnglishSummary": "string",
+  "notInvestmentAdvice": "Research signal only. Not financial advice. Do not recommend buying, selling, or holding any security."
+}
+Hard requirements:
+- evidenceFor must contain at least 1 specific item.
+- evidenceAgainst must contain at least 1 specific item.
+- watchTriggers must contain at least 1 specific item.
+- confidence must include score, label, explanation.
+- Never output markdown or commentary outside JSON.`;
+
+  const user = `Analyze this thesis context and return structured JSON only.
+${JSON.stringify(context, null, 2).slice(0, 12000)}`;
+
+  const text = await fetchAnthropic({ system, user, maxTokens: 1800, timeoutMs: 35_000 });
+  let normalized = normalizeThesisAnalysis(parseJsonFromText(text));
+  if (!hasRequiredThesisFields(normalized)) {
+    normalized = await repairThesisAnalysis(text, context);
+  }
+  if (!hasRequiredThesisFields(normalized)) {
+    throw new Error(
+      "thesis_schema_invalid: missing required fields evidenceFor, evidenceAgainst, confidence, or watchTriggers"
+    );
+  }
+  return {
+    ...normalized,
+    source: "anthropic",
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export async function aiThesisHandler(req, res) {
+  if (req.method !== "POST") return jsonResp(res, 405, { error: "method_not_allowed" });
+  const limited = enforceAiRateLimit(req, res);
+  if (limited) return;
+
+  try {
+    const body = await readJsonBody(req);
+    const analysis = await runThesisAnalyzer({
+      symbol: body.symbol,
+      thesisText: body.thesisText || body.thesis,
+      direction: body.direction,
+      policySignals: body.policySignals,
+      contractSignals: body.contractSignals,
+      lobbyingSignals: body.lobbyingSignals,
+      horizonHint: body.horizonHint
+    });
+    return jsonResp(res, 200, analysis);
+  } catch (err) {
+    return jsonResp(res, 400, { error: err.message || "thesis_analysis_failed" });
+  }
+}

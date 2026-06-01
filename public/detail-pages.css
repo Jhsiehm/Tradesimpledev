@@ -1,0 +1,121 @@
+.detail-card-root {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.detail-card-hero h1 {
+  font-family: "DM Serif Display", Georgia, serif;
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  margin: 0.35rem 0 0.75rem;
+}
+
+.detail-card-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.detail-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.detail-card-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1.1rem 1.15rem;
+  margin-bottom: 1rem;
+}
+
+.detail-card-panel h2 {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  opacity: 0.85;
+}
+
+.detail-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.detail-metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.detail-metric-row .label {
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.detail-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.detail-chip-link {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.detail-chip-link:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.detail-table th {
+  text-align: left;
+  opacity: 0.7;
+  font-weight: 500;
+  padding-bottom: 0.4rem;
+}
+
+.detail-table td {
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  vertical-align: top;
+}
+
+.detail-scenario {
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.detail-scenario.positive {
+  border-color: rgba(110, 231, 183, 0.6);
+}
+
+.detail-scenario.negative {
+  border-color: rgba(248, 113, 113, 0.6);
+}
+
+.detail-scenario.warning {
+  border-color: rgba(252, 211, 77, 0.6);
+}
+
+html[data-theme="light"] .detail-card-panel {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.1);
+}

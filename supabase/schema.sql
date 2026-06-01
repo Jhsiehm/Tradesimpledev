@@ -44,13 +44,31 @@ create table if not exists public.watchlists (
   unique (user_id)
 );
 
+-- ── PREDICTION EVENTS ─────────────────────────────────────────────────────────
+-- Optional durability mirror of the canonical hash-chained ledger
+-- (data/predictions.jsonl). Append-only: predictions + their resolutions.
+-- The JSONL file remains the source of truth for tamper-evidence.
+create table if not exists public.prediction_events (
+  event_id    text        primary key,
+  seq         integer     not null,
+  type        text        not null,            -- 'prediction' | 'resolution'
+  ticker      text,
+  payload     jsonb       not null,
+  hash        text        not null,
+  prev_hash   text        not null,
+  created_at  timestamptz default now()
+);
+create index if not exists idx_prediction_events_seq on public.prediction_events(seq);
+create index if not exists idx_prediction_events_ticker on public.prediction_events(ticker);
+
 -- ── ROW-LEVEL SECURITY ────────────────────────────────────────────────────────
 -- The server uses the service-role key which bypasses RLS.
 -- Enable RLS on each table anyway so the anon key can never read data directly.
-alter table public.profiles   enable row level security;
-alter table public.waitlist   enable row level security;
-alter table public.portfolios enable row level security;
-alter table public.watchlists enable row level security;
+alter table public.profiles          enable row level security;
+alter table public.waitlist          enable row level security;
+alter table public.portfolios        enable row level security;
+alter table public.watchlists        enable row level security;
+alter table public.prediction_events enable row level security;
 
 -- ── HELPER: auto-update updated_at ───────────────────────────────────────────
 create or replace function public.set_updated_at()

@@ -6,26 +6,43 @@
 </script>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>TradeSimple — Intelligence Before It's Priced In</title>
-<meta name="description" content="Congress votes. Lobbyists file. Stocks move. TradeSimple connects these dots in plain English before they become headlines."/>
+<title>TradeSimple — Policy Signals. Market Clarity.</title>
+<meta name="description" content="TradeSimple connects Congressional activity, lobbying disclosures, federal contracts, market data, AI thesis tools, and paper trading in one source-backed terminal."/>
+<!-- Open Graph / Twitter Card -->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://tradesimple.app/"/>
+<meta property="og:title" content="TradeSimple — Policy Signals. Market Clarity."/>
+<meta property="og:description" content="Bills, lobbying, contracts, tickers, thesis tools, and paper trading in one source-backed terminal."/>
+<meta property="og:image" content="https://tradesimple.app/media/og-image.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:site" content="@tradesimple"/>
+<meta name="twitter:title" content="TradeSimple — Policy Signals. Market Clarity."/>
+<meta name="twitter:description" content="Bills, lobbying, contracts, tickers, thesis tools, and paper trading in one source-backed terminal."/>
+<meta name="twitter:image" content="https://tradesimple.app/media/og-image.png"/>
+<link rel="canonical" href="https://tradesimple.app/"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
+<link rel="stylesheet" href="/assets/landing-cinematic.css?v=soundtrack-wall-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
-  --green:#5bbf82;--green-dim:#1F4A35;--green-glow:rgba(91,191,130,.12);
-  --green-glow-strong:rgba(91,191,130,.2);
-  --amber:#d4900a;--red:#c94040;--blue:#3a8fd4;
-  --bg:#070B07;--bg-2:#101211;--bg-3:#1A1D1B;--bg-edge:#252825;
-  --line:rgba(255,255,255,.05);--line-2:rgba(255,255,255,.1);--line-3:rgba(255,255,255,.17);
-  --text:#F1EEE6;--muted:#8a8880;--faint:#484a46;
-  --ivory:#F1EEE6;--forest:#1F4A35;--slate:#3F4542;
-  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  --signal-green:#C8FF00;--signal-green-soft:#E0FF6A;--signal-green-dim:rgba(200,255,0,.14);
+  --warning-amber:#FFA500;--text-main:#E8E4DC;
+  --green:var(--signal-green);--green-dim:#344700;--green-glow:rgba(200,255,0,.12);
+  --green-glow-strong:rgba(200,255,0,.2);
+  --amber:var(--warning-amber);--red:#e0524d;--blue:#5a9fd4;
+  --bg:#080808;--bg-2:#0A0A0A;--bg-3:#111111;--bg-edge:#2A2A2A;
+  --line:rgba(255,255,255,.06);--line-2:rgba(255,255,255,.1);--line-3:rgba(255,255,255,.17);
+  --text:var(--text-main);--muted:#8C8C82;--faint:#4A4A4A;
+  --ivory:var(--text-main);--forest:#1F4A35;--slate:#3F4542;
+  --mono:"Space Mono","IBM Plex Mono","SFMono-Regular",Consolas,monospace;
   --sans:"Outfit",ui-sans-serif,system-ui,sans-serif;
-  --serif:"DM Serif Display",Georgia,"Times New Roman",serif;
+  --serif:"Cormorant Garamond",Georgia,"Times New Roman",serif;
   --ease:cubic-bezier(.16,1,.3,1);
   --ease-spring:cubic-bezier(.32,.72,0,1);
   --ease-out:cubic-bezier(0,0,.2,1);
@@ -34,7 +51,8 @@ html[data-theme="light"]{
   --bg:#F1EEE6;--bg-2:#ffffff;--bg-3:#e8e4d8;--bg-edge:#d8d4c8;
   --line:rgba(0,0,0,.07);--line-2:rgba(0,0,0,.12);--line-3:rgba(0,0,0,.2);
   --text:#141612;--muted:#5c5e58;--faint:#9a9c96;
-  --green:#1F7A4A;--green-dim:#1F4A35;--green-glow:rgba(31,74,53,.1);
+  --signal-green:#1F7A4A;--signal-green-soft:#2a9460;--text-main:#141612;
+  --green:var(--signal-green);--green-dim:#1F4A35;--green-glow:rgba(31,74,53,.1);
   --green-glow-strong:rgba(31,74,53,.16);
   --amber:#a06208;--red:#a83030;--blue:#2060a0;
 }
@@ -59,6 +77,7 @@ img,svg{display:block}
     rgba(0,0,0,.018) 2px,rgba(0,0,0,.018) 4px
   );
 }
+.scanline-overlay{display:none}
 html[data-theme="light"] .scanline-overlay{display:none}
 
 /* ── GRID TEXTURE (fixed, GPU-safe) ─────────────────── */
@@ -104,9 +123,28 @@ html[data-theme="light"] .nav-inner{
   0%,100%{opacity:1;transform:scale(1);box-shadow:0 0 0 4px var(--green-glow)}
   50%{opacity:.45;transform:scale(.7);box-shadow:0 0 0 2px transparent}
 }
+.nav-menu-btn{
+  display:none;margin-left:auto;padding:8px 14px;border-radius:999px;
+  border:1px solid var(--line-2);font-size:12px;font-weight:500;color:var(--muted);
+  background:var(--bg-3);cursor:pointer;
+}
+.nav-menu-btn[aria-expanded="true"]{color:var(--text);border-color:var(--line-3)}
 .nav-links{margin-left:auto;display:flex;align-items:center;gap:32px;font-size:13px;color:var(--muted)}
 .nav-links a{transition:color .15s}
 .nav-links a:hover{color:var(--text)}
+@media(max-width:768px){
+  .nav-inner{flex-wrap:wrap;gap:12px;padding:10px 16px}
+  .nav-menu-btn{display:inline-flex}
+  .nav-links{
+    display:none;width:100%;flex-direction:column;align-items:flex-start;gap:14px;
+    padding:12px 0 4px;border-top:1px solid var(--line);
+  }
+  .nav-inner.nav-open .nav-links{display:flex}
+  .nav-inner.nav-open .theme-pill,.nav-inner.nav-open .nav-cta-desktop{display:none}
+  .theme-pill{margin-left:auto}
+}
+@media(min-width:769px){.nav-cta-mobile{display:none!important}}
+@media(max-width:768px){.nav-cta-desktop{display:none!important}}
 .theme-pill{
   display:flex;border:1px solid var(--line-2);border-radius:20px;overflow:hidden;
   font-size:11px;font-family:var(--mono);
@@ -144,155 +182,20 @@ html[data-theme="light"] .nav-inner{
 html[data-theme="light"] .btn-google{background:#fff;border-color:var(--line-2)}
 html[data-theme="light"] .btn-google:hover{background:#f8f6f0}
 
-/* ── TAPE ────────────────────────────────────────────── */
-.tape{
-  position:relative;overflow:hidden;
-  border-bottom:1px solid var(--line);
-  background:var(--bg-2);height:40px;margin-top:72px;
-  display:flex;align-items:center;
-}
-.tape::before,.tape::after{
-  content:"";position:absolute;top:0;bottom:0;width:100px;z-index:2;pointer-events:none;
-}
-.tape::before{left:0;background:linear-gradient(90deg,var(--bg-2) 60%,transparent)}
-.tape::after{right:0;background:linear-gradient(-90deg,var(--bg-2) 60%,transparent)}
-.tape-track{display:flex;gap:48px;will-change:transform;animation:scroll-left 36s linear infinite;width:max-content}
 @keyframes scroll-left{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
-.tape-item{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;white-space:nowrap}
-.tape-sym{font-weight:500;color:var(--text)}
-.tape-price{color:var(--muted)}
-.tape-chg{font-size:10.5px;padding:1px 5px;border-radius:3px;font-weight:500}
-.up{color:var(--green);background:rgba(91,191,130,.09)}
-.dn{color:var(--red);background:rgba(201,64,64,.09)}
+.up{color:var(--green);background:rgba(91,220,145,.09)}
+.dn{color:var(--red);background:rgba(224,82,77,.12)}
 html[data-theme="light"] .up{background:rgba(47,128,24,.1)}
 html[data-theme="light"] .dn{background:rgba(168,48,48,.1)}
 
-/* ── HERO (editorial split + full-bleed wash) ───────── */
-.hero{
-  position:relative;z-index:1;overflow:hidden;
-  min-height:min(100dvh,920px);
-  display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
-  align-items:center;gap:clamp(32px,5vw,72px);
-  padding:clamp(96px,12vh,140px) clamp(20px,5vw,80px) clamp(72px,10vh,120px);
-  background:var(--bg);
+.mech-sources{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;
 }
-.hero-bg{
-  position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse 90% 70% at 72% 42%,rgba(91,191,130,.12),transparent 55%),
-    radial-gradient(ellipse 120% 80% at 50% 100%,rgba(0,0,0,.75),transparent 50%),
-    url("https://picsum.photos/seed/capitol-policy/1920/1080") center/cover no-repeat;
-  filter:grayscale(.35) contrast(1.15) brightness(.42);
-  opacity:.55;
-  transform:scale(1.02);
+.mech-source-pill{
+  font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+  padding:5px 10px;border-radius:999px;border:1px solid var(--line-2);
+  color:var(--muted);background:var(--bg-2);
 }
-html[data-theme="light"] .hero-bg{
-  filter:grayscale(.2) contrast(1.05) brightness(.92);
-  opacity:.22;
-}
-.hero > *:not(.hero-bg){position:relative;z-index:1}
-@media(max-width:860px){
-  .hero{grid-template-columns:1fr;padding-top:88px;min-height:auto;padding-bottom:64px}
-  .hero-bg{opacity:.35}
-}
-.hero-copy{display:flex;flex-direction:column;align-items:flex-start;max-width:42rem}
-.hero h1,.hero-title{
-  font-family:var(--serif);font-weight:400;
-  font-size:clamp(2.75rem,4.8vw,5.25rem);
-  line-height:1.04;letter-spacing:-.02em;color:var(--text);
-  margin-bottom:24px;max-width:min(100%,68rem);width:100%;
-}
-.hero h1 em,.hero-title em{font-style:italic;color:var(--green)}
-.hero-inline-img{
-  display:inline-block;width:clamp(3.5rem,8vw,6.5rem);height:.72em;
-  vertical-align:middle;margin:0 .12em;border-radius:999px;
-  background:center/cover no-repeat;
-  box-shadow:0 0 0 2px rgba(91,191,130,.25);
-}
-.hero-sub{
-  font-size:16px;font-weight:400;color:var(--muted);
-  line-height:1.7;max-width:500px;margin-bottom:36px;
-}
-.hero-sub strong{color:var(--text);font-weight:500}
-.hero-ctas{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:44px}
-.hero-proof{
-  display:flex;align-items:flex-start;gap:14px;
-  max-width:480px;padding:14px 18px;
-  border:1px solid var(--line);border-radius:12px;
-  background:rgba(15,16,16,.7);
-}
-html[data-theme="light"] .hero-proof{background:rgba(255,255,255,.7)}
-.proof-icon{
-  width:34px;height:34px;flex-shrink:0;border-radius:8px;
-  background:var(--green-glow);border:1px solid rgba(91,191,130,.2);
-  display:grid;place-items:center;
-}
-.proof-text p{font-size:11px;color:var(--muted);line-height:1.55;margin-top:2px}
-.proof-text strong{font-size:11px;font-family:var(--mono);letter-spacing:.04em;color:var(--green)}
-
-/* ── TERMINAL MOCKUP ─────────────────────────────────── */
-.terminal{
-  border:1px solid rgba(91,191,130,.13);border-radius:16px;overflow:hidden;
-  background:var(--bg-2);
-  box-shadow:0 48px 96px rgba(0,0,0,.64),0 0 0 .5px rgba(91,191,130,.08),inset 0 1px 0 rgba(255,255,255,.03);
-  will-change:transform,opacity;
-  transform-origin:center center;
-}
-.terminal-wrap{overflow:hidden;border-radius:16px}
-.terminal-wrap .terminal{transition:transform .7s var(--ease-out)}
-.terminal-wrap:hover .terminal{transform:scale(1.03)}
-html[data-theme="light"] .terminal{box-shadow:0 24px 56px rgba(0,0,0,.1),0 0 0 .5px rgba(47,128,24,.14)}
-.term-chrome{
-  display:flex;align-items:center;gap:7px;
-  padding:10px 14px;border-bottom:1px solid var(--line);
-  background:var(--bg-3);
-}
-.td{width:10px;height:10px;border-radius:50%}
-.td.r{background:#ff5f57}.td.y{background:#ffbd2e}.td.g{background:#28c840}
-.term-title-bar{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-right:auto;letter-spacing:.03em}
-.term-body{padding:16px}
-.t-row{
-  display:grid;grid-template-columns:52px 1fr 80px 56px 90px;
-  align-items:center;padding:9px 10px;border-radius:7px;
-  border:1px solid transparent;gap:8px;
-  transition:background .14s,border-color .14s;cursor:default;
-}
-.t-row:hover{background:var(--bg-3);border-color:var(--line)}
-.t-sym{font-family:var(--mono);font-size:12.5px;font-weight:500}
-.t-co{font-size:12px;color:var(--muted)}
-.t-price{font-family:var(--mono);font-size:12.5px;text-align:right}
-.t-chg{font-family:var(--mono);font-size:11.5px;text-align:right;font-weight:500}
-.t-chg.up{color:var(--green)}
-.t-chg.dn{color:var(--red)}
-.t-pol{
-  font-size:10.5px;padding:2px 7px;border-radius:4px;
-  font-family:var(--mono);white-space:nowrap;text-align:center;
-}
-.pol-g{background:rgba(91,191,130,.1);color:var(--green)}
-.pol-a{background:rgba(212,144,10,.1);color:var(--amber)}
-.pol-b{background:rgba(58,143,212,.1);color:var(--blue)}
-
-/* Animated alert */
-.term-alert{
-  margin-top:14px;padding:13px 15px;border-radius:9px;
-  background:rgba(212,144,10,.07);border:1px solid rgba(212,144,10,.22);
-  opacity:0;transform:translate3d(0,8px,0);
-  transition:opacity .5s var(--ease),transform .5s var(--ease);
-}
-.term-alert.visible{opacity:1;transform:translate3d(0,0,0)}
-.al-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:6px}
-.al-label-dot{width:5px;height:5px;border-radius:50%;background:var(--amber);animation:breathe 2s var(--ease) infinite}
-.al-title{font-size:13.5px;font-weight:500;color:var(--text);margin-bottom:8px;line-height:1.3}
-.chain-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:10px}
-.cn{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--bg-3);padding:2px 7px;border-radius:4px}
-.ca{color:var(--faint);font-size:12px}
-.dots-row{display:flex;align-items:center;gap:8px;margin-top:2px}
-.dot-grid{display:flex;gap:3px}
-.dot{width:7px;height:7px;border-radius:2px;background:var(--bg-edge)}
-.dot.filled{background:var(--amber)}
-.dot.animate-in{background:var(--bg-edge);transition:background .2s var(--ease)}
-.score-label{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
-
 /* ── SECTION SHELLS ──────────────────────────────────── */
 section{position:relative;z-index:1}
 .wrap{padding:clamp(7rem,14vh,12rem) clamp(20px,5vw,80px);max-width:1400px;margin:0 auto}
@@ -303,10 +206,11 @@ section{position:relative;z-index:1}
 }
 .s-tag::before{content:"";width:18px;height:1px;background:var(--green)}
 .s-h{
-  font-size:clamp(32px,4vw,52px);font-weight:700;
-  line-height:1.06;letter-spacing:-.03em;max-width:640px;margin-bottom:16px;
+  font-family:var(--serif);font-weight:400;
+  font-size:clamp(2rem,3.8vw,3.35rem);
+  line-height:1.08;letter-spacing:-.02em;max-width:720px;margin-bottom:16px;
 }
-.s-h em{font-style:normal;color:var(--green)}
+.s-h em{font-style:italic;color:var(--green)}
 .s-h.red em{color:var(--red)}
 .s-sub{font-size:16px;color:var(--muted);max-width:500px;line-height:1.7;margin-bottom:56px}
 .div-line{border-top:1px solid var(--line)}
@@ -510,7 +414,8 @@ section{position:relative;z-index:1}
 @media(max-width:760px){.waitlist-split{grid-template-columns:1fr;gap:40px}}
 .wl-h{font-size:clamp(36px,4.5vw,56px);font-weight:700;line-height:1.06;letter-spacing:-.03em;margin-bottom:16px}
 .wl-h em{font-style:normal;color:var(--green)}
-.wl-sub{font-size:15px;color:var(--muted);line-height:1.7;margin-bottom:32px}
+.wl-or{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;margin:0 0 12px}
+.wl-sub{font-size:15px;color:var(--muted);line-height:1.7;margin-bottom:24px}
 .wl-form{display:flex;flex-direction:column;gap:10px}
 .wl-input{
   padding:12px 18px;border:1px solid var(--line-2);border-radius:9px;
@@ -550,463 +455,446 @@ footer nav a:hover{color:var(--text)}
 .footer-legal{font-size:11px;color:var(--faint);font-family:var(--mono);width:100%;margin-top:8px}
 </style>
 </head>
-<body>
+<body class="landing-cinematic">
 
-<!-- GPU-SAFE OVERLAYS -->
-<div class="scanline-overlay" aria-hidden="true"></div>
-<div class="grid-overlay" aria-hidden="true"></div>
+<div class="ts-scroll-progress" aria-hidden="true"><span class="ts-scroll-progress-bar"></span></div>
+<nav class="ts-section-dots" aria-label="Page sections">
+  <button type="button" class="ts-dot active" data-target="#top" aria-label="Hero"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#manifesto" aria-label="Manifesto"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#how-it-works" aria-label="How it works"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#data" aria-label="Data"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#early-access" aria-label="Early access"><span></span></button>
+</nav>
 
 <main class="site-main" style="overflow-x:hidden;width:100%;max-width:100%">
 
-<!-- NAV -->
-<nav class="nav" aria-label="Site">
-  <div class="nav-inner">
-  <a class="brand" href="/">
-    <svg class="brand-monogram" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.35)" stroke-width="1"/>
-      <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbit)" stroke-width="1.5" stroke-dasharray="14 64" stroke-dashoffset="0">
-        <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
-      </circle>
-      <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.55)" stroke-width="0.75"/>
-      <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
-      <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
-      <circle cx="4.5" cy="19" r="1.5" fill="#1F4A35"/>
-      <defs>
-        <linearGradient id="tOrbit" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#5bbf82"/>
-          <stop offset="100%" stop-color="#1F4A35"/>
-        </linearGradient>
-      </defs>
-    </svg>
-    <span>TradeSimple</span>
-  </a>
-  <div class="nav-links" aria-label="Primary navigation">
-    <a href="#mechanism">How it works</a>
-    <a href="#signals">Signals</a>
-    <a href="#sources">Data</a>
-    <a href="#waitlist">Early access</a>
-  </div>
-  <div class="theme-pill" role="group" aria-label="Color theme">
-    <button class="active" id="dark-btn" onclick="setTheme('dark')">Dark</button>
-    <button id="light-btn" onclick="setTheme('light')">Light</button>
-  </div>
-  <a class="btn btn-ghost" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Open terminal</a>
-  </div>
-</nav>
-
-<!-- TAPE -->
-<div class="tape" aria-label="Live market ticker">
-  <div class="tape-track">
-    <div class="tape-item"><span class="tape-sym">NVDA</span><span class="tape-price">$891.20</span><span class="tape-chg up">+2.41%</span></div>
-    <div class="tape-item"><span class="tape-sym">AAPL</span><span class="tape-price">$189.45</span><span class="tape-chg dn">-0.83%</span></div>
-    <div class="tape-item"><span class="tape-sym">LLY</span><span class="tape-price">$796.60</span><span class="tape-chg up">+1.09%</span></div>
-    <div class="tape-item"><span class="tape-sym">TSLA</span><span class="tape-price">$182.63</span><span class="tape-chg up">+1.20%</span></div>
-    <div class="tape-item"><span class="tape-sym">BTC</span><span class="tape-price">$68,420</span><span class="tape-chg up">+3.17%</span></div>
-    <div class="tape-item"><span class="tape-sym">GME</span><span class="tape-price">$24.80</span><span class="tape-chg up">+28.4%</span></div>
-    <div class="tape-item"><span class="tape-sym">AMZN</span><span class="tape-price">$189.72</span><span class="tape-chg up">+1.33%</span></div>
-    <div class="tape-item"><span class="tape-sym">ETH</span><span class="tape-price">$3,291</span><span class="tape-chg dn">-1.44%</span></div>
-    <div class="tape-item"><span class="tape-sym">RTX</span><span class="tape-price">$112.84</span><span class="tape-chg dn">-0.31%</span></div>
-    <div class="tape-item"><span class="tape-sym">PLTR</span><span class="tape-price">$22.61</span><span class="tape-chg up">+4.18%</span></div>
-    <div class="tape-item"><span class="tape-sym">NOC</span><span class="tape-price">$498.30</span><span class="tape-chg up">+0.92%</span></div>
-    <!-- duplicate set for seamless loop -->
-    <div class="tape-item"><span class="tape-sym">NVDA</span><span class="tape-price">$891.20</span><span class="tape-chg up">+2.41%</span></div>
-    <div class="tape-item"><span class="tape-sym">AAPL</span><span class="tape-price">$189.45</span><span class="tape-chg dn">-0.83%</span></div>
-    <div class="tape-item"><span class="tape-sym">LLY</span><span class="tape-price">$796.60</span><span class="tape-chg up">+1.09%</span></div>
-    <div class="tape-item"><span class="tape-sym">TSLA</span><span class="tape-price">$182.63</span><span class="tape-chg up">+1.20%</span></div>
-    <div class="tape-item"><span class="tape-sym">BTC</span><span class="tape-price">$68,420</span><span class="tape-chg up">+3.17%</span></div>
-    <div class="tape-item"><span class="tape-sym">GME</span><span class="tape-price">$24.80</span><span class="tape-chg up">+28.4%</span></div>
-    <div class="tape-item"><span class="tape-sym">AMZN</span><span class="tape-price">$189.72</span><span class="tape-chg up">+1.33%</span></div>
-    <div class="tape-item"><span class="tape-sym">ETH</span><span class="tape-price">$3,291</span><span class="tape-chg dn">-1.44%</span></div>
-    <div class="tape-item"><span class="tape-sym">RTX</span><span class="tape-price">$112.84</span><span class="tape-chg dn">-0.31%</span></div>
-    <div class="tape-item"><span class="tape-sym">PLTR</span><span class="tape-price">$22.61</span><span class="tape-chg up">+4.18%</span></div>
-    <div class="tape-item"><span class="tape-sym">NOC</span><span class="tape-price">$498.30</span><span class="tape-chg up">+0.92%</span></div>
-  </div>
-</div>
-
-<!-- HERO -->
-<section class="hero" id="top">
-  <div class="hero-bg" aria-hidden="true"></div>
-  <div class="hero-copy">
-    <h1 class="hero-title">Stop being the <span class="hero-inline-img" style="background-image:url('https://picsum.photos/seed/senate-floor/320/120')" role="img" aria-label=""></span> <em>last</em> to know.</h1>
-    <p class="hero-sub">
-      Congress votes. Lobbyists file. Contracts are awarded.
-      <strong>Stocks move.</strong>
-      TradeSimple connects these dots in plain English before they become headlines.
-    </p>
-    <div class="hero-ctas">
-      <a class="btn btn-primary" href="/auth/demo?next=/dashboard%3Fview%3Dtrade" id="primary-cta">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 7h6M7 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Open the terminal
-      </a>
-      <a class="btn btn-google" href="/auth/google">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 0 1-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87Z" fill="#4285F4"/>
-          <path d="M8 16c2.16 0 3.97-.71 5.29-1.95l-2.57-2a4.8 4.8 0 0 1-7.15-2.52H.9v2.06A8 8 0 0 0 8 16Z" fill="#34A853"/>
-          <path d="M3.57 9.53A4.82 4.82 0 0 1 3.32 8c0-.53.09-1.04.25-1.53V4.41H.9A8 8 0 0 0 0 8c0 1.29.31 2.51.9 3.59l2.67-2.06Z" fill="#FBBC05"/>
-          <path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 0 0 .9 4.41L3.57 6.47A4.77 4.77 0 0 1 8 3.18Z" fill="#EA4335"/>
-        </svg>
-        Sign in with Google
-      </a>
-      <a class="btn btn-ghost" href="#mechanism">See how it works</a>
-    </div>
-    <div class="hero-proof">
-      <div class="proof-icon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="var(--green)" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/><path d="M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="var(--green)" stroke-width="1.25" stroke-linecap="round" opacity=".5"/></svg>
-      </div>
-      <div class="proof-text">
-        <strong>Live intelligence feeds</strong>
-        <p>Congress.gov · Senate LDA · Finnhub · CoinGecko · Alpaca. All cited. All traceable. No AI magic.</p>
-      </div>
-    </div>
+<section class="ts-hero" id="top">
+  <div class="ts-hero-media" aria-hidden="true">
+    <video class="ts-hero-video" muted loop playsinline poster="/assets/media/hero/tradesimple-hero-poster.svg"></video>
+    <div class="ts-hero-poster"></div>
+    <div class="ts-hero-dark-overlay"></div>
+    <div class="ts-hero-gradient-overlay"></div>
+    <div class="ts-hero-grid-overlay"></div>
+    <div class="ts-hero-noise"></div>
   </div>
 
-  <!-- LIVE TERMINAL MOCKUP -->
-  <div class="terminal-wrap reveal" id="hero-terminal-wrap">
-  <div class="terminal" id="hero-terminal">
-    <div class="term-chrome">
-      <div class="td r"></div><div class="td y"></div><div class="td g"></div>
-      <span class="term-title-bar">TradeSimple Terminal · Markets</span>
-    </div>
-    <div class="term-body">
-      <div class="t-row">
-        <span class="t-sym" style="color:var(--text)">NVDA</span>
-        <span class="t-co">NVIDIA Corp</span>
-        <span class="t-price">$891.20</span>
-        <span class="t-chg up">+2.41%</span>
-        <span class="t-pol pol-g">CHIPS</span>
-      </div>
-      <div class="t-row">
-        <span class="t-sym" style="color:var(--text)">LLY</span>
-        <span class="t-co">Eli Lilly</span>
-        <span class="t-price">$796.60</span>
-        <span class="t-chg up">+1.09%</span>
-        <span class="t-pol pol-a">Drug bill</span>
-      </div>
-      <div class="t-row">
-        <span class="t-sym" style="color:var(--text)">AAPL</span>
-        <span class="t-co">Apple Inc</span>
-        <span class="t-price">$189.45</span>
-        <span class="t-chg dn">-0.83%</span>
-        <span class="t-pol pol-b">Antitrust</span>
-      </div>
-      <div class="t-row">
-        <span class="t-sym" style="color:var(--text)">PLTR</span>
-        <span class="t-co">Palantir</span>
-        <span class="t-price">$22.61</span>
-        <span class="t-chg up">+4.18%</span>
-        <span class="t-pol pol-g">Contract</span>
-      </div>
+  <div class="ts-classification-strip" aria-label="TradeSimple system status">
+    <span>TS//SCI//NOFORN — TRADESIMPLE INTEL ARCHIVE // COLLECTION 2026 // PUBLIC EDITION</span>
+    <span>INTELLIGENCE TERMINAL // PUBLIC ACCESS</span>
+  </div>
 
-      <div class="term-alert" id="term-alert">
-        <div class="al-label">
-          <div class="al-label-dot"></div>
-          LegisAlert · LLY · Policy exposure 71/100
-        </div>
-        <div class="al-title">Drug pricing bill advanced to Senate floor vote</div>
-        <div class="chain-row">
-          <span class="cn">Congress.gov</span>
-          <span class="ca">&#8594;</span>
-          <span class="cn">HR 3 advanced</span>
-          <span class="ca">&#8594;</span>
-          <span class="cn">Revenue risk</span>
-          <span class="ca">&#8594;</span>
-          <span class="cn">LLY repricing</span>
-        </div>
-        <div class="dots-row">
-          <div class="dot-grid" id="score-dots"></div>
-          <span class="score-label" id="score-text">71/100 · High confidence</span>
+  <nav class="ts-nav" aria-label="Site">
+    <a class="ts-brand" href="/">
+      <svg class="brand-monogram" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.35)" stroke-width="1"/>
+        <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbit)" stroke-width="1.5" stroke-dasharray="14 64">
+          <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
+        </circle>
+        <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.55)" stroke-width="0.75"/>
+        <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
+        <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
+        <defs>
+          <linearGradient id="tOrbit" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#5bbf82"/>
+            <stop offset="100%" stop-color="#1F4A35"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span>TradeSimple</span>
+      <small>Est. 2026 / Policy &amp; equity</small>
+    </a>
+    <button type="button" class="ts-nav-menu-btn" id="ts-nav-menu-btn" aria-expanded="false">Menu</button>
+    <div class="ts-nav-links">
+      <a href="#manifesto">Forensic</a>
+      <div class="nav-sound-suite">
+        <button type="button" class="nav-sound-trigger" id="sound-profile-toggle" aria-expanded="false" aria-controls="sound-profile-panel">
+          <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span id="sound-nav-status">Sound: off</span>
+        </button>
+        <div class="sound-profile-panel" id="sound-profile-panel" hidden>
+          <div class="sound-profile-head">
+            <span>Ambient control</span>
+            <button type="button" id="soundtrack-toggle" aria-pressed="false">Play</button>
+          </div>
+          <label class="sound-volume-control" for="sound-volume">
+            <span>Master volume</span>
+            <strong id="sound-volume-value">40%</strong>
+            <input id="sound-volume" type="range" min="0" max="100" value="40"/>
+          </label>
+          <div class="sound-profile-options" role="group" aria-label="Soundtrack profile">
+            <span class="sound-profile-label">Select profile</span>
+            <button type="button" class="active" data-sound-profile="forensic">
+              <strong>Forensic drone (G-Reprise)</strong>
+              <span>High-tension analytical focus drone</span>
+            </button>
+            <button type="button" data-sound-profile="market">
+              <strong>Market silence (C-Drone)</strong>
+              <span>Low-frequency calm baseline</span>
+            </button>
+            <button type="button" data-sound-profile="legislative">
+              <strong>Legislative static (E-Drone)</strong>
+              <span>High-frequency legislative hum</span>
+            </button>
+            <button type="button" data-sound-profile="contract">
+              <strong>Contract room (A-Pulse)</strong>
+              <span>Slow procurement pulse</span>
+            </button>
+            <button type="button" data-sound-profile="preopen">
+              <strong>Pre-open tape (D-Minor)</strong>
+              <span>Soft market-hours tension</span>
+            </button>
+          </div>
         </div>
       </div>
+      <span class="nav-divider" aria-hidden="true">/</span>
+      <a href="#how-it-works">Methodology</a>
+      <a href="#data">Terminal</a>
+      <a href="#early-access">Access</a>
+    </div>
+    <div class="ts-nav-actions">
+      <div class="theme-pill" role="group" aria-label="Color theme">
+        <button class="active" id="dark-btn" onclick="setTheme('dark')">Dark</button>
+        <button id="light-btn" onclick="setTheme('light')">Light</button>
+      </div>
+      <a class="terminal-button" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Enter terminal</a>
+    </div>
+  </nav>
+
+  <div class="ts-ticker-tape" aria-label="Market ticker">
+    <span style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);font-size:0.65rem;opacity:0.55;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;z-index:10">Source-tagged</span>
+    <div class="ts-ticker-track">
+      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$22.61</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$891.20</strong> <em class="up">+2.41%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$189.45</strong> <em class="down">-0.83%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$22.61</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$891.20</strong> <em class="up">+2.41%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$189.45</strong> <em class="down">-0.83%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
     </div>
   </div>
+
+  <div class="ts-hero-content">
+    <div class="ts-hero-copy">
+      <p class="ts-kicker"><span></span>Directive 01: multi-angle surveillance</p>
+      <h1>Markets<br><em>move</em> when<br>bills <i>pass.</i></h1>
+      <p class="ts-subcopy">
+        Congressional activity, lobbying filings, federal contracts, and market data —
+        traced to your tickers before consensus forms.
+      </p>
+      <div class="ts-hero-ctas">
+        <a href="/auth/demo?next=/dashboard%3Fview%3Dtrade" class="ts-primary-cta" id="primary-cta">Open the terminal →</a>
+        <a href="#how-it-works" class="ts-secondary-cta">View methodology</a>
+      </div>
+      <div class="hero-reference-row" aria-label="Archive reference">
+        <span>REF: COLLECTION_2026</span>
+        <span>WASHINGTON D.C. / NYC</span>
+        <span>STATUS: PUBLIC RELEASE</span>
+      </div>
+    </div>
+
+    <div class="ts-hero-visual">
+      <div class="ts-cinematic-wall" aria-label="Cinematic intelligence wall">
+        <figure class="cinema-frame frame-bridge">
+          <video autoplay loop muted playsinline>
+            <source src="https://assets.mixkit.co/videos/22953/22953-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-01_NYC_TRANSIT</figcaption>
+        </figure>
+        <figure class="cinema-frame frame-city">
+          <video autoplay loop muted playsinline>
+            <source src="https://assets.mixkit.co/videos/11712/11712-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-02_DC_CAPITAL</figcaption>
+        </figure>
+        <figure class="cinema-frame frame-street">
+          <video autoplay loop muted playsinline>
+            <source src="https://assets.mixkit.co/videos/4194/4194-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-03_NYC_STREET</figcaption>
+        </figure>
+        <div class="cinema-signal-dock">
+          <div class="cinema-live-row"><span></span>Live stream matrix</div>
+          <div class="cinema-stamp">Active signal</div>
+          <div class="cinema-audio-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cinema-intel-ticker" aria-label="Live intelligence briefings">
+            <span class="cinema-intel-label">Intel queue</span>
+            <div class="cinema-intel-track">
+              <button type="button" data-briefing="dod-mesh">DOD tactical intel mesh award</button>
+              <button type="button" data-briefing="semiconductor-export">Semiconductor export restrictions</button>
+              <button type="button" data-briefing="faa-drone">FAA drone delivery votes</button>
+              <button type="button" data-briefing="sec-custody">SEC crypto custody amendments</button>
+              <button type="button" data-briefing="ai-procurement-transparency">AI defense procurement hearings</button>
+              <button type="button" data-briefing="ftc-defense">FTC defense-sector merger probe</button>
+              <button type="button" data-briefing="doe-nuclear">DOE nuclear grid integration</button>
+            </div>
+          </div>
+          <div class="cinema-terminal-slot">
+            <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
+              <div class="terminal-topbar">
+                <div class="traffic-lights"><span></span><span></span><span></span></div>
+                <p>TradeSimple // Signal card</p>
+                <div class="terminal-meta">
+                  <span class="verified">System active</span>
+                  <span id="terminal-updated" aria-live="polite">Updated 9s ago</span>
+                </div>
+              </div>
+              <div class="terminal-status-strip" aria-label="Signal model inputs">
+                <span>CRS active</span>
+                <span>Watchlist linked</span>
+                <span>Not financial advice</span>
+              </div>
+              <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
+                <div class="terminal-table-header" aria-hidden="true">
+                  <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
+                </div>
+                <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
+                  <strong>NVDA</strong><span>NVIDIA Corp</span><span>$891.20</span><em class="up">+2.41%</em><b>CHIPS</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
+                  <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
+                  <strong>AAPL</strong><span>Apple Inc</span><span>$189.45</span><em class="down">-0.83%</em><b class="tag-blue">Antitrust</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
+                  <strong>PLTR</strong><span>Palantir</span><span>$22.61</span><em class="up">+4.18%</em><b>Contract</b>
+                </button>
+              </div>
+              <div class="terminal-signal" id="terminal-signal-panel">
+                <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
+                <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
+                <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
+                <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
+                <div class="confidence-row">
+                  <span>Confidence</span>
+                  <span id="terminal-confidence-text">82/100</span>
+                </div>
+                <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
+                <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cinema-alert-overlay" aria-hidden="true">
+            <span>Signal intercept</span>
+            <strong id="cinema-alert-title">Source chain updating</strong>
+            <em>Open dossier for source-backed context</em>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- MECHANISM -->
-<section class="div-line" id="mechanism">
-  <div class="wrap">
+<!-- MANIFESTO -->
+<section class="ts-manifesto-section div-line" id="manifesto">
+  <div class="manifesto-watermark" aria-hidden="true">
+    <span>Trade</span><span>Simple</span><span>Policy</span><span>Signals</span><span>Market</span><span>Clarity</span><span>Legislative</span><span>Intelligence</span><span>TS//SCI</span><span>Directive 2026</span>
+  </div>
+  <div class="wrap manifesto-wrap">
+    <div class="manifesto-layout reveal">
+      <div class="manifesto-heading">
+        <p class="chapter-eyebrow">02 — The Manifesto</p>
+        <h2>An aesthetic<br>approach to<br><em>political intelligence.</em></h2>
+      </div>
+      <div class="manifesto-copy">
+        <p class="manifesto-quote">"In a world cluttered with noise, clarity is the ultimate luxury. We strip away the unnecessary, exposing the raw, structural lines that connect federal policy to capital markets."</p>
+        <p>TradeSimple does not report news. We document the precise causal vectors of lobbying expenditure, legislative draft alignments, source freshness, market movement, and paper-trade outcomes. It is a forensic system for turning public records into testable theses.</p>
+      </div>
+    </div>
+
+    <div class="manifesto-registry">
+      <p class="chapter-eyebrow muted">03 — The Severity Registry</p>
+      <div class="severity-grid stagger">
+        <article class="severity-card high">
+          <header><span>CRS 7.0-10.0</span><b>Active signal</b></header>
+          <h3>High Signal</h3>
+          <p>Contract, lobbying activity, market movement, and legislative alignment are fully synchronized.</p>
+          <footer>Paper-trade thesis review</footer>
+        </article>
+        <article class="severity-card moderate">
+          <header><span>CRS 4.0-6.9</span><b>Monitor</b></header>
+          <h3>Moderate Exposure</h3>
+          <p>Partial alignment detected. Confirmation events, source freshness, or contract revisions remain pending.</p>
+          <footer>Monitor for escalation</footer>
+        </article>
+        <article class="severity-card risk">
+          <header><span>CRS 0.0-3.9</span><b>Risk flag</b></header>
+          <h3>Risk Flag</h3>
+          <p>Negative legislative drafts, significant lobbying pullbacks, or broken thesis rules trigger exposure warnings.</p>
+          <footer>Immediate exposure review</footer>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INTELLIGENCE PIPELINE -->
+<section class="archive-section archive-pipeline div-line" id="how-it-works">
+  <div class="archive-wrap">
+    <p class="chapter-eyebrow">04 — The Intelligence Pipeline</p>
+    <div class="archive-pipeline-grid reveal">
+      <article class="archive-step">
+        <span>I.</span>
+        <h2>We Monitor</h2>
+        <p>Forensic scanning of Congressional markup schedules, lobbying disclosure databases, agency award notices, and federal procurement contracts.</p>
+      </article>
+      <article class="archive-step">
+        <span>II.</span>
+        <h2>We Score</h2>
+        <p>Each political event is calibrated into a CRS band, with source freshness, confidence, and live/model/fallback state exposed instead of hidden.</p>
+      </article>
+      <article class="archive-step">
+        <span>III.</span>
+        <h2>You Test</h2>
+        <p>Structured briefs move into the TradeSimple thesis lab and paper-trading rails, so the idea can be tested before any real capital is at risk.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL VIEW -->
+<section class="archive-terminal-section div-line" id="data">
+  <div class="archive-wrap">
+    <p class="chapter-eyebrow">05 — Terminal View</p>
+    <div class="terminal-preview-shell reveal">
+      <div class="terminal-preview-head">
+        <span>TRADESIMPLE SECURE PORTAL — v1.0</span>
+        <div aria-hidden="true"><i></i><i></i><i></i></div>
+      </div>
+      <div class="terminal-preview-grid">
+        <aside class="terminal-watchlist-preview">
+          <span>Watchlist</span>
+          <div><b>PLTR</b><em>$24.80</em></div>
+          <div><b>TSM</b><em>$145.20</em></div>
+          <div><b>RTX</b><em>$98.40</em></div>
+          <div><b>LLY</b><em>$796.60</em></div>
+        </aside>
+        <div class="terminal-feed-preview">
+          <header><span></span>Intel feed — live/model tagged <b>5 active signals</b></header>
+          <article>
+            <h3>DOD Tactical Intelligence Mesh Contract Award</h3>
+            <p>CONTRACT · 2H AGO · PLTR +3.2% · CRS 8.4</p>
+          </article>
+          <article>
+            <h3>Advanced Semiconductor Export Restriction Expansion</h3>
+            <p>LEGISLATIVE · 1D AGO · TSM -1.4% · CRS 7.8</p>
+          </article>
+          <article>
+            <h3>FAA Reauthorization Act, drone delivery integration</h3>
+            <p>LEGISLATIVE · 2D AGO · RTX +0.8% · CRS 5.2</p>
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="source-freshness-ledger reveal" aria-label="Source freshness ledger">
+      <div class="ledger-title">
+        <span>Source freshness</span>
+        <strong>Live/model state visible on every signal</strong>
+      </div>
+      <div class="ledger-grid">
+        <article><span>Market quotes</span><b>Live snapshot</b><em>Updated under 5m</em></article>
+        <article><span>Congress.gov</span><b>Bill stage</b><em>Committee + floor watch</em></article>
+        <article><span>Senate LDA</span><b>Lobbying filings</b><em>Disclosure pressure</em></article>
+        <article><span>USASpending</span><b>Contract awards</b><em>Agency/vendor lineage</em></article>
+      </div>
+    </div>
+
+    <div class="interactive-proof-ledger reveal" aria-label="Interactive proof dossiers">
+      <div>
+        <p class="chapter-eyebrow">Interactive proof</p>
+        <h2>Open the source chain,<br><em>then test the thesis.</em></h2>
+      </div>
+      <div class="proof-actions">
+        <button type="button" data-briefing="dod-mesh">Contract dossier</button>
+        <button type="button" data-briefing="semiconductor-export">Legislative dossier</button>
+        <button type="button" data-briefing="sec-custody">Regulatory dossier</button>
+      </div>
+    </div>
+
+    <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
+      <article><span>AUTH + SESSIONS</span><p>Demo auth, Google sign-in, signed sessions, and protected dashboard routes remain powered by the TradeSimple backend.</p></article>
+      <article><span>SOURCE FRESHNESS</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
+      <article><span>AI RESEARCH</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
+      <article><span>THESIS LAB</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
+      <article><span>PAPER MODE</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
+      <article><span>GUARDRAILS</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
+    </div>
+
+    <div class="source-chain-registry reveal" aria-label="Source chain registry">
+      <div class="source-chain-row"><b>Congress.gov</b><span>Bill stage tracking, committee votes, floor schedules</span><em>Bill advances → affected tickers surface</em></div>
+      <div class="source-chain-row"><b>Senate LDA</b><span>Lobbying disclosures, registrants, issue-area spend</span><em>Filing detected → pressure score updated</em></div>
+      <div class="source-chain-row"><b>USASpending</b><span>Federal contracts, agencies, vendors, award size</span><em>Award notice → contract exposure mapped</em></div>
+      <div class="source-chain-row"><b>Market + broker rails</b><span>Quote snapshots, crypto pricing, paper trading</span><em>Thesis → simulated order → outcome review</em></div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL ACCESS -->
+<section class="archive-access-section div-line" id="early-access">
+  <div class="archive-wrap access-grid">
     <div class="reveal">
-      <div class="s-tag">How it works</div>
-      <h2 class="s-h">Intelligence before<br><em>it's priced in.</em></h2>
-      <p class="s-sub">Four data feeds. One coherent picture. Every signal traced to its source, translated into plain English, linked to the tickers in your portfolio.</p>
-    </div>
-    <div class="mech-bento stagger">
-      <div class="mech-cell wide">
-        <div class="mc-accent green"></div>
-        <h3>Every metric earns its place by being explained.</h3>
-        <p>P/E of 34x means <strong>investors pay $34 for every $1 this company earns.</strong> Forward P/E is what they're paying for next year's expected earnings. Beta is how much the stock moves relative to the market. Beta of 1.8 means the stock tends to swing 80% harder than the index. Nothing goes unexplained. Every number has a plain-English translation, immediately, in the same view.</p>
-      </div>
-      <div class="mech-cell">
-        <div class="mc-accent amber"></div>
-        <h3>The full legislative chain, visible.</h3>
-        <p>A bill advances in committee. <strong>Lobbyists file spending reports.</strong> Passage odds shift. The affected ticker reprices. TradeSimple shows every link.</p>
-      </div>
-      <div class="mech-cell">
-        <div class="mc-accent blue"></div>
-        <h3>Paper trade the thesis before risking capital.</h3>
-        <p>Build a position on your hypothesis. <strong>Track outcomes against your reasoning.</strong> When right, know why. When wrong, know that too.</p>
+      <p class="chapter-eyebrow">06 — Controlled Access</p>
+      <h2>Open the terminal before the headline hits.</h2>
+      <p>Policy signals, cited sources, AI research, thesis storage, and paper trading now sit inside the TradeSimple intelligence archive.</p>
+      <div class="access-actions">
+        <a href="/auth/demo?next=/dashboard%3Fview%3Dtrade" class="ts-primary-cta">Enter terminal</a>
+        <a href="/auth/google" class="ts-secondary-cta">Sign in with Google</a>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- CHAIN DEMO -->
-<section class="chain-section div-line" id="chain">
-  <div class="wrap">
-    <div class="chain-pin-wrap" id="chain-pin">
-      <div class="chain-pin-left reveal">
-        <div class="s-tag">Signal chain</div>
-        <h2 class="s-h">The filing was public.<br><em>You just didn't know where to look.</em></h2>
-        <p class="s-sub" style="margin-bottom:0">Here's how a lobbying report becomes a market signal. Every step is traceable. Every source is cited. Example: LLY drug pricing exposure.</p>
+    <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
+      <label for="access-email">Join the signal list</label>
+      <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
+      <button class="ts-primary-cta" type="submit" id="wl-submit">Request dispatch</button>
+      <p class="wl-status" id="wl-status">The signal will reach you before it reaches the market.</p>
+      <div class="access-checklist" aria-label="Access path">
+        <span>1. Open demo terminal</span>
+        <span>2. Review a source chain</span>
+        <span>3. Save a thesis</span>
+        <span>4. Test in paper mode</span>
       </div>
-      <div class="chain-pin-right">
-    <div class="chain-demo reveal" id="chain-demo-panel">
-      <div class="chain-head">
-        <span style="font-size:10.5px">LLY drug pricing exposure &nbsp;·&nbsp; May 2026</span>
-        <div class="chain-live"><span></span>Signal active</div>
-      </div>
-      <div class="chain-nodes">
-        <div class="chain-node active-g">
-          <div class="cn-src" style="color:var(--green)">Congress.gov</div>
-          <div class="cn-title">HR 3 advanced to Senate floor</div>
-          <div class="cn-detail">Drug pricing negotiation bill. Floor vote scheduled within 72 hours.</div>
-        </div>
-        <div class="chain-node active-a">
-          <div class="cn-src" style="color:var(--amber)">Senate LDA</div>
-          <div class="cn-title">Pharma spend spiked $4.2M</div>
-          <div class="cn-detail">Pfizer, Merck, AbbVie filing disclosed Friday. Coordinated opposition bloc.</div>
-        </div>
-        <div class="chain-node active-b">
-          <div class="cn-src" style="color:var(--blue)">Finnhub</div>
-          <div class="cn-title">LLY moved -3.1% on news</div>
-          <div class="cn-detail">Price move precedes analyst coverage by 48 hours. Volume 2.4x average.</div>
-        </div>
-        <div class="chain-node active-r" style="border-right:none">
-          <div class="cn-src" style="color:var(--red)">Scenario</div>
-          <div class="cn-title">Revenue compression risk</div>
-          <div class="cn-detail">Medicare negotiation could affect 12% of LLY revenue. Confidence: High.</div>
-        </div>
-      </div>
-      <div class="chain-conclusion">
-        <div class="concl-inner">
-          <div class="concl-bar"></div>
-          <div class="concl-text">
-            <strong>Day 0 — TradeSimple flagged this before the analyst coverage hit.</strong>
-            "The drug pricing bill advanced committee. Eli Lilly has 71/100 policy exposure based on revenue dependency and lobbying activity. Watch the floor vote. Not financial advice."&thinsp; The headline ran 3 days later: "Pharma stocks fall on Senate drug pricing vote fears."
-          </div>
-        </div>
-      </div>
-    </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- TIMELINE COMPARE -->
-<section class="compare-section div-line" id="compare">
-  <div class="wrap">
-    <div class="reveal">
-      <div class="s-tag">Information asymmetry</div>
-      <h2 class="s-h red">The information you don't have<br>costs more than <em>any subscription.</em></h2>
-      <p class="s-sub">What a drug pricing bill looks like in your timeline versus TradeSimple's — for the same public record.</p>
-    </div>
-    <div class="compare-grid stagger">
-      <div class="compare-col">
-        <div class="col-label red">Without TradeSimple</div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot r"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Bill passes committee</div><div class="tl-note">Public record. Nobody told you.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot r"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Lobbyists file spending report</div><div class="tl-note">LDA.gov. Public. Invisible to you.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot r"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Analyst report — Day 3</div><div class="tl-note">Paywalled. Institutional clients first.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot r"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Stock moves -3.1% — Day 5</div><div class="tl-note">You notice the red number.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot r"></div></div>
-          <div><div class="tl-event">Headline: "Pharma stocks fall" — Day 7</div><div class="tl-note">You find out. Seven days late.</div></div>
-        </div>
-      </div>
-      <div class="compare-col col-r">
-        <div class="col-label green">With TradeSimple</div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot g"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">LegisAlert fires — Day 0</div><div class="tl-note">Bill advanced. LLY flagged. Exposure 71/100.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot g"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Lobbying spike surfaced — Day 0</div><div class="tl-note">$4.2M pharma filing translated for you.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot g"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">Affected tickers surfaced — Day 0</div><div class="tl-note">LLY, MRK, ABBV. Revenue scenarios modeled.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot g"></div><div class="tl-bar"></div></div>
-          <div><div class="tl-event">You paper trade your thesis — Day 1</div><div class="tl-note">Before risking capital. Outcome tracked.</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-gutter"><div class="tl-dot g"></div></div>
-          <div><div class="tl-event">Stock moves. You already decided — Day 5</div><div class="tl-note highlight">You knew. You were right. You have evidence.</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- SIGNALS — asymmetric bento -->
-<section class="signals-section div-line" id="signals">
-  <div class="wrap">
-    <div class="reveal">
-      <div class="s-tag">LegisAlert</div>
-      <h2 class="s-h">Three signal types.<br><em>One terminal.</em></h2>
-      <p class="s-sub">Legislative momentum, lobbying pressure, and federal contracts — each with a plain-English explanation, a confidence score, and the affected tickers named.</p>
-    </div>
-    <div class="signals-bento stagger">
-      <div class="sig-card sig-wide" id="sc0">
-        <div class="sig-card-inner">
-          <div class="sig-top-bar green"></div>
-          <div class="sig-type g">Legislative &nbsp;·&nbsp; Congress.gov</div>
-          <h3 class="sig-h">CHIPS Act implementation advanced in appropriations. Implementation timeline moved forward 8 months.</h3>
-          <p class="sig-body">The committee marked up $52B in semiconductor manufacturing appropriations. This shifts the revenue projection timeline for domestic fab expansion plans. Companies with confirmed fab commitments are most directly exposed to the upside scenario.</p>
-          <div class="sig-dots">
-            <div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot filled-g"></div><div class="sdot empty"></div><div class="sdot empty"></div>
-            <span class="sdot-score" style="color:var(--green)">82/100 &nbsp;·&nbsp; High confidence</span>
-          </div>
-          <div class="sig-footer">
-            <div class="sig-tickers"><span class="sig-ticker">NVDA</span><span class="sig-ticker">INTC</span><span class="sig-ticker">TSM</span><span class="sig-ticker">AMAT</span></div>
-            <span>Updated 2h ago</span>
-          </div>
-        </div>
-      </div>
-      <div class="sig-card amber-sig" id="sc1">
-        <div class="sig-card-inner">
-          <div class="sig-top-bar amber"></div>
-          <div class="sig-type a">Lobbying &nbsp;·&nbsp; Senate LDA</div>
-          <h3 class="sig-h">Pharma coalition filing. Drug pricing opposition bloc. Combined quarter spend: $18.4M.</h3>
-          <p class="sig-body">Three major pharmaceutical companies filed coordinated lobbying disclosures targeting Senate Finance Committee members.</p>
-          <div class="sig-dots">
-            <div class="sdot filled-a"></div><div class="sdot filled-a"></div><div class="sdot filled-a"></div><div class="sdot filled-a"></div><div class="sdot filled-a"></div><div class="sdot filled-a"></div><div class="sdot empty"></div><div class="sdot empty"></div><div class="sdot empty"></div><div class="sdot empty"></div>
-            <span class="sdot-score" style="color:var(--amber)">62/100 &nbsp;·&nbsp; Medium</span>
-          </div>
-          <div class="sig-footer">
-            <div class="sig-tickers"><span class="sig-ticker">LLY</span><span class="sig-ticker">MRK</span><span class="sig-ticker">ABBV</span></div>
-            <span>Updated 6h ago</span>
-          </div>
-        </div>
-      </div>
-      <div class="sig-card blue-sig" id="sc2">
-        <div class="sig-card-inner">
-          <div class="sig-top-bar blue"></div>
-          <div class="sig-type b">Federal Contracts &nbsp;·&nbsp; USASpending</div>
-          <h3 class="sig-h">DOD AI contract awards — $2.1B pending evaluation closing Friday.</h3>
-          <p class="sig-body">Defense procurement awarded Phase 2 AI integration contracts. Award announcement expected Friday. Not financial advice — watch the release.</p>
-          <div class="sig-dots">
-            <div class="sdot filled-b"></div><div class="sdot filled-b"></div><div class="sdot filled-b"></div><div class="sdot filled-b"></div><div class="sdot filled-b"></div><div class="sdot empty"></div><div class="sdot empty"></div><div class="sdot empty"></div><div class="sdot empty"></div><div class="sdot empty"></div>
-            <span class="sdot-score" style="color:var(--blue)">48/100 &nbsp;·&nbsp; Low-Medium</span>
-          </div>
-          <div class="sig-footer">
-            <div class="sig-tickers"><span class="sig-ticker">PLTR</span><span class="sig-ticker">BAH</span><span class="sig-ticker">MSFT</span></div>
-            <span>Updated 1h ago</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- SOURCE MARQUEE -->
-<div class="marquee-section" aria-label="Intelligence data sources">
-  <div class="marquee-track">
-    <div class="m-item"><span class="m-source">Congress.gov</span><div class="m-sep"></div><span>Live bill tracking</span></div>
-    <div class="m-item"><span class="m-source">Senate LDA</span><div class="m-sep"></div><span>Lobbying disclosures</span></div>
-    <div class="m-item"><span class="m-source">Finnhub</span><div class="m-sep"></div><span>Equity quote snapshots</span></div>
-    <div class="m-item"><span class="m-source">CoinGecko</span><div class="m-sep"></div><span>Crypto pricing</span></div>
-    <div class="m-item"><span class="m-source">Alpaca</span><div class="m-sep"></div><span>Paper trading rails</span></div>
-    <div class="m-item"><span class="m-source">USASpending</span><div class="m-sep"></div><span>Federal contracts</span></div>
-    <div class="m-sep"></div>
-    <!-- duplicate for seamless loop -->
-    <div class="m-item"><span class="m-source">Congress.gov</span><div class="m-sep"></div><span>Live bill tracking</span></div>
-    <div class="m-item"><span class="m-source">Senate LDA</span><div class="m-sep"></div><span>Lobbying disclosures</span></div>
-    <div class="m-item"><span class="m-source">Finnhub</span><div class="m-sep"></div><span>Equity quote snapshots</span></div>
-    <div class="m-item"><span class="m-source">CoinGecko</span><div class="m-sep"></div><span>Crypto pricing</span></div>
-    <div class="m-item"><span class="m-source">Alpaca</span><div class="m-sep"></div><span>Paper trading rails</span></div>
-    <div class="m-item"><span class="m-source">USASpending</span><div class="m-sep"></div><span>Federal contracts</span></div>
-  </div>
-</div>
-
-<!-- SOURCES -->
-<section class="sources-section" id="sources">
-  <div class="wrap">
-    <div class="reveal">
-      <div class="s-tag">Transparency</div>
-      <h2 class="s-h">No AI magic.<br><em>Just the data path.</em></h2>
-      <p class="s-sub">Every signal has a named source. Every source is traceable. If we can't show where it came from, we don't show it.</p>
-    </div>
-    <div class="sources-list reveal">
-      <div class="source-row"><div class="sr-name">Congress.gov</div><div class="sr-desc">Live bill stage tracking, committee votes, floor schedules, and passage status. The official legislative record of the United States Congress.</div><div class="sr-chain">Bill advances → passage odds update → affected tickers surface in your portfolio view</div></div>
-      <div class="source-row"><div class="sr-name">Senate LDA</div><div class="sr-desc">Lobbying disclosure filings, registrant reports, and spending by issue area from the official Senate lobbying database.</div><div class="sr-chain">Filing detected → pressure score updated → bill connection mapped → investor scenario generated</div></div>
-      <div class="source-row"><div class="sr-name">Finnhub</div><div class="sr-desc">Live equity quote snapshots, fundamentals, earnings estimates. Market data with human-readable context at every point.</div><div class="sr-chain">Quote → compare with fundamentals → evaluate against policy event → signal or noise</div></div>
-      <div class="source-row"><div class="sr-name">CoinGecko</div><div class="sr-desc">Crypto price and volume data, market regime signals. Connected to crypto-linked equities in your portfolio.</div><div class="sr-chain">Price/volume regime → exchange activity → crypto-linked equity repricing surfaced</div></div>
-      <div class="source-row"><div class="sr-name">Alpaca</div><div class="sr-desc">Paper trading infrastructure. Build a position on your thesis. Track outcomes before risking capital.</div><div class="sr-chain">Thesis → paper order → track outcome → refine your model → validate before going live</div></div>
-    </div>
-    <div class="security-note reveal">
-      <div class="lock-icon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="2" stroke="var(--green)" stroke-width="1.4"/><path d="M5 7V5a3 3 0 016 0v2" stroke="var(--green)" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r="1" fill="var(--green)"/></svg>
-      </div>
-      <p><strong>API keys stay server-side.</strong> This product is not a registered broker-dealer or investment adviser. Live brokerage requires a regulated broker integration. This build starts with paper trading and read-only intelligence. Not financial advice.</p>
-    </div>
-  </div>
-</section>
-
-<!-- WAITLIST — split layout -->
-<section class="waitlist-section div-line" id="waitlist">
-  <div class="wrap">
-    <div class="waitlist-split">
-      <div class="reveal">
-        <div class="s-tag">Limited early access</div>
-        <h2 class="wl-h">See the signal before<br>the <em>move.</em></h2>
-        <p class="wl-sub">Early access members get the demo terminal first, product updates before public launch, and direct input into what TradeSimple tracks next.</p>
-        <form class="wl-form" onsubmit="handleWL(event)">
-          <input class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
-          <button class="btn btn-primary" type="submit" id="wl-submit">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M2 6.5h9M7.5 3l3.5 3.5L7.5 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Join the waitlist
-          </button>
-        </form>
-        <p class="wl-status" id="wl-status">The signal will reach you before it reaches the market.</p>
-      </div>
-      <div class="wl-right reveal">
-        <div class="mini-signal">
-          <div class="ms-label g">LegisAlert — active signal</div>
-          <div class="ms-text">CHIPS Act implementation advanced — 8-month acceleration.</div>
-          <div class="ms-sub">Passage odds updated. NVDA, INTC, TSM flagged in your portfolio view.</div>
-          <div class="ms-dots">
-            <div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd g"></div><div class="msd empty"></div><div class="msd empty"></div>
-          </div>
-        </div>
-        <div class="mini-signal">
-          <div class="ms-label a">Lobbying spike — Thursday LDA filing</div>
-          <div class="ms-text">Drug pricing opposition coalition filed $18.4M in coordinated lobbying disclosures.</div>
-          <div class="ms-sub">LLY, MRK, ABBV policy exposure scores updated. Medium confidence.</div>
-          <div class="ms-dots">
-            <div class="msd a"></div><div class="msd a"></div><div class="msd a"></div><div class="msd a"></div><div class="msd a"></div><div class="msd a"></div><div class="msd empty"></div><div class="msd empty"></div><div class="msd empty"></div><div class="msd empty"></div>
-          </div>
-        </div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;padding-top:8px">Live signals — early access members only</div>
-      </div>
-    </div>
+    </form>
   </div>
 </section>
 
 </main>
+
+<div class="briefing-modal" id="briefing-modal" hidden role="dialog" aria-modal="true" aria-labelledby="briefing-modal-title">
+  <div class="briefing-backdrop" data-briefing-close></div>
+  <article class="briefing-panel">
+    <button type="button" class="briefing-close" data-briefing-close aria-label="Close briefing">×</button>
+    <div class="briefing-topline">
+      <span id="briefing-category">Signal dossier</span>
+      <strong id="briefing-crs">CRS 0.0</strong>
+    </div>
+    <h2 id="briefing-modal-title">Policy signal briefing</h2>
+    <p class="briefing-summary" id="briefing-summary"></p>
+    <div class="briefing-meta-grid">
+      <div><span>Ticker</span><strong id="briefing-ticker">--</strong></div>
+      <div><span>Date</span><strong id="briefing-date">--</strong></div>
+      <div><span>Source chain</span><strong id="briefing-source">--</strong></div>
+    </div>
+    <div class="briefing-impact">
+      <span>Modeled impact</span>
+      <p id="briefing-impact"></p>
+    </div>
+    <div class="briefing-sparkline" aria-label="Seven day modeled movement">
+      <svg id="briefing-sparkline" viewBox="0 0 320 88" role="img" aria-hidden="true"></svg>
+    </div>
+    <p class="briefing-disclaimer">Illustrative landing-page dossier. TradeSimple keeps source tags visible and routes real decisions through paper-trade review first.</p>
+  </article>
+</div>
 
 <!-- FOOTER -->
 <footer>
@@ -1029,10 +917,10 @@ footer nav a:hover{color:var(--text)}
     <span>TradeSimple</span>
   </a>
   <nav aria-label="Footer">
-    <a href="#mechanism">How it works</a>
+    <a href="#how-it-works">How it works</a>
     <a href="#signals">Signals</a>
-    <a href="#sources">Data sources</a>
-    <a href="#waitlist">Early access</a>
+    <a href="#data">Data</a>
+    <a href="#early-access">Early access</a>
   </nav>
   <div class="footer-legal">Not financial advice. &copy; 2026 TradeSimple. All signals are informational only and do not constitute investment recommendations. API keys stay server-side.</div>
 </footer>
@@ -1047,80 +935,28 @@ function setTheme(t){
 }
 try{var st=localStorage.getItem('ts_theme');if(st==='light'||st==='dark')setTheme(st)}catch(e){}
 
-/* ── DIRECTIONAL HOVER FILL on primary CTA ── */
-document.getElementById('primary-cta').addEventListener('mousemove',function(e){
-  var r=this.getBoundingClientRect();
-  this.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');
-  this.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');
-});
-
-/* ── SCROLL REVEAL ── */
-var ro=new IntersectionObserver(function(entries){
-  entries.forEach(function(e){
-    if(e.isIntersecting){
-      if(e.target.classList.contains('stagger')){
-        e.target.classList.add('in');
-        Array.from(e.target.children).forEach(function(c,i){
-          c.style.transitionDelay=(i*90)+'ms';
-        });
-      } else {
-        e.target.style.transitionDelay='0ms';
-        e.target.classList.add('in');
+/* ── SCROLL REVEAL (CSS fallback when GSAP unavailable) ── */
+function initScrollReveal(){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  if(typeof gsap!=='undefined'&&typeof ScrollTrigger!=='undefined')return;
+  var ro=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        if(e.target.classList.contains('stagger')){
+          e.target.classList.add('in');
+          Array.from(e.target.children).forEach(function(c,i){
+            c.style.transitionDelay=(i*90)+'ms';
+          });
+        } else {
+          e.target.style.transitionDelay='0ms';
+          e.target.classList.add('in');
+        }
+        ro.unobserve(e.target);
       }
-      ro.unobserve(e.target);
-    }
-  });
-},{threshold:.1});
-document.querySelectorAll('.reveal,.stagger').forEach(function(el){ro.observe(el)});
-
-/* ── TERMINAL ALERT — loop animation ── */
-function buildDots(){
-  var grid=document.getElementById('score-dots');
-  grid.innerHTML='';
-  for(var i=0;i<10;i++){
-    var d=document.createElement('div');
-    d.className='dot animate-in';
-    d.id='d'+i;
-    grid.appendChild(d);
-  }
+    });
+  },{threshold:.1});
+  document.querySelectorAll('.reveal,.stagger').forEach(function(el){ro.observe(el)});
 }
-function animateAlert(){
-  var alert=document.getElementById('term-alert');
-  var txt=document.getElementById('score-text');
-  buildDots();
-  txt.textContent='';
-  alert.classList.add('visible');
-  var filled=7;
-  for(var i=0;i<filled;i++){
-    (function(idx){
-      setTimeout(function(){
-        var d=document.getElementById('d'+idx);
-        if(d)d.style.background='var(--amber)';
-      },400+idx*120);
-    })(i);
-  }
-  setTimeout(function(){txt.textContent='71/100 · High confidence'},400+filled*120+200);
-  setTimeout(function(){
-    alert.classList.remove('visible');
-    setTimeout(animateAlert,1200);
-  },5000);
-}
-setTimeout(animateAlert,1400);
-
-/* ── SPOTLIGHT BORDER on signal cards ── */
-['sc0','sc1','sc2'].forEach(function(id){
-  var el=document.getElementById(id);
-  if(!el)return;
-  el.addEventListener('mousemove',function(e){
-    var r=this.getBoundingClientRect();
-    this.style.setProperty('--cx',(e.clientX-r.left)+'px');
-    this.style.setProperty('--cy',(e.clientY-r.top)+'px');
-  });
-  el.addEventListener('mouseleave',function(){
-    this.style.setProperty('--cx','50%');
-    this.style.setProperty('--cy','50%');
-  });
-});
 
 /* ── WAITLIST ── */
 function handleWL(e){
@@ -1142,38 +978,83 @@ function handleWL(e){
     });
 }
 
-/* ── GSAP (ScrollTrigger pin + terminal scale) ── */
-function initLandingMotion(){
-  if(typeof gsap==='undefined'||typeof ScrollTrigger==='undefined')return;
-  gsap.registerPlugin(ScrollTrigger);
-  var term=document.getElementById('hero-terminal');
-  if(term){
-    gsap.fromTo(term,{scale:.88,opacity:.55},{scale:1,opacity:1,ease:'power2.out',
-      scrollTrigger:{trigger:'#top',start:'top top',end:'bottom 40%',scrub:.6}
+function hydrateLandingTicker(){
+  fetch('/api/landing-quotes')
+    .then(function(r){return r.ok?r.json():null})
+    .catch(function(){return null})
+    .then(function(data){
+      if(!data||!data.quotes||!data.quotes.length)return;
+      var map={};
+      data.quotes.forEach(function(q){map[q.symbol]=q;});
+      // Ticker tape items (both sets, deduped for animation)
+      document.querySelectorAll('.ts-ticker-item[data-ticker]').forEach(function(btn){
+        var q=map[btn.dataset.ticker];
+        if(!q||!q.price)return;
+        var strong=btn.querySelector('strong');
+        var em=btn.querySelector('em');
+        if(strong) strong.textContent='$'+Number(q.price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if(em){
+          var pct=Number(q.changePercent||0);
+          em.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+          em.className=pct>=0?'up':'down';
+        }
+      });
+      // Terminal demo rows
+      document.querySelectorAll('.terminal-row[data-ticker]').forEach(function(btn){
+        var q=map[btn.dataset.ticker];
+        if(!q||!q.price)return;
+        var spans=btn.querySelectorAll('span');
+        var em=btn.querySelector('em');
+        if(spans[1]) spans[1].textContent='$'+Number(q.price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if(em){
+          var pct=Number(q.changePercent||0);
+          em.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+          em.className=pct>=0?'up':'down';
+        }
+      });
     });
+}
+
+function hydrateLandingSignal(){
+  function updateSignal(d){
+    if(!d)return;
+    var label=document.getElementById('terminal-signal-label');
+    var headline=document.getElementById('terminal-signal-headline');
+    var chain=document.getElementById('terminal-signal-chain');
+    var confText=document.getElementById('terminal-confidence-text');
+    var confFill=document.getElementById('terminal-confidence-fill');
+    if(label) label.textContent=d.label||label.textContent;
+    if(headline) headline.textContent=d.headline||headline.textContent;
+    if(chain){ chain.textContent=''; chain.setAttribute('data-full-text',d.chain||'');
+      // Restart the typewriter if the cinematic script has that function
+      if(typeof window.tsRestartTypewriter==='function') window.tsRestartTypewriter(chain);
+      else chain.textContent=d.chain||'';
+    }
+    var pct=Math.max(0,Math.min(100,Number(d.confidence||0)));
+    if(confText) confText.textContent=pct+'/100';
+    if(confFill) confFill.style.width=pct+'%';
   }
-  var pin=document.getElementById('chain-pin');
-  var panel=document.getElementById('chain-demo-panel');
-  if(pin&&panel&&window.matchMedia('(min-width:901px)').matches){
-    ScrollTrigger.create({
-      trigger:pin,start:'top 18%',end:'+=520',pin:'.chain-pin-left',pinSpacing:true,anticipatePin:1
-    });
-    gsap.fromTo(panel,{y:48,opacity:.35},{y:0,opacity:1,ease:'none',
-      scrollTrigger:{trigger:pin,start:'top 70%',end:'+=520',scrub:.8}
-    });
+  function fetchSignal(){
+    fetch('/api/landing-signal')
+      .then(function(r){return r.ok?r.json():null})
+      .catch(function(){return null})
+      .then(updateSignal);
   }
-  var scrub=document.querySelector('.wl-sub');
-  if(scrub){
-    gsap.fromTo(scrub,{opacity:.2},{opacity:1,ease:'none',
-      scrollTrigger:{trigger:scrub,start:'top 90%',end:'top 55%',scrub:.6}
-    });
-  }
+  fetchSignal();
+  setInterval(fetchSignal, 30000);
+}
+
+function bootLandingScripts(){
+  initScrollReveal();
+  hydrateLandingTicker();
+  hydrateLandingSignal();
 }
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',initLandingMotion);
+  document.addEventListener('DOMContentLoaded',bootLandingScripts);
 }else{
-  initLandingMotion();
+  bootLandingScripts();
 }
 </script>
+<script src="/assets/landing-cinematic.js?v=soundtrack-wall-1" defer></script>
 </body>
 </html>

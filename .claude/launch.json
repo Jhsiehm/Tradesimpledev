@@ -5,6 +5,7 @@
       "name": "tradesimple",
       "runtimeExecutable": "/Users/joshuaugyenlhundruphsiehmetters/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
       "runtimeArgs": ["server.mjs"],
+      "cwd": "/Users/joshuaugyenlhundruphsiehmetters/Documents/TradeSimple v1",
       "port": 3000
     }
   ]

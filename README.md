@@ -1,6 +1,6 @@
 # TradeSimple Terminal
 
-TradeSimple is a runnable full-stack prototype for a Bloomberg-style trading research terminal. It converts the pasted HTML idea into a server-backed app with:
+TradeSimple is a **research beta** — a runnable full-stack policy-and-markets terminal (not a brokerage). It ships as a server-backed app with:
 
 - Product landing page
 - Google, Apple, and local demo sign-in routes
@@ -19,6 +19,17 @@ node server.mjs
 Open `http://localhost:3000`.
 
 This project intentionally has no npm dependencies because the current workspace runtime exposes `node` but not `npm`/`pnpm`.
+
+### Public detail pages (shareable, no login)
+
+| Route | API |
+|-------|-----|
+| `/stock/NVDA` | `GET /api/share/stock?symbol=NVDA` |
+| `/bill/S.1836-119` | `GET /api/share/bill?billId=...` |
+| `/contract/LMT` | `GET /api/share/contract?symbol=LMT` |
+| `/lobby/{filingId}` | `GET /api/share/lobby?filingId=...` |
+
+The dashboard links to these from Bills, Contracts, Lobbying, and the Thesis Lab signal map. Thesis map node positions can be dragged in **Edit layout** mode (saved per ticker in `localStorage`).
 
 ## Configure
 
@@ -43,6 +54,24 @@ Provider notes:
 - `CONGRESS_API_KEY` enables live Congress.gov bill records.
 - `SENATE_LDA_API_KEY` enables authenticated LDA.gov lobbying filings at the higher registered-user rate limit.
 - Alpaca defaults to `https://paper-api.alpaca.markets`. Live trading requires both a live endpoint and `ALLOW_LIVE_TRADING=true`.
+
+### Live + accurate production mode
+
+Set `DATA_ACCURACY_MODE=production` in `.env.local` (see `.env.example`). In this mode:
+
+- Bill status and sponsors come from **Congress.gov** (no fictional action dates on linked bills).
+- Lobbying dollars on bill cards come from **Senate LDA** matched filings only (seed lobbying $ removed).
+- Historical analogs use **verified fact packs** with source links (`src/data/verifiedHistoricalFacts.mjs`).
+- Pass/fail % impact ranges stay **scenario models** (labeled, not forecasts).
+- `/api/health/data` reports feed readiness; the dashboard shows a source freshness bar.
+
+Start locally:
+
+```bash
+./scripts/start-production.sh
+```
+
+Open `http://localhost:3010/dashboard` (stop any existing server on that port first). Check health: `GET /api/health/data` (requires session cookie after `/auth/demo`).
 
 ## Market data: Finnhub vs yfinance (hybrid)
 

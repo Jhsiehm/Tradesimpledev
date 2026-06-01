@@ -16,9 +16,9 @@
     <title>TradeSimple Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=taste-hierarchy-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=taste-hierarchy-1" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/styles.css?v=nav-view-state-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=nav-view-state-1" />
   </head>
   <body data-page="dashboard">
     <div class="terminal-shell">
@@ -26,23 +26,23 @@
         <div class="sidebar-brand-row">
         <a class="brand terminal-brand" href="/dashboard">
           <svg class="brand-monogram" width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.3)" stroke-width="1"/>
+            <circle cx="14" cy="14" r="12.5" stroke="rgba(200,255,0,0.3)" stroke-width="1"/>
             <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbitD)" stroke-width="1.5" stroke-dasharray="14 64">
               <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
             </circle>
-            <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.5)" stroke-width="0.75"/>
-            <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
-            <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
+            <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(200,255,0,0.5)" stroke-width="0.75"/>
+            <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#E8E4DC" letter-spacing="-0.5">T</text>
+            <circle cx="23.5" cy="9" r="2" fill="#C8FF00"/>
             <defs>
               <linearGradient id="tOrbitD" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#5bbf82"/>
-                <stop offset="100%" stop-color="#1F4A35"/>
+                <stop offset="0%" stop-color="#C8FF00"/>
+                <stop offset="100%" stop-color="#2A3800"/>
               </linearGradient>
             </defs>
           </svg>
           <div>
             <span style="display:block;line-height:1">TradeSimple</span>
-            <span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;color:rgba(91,191,130,.6);text-transform:uppercase;margin-top:1px">Policy Signals</span>
+            <span style="display:block;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;color:rgba(200,255,0,.6);text-transform:uppercase;margin-top:1px">Policy Signals</span>
           </div>
         </a>
         <button class="ham-btn" id="ham-btn" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="main-sidebar">
@@ -54,12 +54,14 @@
         </button>
         </div>
         <nav class="side-nav" aria-label="Terminal sections">
-          <button class="nav-item active" data-view="overview">Dashboard</button>
-          <button class="nav-item" data-view="markets">Markets</button>
+          <button class="nav-item active" data-view="overview">Home</button>
+          <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="bills">Bills</button>
+          <button class="nav-item" data-view="lobbying">Lobbying</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
           <button class="nav-item" data-view="analysis">Analysis</button>
-          <button class="nav-item" data-view="thesis">Thesis Lab</button>
+          <button class="nav-item" data-view="markets">Markets</button>
+          <button class="nav-item" data-view="track-record">Track Record</button>
           <button class="nav-item" data-view="trade">Account</button>
           <button class="nav-item nav-item-settings" data-view="settings">Settings</button>
         </nav>
@@ -82,14 +84,14 @@
             <input id="terminal-search" placeholder="Ticker, bill, issue area" />
           </label>
           <div class="topbar-end">
-            <span id="quote-fallback-badge" class="mini-pill amber quote-fallback-prominent" hidden title="Live market data required for thesis tracking">⚠ Fallback prices — not live</span>
-            <span id="live-feed-status" class="mini-pill live-source-pill">Live feed starting</span>
+            <span id="quote-fallback-badge" class="mini-pill amber quote-fallback-prominent" hidden aria-hidden="true"></span>
+            <span id="live-feed-status" class="topbar-status-chip" role="status">Connecting feeds…</span>
+            <button type="button" class="button-icon-only" id="methodology-open-btn" title="How scores are calculated" aria-label="Explain metrics">?</button>
             <div class="theme-toggle" role="group" aria-label="Color theme">
               <button type="button" class="theme-toggle-btn" data-theme-set="dark" aria-pressed="true">Dark</button>
               <button type="button" class="theme-toggle-btn" data-theme-set="light" aria-pressed="false">Light</button>
             </div>
-            <button type="button" class="button button-secondary compact" id="refresh-all-btn">Refresh all</button>
-            <button type="button" class="button button-ghost compact" id="methodology-open-btn" title="How scores are calculated">Explain metrics</button>
+            <button type="button" class="button button-secondary compact topbar-refresh-btn" id="refresh-all-btn">Refresh</button>
           </div>
         </header>
         <div class="tape-strip" aria-label="Market tape">
@@ -99,24 +101,35 @@
         </div>
       </div>
 
+      <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
+      <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness" hidden>
+        <div class="source-freshness-inner">
+          <span class="source-freshness-title">Source freshness</span>
+          <div id="source-freshness-grid" class="source-freshness-grid"></div>
+          <a class="source-freshness-link" href="#" id="data-health-details-link">How data is verified</a>
+        </div>
+      </section>
+
       <main class="workspace">
         <section class="view active dashboard-overview-view" id="view-overview">
-          <section class="portfolio-command">
-            <div>
-              <span class="mini-pill green">TradeSimple portfolio dashboard</span>
+          <!-- Today's Top Signal — injected by app.js renderTopSignal() -->
+          <div id="overview-top-signal" class="overview-top-signal" hidden></div>
+          <section class="portfolio-command portfolio-command-hero">
+            <div class="portfolio-command-copy">
               <h1>Know what can move your money before the move.</h1>
               <p id="overview-subtitle">Loading live data and policy signals.</p>
               <div class="watchlist-strip-wrap">
                 <span class="watchlist-strip-label">Watchlist</span>
                 <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
               </div>
+              <section class="research-journey-strip" id="research-journey-strip" aria-label="Recommended research path"></section>
               <div class="portfolio-command-actions">
-                <button class="button button-primary" data-view-jump="analysis">Analyze holdings</button>
-                <button class="button button-secondary" data-view-jump="bills">Open LegisAlert</button>
+                <button class="button button-secondary" data-view-jump="analysis">Analyze holdings</button>
+                <button class="button button-ghost" data-view-jump="bills">LegisAlert</button>
                 <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
               </div>
             </div>
-            <div class="portfolio-terminal-card surface-emphasis actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
+            <div class="portfolio-terminal-card portfolio-terminal-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
               <div class="portfolio-terminal-head">
                 <span>Portfolio value</span>
                 <strong id="portfolio-hero-value">$0</strong>
@@ -124,54 +137,38 @@
               <div id="portfolio-sparkline" class="portfolio-sparkline" aria-label="Portfolio trend chart"></div>
               <div class="portfolio-terminal-foot">
                 <span id="portfolio-hero-change">Calculating</span>
-                <button class="link-button" data-view-jump="research">Ask AI research</button>
+                <button class="link-button portfolio-terminal-cta" data-view-jump="trade">Open account</button>
               </div>
             </div>
           </section>
 
-          <section class="panel live-alert-panel" aria-live="polite">
-            <div class="panel-head">
-              <h2>Live signal tape</h2>
-              <span id="live-alert-updated">Waiting for feeds</span>
-            </div>
-            <div id="live-alerts" class="live-alerts"></div>
-          </section>
-
-          <section class="panel policy-catalyst-panel">
-            <div class="panel-head">
-              <h2>Congress catalyst queue</h2>
-              <span id="policy-catalyst-source">Waiting</span>
-            </div>
-            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
-          </section>
-
-          <div class="stat-grid">
-            <article class="stat-card stat-card-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
-              <span>Portfolio simulation</span>
-              <strong id="portfolio-value">$0</strong>
-              <small id="portfolio-change">Calculating</small>
+          <div class="overview-metrics-strip" role="list" aria-label="Portfolio metrics">
+            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open portfolio policy exposure">
+              <span class="overview-metric-label">Policy heat</span>
+              <strong class="overview-metric-value amber" id="stat-policy-exposure">—</strong>
+              <small class="overview-metric-sub" id="stat-policy-exposure-sub">Legislative momentum vs holdings</small>
             </article>
-            <article class="stat-card actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open mapped bills">
-              <span>Mapped bills</span>
-              <strong class="amber" id="stat-bill-count">—</strong>
-              <small id="stat-bill-momentum">Legislative momentum (max /100)</small>
+            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open mapped bills">
+              <span class="overview-metric-label">Mapped bills</span>
+              <strong class="overview-metric-value" id="stat-bill-count">—</strong>
+              <small class="overview-metric-sub" id="stat-bill-momentum">Legislative momentum (max /100)</small>
             </article>
-            <article class="stat-card actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading mode">
-              <span>Trading mode</span>
-              <strong id="trade-mode">Paper</strong>
-              <small id="trade-mode-sub">Live locked by default</small>
+            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open lobbying and bill pressure">
+              <span class="overview-metric-label">Lobbying</span>
+              <strong class="overview-metric-value down" id="stat-lobby-pressure">—/100</strong>
+              <small class="overview-metric-sub" id="stat-lobby-confidence">Top filing score · Confidence</small>
             </article>
-            <article class="stat-card stat-card-wide actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open lobbying and bill pressure">
-              <span>Lobbying pressure</span>
-              <strong class="down" id="stat-lobby-pressure">—/100</strong>
-              <small id="stat-lobby-confidence">Top filing score · Confidence</small>
+            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading mode">
+              <span class="overview-metric-label">Trading mode</span>
+              <strong class="overview-metric-value" id="trade-mode">Paper</strong>
+              <small class="overview-metric-sub" id="trade-mode-sub">Live locked by default</small>
             </article>
           </div>
 
-          <section class="panel signal-chain-panel" id="signal-chain-panel">
-            <div class="panel-head">
+          <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
+            <div class="panel-head panel-head-quiet">
               <h2>Signal chain</h2>
-              <span>Bills · contracts · market impact — unified</span>
+              <span>Featured policy path · bills and contracts</span>
             </div>
             <div id="signal-chain-feed" class="signal-chain-feed"></div>
             <div class="signal-chain-footer" id="signal-chain-footer" hidden>
@@ -179,7 +176,31 @@
             </div>
           </section>
 
-          <section class="panel market-mood-panel" id="market-mood-panel">
+          <details class="panel-fold overview-feeds-fold">
+            <summary class="panel-fold-summary">Live feeds &amp; catalyst queue</summary>
+            <div class="panel-fold-body">
+          <section class="panel panel-compact live-alert-panel" aria-live="polite">
+            <div class="panel-head">
+              <h2>Live signal tape</h2>
+              <span id="live-alert-updated">Waiting for feeds</span>
+            </div>
+            <div id="live-alerts" class="live-alerts"></div>
+          </section>
+
+          <section class="panel panel-compact policy-catalyst-panel">
+            <div class="panel-head">
+              <h2>Congress catalyst queue</h2>
+              <span id="policy-catalyst-source">Waiting</span>
+            </div>
+            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
+          </section>
+            </div>
+          </details>
+
+          <details class="panel-fold overview-mood-fold">
+            <summary class="panel-fold-summary">Market mood readout</summary>
+            <div class="panel-fold-body">
+          <section class="panel panel-compact market-mood-panel" id="market-mood-panel">
             <div class="panel-head">
               <h2>Market mood</h2>
               <span>Tape · policy · lobbying (modeled) · <button type="button" class="link-button methodology-link" data-methodology-focus="marketMood">How modeled</button></span>
@@ -211,6 +232,8 @@
               <p class="market-mood-summary" id="market-mood-summary">Loading mood readout…</p>
             </div>
           </section>
+            </div>
+          </details>
 
           <div class="portfolio-dashboard-grid">
             <section class="panel">
@@ -243,14 +266,14 @@
                 <span id="holdings-updated">Waiting</span>
               </div>
               <div class="table-wrap">
-                <table>
+                <table class="terminal-table">
                   <thead>
                     <tr>
                       <th>Asset</th>
-                      <th>Shares</th>
-                      <th>Price</th>
-                      <th>Value</th>
-                      <th>Today</th>
+                      <th class="num">Shares</th>
+                      <th class="num">Price</th>
+                      <th class="num">Value</th>
+                      <th class="num">Today</th>
                       <th>Policy signal</th>
                     </tr>
                   </thead>
@@ -269,7 +292,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-markets">
+        <section class="view terminal-view" id="view-markets">
           <div class="page-header">
             <div>
               <h1>Markets</h1>
@@ -277,17 +300,21 @@
             </div>
             <span class="status-pill" id="market-source">Connecting</span>
           </div>
-          <section class="panel">
+          <section class="panel panel-emphasis">
+            <div class="panel-head panel-head-quiet">
+              <h2>Equities &amp; ETFs</h2>
+              <span id="market-table-meta">Live quotes</span>
+            </div>
             <div class="table-wrap">
-              <table>
+              <table class="terminal-table">
                 <thead>
                   <tr>
                     <th>Ticker</th>
-                    <th>Price</th>
-                    <th>Change</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>Low</th>
+                    <th class="num">Price</th>
+                    <th class="num">Change</th>
+                    <th class="num">Open</th>
+                    <th class="num">High</th>
+                    <th class="num">Low</th>
                     <th>Policy</th>
                   </tr>
                 </thead>
@@ -296,7 +323,7 @@
             </div>
           </section>
           <section class="panel mt">
-            <div class="panel-head">
+            <div class="panel-head panel-head-quiet">
               <h2>Crypto</h2>
               <span id="crypto-source">Connecting</span>
             </div>
@@ -304,7 +331,7 @@
           </section>
         </section>
 
-        <section class="view" id="view-analysis">
+        <section class="view terminal-view" id="view-analysis">
           <div class="analysis-shell">
             <div class="analysis-left">
               <label class="analysis-ticker-label" for="analysis-symbol">You are looking at</label>
@@ -316,7 +343,7 @@
                 <button type="button" class="reader-mode-btn active" data-reader-mode="investor">Investor</button>
                 <button type="button" class="reader-mode-btn" data-reader-mode="analyst">Analyst</button>
               </div>
-              <div class="analysis-hero-card" id="analysis-hero-card">
+              <div class="analysis-hero-card terminal-hero-card" id="analysis-hero-card">
                 <div>
                   <span class="mini-pill green" id="analysis-hero-symbol">—</span>
                   <h2 id="analysis-hero-company">Loading company</h2>
@@ -365,8 +392,8 @@
               <div class="analysis-tab-panel" data-analysis-panel="stock" role="tabpanel">
                 <p id="analysis-quote-meta" class="analysis-quote-meta muted" hidden></p>
                 <p id="analysis-price-context" class="analysis-price-context"></p>
-                <section class="panel government-explainer-panel" id="analysis-government-explainer">
-                  <div class="panel-head">
+                <section class="panel panel-emphasis government-explainer-panel" id="analysis-government-explainer">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Why government matters for this stock</h2>
                     <span id="analysis-explainer-source">Waiting</span>
                   </div>
@@ -386,28 +413,28 @@
                   </div>
                 </section>
                 <section class="panel stock-chain-panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Government-to-market chain</h2>
                     <span>Government Action -> Company Exposure -> Market Mechanism -> Investor Question</span>
                   </div>
                   <div id="analysis-stock-policy-chains" class="analysis-policy-chains"></div>
                 </section>
                 <section class="panel analysis-news-panel" id="analysis-news-panel" hidden>
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Recent company headlines</h2>
                     <span class="muted">Last 48 hours · Finnhub</span>
                   </div>
                   <ul id="analysis-recent-news" class="analysis-recent-news"></ul>
                 </section>
                 <section class="panel risk-radar-panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Risk radar</h2>
                     <span>Scores need captions</span>
                   </div>
                   <div id="analysis-risk-radar" class="analysis-risk-radar"></div>
                 </section>
                 <section class="panel evidence-stack-panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Evidence stack</h2>
                     <span>Receipts before interpretation</span>
                   </div>
@@ -421,20 +448,20 @@
                   <div id="analysis-sparkline" class="sparkline-wrap" aria-label="Price trend chart"></div>
                 </div>
                 <section class="panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>What the numbers mean</h2>
                   </div>
                   <div id="analysis-fundamentals-rows" class="analysis-fundamentals-rows"></div>
                 </section>
                 <section class="panel analyst-snapshot-panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>What Wall Street thinks</h2>
                   </div>
                   <div id="analysis-analyst-card" class="analysis-analyst-card"></div>
                   <p class="analysis-analyst-disclaimer">Analyst targets are modeled estimates. Not financial advice.</p>
                 </section>
                 <section class="panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>From the 10-K, in plain English</h2>
                   </div>
                   <p class="edgar-intro muted">TradeSimple extracts what the company says about money, risks, and whether the numbers are moving in the right direction.</p>
@@ -458,7 +485,7 @@
                   These are real bills moving through Congress right now that could change the rules for this company. The momentum score tells you how likely each bill is to advance. The lobbying pressure tells you how much the industry is fighting for or against it.
                 </div>
                 <div class="table-wrap">
-                  <table class="analysis-bills-table">
+                  <table class="terminal-table analysis-bills-table">
                     <thead>
                       <tr>
                         <th>Bill</th>
@@ -481,14 +508,14 @@
                   Lobbying filings are public records. When a company or industry group files with the Senate, they have to say who paid them, how much, and what issue they were lobbying on. A sudden spike in spending usually means the industry thinks something important is about to happen.
                 </p>
                 <section class="panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Filings connected to bills</h2>
                   </div>
                   <div id="analysis-lobby-map-status" class="analysis-lobby-map-status" aria-live="polite"></div>
                   <div id="analysis-lobby-mapped" class="analysis-lobby-mapped"></div>
                 </section>
                 <section class="panel">
-                  <div class="panel-head">
+                  <div class="panel-head panel-head-quiet">
                     <h2>Other filings (no bill mapped yet)</h2>
                   </div>
                   <button type="button" class="button button-secondary analysis-lobby-toggle" id="analysis-lobby-other-toggle" hidden>Show other filings</button>
@@ -530,12 +557,12 @@
                   USASpending.gov data may lag by up to 90 days for DoD; other agencies within 3 days.
                 </p>
                 <div class="table-wrap">
-                  <table>
+                  <table class="terminal-table">
                     <thead>
                       <tr>
                         <th>Agency</th>
                         <th>What it's for</th>
-                        <th>Amount</th>
+                        <th class="num">Amount</th>
                         <th>Period</th>
                         <th>Signal</th>
                         <th></th>
@@ -550,11 +577,11 @@
           <button type="button" class="analysis-ticker-ai-btn" id="analysis-ticker-ai-btn">Ask AI about this ticker</button>
         </section>
 
-        <section class="view" id="view-bills">
+        <section class="view terminal-view" id="view-bills">
           <div class="page-header">
             <div>
               <h1>Bills</h1>
-              <p>Bill stage, legislative momentum, lobbying pressure, confidence, and affected tickers in one table.</p>
+              <p>Intro dates, committee gates, last action, and vote timing — plus momentum, lobbying, and tickers.</p>
             </div>
             <span class="status-pill" id="bill-source">Connecting</span>
           </div>
@@ -562,20 +589,20 @@
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
             <button class="button button-secondary compact" id="clear-bill-filter">Clear</button>
           </div>
-          <section class="panel bill-catalyst-panel">
-            <div class="panel-head">
+          <section class="panel panel-emphasis bill-catalyst-panel">
+            <div class="panel-head panel-head-quiet">
               <h2>Near-term policy catalysts</h2>
               <span>Schedule, status, lobbying, and ticker mapping</span>
             </div>
             <div id="bill-catalyst-feed" class="policy-catalyst-list compact"></div>
           </section>
           <section class="panel">
-            <div class="panel-head">
+            <div class="panel-head panel-head-quiet">
               <h2>Legislative intelligence table</h2>
               <span data-freshness>Pending</span>
             </div>
             <div class="table-wrap">
-              <table>
+              <table class="terminal-table">
                 <thead>
                   <tr>
                     <th>Bill / model ID</th>
@@ -585,7 +612,7 @@
                     <th>Lobby Pressure</th>
                     <th>Confidence</th>
                     <th>Tickers</th>
-                    <th>Last Action</th>
+                    <th>Calendar</th>
                   </tr>
                 </thead>
                 <tbody id="bill-feed"></tbody>
@@ -593,7 +620,7 @@
             </div>
           </section>
           <aside class="panel mt">
-            <div class="panel-head">
+            <div class="panel-head panel-head-quiet">
               <h2>Stakeholder lens</h2>
               <span id="bill-network-source">Pending</span>
             </div>
@@ -601,23 +628,51 @@
           </aside>
         </section>
 
-        <section class="view" id="view-contracts">
+        <section class="view terminal-view" id="view-lobbying">
+          <div class="page-header">
+            <div>
+              <h1>Lobbying</h1>
+              <p>Senate LDA filings when configured — spend spikes, issue areas, and links to related legislation. Each filing opens a full brief page.</p>
+            </div>
+            <span class="status-pill" id="lobby-source">Connecting</span>
+          </div>
+          <section class="panel panel-emphasis">
+            <div class="panel-head panel-head-quiet">
+              <h2>Filing feed</h2>
+              <span data-freshness="lobbying">Pending</span>
+            </div>
+            <div id="lobby-feed" class="lobby-feed-grid"></div>
+            <p id="lobby-feed-empty" class="guided-empty-state" hidden>
+              <strong>No lobbying filings loaded.</strong>
+              Set <code>SENATE_LDA_API_KEY</code> for live LDA data, or use Refresh. Sample filings appear when the API is unavailable.
+            </p>
+          </section>
+          <aside class="panel mt">
+            <div class="panel-head panel-head-quiet">
+              <h2>Bill bridge</h2>
+              <span>Filings tied to tracked bills</span>
+            </div>
+            <div id="lobby-bill-bridge" class="lobby-bridge-list"></div>
+          </aside>
+        </section>
+
+        <section class="view terminal-view" id="view-contracts">
           <div class="page-header">
             <div>
               <h1>Contracts</h1>
               <p>Federal contract awards can affect revenue for government-exposed companies. Agency reviews, recompetes, cancellations, or appropriations cuts can move a stock before the earnings report reflects it.</p>
             </div>
           </div>
-          <section class="panel">
-            <div class="panel-head">
+          <section class="panel panel-emphasis">
+            <div class="panel-head panel-head-quiet">
               <h2>Federal contract exposure monitor</h2>
               <span id="contracts-source">Connecting</span>
             </div>
-            <p id="contracts-intro" class="muted" style="padding: 0 16px 12px; margin: 0; font-size: 13px; line-height: 1.5">
+            <p id="contracts-intro" class="muted contracts-intro">
               Loading recent awards from USASpending.gov. Awards can lag agency disclosure by roughly 30-90 days.
             </p>
             <div class="table-wrap">
-              <table>
+              <table class="terminal-table">
                 <thead>
                   <tr>
                     <th>Ticker</th>
@@ -636,8 +691,8 @@
           </section>
 
           <!-- ── CONTRACT CAUSALITY PANEL ───────────────────────── -->
-          <section class="panel causality-panel" id="causality-panel" style="margin-top:16px">
-            <div class="panel-head">
+          <section class="panel causality-panel" id="causality-panel">
+            <div class="panel-head panel-head-quiet">
               <div>
                 <h2>Contract causality</h2>
                 <span>Show the chain — budget → agency → award → revenue → scenario — not just a score.</span>
@@ -734,19 +789,68 @@
           </section>
         </section>
 
-        <section class="view" id="view-thesis">
+        <section class="view terminal-view" id="view-thesis">
           <div class="thesis-outer-tabs">
-            <button type="button" class="thesis-outer-tab active" data-thesis-outer="build">Build thesis</button>
+            <button type="button" class="thesis-outer-tab active" data-thesis-outer="build">Thesis Command Center</button>
             <button type="button" class="thesis-outer-tab" data-thesis-outer="map">Signal map</button>
           </div>
           <div class="thesis-pane active" id="thesis-pane-build">
-            <div class="thesis-step-bar" id="thesisStepBar">
+            <section class="panel panel-emphasis thesis-intake-card">
+              <div class="panel-head panel-head-quiet">
+                <h2>Thesis intake</h2>
+                <span>Research mission only — not investment advice</span>
+              </div>
+              <div class="thesis-intake-grid">
+                <label>Ticker
+                  <input class="thesis-ticker-input" id="tc-ticker" placeholder="NVDA" maxlength="6" autocomplete="off" spellcheck="false" />
+                </label>
+                <label>Direction
+                  <select id="tc-direction">
+                    <option value="bull">Bull</option>
+                    <option value="bear">Bear</option>
+                    <option value="unclear">Unclear</option>
+                  </select>
+                </label>
+                <label>Time horizon
+                  <select id="tc-horizon">
+                    <option value="unspecified">Unspecified</option>
+                    <option value="2-6 weeks">2-6 weeks</option>
+                    <option value="1-3 months">1-3 months</option>
+                    <option value="3-6 months">3-6 months</option>
+                    <option value="6-12 months">6-12 months</option>
+                    <option value="12+ months">12+ months</option>
+                  </select>
+                </label>
+              </div>
+              <label>One-sentence thesis
+                <textarea class="thesis-textarea thesis-intake-thesis" id="tc-thesis" placeholder="Write your thesis in one clear sentence."></textarea>
+              </label>
+              <div class="thesis-btn-row">
+                <button type="button" class="button button-primary compact" id="tc-generate-btn">Generate Thesis Map</button>
+                <button type="button" class="button button-secondary compact" id="tc-save-btn">Save Thesis</button>
+                <button type="button" class="button button-ghost compact" id="tc-paper-btn">Test with Paper Trade</button>
+              </div>
+              <details class="thesis-intake-advanced">
+                <summary>Advanced</summary>
+                <div class="thesis-intake-advanced-grid">
+                  <label>Entry price<input class="thesis-price-input" id="tc-entry" type="number" step="0.01" /></label>
+                  <label>Target price<input class="thesis-price-input" id="tc-target" type="number" step="0.01" /></label>
+                  <label>Stop price<input class="thesis-price-input" id="tc-stop" type="number" step="0.01" /></label>
+                  <label>Source links<input id="tc-source-links" placeholder="comma-separated URLs" /></label>
+                  <label>Related tickers<input id="tc-related" placeholder="AMD, AVGO, TSM" /></label>
+                  <label>Policy themes<input id="tc-policy-themes" placeholder="CHIPS Act, export controls" /></label>
+                  <label class="thesis-intake-advanced-wide">Invalidation condition<input id="tc-invalidation" placeholder="What would prove this thesis wrong?" /></label>
+                </div>
+              </details>
+            </section>
+
+            <div class="thesis-step-bar thesis-legacy-wizard" id="thesisStepBar">
               <div class="thesis-pip active" id="tpip-0"><div class="thesis-pip-num">1</div><span>The idea</span></div>
               <div class="thesis-pip" id="tpip-1"><div class="thesis-pip-num">2</div><span>Why it moves</span></div>
               <div class="thesis-pip" id="tpip-2"><div class="thesis-pip-num">3</div><span>What stops you</span></div>
               <div class="thesis-pip" id="tpip-3"><div class="thesis-pip-num">4</div><span>The plan</span></div>
             </div>
-            <div class="thesis-screen active" id="tscreen-0">
+            <div class="thesis-screen thesis-legacy-wizard active" id="tscreen-0">
               <div class="thesis-step-body">
                 <p class="thesis-q">What's the trade?</p>
                 <p class="thesis-hint">Pick a ticker and tell us which way you think it moves.</p>
@@ -776,7 +880,7 @@
                 </div>
               </div>
             </div>
-            <div class="thesis-screen" id="tscreen-1">
+            <div class="thesis-screen thesis-legacy-wizard" id="tscreen-1">
               <div class="thesis-step-body">
                 <p class="thesis-q">Why do you think that?</p>
                 <p class="thesis-hint">Write it how you'd explain it to a friend. The more specific, the better the analysis.</p>
@@ -788,7 +892,7 @@
                 </div>
               </div>
             </div>
-            <div class="thesis-screen" id="tscreen-2">
+            <div class="thesis-screen thesis-legacy-wizard" id="tscreen-2">
               <div class="thesis-step-body">
                 <p class="thesis-q">What would change your mind?</p>
                 <p class="thesis-hint">Pick every scenario that would make you exit or reconsider. This separates a plan from a guess.</p>
@@ -841,7 +945,7 @@
                 </div>
               </div>
             </div>
-            <div class="thesis-screen" id="tscreen-3">
+            <div class="thesis-screen thesis-legacy-wizard" id="tscreen-3">
               <div class="thesis-step-body">
                 <p class="thesis-q">Where do you get out?</p>
                 <p class="thesis-hint">Set a target and a stop-loss. You can skip this and just see the analysis.</p>
@@ -871,10 +975,30 @@
                 </div>
               </div>
             </div>
-            <div class="thesis-screen" id="tscreen-result">
+            <div class="thesis-screen active thesis-command-center" id="tscreen-result">
               <div class="thesis-quote-blocker" id="tr-quote-blocker" hidden>
                 <strong>Live market data required</strong>
                 <p>Your quote feed is using fallback prices. Connect Finnhub or Yahoo live quotes before tracking this plan in paper mode.</p>
+              </div>
+              <div class="thesis-upgrade-banner" id="tc-upgrade-banner" hidden>
+                <div>
+                  <strong>This thesis can be upgraded with structured bull/bear logic, evidence, watch triggers, and scoring.</strong>
+                  <p class="muted">Legacy thesis input stays preserved until you explicitly accept an upgrade.</p>
+                </div>
+                <div class="thesis-btn-row">
+                  <button type="button" class="button button-secondary compact" id="tc-upgrade-ai-btn">Upgrade with AI</button>
+                  <button type="button" class="button button-ghost compact" id="tc-upgrade-edit-btn">Edit manually</button>
+                  <button type="button" class="button button-ghost compact" id="tc-upgrade-keep-btn">Keep as-is</button>
+                </div>
+              </div>
+              <div class="thesis-command-summary panel panel-emphasis">
+                <div class="thesis-command-summary-grid">
+                  <div><span class="thesis-result-label">Ticker</span><strong id="tc-summary-ticker">—</strong></div>
+                  <div><span class="thesis-result-label">Thesis health</span><strong id="tc-summary-health">—</strong></div>
+                  <div><span class="thesis-result-label">Trend</span><strong id="tc-summary-trend">—</strong></div>
+                  <div><span class="thesis-result-label">Current price</span><strong id="tc-summary-price">—</strong></div>
+                  <div><span class="thesis-result-label">Linked P/L</span><strong id="tc-summary-pnl">—</strong></div>
+                </div>
               </div>
               <div class="thesis-result-layout">
                 <div class="thesis-result-main">
@@ -990,6 +1114,16 @@
                     <button type="button" class="thesis-filter-pill" data-fp="figure">Figures</button>
                     <button type="button" class="thesis-filter-pill" data-fp="market">Market</button>
                   </div>
+                  <div class="thesis-map-edit-tools">
+                    <button type="button" class="button button-secondary compact" id="thesis-map-fullscreen" aria-pressed="false">Full screen</button>
+                    <div class="thesis-map-zoom-tools" aria-label="Map zoom controls">
+                      <button type="button" class="button button-ghost compact" id="thesis-map-zoom-out" title="Zoom out">-</button>
+                      <button type="button" class="button button-ghost compact" id="thesis-map-zoom-in" title="Zoom in">+</button>
+                      <button type="button" class="button button-ghost compact" id="thesis-map-reset-view">Reset view</button>
+                    </div>
+                    <button type="button" class="button button-secondary compact" id="thesis-map-edit-toggle" aria-pressed="false">Edit layout</button>
+                    <button type="button" class="button button-ghost compact" id="thesis-map-reset-layout" hidden>Reset layout</button>
+                  </div>
                 </div>
                 <div class="thesis-canvas-wrap">
                   <canvas id="thesisMapCanvas" height="420" role="img" aria-label="Interactive signal map showing how data sources connect to your thesis stock">Signal map: connections between signals and your stock.</canvas>
@@ -1050,7 +1184,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-trade">
+        <section class="view terminal-view" id="view-trade">
           <div class="page-header">
             <div>
               <h1>Account</h1>
@@ -1059,11 +1193,11 @@
             <span class="status-pill" id="account-source">Loading</span>
           </div>
 
-          <div class="paper-stat-grid" id="account-grid"></div>
+          <div class="overview-metrics-strip account-metrics-strip" id="account-grid" role="list" aria-label="Account metrics"></div>
 
           <div class="trade-workspace">
-            <section class="panel trade-chart-panel">
-              <div class="panel-head">
+            <section class="panel panel-emphasis trade-chart-panel">
+              <div class="panel-head panel-head-quiet">
                 <h2 id="trade-symbol-title">Paper trade setup</h2>
                 <div class="trade-range-row">
                   <button class="range-chip active" type="button" data-trade-range="1d">1D</button>
@@ -1095,7 +1229,7 @@
             </section>
 
             <section class="panel">
-              <div class="panel-head">
+              <div class="panel-head panel-head-quiet">
                 <h2>Order entry</h2>
                 <span id="trade-order-estimate">Market order</span>
               </div>
@@ -1119,20 +1253,20 @@
 
           <div class="trade-workspace mt">
             <section class="panel">
-              <div class="panel-head">
+              <div class="panel-head panel-head-quiet">
                 <h2>Paper positions</h2>
                 <span>Live mark-to-market</span>
               </div>
               <div class="table-wrap">
-                <table>
+                <table class="terminal-table terminal-table--positions">
                   <thead>
                     <tr>
                       <th>Symbol</th>
-                      <th>Qty</th>
-                      <th>Avg cost</th>
-                      <th>Price</th>
-                      <th>Market value</th>
-                      <th>P/L</th>
+                      <th class="num">Qty</th>
+                      <th class="num">Avg cost</th>
+                      <th class="num">Price</th>
+                      <th class="num">Market value</th>
+                      <th class="num">P/L</th>
                       <th>Policy risk</th>
                     </tr>
                   </thead>
@@ -1142,7 +1276,7 @@
             </section>
 
             <section class="panel">
-              <div class="panel-head">
+              <div class="panel-head panel-head-quiet">
                 <h2>Recent orders</h2>
                 <span>Paper fills</span>
               </div>
@@ -1151,7 +1285,7 @@
           </div>
 
           <section class="panel funds-panel mt" id="hypothetical-funds-panel">
-            <div class="panel-head">
+            <div class="panel-head panel-head-quiet">
               <div>
                 <h2>Hypothetical funds</h2>
                 <p class="muted panel-sub">Weighted research baskets — simulated index only, not investable products.</p>
@@ -1298,6 +1432,46 @@
           </section>
         </section>
 
+        <!-- ════════════ TRACK RECORD ════════════ -->
+        <section class="view" id="view-track-record">
+          <div class="tr-header">
+            <div>
+              <h1 class="tr-title">Track Record</h1>
+              <p class="tr-lead">Every signal TradeSimple surfaces becomes a timestamped, falsifiable prediction — scored against the real market move versus the S&amp;P 500. No cherry-picking: the ledger is append-only and hash-chained, so wins and misses are both permanent and publicly verifiable.</p>
+            </div>
+            <a class="tr-verify-badge" id="tr-verify-badge" href="/api/predictions/verify" target="_blank" rel="noopener" title="Verify the hash chain yourself">
+              <span class="tr-verify-dot"></span><span id="tr-verify-text">Verifying chain…</span>
+            </a>
+          </div>
+
+          <div class="tr-stat-grid" id="tr-stat-grid"></div>
+
+          <div class="tr-panels">
+            <section class="panel tr-panel">
+              <div class="panel-head"><h2>Calibration</h2><span>Are we as confident as we should be?</span></div>
+              <div class="tr-calibration" id="tr-calibration"></div>
+              <p class="tr-calibration-note">A perfectly calibrated forecaster's bars sit on the diagonal — when we say 80%, we're right 80% of the time.</p>
+            </section>
+
+            <section class="panel tr-panel">
+              <div class="panel-head"><h2>Edge by catalyst</h2><span>Where the signal is real</span></div>
+              <div class="tr-catalyst" id="tr-catalyst"></div>
+            </section>
+          </div>
+
+          <section class="panel tr-panel">
+            <div class="panel-head"><h2>Prediction log</h2><span id="tr-log-meta">Append-only · newest first</span></div>
+            <div class="tr-log-tabs" role="tablist">
+              <button type="button" class="tr-log-tab active" data-tr-filter="all">All</button>
+              <button type="button" class="tr-log-tab" data-tr-filter="open">Open</button>
+              <button type="button" class="tr-log-tab" data-tr-filter="resolved">Resolved</button>
+            </div>
+            <div class="tr-log" id="tr-log"></div>
+          </section>
+
+          <p class="tr-disclaimer">Predictions are transparent scenario signals scored after the fact, not investment advice. Excess return is measured against SPY over each prediction's horizon. Past signal accuracy does not guarantee future results.</p>
+        </section>
+
         <!-- ── SETTINGS ───────────────────────────────────────────────── -->
         <section class="view" id="view-settings">
           <div class="page-header">
@@ -1437,6 +1611,43 @@
       </section>
     </aside>
 
+    <div id="onboarding-modal" class="methodology-modal ts-app-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-modal-title" hidden>
+      <div class="methodology-modal-backdrop" data-close-onboarding tabindex="-1"></div>
+      <div class="methodology-modal-panel onboarding-modal-panel">
+        <header class="methodology-modal-head">
+          <h2 id="onboarding-modal-title">Welcome to TradeSimple</h2>
+          <button type="button" class="button button-ghost compact" data-close-onboarding aria-label="Close onboarding">✕</button>
+        </header>
+        <div class="methodology-modal-body onboarding-modal-body">
+          <p class="onboarding-lead">This is a <strong>research beta</strong> — live data where keys are set, clear labels where models are illustrative. Follow the path below to get value in under five minutes.</p>
+          <ol class="onboarding-checklist" id="onboarding-checklist">
+            <li data-step="watchlist"><span class="onboarding-step-num">1</span><div><strong>Set your watchlist</strong><p>Tap tickers on Home or add symbols in Settings.</p><button type="button" class="button button-secondary compact" data-onboarding-go="overview">Go to Home</button></div></li>
+            <li data-step="thesis"><span class="onboarding-step-num">2</span><div><strong>Build one thesis</strong><p>Pick a ticker, write your view, and open the Signal map.</p><button type="button" class="button button-secondary compact" data-onboarding-go="thesis">Open Thesis Lab</button></div></li>
+            <li data-step="bills"><span class="onboarding-step-num">3</span><div><strong>Trace policy</strong><p>Open a bill page, then link to tickers and lobbying.</p><button type="button" class="button button-secondary compact" data-onboarding-go="bills">Browse Bills</button></div></li>
+            <li data-step="share"><span class="onboarding-step-num">4</span><div><strong>Share a brief</strong><p>Every bill, contract, lobbying filing, and stock has a public detail page.</p><button type="button" class="button button-secondary compact" data-onboarding-go="bills">Open a bill</button></div></li>
+          </ol>
+          <label class="onboarding-skip"><input type="checkbox" id="onboarding-dismiss" /> Don&apos;t show again</label>
+          <button type="button" class="button button-primary" id="onboarding-finish">Start researching</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="app-confirm-modal" class="methodology-modal ts-app-modal" role="alertdialog" aria-modal="true" aria-labelledby="app-confirm-title" hidden>
+      <div class="methodology-modal-backdrop" data-close-confirm="cancel" tabindex="-1"></div>
+      <div class="methodology-modal-panel app-confirm-panel">
+        <header class="methodology-modal-head">
+          <h2 id="app-confirm-title">Confirm</h2>
+        </header>
+        <div class="methodology-modal-body">
+          <pre class="app-confirm-body" id="app-confirm-body"></pre>
+        </div>
+        <footer class="app-confirm-actions">
+          <button type="button" class="button button-ghost" data-close-confirm="cancel">Cancel</button>
+          <button type="button" class="button button-primary" data-close-confirm="ok">Confirm</button>
+        </footer>
+      </div>
+    </div>
+
     <div id="methodology-modal" class="methodology-modal" role="dialog" aria-modal="true" aria-labelledby="methodology-modal-title" hidden>
       <div class="methodology-modal-backdrop" data-close-methodology tabindex="-1"></div>
       <div class="methodology-modal-panel">
@@ -1448,8 +1659,8 @@
       </div>
     </div>
 
-    <script src="/assets/charts.js?v=roadmap-phase9-12"></script>
-    <script src="/assets/app.js?v=taste-hierarchy-1" defer></script>
+    <script src="/assets/charts.js?v=terminal-contrast-1"></script>
+    <script src="/assets/app.js?v=thesis-map-fullscreen-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
