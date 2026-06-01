@@ -137,9 +137,35 @@ function serverAiProviderEnabled() {
 }
 
 const PORT = Number(process.env.PORT || 3000);
-const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
-const AUTH_SECRET =
-  process.env.AUTH_SECRET || "dev-only-secret-change-before-deploying";
+
+const INSECURE_AUTH_SECRETS = new Set([
+  "",
+  "dev-only-secret-change-before-deploying",
+  "replace-with-a-long-random-string",
+  "changeme",
+  "secret"
+]);
+
+function isPlaceholderAppUrl(url) {
+  const u = String(url || "").trim().toLowerCase();
+  return !u || u.includes("localhost") || u.includes("127.0.0.1") || u.includes("0.0.0.0");
+}
+
+function resolveAppUrl() {
+  const explicit = String(process.env.APP_URL || "").trim().replace(/\/$/, "");
+  if (explicit && !isPlaceholderAppUrl(explicit)) return explicit;
+  const railwayHost = String(process.env.RAILWAY_PUBLIC_DOMAIN || "").trim();
+  if (railwayHost) return `https://${railwayHost}`;
+  return `http://localhost:${PORT}`;
+}
+
+const APP_URL = resolveAppUrl();
+const AUTH_SECRET = String(process.env.AUTH_SECRET || "").trim()
+  || "dev-only-secret-change-before-deploying";
+
+function authSecretIsInsecure() {
+  return INSECURE_AUTH_SECRETS.has(AUTH_SECRET);
+}
 const SESSION_COOKIE = "ts_session";
 const OAUTH_COOKIE = "ts_oauth";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -1980,12 +2006,15 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", async () => {
   console.log(`TradeSimple running at ${APP_URL} (port ${PORT})`);
-  if (AUTH_SECRET === "dev-only-secret-change-before-deploying") {
-    if (process.env.NODE_ENV === "production") {
-      console.error("[FATAL] AUTH_SECRET is the default dev value. Set AUTH_SECRET in .env before deploying. Exiting.");
+  if (authSecretIsInsecure()) {
+    if (process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT) {
+      console.error("[FATAL] AUTH_SECRET is missing or still a placeholder. Set AUTH_SECRET in Railway Variables (32+ random chars). Exiting.");
       process.exit(1);
     }
     console.warn("[WARN] AUTH_SECRET is using the default dev value. Set AUTH_SECRET in .env.local before deploying.");
+  }
+  if (process.env.RAILWAY_PUBLIC_DOMAIN && isPlaceholderAppUrl(process.env.APP_URL || "")) {
+    console.log(`[deploy] APP_URL auto-set from Railway domain → ${APP_URL}`);
   }
   if (SEC_USER_AGENT.includes("you@example.com")) {
     console.warn("[WARN] SEC_USER_AGENT contains placeholder email. Set SEC_USER_AGENT in .env.local for EDGAR access (SEC fair-access policy requires a real contact).");

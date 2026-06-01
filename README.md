@@ -10,6 +10,35 @@ TradeSimple is a **research beta** — a runnable full-stack policy-and-markets 
 - Analysis Lab with plain-English fundamentals, lightweight charts, policy impact chains, and API signal explanations
 - Paper/simulated order entry with live trading blocked unless explicitly enabled
 
+## Railway deploy (common crash fix)
+
+Railway sets `NODE_ENV=production`. If **`AUTH_SECRET` is missing**, the server exits immediately on boot:
+
+```text
+[FATAL] AUTH_SECRET is the default dev value. Set AUTH_SECRET in .env before deploying. Exiting.
+```
+
+**Required variables** in Railway → your service → Variables:
+
+| Variable | Value |
+|----------|--------|
+| `AUTH_SECRET` | Long random string (32+ chars) — **required** |
+| `APP_URL` | `https://YOUR-SERVICE.up.railway.app` (no trailing slash) |
+| `PORT` | Leave unset — Railway injects this automatically |
+
+**Recommended for Twitter / OAuth / accounts:**
+
+| Variable | Value |
+|----------|--------|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase project (run `supabase/schema.sql` first) |
+| `FINNHUB_API_KEY` | Live stock quotes |
+| `DATA_ACCURACY_MODE` | `demo` for soft launch without every API key, or `production` when keys are set |
+
+Google redirect URI: `https://YOUR-SERVICE.up.railway.app/auth/callback/google`
+
+`railway.json` in this repo sets `startCommand` to `node server.mjs` (same as local). Redeploy after adding `AUTH_SECRET`.
+
 ## Run
 
 ```bash

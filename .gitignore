@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+docs/RAILWAY_COPY_PASTE.env
+railway-vars.local.txt
 node_modules
 coverage
 dist
