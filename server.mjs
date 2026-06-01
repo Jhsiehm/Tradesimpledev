@@ -1978,8 +1978,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, async () => {
-  console.log(`TradeSimple running at ${APP_URL}`);
+server.listen(PORT, "0.0.0.0", async () => {
+  console.log(`TradeSimple running at ${APP_URL} (port ${PORT})`);
   if (AUTH_SECRET === "dev-only-secret-change-before-deploying") {
     if (process.env.NODE_ENV === "production") {
       console.error("[FATAL] AUTH_SECRET is the default dev value. Set AUTH_SECRET in .env before deploying. Exiting.");
@@ -2270,30 +2270,35 @@ async function route(req, res) {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
+    if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
     return aiScorecardHandler(req, res);
   }
   if (pathname === "/api/ai/edgar" && req.method === "POST") {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
+    if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
     return aiEdgarHandler(req, res);
   }
   if (pathname === "/api/ai/lobby-map" && req.method === "POST") {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
+    if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
     return aiLobbyMapHandler(req, res);
   }
   if (pathname === "/api/ai/chart-label" && req.method === "POST") {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
+    if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
     return aiChartLabelHandler(req, res);
   }
   if (pathname === "/api/ai/thesis" && req.method === "POST") {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
+    if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
     return aiThesisHandler(req, res);
   }
   if (pathname.startsWith("/api/share/edgar/") && req.method === "GET") {
