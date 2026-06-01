@@ -1,0 +1,6 @@
+# Force Node web process (not static README hosting)
+[start]
+cmd = "node server.mjs"
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"
