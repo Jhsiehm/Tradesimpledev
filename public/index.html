@@ -27,7 +27,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="/assets/landing-cinematic.css?v=soundtrack-wall-1"/>
+<link rel="stylesheet" href="/assets/landing-cinematic.css?v=signup-flow-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -556,7 +556,8 @@ footer nav a:hover{color:var(--text)}
         <button class="active" id="dark-btn" onclick="setTheme('dark')">Dark</button>
         <button id="light-btn" onclick="setTheme('light')">Light</button>
       </div>
-      <a class="terminal-button" href="/auth/demo?next=/dashboard%3Fview%3Dtrade">Enter terminal</a>
+      <a class="terminal-button terminal-button-secondary" href="/signup">Sign up</a>
+      <a class="terminal-button" href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1">Enter terminal</a>
     </div>
   </nav>
 
@@ -593,9 +594,11 @@ footer nav a:hover{color:var(--text)}
         traced to your tickers before consensus forms.
       </p>
       <div class="ts-hero-ctas">
-        <a href="/auth/demo?next=/dashboard%3Fview%3Dtrade" class="ts-primary-cta" id="primary-cta">Open the terminal →</a>
+        <a href="/signup" class="ts-primary-cta" id="primary-cta">Create account →</a>
+        <a href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1" class="ts-secondary-cta">Try demo terminal</a>
         <a href="#how-it-works" class="ts-secondary-cta">View methodology</a>
       </div>
+      <p class="terminal-entry-instruction">Inside the terminal, start with Thesis Lab: choose a ticker, write the thesis in one sentence, then use Bills, Markets, and Contracts as evidence before paper trading.</p>
       <div class="hero-reference-row" aria-label="Archive reference">
         <span>REF: COLLECTION_2026</span>
         <span>WASHINGTON D.C. / NYC</span>
@@ -615,7 +618,7 @@ footer nav a:hover{color:var(--text)}
           <video autoplay loop muted playsinline>
             <source src="https://assets.mixkit.co/videos/11712/11712-720.mp4" type="video/mp4"/>
           </video>
-          <figcaption>CAM-02_DC_CAPITAL</figcaption>
+          <figcaption>CAM-02_NYC_SKYLINE</figcaption>
         </figure>
         <figure class="cinema-frame frame-street">
           <video autoplay loop muted playsinline>
@@ -849,7 +852,8 @@ footer nav a:hover{color:var(--text)}
       <h2>Open the terminal before the headline hits.</h2>
       <p>Policy signals, cited sources, AI research, thesis storage, and paper trading now sit inside the TradeSimple intelligence archive.</p>
       <div class="access-actions">
-        <a href="/auth/demo?next=/dashboard%3Fview%3Dtrade" class="ts-primary-cta">Enter terminal</a>
+        <a href="/signup" class="ts-primary-cta">Create account</a>
+        <a href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1" class="ts-secondary-cta">Try demo terminal</a>
         <a href="/auth/google" class="ts-secondary-cta">Sign in with Google</a>
       </div>
     </div>

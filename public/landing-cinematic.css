@@ -340,6 +340,12 @@ html[data-theme="light"] .ts-nav.is-scrolled {
   transform: translateY(-1px);
 }
 
+.terminal-button-secondary {
+  color: var(--signal-green);
+  border-color: rgba(200, 255, 0, 0.34);
+  background: rgba(200, 255, 0, 0.055);
+}
+
 /* ── TICKER ─────────────────────────────────────────────── */
 .ts-ticker-tape {
   position: absolute;
@@ -533,6 +539,17 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   border: 1px solid var(--border-soft);
   background: rgba(255, 255, 255, 0.035);
   backdrop-filter: var(--blur-glass);
+}
+
+.terminal-entry-instruction {
+  max-width: 620px;
+  margin-top: 18px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .ts-secondary-cta:hover {

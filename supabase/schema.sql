@@ -5,14 +5,20 @@
 -- Stores every user who has logged in (demo, Google, Apple).
 -- id matches the session user.id ("google:12345", "apple:abc", "demo-user")
 create table if not exists public.profiles (
-  id          text        primary key,
-  name        text,
-  email       text,
-  picture     text,
-  provider    text,
-  created_at  timestamptz default now(),
-  updated_at  timestamptz default now()
+  id            text        primary key,
+  name          text,
+  email         text,
+  picture       text,
+  provider      text,
+  password_hash text,                       -- scrypt hash for provider='email' accounts (NULL for OAuth/demo)
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
 );
+
+-- If profiles already exists from an earlier run, add the column + email uniqueness:
+alter table public.profiles add column if not exists password_hash text;
+create unique index if not exists profiles_email_lower_idx
+  on public.profiles (lower(email)) where provider = 'email';
 
 -- ── WAITLIST ──────────────────────────────────────────────────────────────────
 create table if not exists public.waitlist (

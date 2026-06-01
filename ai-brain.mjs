@@ -128,6 +128,69 @@ async function fetchAnthropic({ system, user, maxTokens = 1024, model, timeoutMs
   }
 }
 
+async function fetchGemini({ system, user, maxTokens = 1024, model, timeoutMs = 20_000 }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const geminiModel = model || process.env.GEMINI_MODEL || "gemini-2.0-flash";
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: 0.2
+          }
+        }),
+        signal: controller.signal
+      }
+    );
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Gemini ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim() || "";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function hasServerAiProvider() {
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
+}
+
+async function fetchAiText(options) {
+  const preferred = String(
+    process.env.AI_TRANSLATION_PROVIDER ||
+    process.env.SERVER_AI_PROVIDER ||
+    ""
+  ).toLowerCase();
+  if (preferred === "gemini" && process.env.GEMINI_API_KEY) {
+    return { source: "gemini", text: await fetchGemini(options) };
+  }
+  if (preferred === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+    return { source: "anthropic", text: await fetchAnthropic(options) };
+  }
+  if (process.env.GEMINI_API_KEY) {
+    return { source: "gemini", text: await fetchGemini(options) };
+  }
+  if (process.env.ANTHROPIC_API_KEY) {
+    return { source: "anthropic", text: await fetchAnthropic(options) };
+  }
+  throw new Error("No server AI provider configured");
+}
+
 function parseJsonFromText(text) {
   const trimmed = String(text || "").trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -217,14 +280,14 @@ export async function runLobbyMapper({ filing, bills }) {
     }
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!hasServerAiProvider()) {
     return {
       matches: [],
       reason: "api_error",
       source: "fallback_error",
       cached: false,
       updatedAt: Date.now(),
-      error: "ANTHROPIC_API_KEY not configured"
+      error: "Server AI provider not configured"
     };
   }
 
@@ -265,14 +328,14 @@ Tracked bills:
 ${JSON.stringify(billDigest, null, 2)}`;
 
   try {
-    const text = await fetchAnthropic({ system, user, maxTokens: 900 });
+    const { text, source } = await fetchAiText({ system, user, maxTokens: 900 });
     const rawClaudeResult = parseJsonFromText(text);
     const normalized = normalizeLobbyMapperResult(rawClaudeResult);
     if (normalized.reason === "matched" || normalized.reason === "no_match") {
       lobbyMap[filingId] = normalized;
       await saveLobbyMap();
     }
-    return normalized;
+    return { ...normalized, source };
   } catch (err) {
     return {
       matches: [],
@@ -363,7 +426,7 @@ export async function runScorecardNarrator({ symbol, snapshot, mode = "investor"
     return { ...cached.value, cached: true };
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!hasServerAiProvider()) {
     const fallbackCopy = narratorFallbackCopy(cleanSymbol, readerMode);
     const fallback = {
       symbol: cleanSymbol,
@@ -409,11 +472,11 @@ RECENT NEWS HEADLINES:
 ${newsLines || "(none in snapshot)"}`;
 
   try {
-    const text = await fetchAnthropic({ system, user, maxTokens: 1100 });
+    const { text, source } = await fetchAiText({ system, user, maxTokens: 1100 });
     const parsed = parseJsonFromText(text);
     const result = {
       symbol: cleanSymbol,
-      source: "anthropic",
+      source,
       headline: String(parsed.headline || `${cleanSymbol} research context`),
       now: String(parsed.now || parsed.narrative || ""),
       whyItMatters: String(parsed.whyItMatters || ""),
@@ -465,7 +528,7 @@ function narratorFallbackCopy(symbol, mode) {
   }
   return {
     headline: `${symbol} government-to-market context`,
-    now: "AI narration is unavailable without ANTHROPIC_API_KEY, so TradeSimple is showing the structured policy, quote, and filing evidence directly.",
+    now: "AI narration is unavailable without a server AI provider, so TradeSimple is showing the structured policy, quote, and filing evidence directly.",
     whyItMatters: "Government actions can still matter through revenue access, compliance costs, subsidies, contract awards, and investor expectations.",
     watchFor: ["Committee calendar", "Lobbying filings", "SEC risk factor updates"]
   };
@@ -481,11 +544,11 @@ export async function runEdgarSimplifier({ symbol, riskFactorsText, filingDate }
     };
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!hasServerAiProvider()) {
     return {
       whereMoneyComesFrom: [],
       whatCouldHurtIt: [
-        "SEC risk factors are available, but AI translation needs ANTHROPIC_API_KEY on the server."
+        "SEC risk factors are available, but AI translation needs ANTHROPIC_API_KEY or GEMINI_API_KEY on the server."
       ],
       numbersGoingRight: "Read the filing excerpt below for the company's own wording."
     };
@@ -506,7 +569,7 @@ Risk factors excerpt (may be truncated):
 ${risk.slice(0, 14000)}`;
 
   try {
-    const text = await fetchAnthropic({ system, user, maxTokens: 1200 });
+    const { text } = await fetchAiText({ system, user, maxTokens: 1200 });
     const parsed = parseJsonFromText(text);
     return {
       whereMoneyComesFrom: Array.isArray(parsed.whereMoneyComesFrom)
@@ -533,7 +596,7 @@ export async function runChartLabeler({ symbol, points, context = {} }) {
     return { labels: [], source: "empty", updatedAt: new Date().toISOString() };
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!hasServerAiProvider()) {
     const last = series[series.length - 1];
     const first = series[0];
     const move =
@@ -561,7 +624,7 @@ Context: ${JSON.stringify(context).slice(0, 2000)}
 Points: ${JSON.stringify(series).slice(0, 8000)}`;
 
   try {
-    const text = await fetchAnthropic({ system, user, maxTokens: 700 });
+    const { text, source } = await fetchAiText({ system, user, maxTokens: 700 });
     const parsed = parseJsonFromText(text);
     return {
       labels: Array.isArray(parsed.labels)
@@ -570,7 +633,7 @@ Points: ${JSON.stringify(series).slice(0, 8000)}`;
             text: String(l.text || "")
           }))
         : [],
-      source: "anthropic",
+      source,
       updatedAt: new Date().toISOString()
     };
   } catch (err) {
@@ -665,7 +728,7 @@ Respond with ONLY a raw JSON object. No markdown, no explanation outside the JSO
 
 Fill in real content for ${ticker}. Be specific — if a bill is named in the data, use its actual title.`;
 
-  const text = await fetchAnthropic({ system, user, maxTokens: 1600, timeoutMs: 45_000 });
+  const { text } = await fetchAiText({ system, user, maxTokens: 1600, timeoutMs: 45_000 });
   const parsed = parseJsonFromText(text);
 
   // Normalize and validate
@@ -782,7 +845,7 @@ ${JSON.stringify(context, null, 2).slice(0, 9000)}
 Broken output:
 ${String(rawText || "").slice(0, 12000)}`;
 
-  const repairedText = await fetchAnthropic({ system, user, maxTokens: 1500, timeoutMs: 30_000 });
+  const { text: repairedText } = await fetchAiText({ system, user, maxTokens: 1500, timeoutMs: 30_000 });
   return normalizeThesisAnalysis(parseJsonFromText(repairedText));
 }
 
@@ -806,7 +869,7 @@ export async function runThesisAnalyzer({
 
   if (!cleanSymbol) throw new Error("symbol_required");
   if (!cleanThesisText) throw new Error("thesis_text_required");
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+  if (!hasServerAiProvider()) throw new Error("Server AI provider not configured");
 
   const context = {
     symbol: cleanSymbol,
@@ -851,7 +914,7 @@ Hard requirements:
   const user = `Analyze this thesis context and return structured JSON only.
 ${JSON.stringify(context, null, 2).slice(0, 12000)}`;
 
-  const text = await fetchAnthropic({ system, user, maxTokens: 1800, timeoutMs: 35_000 });
+  const { text, source } = await fetchAiText({ system, user, maxTokens: 1800, timeoutMs: 35_000 });
   let normalized = normalizeThesisAnalysis(parseJsonFromText(text));
   if (!hasRequiredThesisFields(normalized)) {
     normalized = await repairThesisAnalysis(text, context);
@@ -863,7 +926,7 @@ ${JSON.stringify(context, null, 2).slice(0, 12000)}`;
   }
   return {
     ...normalized,
-    source: "anthropic",
+    source,
     updatedAt: new Date().toISOString()
   };
 }

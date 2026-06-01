@@ -10,5 +10,6 @@ dist
 data/waitlist.jsonl
 data/paper-accounts.json
 data/predictions.jsonl
+data/accounts.json
 data/cache/
 .venv-yfinance/

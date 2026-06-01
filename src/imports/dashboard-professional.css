@@ -2261,6 +2261,26 @@ body[data-page="dashboard"] .source-freshness-title {
   color: var(--faint);
 }
 
+body[data-page="dashboard"] .terminal-start-note {
+  margin: 8px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--green, #C8FF00) 24%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--green, #C8FF00) 6%, var(--panel) 94%);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body[data-page="dashboard"] .terminal-start-note strong {
+  color: var(--green, #C8FF00);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
 body[data-page="dashboard"] .source-freshness-grid {
   display: flex;
   flex-wrap: wrap;

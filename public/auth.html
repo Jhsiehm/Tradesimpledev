@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TradeSimple — Create account</title>
+<meta name="robots" content="noindex"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#080808;--bg-2:#0e0f0e;--lime:#C8FF00;--amber:#FFA500;--red:#e0524d;
+    --text:#E8E4DC;--muted:#8C8C82;--faint:#4A4A4A;--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);
+    --mono:"Space Mono",ui-monospace,monospace;--sans:"Outfit",system-ui,sans-serif;--serif:"Cormorant Garamond",Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+    background-image:
+      repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(200,255,0,.012) 39px,rgba(200,255,0,.012) 40px),
+      repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(200,255,0,.008) 39px,rgba(200,255,0,.008) 40px);
+  }
+  .card{
+    width:100%;max-width:420px;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:14px;padding:34px 30px;box-shadow:0 40px 120px -40px rgba(0,0,0,.8);
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .logo{width:30px;height:30px;border:1.5px solid var(--lime);border-radius:7px;display:grid;place-items:center;
+    font-family:var(--mono);font-weight:700;color:var(--lime);font-size:15px}
+  .brand b{font-family:var(--mono);font-weight:700;letter-spacing:.12em;font-size:15px}
+  h1{font-family:var(--serif);font-weight:600;font-size:27px;margin:18px 0 4px;line-height:1.15}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:22px;line-height:1.5}
+  .tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:4px;margin-bottom:20px}
+  .tab{flex:1;padding:9px;border:none;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;
+    cursor:pointer;border-radius:6px;transition:background .15s,color .15s}
+  .tab.active{background:var(--lime);color:#0a0d00}
+  label{display:block;font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);margin:14px 0 6px}
+  input{width:100%;padding:12px 13px;background:#0a0b0a;border:1px solid var(--line-2);border-radius:8px;
+    color:var(--text);font:inherit;font-size:15px;transition:border-color .15s}
+  input:focus{outline:none;border-color:var(--lime)}
+  .field-name{display:none}
+  body[data-mode="signup"] .field-name{display:block}
+  .btn{width:100%;margin-top:20px;padding:13px;background:var(--lime);color:#0a0d00;border:none;border-radius:8px;
+    font:inherit;font-weight:700;font-size:15px;cursor:pointer;transition:opacity .15s}
+  .btn:hover{opacity:.9}
+  .btn:disabled{opacity:.5;cursor:default}
+  .msg{margin-top:14px;font-size:13px;line-height:1.45;min-height:1px;display:none}
+  .msg.err{display:block;color:var(--red)}
+  .msg.ok{display:block;color:var(--lime)}
+  .divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:var(--faint);font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+  .alt{display:block;width:100%;padding:11px;text-align:center;background:none;border:1px solid var(--line-2);
+    border-radius:8px;color:var(--text);font:inherit;font-size:14px;cursor:pointer;text-decoration:none;margin-bottom:10px;transition:border-color .15s}
+  .alt:hover{border-color:var(--line-2);background:rgba(255,255,255,.03)}
+  .foot{margin-top:18px;text-align:center;font-size:12px;color:var(--faint);line-height:1.5}
+  .foot a{color:var(--muted)}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:6px}
+</style>
+</head>
+<body data-mode="signup">
+  <div class="card">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit">
+      <span class="logo">T</span><b>TRADESIMPLE</b>
+    </a>
+    <h1 id="title">Create your account</h1>
+    <p class="sub" id="subtitle">Save your watchlist, theses, and tracked signals across sessions.</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" data-tab="login" type="button">Log in</button>
+      <button class="tab active" data-tab="signup" type="button">Sign up</button>
+    </div>
+
+    <form id="auth-form" novalidate>
+      <div class="field-name">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" autocomplete="name" placeholder="Alex"/>
+      </div>
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@email.com" required/>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8"/>
+      <div class="hint" id="pwHint">At least 8 characters.</div>
+      <button class="btn" id="auth-submit" type="submit">Create account</button>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </form>
+
+    <div class="divider">or</div>
+    <a class="alt" href="/auth/google">Continue with Google</a>
+    <a class="alt" href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1">Try the demo (no account)</a>
+
+    <p class="foot">
+      Research signal terminal · not financial advice.<br/>
+      <a href="/">← Back to home</a>
+    </p>
+  </div>
+
+<script>
+(function () {
+  var body = document.body;
+  var form = document.getElementById("auth-form");
+  var msg = document.getElementById("msg");
+  var authSubmit = document.getElementById("auth-submit");
+  var title = document.getElementById("title");
+  var subtitle = document.getElementById("subtitle");
+  var pwHint = document.getElementById("pwHint");
+  var pw = document.getElementById("password");
+  var params = new URLSearchParams(window.location.search);
+  var defaultNext = "/dashboard?view=thesis&welcome=1";
+
+  function safeNext(raw) {
+    var next = String(raw || "").trim();
+    if (!next.startsWith("/") || next.startsWith("//")) return defaultNext;
+    return next;
+  }
+
+  var redirectNext = safeNext(params.get("next"));
+
+  if (location.pathname === "/login") setMode("login");
+  else setMode("signup");
+
+  document.querySelectorAll(".tab").forEach(function (t) {
+    t.addEventListener("click", function () { setMode(t.dataset.tab); });
+  });
+
+  function setMode(mode) {
+    body.dataset.mode = mode;
+    document.querySelectorAll(".tab").forEach(function (t) {
+      t.classList.toggle("active", t.dataset.tab === mode);
+    });
+    var signup = mode === "signup";
+    title.textContent = signup ? "Create your account" : "Welcome back";
+    subtitle.textContent = signup
+      ? "Save your watchlist, theses, and tracked signals across sessions."
+      : "Log in to pick up your watchlist and tracked theses.";
+    authSubmit.textContent = signup ? "Create account" : "Log in";
+    pwHint.style.display = signup ? "block" : "none";
+    pw.minLength = signup ? 8 : 1;
+    pw.setAttribute("autocomplete", signup ? "new-password" : "current-password");
+    document.title = signup ? "TradeSimple — Create account" : "TradeSimple — Log in";
+    clearMsg();
+  }
+
+  function clearMsg() {
+    msg.className = "msg";
+    msg.textContent = "";
+  }
+  function showErr(t) {
+    msg.className = "msg err";
+    msg.textContent = t;
+  }
+  function showOk(t) {
+    msg.className = "msg ok";
+    msg.textContent = t;
+  }
+
+  function resetButton(mode) {
+    authSubmit.disabled = false;
+    authSubmit.textContent = mode === "signup" ? "Create account" : "Log in";
+  }
+
+  async function parseApiResponse(response) {
+    var text = await response.text();
+    if (!text) return { ok: response.ok, data: {} };
+    try {
+      return { ok: response.ok, data: JSON.parse(text) };
+    } catch (_) {
+      return {
+        ok: false,
+        data: { message: response.ok ? "Invalid server response." : "Request failed (" + response.status + ")." }
+      };
+    }
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearMsg();
+    var mode = body.dataset.mode;
+    var email = document.getElementById("email").value.trim();
+    var password = pw.value;
+    var name = document.getElementById("name").value.trim();
+    if (!email) {
+      showErr("Enter your email.");
+      return;
+    }
+    if (!password) {
+      showErr("Enter your password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 8) {
+      showErr("Password must be at least 8 characters.");
+      return;
+    }
+
+    authSubmit.disabled = true;
+    authSubmit.textContent = mode === "signup" ? "Creating…" : "Logging in…";
+
+    fetch("/api/auth/" + (mode === "signup" ? "signup" : "login"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(
+        mode === "signup"
+          ? { email: email, password: password, name: name }
+          : { email: email, password: password }
+      )
+    })
+      .then(parseApiResponse)
+      .then(function (res) {
+        if (!res.ok) {
+          showErr(res.data.message || "Something went wrong.");
+          resetButton(mode);
+          return;
+        }
+        showOk(mode === "signup" ? "Account created — opening Thesis Lab…" : "Welcome back…");
+        window.setTimeout(function () {
+          window.location.assign(redirectNext);
+        }, 350);
+      })
+      .catch(function () {
+        showErr("Network error. Check your connection and try again.");
+        resetButton(mode);
+      });
+  });
+})();
+</script>
+</body>
+</html>

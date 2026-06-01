@@ -19,6 +19,7 @@ import {
   createPublicKey,
   createVerify,
   randomBytes,
+  scryptSync,
   timingSafeEqual
 } from "node:crypto";
 import { dbReady, dbSelect, dbUpsert, dbInsert, dbPatch } from "./src/lib/supabase.mjs";
@@ -78,6 +79,62 @@ const PAPER_STARTING_CASH = 100000;
 
 loadEnvFile(".env");
 loadEnvFile(".env.local");
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE GATES — Launch Phase Control
+// ═══════════════════════════════════════════════════════════════════════════
+const FEATURE_GATES = {
+  // WEEK 1 LAUNCH — ONLY THESE ENABLED
+  THESIS_ENABLED: true,
+  PAPER_TRADING_ENABLED: true,
+  MARKETS_ENABLED: true,
+  PUBLIC_SHARES_ENABLED: true,
+  SESSION_ENABLED: true,
+  WAITLIST_ENABLED: true,
+
+  // MONTH 2+ — DISABLED FOR NOW
+  BILLS_EXPLORER_ENABLED: true,
+  CONTRACTS_ANALYZER_ENABLED: true,
+  LOBBYING_EXPLORER_ENABLED: false,
+  ANALYSIS_LAB_ENABLED: false,
+  CRYPTO_TRACKER_ENABLED: false,
+  FUNDS_HYPOTHETICALS_ENABLED: false,
+  SETTINGS_PAGE_ENABLED: false,
+  RELATIONSHIP_MAPS_ENABLED: false,
+  AI_RESEARCH_ENABLED: false,
+  ALERTS_MONITORING_ENABLED: false,
+  ADVANCED_ANALYTICS_ENABLED: false
+};
+
+if (process.env.LAUNCH_PHASE === "beta-extended") {
+  FEATURE_GATES.BILLS_EXPLORER_ENABLED = true;
+  FEATURE_GATES.ANALYSIS_LAB_ENABLED = true;
+}
+
+if (process.env.LAUNCH_PHASE === "full-feature") {
+  Object.keys(FEATURE_GATES).forEach((key) => {
+    FEATURE_GATES[key] = true;
+  });
+}
+
+function featureEnabled(featureName) {
+  return Boolean(FEATURE_GATES[featureName]);
+}
+
+function checkFeature(featureName, res) {
+  if (!featureEnabled(featureName)) {
+    sendJson(res, 403, {
+      error: "feature_not_available",
+      message: "This feature is not yet available in the beta."
+    });
+    return false;
+  }
+  return true;
+}
+
+function serverAiProviderEnabled() {
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
+}
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
@@ -2087,6 +2144,64 @@ function enforceShareRateLimit(req, res) {
   return true;
 }
 
+function featureComingSoonPage(featureName) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Coming Soon | TradeSimple</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0a0a0a;
+      color: #e8e6e0;
+      padding: 2rem;
+      max-width: 40rem;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      border: 1px solid rgba(200,255,0,0.2);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      background: rgba(255,255,255,0.02);
+    }
+    h1 { color: #C8FF00; font-size: 2rem; margin: 0 0 0.5rem; }
+    p { line-height: 1.6; color: #ccc; margin: 1rem 0; }
+    .cta {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: #C8FF00;
+      color: #0a0a0a;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Coming soon</h1>
+    <p><strong>${escapeHtmlText(featureName)}</strong> is not yet available in the beta.</p>
+    <p>Launch week is focused on thesis workflows, paper trading, and source-backed stock cards.</p>
+    <a href="/dashboard?view=thesis" class="cta">Back to Thesis</a>
+  </div>
+</body>
+</html>`;
+}
+
+function checkFeaturePage(featureName, res, label, { head = false } = {}) {
+  if (featureEnabled(featureName)) return true;
+  sendHtml(res, 403, featureComingSoonPage(label), { head });
+  return false;
+}
+
 async function route(req, res) {
   const url = new URL(req.url || "/", APP_URL);
   const pathname = url.pathname;
@@ -2098,19 +2213,34 @@ async function route(req, res) {
   }
   if (pathname === "/dashboard") {
     const session = getSession(req);
-    if (!session) return redirect(res, "/");
+    if (!session) {
+      const nextPath = `/dashboard${url.search || "?view=thesis"}`;
+      return redirect(res, `/signup?next=${encodeURIComponent(nextPath)}`);
+    }
     return sendStatic(res, "dashboard.html");
   }
-  if (pathname === "/bill" || pathname === "/bill/") return redirect(res, "/dashboard?view=bills");
+  if (pathname === "/bill" || pathname === "/bill/") {
+    if (!checkFeaturePage("BILLS_EXPLORER_ENABLED", res, "Bills Explorer", { head: req.method === "HEAD" })) return;
+    return redirect(res, "/dashboard?view=bills");
+  }
   if (pathname.startsWith("/bill/") && (req.method === "GET" || req.method === "HEAD")) {
+    if (!checkFeaturePage("BILLS_EXPLORER_ENABLED", res, "Bills Explorer", { head: req.method === "HEAD" })) return;
     return publicBillCard(res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname === "/contract" || pathname === "/contract/") return redirect(res, "/dashboard?view=contracts");
+  if (pathname === "/contract" || pathname === "/contract/") {
+    if (!checkFeaturePage("CONTRACTS_ANALYZER_ENABLED", res, "Contracts Analyzer", { head: req.method === "HEAD" })) return;
+    return redirect(res, "/dashboard?view=contracts");
+  }
   if (pathname.startsWith("/contract/") && (req.method === "GET" || req.method === "HEAD")) {
+    if (!checkFeaturePage("CONTRACTS_ANALYZER_ENABLED", res, "Contracts Analyzer", { head: req.method === "HEAD" })) return;
     return publicContractCard(res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname === "/lobby" || pathname === "/lobby/") return redirect(res, "/dashboard?view=lobbying");
+  if (pathname === "/lobby" || pathname === "/lobby/") {
+    if (!checkFeaturePage("LOBBYING_EXPLORER_ENABLED", res, "Lobbying Explorer", { head: req.method === "HEAD" })) return;
+    return redirect(res, "/dashboard?view=lobbying");
+  }
   if (pathname.startsWith("/lobby/") && (req.method === "GET" || req.method === "HEAD")) {
+    if (!checkFeaturePage("LOBBYING_EXPLORER_ENABLED", res, "Lobbying Explorer", { head: req.method === "HEAD" })) return;
     return publicLobbyCard(res, pathname, { head: req.method === "HEAD" });
   }
   if (pathname === "/stock" || pathname === "/stock/") return redirect(res, "/stock/NVDA");
@@ -2124,14 +2254,48 @@ async function route(req, res) {
     return sendJson(res, 200, publicConfig());
   }
   if (pathname === "/api/share/stock" && req.method === "GET") return shareStockSnapshot(req, res, url);
-  if (pathname === "/api/share/bill" && req.method === "GET") return shareBillSnapshot(req, res, url);
-  if (pathname === "/api/share/contract" && req.method === "GET") return shareContractSnapshot(req, res, url);
-  if (pathname === "/api/share/lobby" && req.method === "GET") return shareLobbySnapshot(req, res, url);
-  if (pathname === "/api/ai/scorecard" && req.method === "POST") return aiScorecardHandler(req, res);
-  if (pathname === "/api/ai/edgar" && req.method === "POST") return aiEdgarHandler(req, res);
-  if (pathname === "/api/ai/lobby-map" && req.method === "POST") return aiLobbyMapHandler(req, res);
-  if (pathname === "/api/ai/chart-label" && req.method === "POST") return aiChartLabelHandler(req, res);
-  if (pathname === "/api/ai/thesis" && req.method === "POST") return aiThesisHandler(req, res);
+  if (pathname === "/api/share/bill" && req.method === "GET") {
+    if (!checkFeature("BILLS_EXPLORER_ENABLED", res)) return;
+    return shareBillSnapshot(req, res, url);
+  }
+  if (pathname === "/api/share/contract" && req.method === "GET") {
+    if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
+    return shareContractSnapshot(req, res, url);
+  }
+  if (pathname === "/api/share/lobby" && req.method === "GET") {
+    if (!checkFeature("LOBBYING_EXPLORER_ENABLED", res)) return;
+    return shareLobbySnapshot(req, res, url);
+  }
+  if (pathname === "/api/ai/scorecard" && req.method === "POST") {
+    if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+      return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
+    }
+    return aiScorecardHandler(req, res);
+  }
+  if (pathname === "/api/ai/edgar" && req.method === "POST") {
+    if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+      return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
+    }
+    return aiEdgarHandler(req, res);
+  }
+  if (pathname === "/api/ai/lobby-map" && req.method === "POST") {
+    if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+      return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
+    }
+    return aiLobbyMapHandler(req, res);
+  }
+  if (pathname === "/api/ai/chart-label" && req.method === "POST") {
+    if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+      return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
+    }
+    return aiChartLabelHandler(req, res);
+  }
+  if (pathname === "/api/ai/thesis" && req.method === "POST") {
+    if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+      return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
+    }
+    return aiThesisHandler(req, res);
+  }
   if (pathname.startsWith("/api/share/edgar/") && req.method === "GET") {
     return shareEdgarRiskFactors(res, pathname);
   }
@@ -2151,6 +2315,12 @@ async function route(req, res) {
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
 
+  // ── Email/password accounts (public — these create the session) ──
+  if (pathname === "/api/auth/signup" && req.method === "POST") return authSignup(req, res);
+  if (pathname === "/api/auth/login" && req.method === "POST") return authLogin(req, res);
+  if (pathname === "/api/auth/logout" && req.method === "POST") return authLogoutApi(res);
+  if (pathname === "/login" || pathname === "/signup") return sendStatic(res, "auth.html");
+
   // ── Prediction ledger (public reads — the track record is a brand asset) ──
   if (pathname === "/api/predictions/scorecard" && req.method === "GET") return predictionScorecardHandler(res, url);
   if (pathname === "/api/predictions/verify" && req.method === "GET") return predictionVerifyHandler(res);
@@ -2162,20 +2332,45 @@ async function route(req, res) {
 
     if (pathname === "/api/market/quotes") return marketQuotes(res, url);
     if (pathname === "/api/market/history") return marketHistory(res, url);
-    if (pathname === "/api/analysis/stock") return stockAnalysis(res, url);
+    if (pathname === "/api/analysis/stock") {
+      if (!checkFeature("ANALYSIS_LAB_ENABLED", res)) return;
+      return stockAnalysis(res, url);
+    }
     if (pathname === "/api/policy/network") return policyNetwork(res, url);
-    if (pathname === "/api/crypto") return cryptoPrices(res, url);
+    if (pathname === "/api/crypto") {
+      if (!checkFeature("CRYPTO_TRACKER_ENABLED", res)) return;
+      return cryptoPrices(res, url);
+    }
+    // Keep this feed open: overview/top signal and thesis grounding depend on seeded/live bills.
     if (pathname === "/api/congress/bills") return congressBills(res, url);
-    if (pathname === "/api/contracts/causality" && req.method === "GET") return contractCausality(res, url);
-    if (pathname.startsWith("/api/contracts/") && req.method === "GET") return contractsByCompany(res, pathname);
+    if (pathname === "/api/contracts/causality" && req.method === "GET") {
+      if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
+      return contractCausality(res, url);
+    }
+    if (pathname.startsWith("/api/contracts/") && req.method === "GET") {
+      if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
+      return contractsByCompany(res, pathname);
+    }
     if (pathname.startsWith("/api/agency-budget/") && req.method === "GET") return agencyBudget(res, pathname);
     if (pathname === "/api/appointments" && req.method === "GET") return recentAppointments(res);
     if (pathname === "/api/methodology") return methodologyDoc(res);
     if (pathname === "/api/policy/bill-metrics") return billPolicyMetrics(res, url);
-    if (pathname === "/api/lobbying") return lobbying(res);
-    if (pathname === "/api/funds" && req.method === "GET") return listFunds(res, session);
-    if (pathname === "/api/funds" && req.method === "POST") return createFund(req, res, session);
-    if (pathname === "/api/funds/compare" && req.method === "GET") return fundsCompareRoute(res, session, url);
+    if (pathname === "/api/lobbying") {
+      if (!checkFeature("LOBBYING_EXPLORER_ENABLED", res)) return;
+      return lobbying(res);
+    }
+    if (pathname === "/api/funds" && req.method === "GET") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return listFunds(res, session);
+    }
+    if (pathname === "/api/funds" && req.method === "POST") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return createFund(req, res, session);
+    }
+    if (pathname === "/api/funds/compare" && req.method === "GET") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return fundsCompareRoute(res, session, url);
+    }
     if (pathname === "/api/dashboard/bootstrap" && req.method === "GET") {
       return dashboardBootstrapRoute(res, session);
     }
@@ -2185,13 +2380,25 @@ async function route(req, res) {
     if (pathname === "/api/health/data" && req.method === "GET") {
       return dataHealthRoute(res);
     }
-    if (pathname === "/api/relationship-map" && req.method === "GET") return relationshipMapRoute(res, url);
+    if (pathname === "/api/relationship-map" && req.method === "GET") {
+      if (!checkFeature("RELATIONSHIP_MAPS_ENABLED", res)) return;
+      return relationshipMapRoute(res, url);
+    }
     const fundPerfMatch = pathname.match(/^\/api\/funds\/([^/]+)\/performance$/);
-    if (fundPerfMatch && req.method === "GET") return fundPerformanceRoute(res, session, fundPerfMatch[1], url);
+    if (fundPerfMatch && req.method === "GET") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return fundPerformanceRoute(res, session, fundPerfMatch[1], url);
+    }
     const fundAttrMatch = pathname.match(/^\/api\/funds\/([^/]+)\/attribution$/);
-    if (fundAttrMatch && req.method === "GET") return fundAttributionRoute(res, session, fundAttrMatch[1], url);
+    if (fundAttrMatch && req.method === "GET") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return fundAttributionRoute(res, session, fundAttrMatch[1], url);
+    }
     const fundPulseMatch = pathname.match(/^\/api\/funds\/([^/]+)\/pulse$/);
-    if (fundPulseMatch && req.method === "GET") return fundPulseRoute(res, session, fundPulseMatch[1]);
+    if (fundPulseMatch && req.method === "GET") {
+      if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
+      return fundPulseRoute(res, session, fundPulseMatch[1]);
+    }
     if (pathname === "/api/trading/account") return paperAccount(res, session);
     if (pathname === "/api/trading/orders" && req.method === "POST") return paperOrder(req, res, session);
     if (pathname === "/api/thesis/signals" && req.method === "GET") return thesisSignalsHandler(res, url);
@@ -2207,6 +2414,7 @@ async function route(req, res) {
   }
     const thesisMonitorsMatch = pathname.match(/^\/api\/theses\/([^/]+)\/monitors$/);
     if (thesisMonitorsMatch && req.method === "GET") {
+      if (!checkFeature("ALERTS_MONITORING_ENABLED", res)) return;
       return thesisMonitorsRoute(res, session, thesisMonitorsMatch[1]);
     }
     const thesisIdMatch = pathname.match(/^\/api\/theses\/([^/]+)$/);
@@ -2215,9 +2423,20 @@ async function route(req, res) {
     if (pathname === "/api/portfolio" && req.method === "PATCH") return patchPortfolio(req, res, session);
     if (pathname === "/api/watchlist" && req.method === "GET") return getWatchlist(res, session);
     if (pathname === "/api/watchlist" && req.method === "PATCH") return patchWatchlist(req, res, session);
-    if (pathname === "/api/settings/anthropic" && req.method === "POST") return saveAnthropicSettings(req, res);
+    if (pathname === "/api/settings/anthropic" && req.method === "POST") {
+      if (!checkFeature("SETTINGS_PAGE_ENABLED", res)) return;
+      return saveAnthropicSettings(req, res);
+    }
     if (pathname.startsWith("/api/edgar/") && req.method === "GET") return edgarRiskFactors(res, pathname);
-    if (pathname === "/api/research/ask" && req.method === "POST") return researchAsk(req, res, session);
+    if (pathname === "/api/research/ask" && req.method === "POST") {
+      if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
+        return sendJson(res, 503, {
+          error: "feature_unavailable",
+          message: "AI research is not yet enabled."
+        });
+      }
+      return researchAsk(req, res, session);
+    }
     if (pathname === "/api/predictions" && req.method === "POST") return predictionRecordHandler(req, res, session);
   }
 
@@ -2280,7 +2499,8 @@ function publicConfig() {
     auth: {
       google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       apple: Boolean(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET),
-      demo: process.env.DEMO_AUTH !== "false"
+      demo: process.env.DEMO_AUTH !== "false",
+      email: true
     },
     data: {
       finnhub: Boolean(process.env.FINNHUB_API_KEY),
@@ -2290,6 +2510,8 @@ function publicConfig() {
       senateLda: Boolean(process.env.SENATE_LDA_API_KEY),
       alpaca: Boolean(process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRET_KEY),
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      serverAi: serverAiProviderEnabled(),
       supabase: dbReady,
       secEdgar: true,
       healthEndpoint: "/api/health/data",
@@ -2298,7 +2520,8 @@ function publicConfig() {
     safety: {
       liveTradingEnabled: process.env.ALLOW_LIVE_TRADING === "true",
       tradingBaseUrl: process.env.ALPACA_TRADING_BASE_URL || "https://paper-api.alpaca.markets"
-    }
+    },
+    features: { ...FEATURE_GATES }
   };
 }
 
@@ -8138,7 +8361,7 @@ Watch for:
 • New LDA filings if lobbying accelerates
 • Company commentary that cites this bill theme
 
-Add ANTHROPIC_API_KEY to the server for the full metrics walkthrough.`;
+Add ANTHROPIC_API_KEY or GEMINI_API_KEY to the server for the full metrics walkthrough.`;
 }
 
 function parseResearchResponseText(raw) {
@@ -8163,6 +8386,94 @@ function parseResearchResponseText(raw) {
     }
   }
   return { prose, watchFor, raw: full };
+}
+
+async function callResearchAiProvider({ userContent, maxTokens }) {
+  const preferred = String(
+    process.env.AI_TRANSLATION_PROVIDER ||
+    process.env.SERVER_AI_PROVIDER ||
+    ""
+  ).toLowerCase();
+
+  if (preferred !== "gemini" && process.env.ANTHROPIC_API_KEY) {
+    const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system: RESEARCH_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userContent }]
+      })
+    }, 20000);
+
+    if (!response.ok) {
+      return { ok: false, status: 502, error: "ai_provider_error", detail: await safeText(response) };
+    }
+    const data = await response.json();
+    return { ok: true, source: "anthropic", text: data.content?.[0]?.text || "No answer returned." };
+  }
+
+  if (process.env.GEMINI_API_KEY) {
+    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+    const endpoint =
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`;
+    const response = await fetchWithTimeout(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: RESEARCH_SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text: userContent }] }],
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: 0.2
+        }
+      })
+    }, 20000);
+
+    if (!response.ok) {
+      return { ok: false, status: 502, error: "ai_provider_error", detail: await safeText(response) };
+    }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n").trim();
+    return { ok: true, source: "gemini", text: text || "No answer returned." };
+  }
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system: RESEARCH_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userContent }]
+      })
+    }, 20000);
+
+    if (!response.ok) {
+      return { ok: false, status: 502, error: "ai_provider_error", detail: await safeText(response) };
+    }
+    const data = await response.json();
+    return { ok: true, source: "anthropic", text: data.content?.[0]?.text || "No answer returned." };
+  }
+
+  return {
+    ok: false,
+    status: 503,
+    error: "feature_unavailable",
+    detail: "AI research is not yet enabled."
+  };
 }
 
 async function researchAsk(req, res, session) {
@@ -8193,7 +8504,7 @@ async function researchAsk(req, res, session) {
 
   const name = session.user?.name || "there";
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!serverAiProviderEnabled()) {
     const answer = bill ? localBillWhyAnswer(bill, name) : localPolicyAnswer(question, name);
     return sendJson(res, 200, { source: "local_model", ...parseResearchResponseText(answer) });
   }
@@ -8212,31 +8523,15 @@ async function researchAsk(req, res, session) {
     userContent = `Internal TradeSimple bill digest (scenario model for grounding, not a forecast):\n${billDigest}\n\nUser question:\n${question}`;
   }
 
-  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-
   const maxTokens = bill ? 1200 : 1024;
-
-  const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system: RESEARCH_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }]
-    })
-  }, 20000);
-
-  if (!response.ok) {
-    return sendJson(res, 502, { error: "ai_provider_error", detail: await safeText(response) });
+  const result = await callResearchAiProvider({ userContent, maxTokens });
+  if (!result.ok) {
+    return sendJson(res, result.status || 502, {
+      error: result.error || "ai_provider_error",
+      detail: result.detail || "AI provider failed."
+    });
   }
-  const data = await response.json();
-  const text = data.content?.[0]?.text || "No answer returned.";
-  sendJson(res, 200, { source: "anthropic", ...parseResearchResponseText(text) });
+  sendJson(res, 200, { source: result.source, ...parseResearchResponseText(result.text) });
 }
 
 function checkResearchRateLimit(userId) {
@@ -8295,6 +8590,112 @@ async function startDemoSession(req, res) {
 function logout(res) {
   res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0)}`);
   redirect(res, "/");
+}
+
+// ── Email / password accounts ────────────────────────────────────────────────
+// Accounts persist to Supabase `profiles` when connected, else to a local
+// data/accounts.json file so the flow works in dev. Passwords are scrypt-hashed.
+const ACCOUNTS_FILE = join(DATA_DIR, "accounts.json");
+const authAttempts = new Map();
+
+function authRateLimitOk(req) {
+  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()
+    || req.socket?.remoteAddress || "anon";
+  const now = Date.now(), WIN = 60_000, MAX = 12;
+  const e = authAttempts.get(ip);
+  if (!e || now - e.start > WIN) { authAttempts.set(ip, { start: now, n: 1 }); return true; }
+  if (e.n >= MAX) return false;
+  e.n += 1;
+  return true;
+}
+
+function hashPassword(password) {
+  const saltBuf = randomBytes(16);
+  const salt = saltBuf.toString("hex");
+  return `scrypt$${salt}$${scryptSync(password, saltBuf, 64).toString("hex")}`;
+}
+function verifyPassword(password, stored) {
+  try {
+    const [scheme, saltHex, hash] = String(stored).split("$");
+    if (scheme !== "scrypt" || !saltHex || !hash) return false;
+    const saltBuf = Buffer.from(saltHex, "hex");
+    if (!saltBuf.length) return false;
+    const computed = scryptSync(password, saltBuf, 64);
+    const expected = Buffer.from(hash, "hex");
+    return computed.length === expected.length && timingSafeEqual(computed, expected);
+  } catch { return false; }
+}
+
+async function readAccountsStore() {
+  try { return JSON.parse(await readFile(ACCOUNTS_FILE, "utf8")); } catch { return {}; }
+}
+async function findAccountByEmail(email) {
+  const e = String(email).toLowerCase();
+  let remote = null;
+  if (dbReady) {
+    const rows = await dbSelect("profiles",
+      `email=eq.${encodeURIComponent(e)}&provider=eq.email&select=id,email,name,password_hash`);
+    remote = rows && rows.length ? rows[0] : null;
+  }
+  const local = (await readAccountsStore())[e] || null;
+  return remote || local;
+}
+async function writeLocalAccountRecord(acct) {
+  await withFileLock(ACCOUNTS_FILE, async () => {
+    const store = await readAccountsStore();
+    store[acct.email] = acct;
+    await mkdir(DATA_DIR, { recursive: true });
+    await writeFile(ACCOUNTS_FILE, JSON.stringify(store, null, 2), "utf8");
+  });
+}
+async function createAccountRecord(acct) {
+  if (dbReady) {
+    const row = await dbInsert("profiles", {
+      id: acct.id, email: acct.email, name: acct.name, provider: "email",
+      password_hash: acct.password_hash, picture: "", updated_at: new Date().toISOString()
+    });
+    if (row) return;
+    console.warn("[auth] Supabase profile insert failed — saving account locally");
+  }
+  await writeLocalAccountRecord(acct);
+}
+
+async function authSignup(req, res) {
+  if (!authRateLimitOk(req)) return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Wait a minute and try again." });
+  const body = await readJson(req);
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const name = String(body.name || "").trim() || email.split("@")[0];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return sendJson(res, 400, { error: "invalid_email", message: "Enter a valid email address." });
+  if (password.length < 8) return sendJson(res, 400, { error: "weak_password", message: "Password must be at least 8 characters." });
+  if (await findAccountByEmail(email)) return sendJson(res, 409, { error: "email_taken", message: "An account with this email already exists — try logging in." });
+  const user = { id: `usr_${randomBytes(8).toString("hex")}`, name, email, picture: "", provider: "email" };
+  try {
+    await createAccountRecord({ id: user.id, email, name, password_hash: hashPassword(password) });
+  } catch {
+    return sendJson(res, 500, { error: "signup_failed", message: "Could not create the account. Please try again." });
+  }
+  setSessionCookie(res, user);
+  return sendJson(res, 200, { ok: true, user: { id: user.id, name, email } });
+}
+
+async function authLogin(req, res) {
+  if (!authRateLimitOk(req)) return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Wait a minute and try again." });
+  const body = await readJson(req);
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const acct = await findAccountByEmail(email);
+  if (!acct || !acct.password_hash || !verifyPassword(password, acct.password_hash)) {
+    return sendJson(res, 401, { error: "invalid_credentials", message: "Invalid email or password." });
+  }
+  const user = { id: acct.id, name: acct.name || email.split("@")[0], email, picture: "", provider: "email" };
+  setSessionCookie(res, user);
+  return sendJson(res, 200, { ok: true, user: { id: user.id, name: user.name, email } });
+}
+
+function authLogoutApi(res) {
+  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0)}`);
+  return sendJson(res, 200, { ok: true });
 }
 
 function startOAuth(req, res, providerName) {
@@ -9361,7 +9762,19 @@ function contentType(filePath) {
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".svg": "image/svg+xml",
-    ".json": "application/json; charset=utf-8"
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".ico": "image/x-icon",
+    ".webm": "video/webm",
+    ".mp4": "video/mp4",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".txt": "text/plain; charset=utf-8"
   }[extname(filePath)] || "application/octet-stream";
 }
 

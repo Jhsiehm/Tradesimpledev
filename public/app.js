@@ -1,3 +1,57 @@
+const FEATURE_GATES = {
+  THESIS_ENABLED: true,
+  PAPER_TRADING_ENABLED: true,
+  MARKETS_ENABLED: true,
+  PUBLIC_SHARES_ENABLED: true,
+  SESSION_ENABLED: true,
+  WAITLIST_ENABLED: true,
+  BILLS_EXPLORER_ENABLED: true,
+  CONTRACTS_ANALYZER_ENABLED: true,
+  LOBBYING_EXPLORER_ENABLED: false,
+  ANALYSIS_LAB_ENABLED: false,
+  CRYPTO_TRACKER_ENABLED: false,
+  FUNDS_HYPOTHETICALS_ENABLED: false,
+  SETTINGS_PAGE_ENABLED: false,
+  RELATIONSHIP_MAPS_ENABLED: false,
+  AI_RESEARCH_ENABLED: false,
+  ALERTS_MONITORING_ENABLED: false,
+  ADVANCED_ANALYTICS_ENABLED: false
+};
+
+const VIEW_FEATURE_GATES = {
+  overview: "THESIS_ENABLED",
+  thesis: "THESIS_ENABLED",
+  trade: "PAPER_TRADING_ENABLED",
+  bills: "BILLS_EXPLORER_ENABLED",
+  contracts: "CONTRACTS_ANALYZER_ENABLED",
+  lobbying: "LOBBYING_EXPLORER_ENABLED",
+  analysis: "ANALYSIS_LAB_ENABLED",
+  markets: "MARKETS_ENABLED",
+  "track-record": "ADVANCED_ANALYTICS_ENABLED",
+  settings: "SETTINGS_PAGE_ENABLED",
+  research: "AI_RESEARCH_ENABLED"
+};
+
+function isFeatureEnabled(featureName) {
+  return FEATURE_GATES[featureName] ?? false;
+}
+
+function isViewEnabled(view) {
+  const gate = VIEW_FEATURE_GATES[view];
+  return gate ? isFeatureEnabled(gate) : true;
+}
+
+function syncFeatureGatesFromConfig(config) {
+  if (!config?.features || typeof config.features !== "object") return;
+  Object.keys(FEATURE_GATES).forEach((key) => {
+    if (key in config.features) FEATURE_GATES[key] = Boolean(config.features[key]);
+  });
+}
+
+function disabledFeatureFallbackView() {
+  return isViewEnabled("thesis") ? "thesis" : "overview";
+}
+
 const HOLDING_PALETTE = ["#5eead4", "#93c5fd", "#fcd34d", "#f87171", "#c4b5fd", "#a78bfa", "#fb923c", "#60a5fa", "#e879f9", "#4ade80"];
 
 function dashboardBootstrap() {
@@ -102,7 +156,9 @@ function applyReaderMode(mode, { reload = false } = {}) {
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  if (reload && state.activeAnalysisSymbol) loadAnalysis(state.activeAnalysisSymbol);
+  if (reload && state.activeAnalysisSymbol && isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
+    loadAnalysis(state.activeAnalysisSymbol);
+  }
 }
 
 function setupReaderModeToggle() {
@@ -735,6 +791,7 @@ function setupAnalysisTickerAi() {
   const btn = $("#analysis-ticker-ai-btn");
   if (!btn) return;
   btn.addEventListener("click", () => {
+    if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return;
     openGlobalResearchDrawer();
     const q = $("#research-question");
     if (q && state.activeAnalysisSymbol) {
@@ -807,6 +864,10 @@ function activateDrilldown(data) {
 function openTickerAnalysis(symbol) {
   const sym = String(symbol || "").toUpperCase().replace(/[^A-Z.]/g, "");
   if (!sym) return;
+  if (!isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
+    thesisPrimeTicker(sym);
+    return showView("thesis");
+  }
   if (!isTrackedTicker(sym)) {
     showView("markets");
     return;
@@ -842,6 +903,7 @@ function openTradeForSymbol(symbol, options = {}) {
 }
 
 function openBillsDrilldown(filter = "") {
+  if (!isFeatureEnabled("BILLS_EXPLORER_ENABLED")) return showView("thesis");
   showView("bills");
   const value = String(filter || "").trim();
   const input = $("#bill-filter");
@@ -859,6 +921,7 @@ function openBillsDrilldown(filter = "") {
 }
 
 function openContractsDrilldown(company = "") {
+  if (!isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) return showView("thesis");
   showView("contracts");
   const value = String(company || "").trim().toLowerCase();
   if (!value) return;
@@ -1312,6 +1375,10 @@ function renderAnalysisContractsTab(symbol, companyName) {
 }
 
 async function loadAnalysisContractsData(symbol, companyName) {
+  if (!isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+    state.contractCache[symbol] = { disabled: true, results: [] };
+    return;
+  }
   if (state.contractCache[symbol]?.loading) return;
   state.contractCache[symbol] = { loading: true };
   try {
@@ -1462,7 +1529,6 @@ async function initDashboard() {
   setupMethodologyModal();
   setupOnboardingModal();
   setupAppConfirmModal();
-  setupResearchDrawer();
   setupAnalysisTabs();
   initMoneyTrailClose();
   setupAnalysisTickerAi();
@@ -1473,9 +1539,13 @@ async function initDashboard() {
   setupSignalChainInteraction();
   setupLegisCardDelegation();
   setupTrackRecordTabs();
-  setupHypotheticalFunds();
+  if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
 
   const [config, session] = await Promise.all([fetchJson("/api/config"), fetchJson("/api/session")]);
+  syncFeatureGatesFromConfig(config);
+  applyFeatureGateVisibility();
+  if (isFeatureEnabled("AI_RESEARCH_ENABLED")) setupResearchDrawer();
+  if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
   state.config = config;
   state.session = session;
   loadByokFromStorage();
@@ -1505,15 +1575,28 @@ async function initDashboard() {
     }
   }
 
-  const initialView = params.get("view") || "overview";
+  const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
+  const requestedView = params.get("view") || defaultView;
+  const initialView = isViewEnabled(requestedView) ? requestedView : disabledFeatureFallbackView();
   showView(initialView, false);
 
-  await Promise.all([
+  if (params.get("welcome") === "1") {
+    openOnboardingModal({ force: true });
+    params.delete("welcome");
+    const clean = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      clean ? `${window.location.pathname}?${clean}` : window.location.pathname
+    );
+  }
+
+  await Promise.allSettled([
     refreshTerminalData(),
-    loadAnalysis(state.activeAnalysisSymbol),
+    isFeatureEnabled("ANALYSIS_LAB_ENABLED") ? loadAnalysis(state.activeAnalysisSymbol) : Promise.resolve(),
     loadTradeHistory(state.tradeSymbol, state.tradeRange)
   ]);
-  void refreshContractsFeed();
+  if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) void refreshContractsFeed();
   setupEdgarControls();
   startLiveFeeds();
 }
@@ -1522,24 +1605,29 @@ function startLiveFeeds() {
   state.feedTimers.forEach((timer) => clearInterval(timer));
   state.feedTimers = [
     setInterval(() => runFeed("market", refreshMarketFeed), LIVE_FEED_INTERVALS.marketMs),
-    setInterval(() => runFeed("crypto", refreshCryptoFeed), LIVE_FEED_INTERVALS.cryptoMs),
     setInterval(() => runFeed("account", refreshAccountFeed), LIVE_FEED_INTERVALS.accountMs),
     setInterval(() => runFeed("policy", refreshPolicyFeed), LIVE_FEED_INTERVALS.policyMs),
-    setInterval(() => runFeed("contracts", refreshContractsFeed), LIVE_FEED_INTERVALS.contractsMs),
     setInterval(() => runFeed("tradeHistory", refreshActiveTradeHistory), LIVE_FEED_INTERVALS.tradeHistoryMs),
     setInterval(() => runFeed("analysisChart", refreshActiveAnalysisChart), LIVE_FEED_INTERVALS.analysisChartMs),
     setInterval(() => runFeed("portfolioChart", refreshPortfolioChartLive), LIVE_FEED_INTERVALS.portfolioChartMs)
-  ];
+  ].filter(Boolean);
+  if (isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) {
+    state.feedTimers.push(setInterval(() => runFeed("crypto", refreshCryptoFeed), LIVE_FEED_INTERVALS.cryptoMs));
+  }
+  if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+    state.feedTimers.push(setInterval(() => runFeed("contracts", refreshContractsFeed), LIVE_FEED_INTERVALS.contractsMs));
+  }
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       runFeed("resume", async () => {
-        await Promise.allSettled([
+        const tasks = [
           refreshMarketFeed(),
-          refreshCryptoFeed(),
           refreshAccountFeed(),
           refreshPolicyFeed()
-        ]);
+        ];
+        if (isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) tasks.push(refreshCryptoFeed());
+        await Promise.allSettled(tasks);
       });
     }
   }, { once: true });
@@ -1782,10 +1870,10 @@ function setupRefreshAllControl() {
     const label = btn.textContent;
     btn.textContent = "Refreshing…";
     try {
-      await Promise.all([
+      await Promise.allSettled([
         refreshTerminalData(),
-        refreshContractsFeed(),
-        loadAnalysis(state.activeAnalysisSymbol),
+        isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") ? refreshContractsFeed() : Promise.resolve(),
+        isFeatureEnabled("ANALYSIS_LAB_ENABLED") ? loadAnalysis(state.activeAnalysisSymbol) : Promise.resolve(),
         loadTradeHistory(state.tradeSymbol, state.tradeRange)
       ]);
     } finally {
@@ -1799,7 +1887,7 @@ async function refreshTerminalData() {
   const settled = await Promise.allSettled([
     refreshAccountFeed({ render: false }),
     refreshMarketFeed({ render: false }),
-    refreshCryptoFeed({ render: false }),
+    isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
     refreshPolicyFeed({ render: false })
   ]);
 
@@ -2024,6 +2112,10 @@ async function refreshMarketFeed({ render = true } = {}) {
 }
 
 async function refreshCryptoFeed({ render = true } = {}) {
+  if (!isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) {
+    state.crypto = [];
+    return { assets: [], source: "feature_disabled" };
+  }
   const data = await fetchJson("/api/crypto?ids=bitcoin,ethereum,solana");
   state.crypto = normalizeCryptoAssets(data.assets || []);
   rememberFeedMeta("crypto", data, data.source || "crypto");
@@ -2040,7 +2132,9 @@ async function refreshCryptoFeed({ render = true } = {}) {
 async function refreshPolicyFeed({ render = true } = {}) {
   const [bills, lobbying] = await Promise.all([
     fetchJson("/api/congress/bills"),
-    fetchJson("/api/lobbying")
+    isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")
+      ? fetchJson("/api/lobbying")
+      : Promise.resolve({ filings: [], source: "feature_disabled", updatedAt: new Date().toISOString() })
   ]);
   state.bills = bills.bills || [];
   window._policyBillsForByok = state.bills || [];
@@ -2055,9 +2149,9 @@ async function refreshPolicyFeed({ render = true } = {}) {
     renderOverview();
     renderTopSignal();
     renderPolicyCatalysts();
-    renderBills();
+    if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
     populateFundBillPicker();
-    renderLobbying();
+    if (isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) renderLobbying();
     if (state.analysis) renderAnalysis();
     renderLiveAlerts();
   }
@@ -2160,6 +2254,13 @@ async function loadMarketsData() {
     console.error("[markets] quotes fetch failed", e);
     syncQuotesFallbackBanner({ fallback: false });
     renderMarkets();
+  }
+
+  if (!isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) {
+    state.crypto = [];
+    renderCrypto();
+    renderTape();
+    return;
   }
 
   try {
@@ -2745,6 +2846,16 @@ function renderCrypto() {
 }
 
 async function refreshContractsFeed({ render = true } = {}) {
+  if (!isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+    state.contracts = [];
+    state.contractsLoadedAt = new Date().toISOString();
+    rememberFeedMeta("contracts", {
+      source: "feature_disabled",
+      confidence: "Hidden",
+      updatedAt: state.contractsLoadedAt
+    });
+    return state.contracts;
+  }
   const requests = contractWatchlist().map(async (item) => {
     try {
       const data = await fetchJson(`/api/contracts/${encodeURIComponent(item.company)}`);
@@ -3165,7 +3276,7 @@ function renderAccount() {
     : `<article class="empty-state" style="padding:1.5rem;text-align:center"><p style="margin:0 0 0.35rem;font-weight:600">No orders yet</p><p class="muted" style="margin:0;font-size:0.85rem">Your paper trade history will appear here once you place an order.</p></article>`;
 
   renderTradePanel();
-  void loadFunds();
+  if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) void loadFunds();
 }
 
 const FUND_TAG_LABELS = {
@@ -3370,6 +3481,7 @@ function populateFundCompareSelects() {
 }
 
 async function runFundCompare() {
+  if (!isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) return;
   const idA = $("#fund-compare-a")?.value;
   const idB = $("#fund-compare-b")?.value;
   const tbody = $("#fund-compare-compare-body");
@@ -3398,6 +3510,7 @@ async function runFundCompare() {
 }
 
 async function loadFunds() {
+  if (!isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) return;
   try {
     const data = await fetchJson("/api/funds");
     state.funds = data.funds || [];
@@ -3433,6 +3546,7 @@ function renderFundsUi() {
 }
 
 async function loadFundDetail(fundId) {
+  if (!isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) return;
   const range = state.fundRange || "6m";
   const chartHost = $("#fund-performance-chart");
   if (chartHost) {
@@ -3492,6 +3606,7 @@ function stopFundPulseRefresh() {
 
 function scheduleFundPulseRefresh(fundId) {
   stopFundPulseRefresh();
+  if (!isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) return;
   if (!fundId || !$("#view-overview")?.classList.contains("active")) return;
   state.fundPulseTimer = setInterval(async () => {
     if (state.activeFundId !== fundId) return;
@@ -4358,6 +4473,11 @@ function priceTrendCaption(symbol, charts) {
 }
 
 async function loadAnalysis(symbol) {
+  if (!isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
+    state.activeAnalysisSymbol = symbol;
+    state.analysis = null;
+    return null;
+  }
   state.activeAnalysisSymbol = symbol;
   resetEdgarPanel();
   const sparkHost = $("#analysis-sparkline");
@@ -5448,9 +5568,95 @@ function signalCard(bill) {
   `;
 }
 
+function buildNavigation() {
+  const navItems = [
+    { id: "overview", label: "Home", enabled: isViewEnabled("overview") },
+    { id: "thesis", label: "Thesis Lab", enabled: isViewEnabled("thesis") },
+    { id: "trade", label: "Account", enabled: isViewEnabled("trade") },
+    { id: "bills", label: "Bills", enabled: isViewEnabled("bills") },
+    { id: "lobbying", label: "Lobbying", enabled: isViewEnabled("lobbying") },
+    { id: "contracts", label: "Contracts", enabled: isViewEnabled("contracts") },
+    { id: "analysis", label: "Analysis", enabled: isViewEnabled("analysis") },
+    { id: "markets", label: "Markets", enabled: isViewEnabled("markets") },
+    { id: "track-record", label: "Track Record", enabled: isViewEnabled("track-record") },
+    { id: "settings", label: "Settings", enabled: isViewEnabled("settings") }
+  ];
+  return navItems.filter((item) => item.enabled);
+}
+
+function syncOnboardingSteps() {
+  const checklist = $("#onboarding-checklist");
+  if (!checklist) return;
+  const stepViews = {
+    watchlist: "overview",
+    thesis: "thesis",
+    bills: "bills",
+    share: "bills"
+  };
+  checklist.querySelectorAll("li[data-step]").forEach((li) => {
+    const view = stepViews[li.dataset.step];
+    li.hidden = view ? !isViewEnabled(view) : false;
+  });
+  const watchlistCopy = checklist.querySelector('[data-step="watchlist"] p');
+  if (watchlistCopy && !isFeatureEnabled("SETTINGS_PAGE_ENABLED")) {
+    watchlistCopy.textContent = "Tap tickers on Home to track symbols you care about.";
+  }
+  const billsCopy = checklist.querySelector('[data-step="bills"] p');
+  if (billsCopy && !isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
+    billsCopy.textContent = "Open a bill, follow the causal chain, and jump to exposed tickers.";
+  }
+  const shareCopy = checklist.querySelector('[data-step="share"] p');
+  if (shareCopy) {
+    shareCopy.textContent = "Bills, contracts, and stocks have public share pages you can send to collaborators.";
+  }
+}
+
+function applyFeatureGateVisibility() {
+  const enabledViews = new Set(buildNavigation().map((item) => item.id));
+  syncOnboardingSteps();
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    const view = button.dataset.view;
+    button.hidden = !enabledViews.has(view);
+    button.setAttribute("aria-hidden", button.hidden ? "true" : "false");
+  });
+  document.querySelectorAll("[data-view-jump], [data-show-view], [data-onboarding-go]").forEach((button) => {
+    const view = button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo;
+    if (!view) return;
+    const enabled = isViewEnabled(view);
+    button.hidden = !enabled;
+    button.disabled = !enabled;
+    button.setAttribute("aria-hidden", enabled ? "false" : "true");
+  });
+  document.querySelectorAll(".view[id^='view-']").forEach((section) => {
+    const view = section.id.replace(/^view-/, "");
+    const disabled = !isViewEnabled(view);
+    section.hidden = disabled;
+    if (disabled) section.classList.remove("active");
+  });
+  document.querySelectorAll("[data-thesis-outer='map'], #thesis-pane-map").forEach((el) => {
+    el.hidden = !isFeatureEnabled("RELATIONSHIP_MAPS_ENABLED");
+  });
+  if (!isFeatureEnabled("RELATIONSHIP_MAPS_ENABLED")) {
+    document.querySelector("[data-thesis-outer='map']")?.classList.remove("active");
+    document.getElementById("thesis-pane-map")?.classList.remove("active");
+    document.querySelector("[data-thesis-outer='build']")?.classList.add("active");
+    document.getElementById("thesis-pane-build")?.classList.add("active");
+  }
+  document.querySelectorAll(".research-drawer-btn, .research-drawer-global, .byok-settings-btn, #analysis-ticker-ai-btn").forEach((el) => {
+    el.hidden = !isFeatureEnabled("AI_RESEARCH_ENABLED");
+  });
+  const fundsPanel = document.getElementById("hypothetical-funds-panel");
+  if (fundsPanel) fundsPanel.hidden = !isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED");
+}
+
 function setupNavigation() {
+  applyFeatureGateVisibility();
   document.querySelectorAll("[data-view], [data-view-jump]").forEach((button) => {
-    button.addEventListener("click", () => showView(button.dataset.view || button.dataset.viewJump));
+    button.addEventListener("click", () => {
+      const view = button.dataset.view || button.dataset.viewJump;
+      if (!isViewEnabled(view)) return;
+      showView(view);
+    });
   });
 }
 
@@ -5459,6 +5665,7 @@ function globalResearchDrawerEl() {
 }
 
 function openGlobalResearchDrawer() {
+  if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return;
   globalResearchDrawerEl()?.classList.add("open");
 }
 
@@ -5473,8 +5680,14 @@ function ensureThesisLabReady() {
 }
 
 function showView(view, updateUrl = true) {
+  if (!isViewEnabled(view)) {
+    showView(disabledFeatureFallbackView(), updateUrl);
+    return;
+  }
+
   /* Research UI lives in the global drawer; there is no #view-research — pair drawer with Bills so nav/state stay coherent. */
   if (view === "research") {
+    if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return showView(disabledFeatureFallbackView(), updateUrl);
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === "bills"));
     document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active", section.id === "view-bills"));
     if (updateUrl) {
@@ -5494,9 +5707,9 @@ function showView(view, updateUrl = true) {
     if (view === "trade") params.set("symbol", state.tradeSymbol);
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   }
-  if (view === "analysis" && !state.analysis) loadAnalysis(state.activeAnalysisSymbol);
+  if (view === "analysis" && isFeatureEnabled("ANALYSIS_LAB_ENABLED") && !state.analysis) loadAnalysis(state.activeAnalysisSymbol);
   if (view === "trade" && !state.tradeHistory) loadTradeHistory(state.tradeSymbol, state.tradeRange);
-  if (view === "markets") {
+  if (view === "markets" && isViewEnabled("markets")) {
     if (!state.quotes?.length) {
       showSkeleton("#market-body", 8, "row");
       void loadMarketsData().finally(() => clearSkeleton("#market-body"));
@@ -5504,20 +5717,20 @@ function showView(view, updateUrl = true) {
       renderMarkets(); // already have quotes, just re-render
     }
   }
-  if (view === "bills") {
+  if (view === "bills" && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) {
     if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
   }
-  if (view === "contracts" && !state.contractsLoadedAt) {
+  if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") && !state.contractsLoadedAt) {
     showSkeleton("#contracts-feed", 4, "card");
     void refreshContractsFeed().finally(() => clearSkeleton("#contracts-feed"));
   }
-  if (view === "lobbying") {
+  if (view === "lobbying" && isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
     if (!state.lobbying?.length) {
       showSkeleton("#lobby-feed", 4, "card");
       void refreshPolicyFeed().finally(() => clearSkeleton("#lobby-feed"));
     } else renderLobbying();
   }
-  if (view === "track-record") void loadTrackRecord();
+  if (view === "track-record" && isFeatureEnabled("ADVANCED_ANALYTICS_ENABLED")) void loadTrackRecord();
   if (view === "thesis") {
     ensureThesisLabReady();
     void thesisLoadTracked();
@@ -6054,6 +6267,7 @@ function appendResearchAiMessage(prose, watchFor) {
 
 async function askWhyForBill(billId) {
   if (!billId) return;
+  if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return;
   const id = String(billId);
   showView("bills");
   openGlobalResearchDrawer();
@@ -6322,7 +6536,10 @@ function setupOnboardingModal() {
       close();
     });
   });
-  $("#onboarding-finish")?.addEventListener("click", close);
+  $("#onboarding-finish")?.addEventListener("click", () => {
+    close();
+    if (isViewEnabled("thesis")) showView("thesis");
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && modal && !modal.hidden) close();
   });
@@ -6531,6 +6748,7 @@ function setupSignalChainInteraction() {
 }
 
 function setupResearchDrawer() {
+  if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return;
   const btn = document.querySelector(".research-drawer-btn");
   const drawer = globalResearchDrawerEl();
   const close = drawer?.querySelector(".research-drawer-close");
@@ -6740,9 +6958,13 @@ window.__tsActivateAi = async function () {
   try {
     const config = await fetchJson("/api/config");
     state.config = config;
+    syncFeatureGatesFromConfig(config);
+    applyFeatureGateVisibility();
     renderConnections();
     renderByokStatus();
-    if (state.activeAnalysisSymbol) await loadAnalysis(state.activeAnalysisSymbol);
+    if (state.activeAnalysisSymbol && isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
+      await loadAnalysis(state.activeAnalysisSymbol);
+    }
   } catch (e) {
     console.warn("[ts] __tsActivateAi failed:", e.message);
   }
@@ -8036,6 +8258,15 @@ function thesisStopMapPulse() {
 }
 
 async function thesisLoadRelationshipMap() {
+  if (!isFeatureEnabled("RELATIONSHIP_MAPS_ENABLED")) {
+    thesisMapNodesActive = [];
+    thesisMapEdgesActive = [];
+    thesisMapNewNodeIds = new Set();
+    thesisMapNewEdgeIds = new Set();
+    thesisSetMapEmpty(true, "Relationship maps are not available in this beta.");
+    thesisDrawMap();
+    return;
+  }
   const sym = thesisPrimeTicker(thesisCurrentMapSymbol());
   if (!sym) {
     thesisMapNodesActive = [];

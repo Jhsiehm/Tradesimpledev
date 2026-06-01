@@ -6,7 +6,17 @@
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const dbReady = Boolean(SUPABASE_URL && SUPABASE_KEY);
+function isPlaceholder(value) {
+  const v = String(value || "").trim();
+  return !v || v.includes("YOUR_PROJECT_REF") || v.includes("your-service-role-key");
+}
+
+export const dbReady = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_KEY &&
+  !isPlaceholder(SUPABASE_URL) &&
+  !isPlaceholder(SUPABASE_KEY)
+);
 
 function restUrl(table, params = "") {
   return `${SUPABASE_URL}/rest/v1/${table}${params ? `?${params}` : ""}`;
