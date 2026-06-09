@@ -178,11 +178,6 @@ html[data-theme="light"] .nav-inner{
 .btn-ghost{border:1px solid var(--line-2);color:var(--muted)}
 .btn-ghost:hover{border-color:var(--line-3);color:var(--text);transform:translateY(-1px)}
 .btn-ghost:active{transform:scale(.98) !important}
-.btn-google{border:1px solid var(--line-2);color:var(--text);background:var(--bg-2);gap:8px}
-.btn-google:hover{border-color:var(--line-3);background:var(--bg-3);transform:translateY(-1px)}
-html[data-theme="light"] .btn-google{background:#fff;border-color:var(--line-2)}
-html[data-theme="light"] .btn-google:hover{background:#f8f6f0}
-
 @keyframes scroll-left{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
 .up{color:var(--green);background:rgba(91,220,145,.09)}
 .dn{color:var(--red);background:rgba(224,82,77,.12)}
@@ -829,7 +824,7 @@ footer nav a:hover{color:var(--text)}
     </div>
 
     <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
-      <article><span>AUTH + SESSIONS</span><p>Demo auth, Google sign-in, signed sessions, and protected dashboard routes remain powered by the TradeSimple backend.</p></article>
+      <article><span>AUTH + SESSIONS</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes remain powered by the TradeSimple backend.</p></article>
       <article><span>SOURCE FRESHNESS</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
       <article><span>AI RESEARCH</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
       <article><span>THESIS LAB</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
@@ -855,8 +850,8 @@ footer nav a:hover{color:var(--text)}
       <p>Policy signals, cited sources, AI research, thesis storage, and paper trading now sit inside the TradeSimple intelligence archive.</p>
       <div class="access-actions">
         <a href="/signup" class="ts-primary-cta" data-app-path="/signup">Create account</a>
+        <a href="/login" class="ts-secondary-cta" data-app-path="/login">Log in</a>
         <a href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1" class="ts-secondary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1">Try demo terminal</a>
-        <a href="/auth/google" class="ts-secondary-cta" data-app-path="/auth/google">Sign in with Google</a>
       </div>
     </div>
     <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">

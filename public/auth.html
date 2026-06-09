@@ -66,7 +66,7 @@
       <span class="logo">T</span><b>TRADESIMPLE</b>
     </a>
     <h1 id="title">Create your account</h1>
-    <p class="sub" id="subtitle">Save your watchlist, theses, and tracked signals across sessions.</p>
+    <p class="sub" id="subtitle">Sign up with email and password to access the thesis terminal.</p>
 
     <div class="tabs" role="tablist">
       <button class="tab" data-tab="login" type="button">Log in</button>
@@ -87,9 +87,7 @@
       <div class="msg" id="msg" role="status" aria-live="polite"></div>
     </form>
 
-    <div class="divider">or</div>
-    <a class="alt" href="/auth/google">Continue with Google</a>
-    <a class="alt" href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1">Try the demo (no account)</a>
+    <a class="alt" href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1" style="margin-top:22px">Try the demo (no account)</a>
 
     <p class="foot">
       Research signal terminal · not financial advice.<br/>
@@ -133,8 +131,8 @@
     var signup = mode === "signup";
     title.textContent = signup ? "Create your account" : "Welcome back";
     subtitle.textContent = signup
-      ? "Save your watchlist, theses, and tracked signals across sessions."
-      : "Log in to pick up your watchlist and tracked theses.";
+      ? "Sign up with email and password to access the thesis terminal."
+      : "Sign in with the email and password you used at signup.";
     authSubmit.textContent = signup ? "Create account" : "Log in";
     pwHint.style.display = signup ? "block" : "none";
     pw.minLength = signup ? 8 : 1;

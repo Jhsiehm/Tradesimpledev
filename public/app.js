@@ -1475,9 +1475,6 @@ async function initLanding() {
   document.querySelectorAll("[data-provider]").forEach((link) => {
     const provider = link.dataset.provider;
     if (provider === "demo" && !config.auth.demo) setDisabled(link, "Demo disabled");
-    if ((provider === "google" || provider === "apple") && !config.auth[provider]) {
-      setDisabled(link, `Add ${provider} OAuth keys`);
-    }
   });
 
   const sessionLink = document.querySelector("[data-session-link]");
@@ -4382,8 +4379,7 @@ function renderConnections() {
   document.body.dataset.anthropicReady = String(Boolean(config.data?.anthropic));
   renderAiBanner();
   const rows = [
-    ["Google OAuth", config.auth.google, "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET"],
-    ["Apple OAuth", config.auth.apple, "APPLE_CLIENT_ID and APPLE_CLIENT_SECRET"],
+    ["Email sign-in", config.auth.email, "Enabled by default"],
     ["Finnhub equities", config.data.finnhub, "FINNHUB_API_KEY"],
     ["CoinGecko crypto", config.data.coingecko, "COINGECKO_API_KEY"],
     ["Congress.gov bills", config.data.congress, "CONGRESS_API_KEY"],

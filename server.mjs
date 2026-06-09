@@ -2548,8 +2548,6 @@ async function sendImportsStatic(res, pathname) {
 function publicConfig() {
   return {
     auth: {
-      google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-      apple: Boolean(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET),
       demo: process.env.DEMO_AUTH !== "false",
       email: true
     },
