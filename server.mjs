@@ -3911,11 +3911,28 @@ function lobbyIssueOverlap(rowIssue, filingIssue) {
   return hits >= 1;
 }
 
+const LOBBYING_FALLBACK_POSTED_AT = "2026-01-01";
+
+function decorateLobbyFallbackRow(row) {
+  return decorateLobbyingFiling({
+    ...row,
+    postedAt: row.postedAt || LOBBYING_FALLBACK_POSTED_AT,
+    source: row.source || "fallback"
+  });
+}
+
 function getLobbyFilingsPool() {
-  if (cachedLobbyFilingsForShare.length) return cachedLobbyFilingsForShare;
-  return LOBBYING_FALLBACK.map((row) =>
-    decorateLobbyingFiling({ ...row, postedAt: row.postedAt || new Date().toISOString().slice(0, 10) })
-  );
+  const fallback = LOBBYING_FALLBACK.map(decorateLobbyFallbackRow);
+  if (!cachedLobbyFilingsForShare.length) return fallback;
+  const seen = new Set();
+  const merged = [];
+  for (const filing of [...cachedLobbyFilingsForShare, ...fallback]) {
+    const key = filing.filingId || lobbyingFilingId(filing);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({ ...filing, filingId: key });
+  }
+  return merged;
 }
 
 function matchLobbyRowToFiling(row, filingsPool) {
@@ -4156,9 +4173,7 @@ async function resolveLobbyFilingsForShare() {
       /* fall through */
     }
   }
-  cachedLobbyFilingsForShare = LOBBYING_FALLBACK.map((row) =>
-    decorateLobbyingFiling({ ...row, postedAt: row.postedAt || new Date().toISOString().slice(0, 10) })
-  );
+  cachedLobbyFilingsForShare = LOBBYING_FALLBACK.map(decorateLobbyFallbackRow);
   return cachedLobbyFilingsForShare;
 }
 
@@ -4166,9 +4181,10 @@ function findLobbyFilingById(filingIdRaw) {
   const id = String(filingIdRaw || "").trim();
   if (!id) return null;
   const decoded = decodeURIComponent(id);
-  return (
-    cachedLobbyFilingsForShare.find((f) => f.filingId === id || f.filingId === decoded) || null
-  );
+  const matchId = (f) => f.filingId === id || f.filingId === decoded;
+  const fromCache = cachedLobbyFilingsForShare.find(matchId);
+  if (fromCache) return fromCache;
+  return getLobbyFilingsPool().find(matchId) || null;
 }
 
 async function buildLobbySharePayload(filingIdRaw) {

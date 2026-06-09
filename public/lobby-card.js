@@ -259,7 +259,8 @@ function stepTickersHtml(tickers) {
     <p class="bill-guided-lede">TradeSimple links lobbying clients to publicly traded symbols when the name match is clear.</p>
     <div class="bill-ticker-row">
       ${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}
-    </div>`;
+    </div>
+    <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div>`;
 }
 
 function stepBillsHtml(bills) {
@@ -365,6 +366,7 @@ function relatedTickers(tickers) {
       <div class="detail-link-row">
         ${rows.map((t) => `<a class="detail-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}
       </div>
+      <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(rows[0], escapeHtml)}</div>
     </section>`;
 }
 

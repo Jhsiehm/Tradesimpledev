@@ -371,6 +371,30 @@
     return instance;
   }
 
+  function stockPageUrl(symbol) {
+    const sym = String(symbol || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "");
+    return sym ? `/stock/${encodeURIComponent(sym)}` : "/dashboard?view=analysis";
+  }
+
+  function lobbyPageUrl(filingId) {
+    const id = String(filingId || "").trim();
+    return id ? `/lobby/${encodeURIComponent(id)}` : "/dashboard?view=lobbying";
+  }
+
+  function traceTickerCtaHtml(symbol, escapeHtml, opts = {}) {
+    const esc = escapeHtml || ((value) => String(value ?? ""));
+    const sym = String(symbol || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "");
+    if (!sym) return "";
+    const label = opts.generic ? "Trace this ticker" : `Trace ${sym}`;
+    return `<a class="brief-trace-cta" href="${esc(stockPageUrl(sym))}">${esc(label)} →</a>`;
+  }
+
   global.BriefShell = {
     storedMode,
     persistMode,
@@ -384,6 +408,9 @@
     goToStep,
     bindModeToggle,
     resolveStepHtml,
+    stockPageUrl,
+    lobbyPageUrl,
+    traceTickerCtaHtml,
     init
   };
 })(typeof window !== "undefined" ? window : globalThis);

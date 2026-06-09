@@ -201,7 +201,7 @@ function buildSteps(data) {
     });
   }
 
-  const bills = c.relatedBills || [];
+  const bills = relatedBillsList(data);
   if (bills.length) {
     steps.push({
       id: "bills",
@@ -242,6 +242,7 @@ function stepPaidHtml(data) {
   return `
     <p class="bill-card-id mono">${escapeHtml(data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(data.company || data.symbol)}</h1>
+    <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>
     <p class="bill-guided-lede">${escapeHtml(data.causality?.plainEnglish || "Federal contract exposure profile for this company.")}</p>
     ${award
       ? `<div class="bill-guided-facts">
@@ -322,6 +323,7 @@ function stepAwardsHtml(awards, symbol) {
     </div>
     <div class="bill-guided-cta">
       <a class="card-button bill-cta-primary" href="/dashboard?view=analysis&symbol=${encodeURIComponent(symbol)}">Open analysis tab</a>
+      ${BriefShell.traceTickerCtaHtml(symbol, escapeHtml)}
     </div>`;
 }
 
@@ -329,12 +331,7 @@ function stepBillsHtml(bills) {
   return `
     <h2 class="bill-step-title">Related legislation</h2>
     <p class="bill-guided-lede">Bills that map to ${escapeHtml(state.symbol)} in TradeSimple's policy graph.</p>
-    <div class="detail-link-row bill-ticker-row">
-      ${bills.map((b) => `<a class="ticker-chip-link" href="/bill/${encodeURIComponent(b.id)}">${escapeHtml(b.displayId || b.id)}</a>`).join("")}
-    </div>
-    <ul class="bill-guided-watchlist">
-      ${bills.map((b) => `<li><a href="/bill/${encodeURIComponent(b.id)}">${escapeHtml(b.displayId || b.id)}</a> — ${escapeHtml(b.title || "")}</li>`).join("")}
-    </ul>`;
+    ${relatedBillsCardsHtml(bills)}`;
 }
 
 function stepScenariosHtml(scenarios) {
@@ -405,6 +402,7 @@ function renderFullBrief(data) {
         <h1>${escapeHtml(data.company || data.symbol)}</h1>
         <p class="muted">${escapeHtml(c.archetype || "Government contractor profile")} · ${escapeHtml(c.scores?.confidence || "—")} confidence</p>
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || "")}</p>
+        <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>
       </header>
       ${dossierMetaHtml(data)}
 
@@ -430,7 +428,7 @@ function renderFullBrief(data) {
       ${scenarioBlock(c.scenarios)}
       ${nodesBlock(c.nodes)}
       ${awardsBlock(awards, data.symbol)}
-      ${billsBlock(c.relatedBills)}
+      ${billsBlock(relatedBillsList(data))}
       ${translationBlock(c.translation)}
 
       <footer class="detail-card-panel">
@@ -470,15 +468,36 @@ function awardsBlock(awards, symbol) {
     </section>`;
 }
 
+function relatedBillsList(data) {
+  return (data.relatedBills || data.causality?.relatedBills || []).slice(0, 5);
+}
+
+function relatedBillsCardsHtml(bills) {
+  const rows = Array.isArray(bills) ? bills.slice(0, 5) : [];
+  if (!rows.length) return `<p class="muted">No mapped bills yet for this symbol.</p>`;
+  return `
+    <div class="brief-related-bill-cards">
+      ${rows
+        .map(
+          (b) => `
+        <a class="brief-related-bill-card" href="/bill/${encodeURIComponent(b.id)}">
+          <span class="mono">${escapeHtml(b.displayId || b.id)}</span>
+          <strong>${escapeHtml(b.title || "")}</strong>
+          ${b.momentum != null ? `<span class="muted">Momentum ${escapeHtml(String(b.momentum))}/100</span>` : ""}
+          ${b.latestAction ? `<span class="muted">${escapeHtml(String(b.latestAction).slice(0, 120))}</span>` : ""}
+        </a>`
+        )
+        .join("")}
+    </div>`;
+}
+
 function billsBlock(bills) {
   const rows = Array.isArray(bills) ? bills : [];
   if (!rows.length) return "";
   return `
     <section class="detail-card-panel">
       <h2>Related legislation</h2>
-      <div class="detail-link-row">
-        ${rows.map((b) => `<a class="detail-chip-link" href="/bill/${encodeURIComponent(b.id)}">${escapeHtml(b.displayId || b.id)}</a>`).join("")}
-      </div>
+      ${relatedBillsCardsHtml(rows)}
     </section>`;
 }
 

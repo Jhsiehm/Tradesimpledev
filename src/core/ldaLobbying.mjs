@@ -74,6 +74,15 @@ function filingMatchesBill(filing, bill) {
   return hits >= 2;
 }
 
+function lobbyingFilingId(base) {
+  const raw = [base.client, base.registrant, base.postedAt, base.amount, base.issue, base.source]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .join("|");
+  let hash = 0;
+  for (let i = 0; i < raw.length; i += 1) hash = (hash * 31 + raw.charCodeAt(i)) | 0;
+  return `lf_${Math.abs(hash).toString(36)}`;
+}
+
 function inferStance(filing, bill) {
   const hay = filingHaystack(filing);
   const againstWords = ["oppose", "against", "restrict", "limit", "ban", "antitrust", "negotiat"];
@@ -112,6 +121,7 @@ export function aggregateLobbyingForBills(bills, filings) {
       else if (stance === "for") forTotal += amount;
       rows.push({
         name: filing.client || filing.registrant || "Unknown client",
+        filingId: filing.filingId || lobbyingFilingId(filing),
         stance,
         amount,
         issue: filing.issue || (filing.issues || []).slice(0, 2).join(", "),

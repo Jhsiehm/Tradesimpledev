@@ -319,7 +319,8 @@ function stepMarketHtml(bill, breakdown, data) {
     ${exposureNote}
     ${tickers.length
       ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Related tickers</span>
-        <div class="bill-ticker-row">${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(typeof t === "string" ? t : t.symbol || t)}">${escapeHtml(typeof t === "string" ? t : t.symbol || t)}</a>`).join("")}</div></div>`
+        <div class="bill-ticker-row">${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(typeof t === "string" ? t : t.symbol || t)}">${escapeHtml(typeof t === "string" ? t : t.symbol || t)}</a>`).join("")}</div>
+        <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div></div>`
       : `<p class="muted bill-guided-note">No ticker mapping yet — monitor sector headlines and committee action.</p>`}
     <p class="dossier-redaction mono">Illustrative model — not investment advice</p>`;
 }
@@ -478,6 +479,7 @@ function renderFullBrief(data) {
         <div class="bill-ticker-row">
           ${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}
         </div>
+        <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div>
       </section>` : ""}
 
       ${impactSection("If it passes", data.passImpacts || bill.passImpacts)}
@@ -580,6 +582,19 @@ function impactSection(title, impacts) {
     </section>`;
 }
 
+function lobbyingFirmCell(row) {
+  const name = row.name || "";
+  const filingId = String(row.filingId || "").trim();
+  const topTicker = Array.isArray(row.tickers) ? row.tickers[0] : null;
+  const firmHtml = filingId
+    ? `<a class="bill-lobby-firm-link" href="${escapeHtml(BriefShell.lobbyPageUrl(filingId))}">${escapeHtml(name)}</a>`
+    : escapeHtml(name);
+  const traceHtml = topTicker
+    ? ` <a class="bill-lobby-ticker-link mono" href="${escapeHtml(BriefShell.stockPageUrl(topTicker))}">Trace ${escapeHtml(topTicker)} →</a>`
+    : "";
+  return `${firmHtml}${traceHtml}`;
+}
+
 function lobbyingTable(bill) {
   const rows = bill.stakeholders?.lobbying || [];
   if (!rows.length) {
@@ -592,7 +607,7 @@ function lobbyingTable(bill) {
         ${rows
           .map(
             (l) =>
-              `<tr><td>${escapeHtml(l.name || "")}</td><td>${escapeHtml(l.stance || "")}</td><td class="mono">${money(l.amount || 0)}</td><td>${escapeHtml(l.issue || "")}</td></tr>`
+              `<tr><td>${lobbyingFirmCell(l)}</td><td>${escapeHtml(l.stance || "")}</td><td class="mono">${money(l.amount || 0)}</td><td>${escapeHtml(l.issue || "")}</td></tr>`
           )
           .join("")}
       </tbody>

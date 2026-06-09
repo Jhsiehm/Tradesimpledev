@@ -1007,6 +1007,94 @@ html[data-theme="light"] .bill-card-panel {
   filter: brightness(1.07);
 }
 
+.brief-trace-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid var(--green, #c8ff00);
+  background: color-mix(in srgb, var(--green, #c8ff00) 12%, transparent);
+  color: var(--green, #c8ff00);
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background 0.15s ease, filter 0.15s ease;
+}
+
+.brief-trace-cta:hover {
+  background: color-mix(in srgb, var(--green, #c8ff00) 22%, transparent);
+  filter: brightness(1.05);
+}
+
+.brief-trace-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.brief-related-bill-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.brief-related-bill-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 44px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line, rgba(241, 238, 230, 0.14));
+  background: color-mix(in srgb, var(--panel, #101210) 92%, transparent);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.brief-related-bill-card:hover {
+  border-color: var(--green, #c8ff00);
+  background: color-mix(in srgb, var(--green, #c8ff00) 6%, var(--panel, #101210));
+}
+
+.brief-related-bill-card strong {
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.brief-related-bill-card .mono {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.bill-lobby-firm-link {
+  color: var(--green, #c8ff00);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.bill-lobby-firm-link:hover {
+  text-decoration: underline;
+}
+
+.bill-lobby-ticker-link {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--green, #c8ff00);
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.bill-lobby-ticker-link:hover {
+  text-decoration: underline;
+}
+
 .bill-guided-cta .card-button {
   border-radius: 0;
 }
@@ -1201,6 +1289,10 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
   .dossier-classify-note {
     font-size: 0.5rem;
     letter-spacing: 0.08em;
+  }
+
+  .brief-trace-cta {
+    width: 100%;
   }
 }
 
