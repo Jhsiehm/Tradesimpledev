@@ -12,5 +12,10 @@ DEMO_AUTH=true
 EOF
 echo ""
 echo "APP_URL is optional on Railway — the server auto-uses RAILWAY_PUBLIC_DOMAIN."
+echo ""
+echo "Supabase (Tradesimpledev · ref uyswlpnpxubxgvlqartu) — add manually from Supabase dashboard:"
+echo "  SUPABASE_URL=https://uyswlpnpxubxgvlqartu.supabase.co"
+echo "  SUPABASE_SERVICE_ROLE_KEY=<service_role secret from Settings → API>"
+echo ""
 echo "After deploy, add Google redirect URI:"
 echo "  https://YOUR-DOMAIN.up.railway.app/auth/callback/google"

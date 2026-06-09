@@ -79,3 +79,54 @@ export async function dbInsert(table, row) {
   const data = await res.json();
   return Array.isArray(data) ? data[0] : data;
 }
+
+/** Fetch one portfolio row for a user, or null if missing / error */
+export async function fetchPortfolioRow(userId) {
+  if (!dbReady) return null;
+  const rows = await dbSelect(
+    "portfolios",
+    `user_id=eq.${encodeURIComponent(userId)}&select=positions,cash,updated_at`
+  );
+  if (!rows?.length) return null;
+  return rows[0];
+}
+
+/** Upsert portfolio row (cash + positions jsonb blob) keyed by user_id */
+export async function savePortfolioRow(userId, { cash, positions }) {
+  if (!dbReady) return null;
+  return dbUpsert(
+    "portfolios",
+    {
+      user_id: userId,
+      cash,
+      positions,
+      updated_at: new Date().toISOString()
+    },
+    "user_id"
+  );
+}
+
+/** Fetch watchlist symbols for a user, or null if missing / error */
+export async function fetchWatchlistRow(userId) {
+  if (!dbReady) return null;
+  const rows = await dbSelect(
+    "watchlists",
+    `user_id=eq.${encodeURIComponent(userId)}&select=symbols,updated_at`
+  );
+  if (!rows?.length) return null;
+  return rows[0];
+}
+
+/** Upsert watchlist symbols keyed by user_id */
+export async function saveWatchlistRow(userId, symbols) {
+  if (!dbReady) return null;
+  return dbUpsert(
+    "watchlists",
+    {
+      user_id: userId,
+      symbols,
+      updated_at: new Date().toISOString()
+    },
+    "user_id"
+  );
+}

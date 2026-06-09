@@ -22,7 +22,17 @@ import {
   scryptSync,
   timingSafeEqual
 } from "node:crypto";
-import { dbReady, dbSelect, dbUpsert, dbInsert, dbPatch } from "./src/lib/supabase.mjs";
+import {
+  dbReady,
+  dbSelect,
+  dbUpsert,
+  dbInsert,
+  dbPatch,
+  fetchPortfolioRow,
+  savePortfolioRow,
+  fetchWatchlistRow,
+  saveWatchlistRow
+} from "./src/lib/supabase.mjs";
 import {
   aiScorecardHandler,
   aiEdgarHandler,
@@ -589,12 +599,9 @@ function buildContractWatchlist() {
 
 async function dashboardBootstrapPayload(session) {
   let watchlistSymbols = [];
-  if (dbReady) {
-    const rows = await dbSelect(
-      "watchlists",
-      `user_id=eq.${encodeURIComponent(session.user.id)}&select=symbols`
-    );
-    if (rows?.[0]?.symbols?.length) watchlistSymbols = rows[0].symbols;
+  if (dbReady && !isDemoSession(session)) {
+    const row = await fetchWatchlistRow(session.user.id);
+    if (row?.symbols?.length) watchlistSymbols = row.symbols;
   }
 
   return {
@@ -636,14 +643,11 @@ function thesisSummaryForUi(thesis) {
 }
 
 async function uiBootstrapRoute(res, session) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const [dashboard, paper] = await Promise.all([
     dashboardBootstrapPayload(session),
     paperSnapshot(account)
   ]);
-  await writePaperStore(store);
 
   sendJson(res, 200, {
     source: "ui_bootstrap",
@@ -2625,7 +2629,7 @@ async function upsertUserProfile(user) {
 }
 
 async function getPortfolio(res, session) {
-  if (!dbReady) {
+  if (!dbReady || isDemoSession(session)) {
     return sendJson(res, 200, {
       positions: [],
       cash: PAPER_STARTING_CASH,
@@ -2633,34 +2637,65 @@ async function getPortfolio(res, session) {
       message: "Supabase not configured; paper account uses /api/trading/account."
     });
   }
-  const rows = await dbSelect("portfolios", `user_id=eq.${encodeURIComponent(session.user.id)}&select=positions,cash,updated_at`);
-  if (!rows) return sendJson(res, 502, { error: "database_error" });
-  if (rows.length === 0) return sendJson(res, 200, { positions: [], cash: 100000 });
-  sendJson(res, 200, rows[0]);
+  const account = await getPaperAccount(session);
+  const blob = encodePortfolioBlob(account);
+  sendJson(res, 200, {
+    positions: blob.holdings,
+    cash: account.cash,
+    orders: blob.orders,
+    theses: blob.theses,
+    funds: blob.funds,
+    updated_at: account.updatedAt,
+    source: "supabase"
+  });
 }
 
 async function patchPortfolio(req, res, session) {
-  if (!dbReady) return sendJson(res, 503, { error: "database_not_configured" });
-  const body = await readJson(req);
-  const uid = session.user.id;
-  const update = {};
-  if (Array.isArray(body.positions)) update.positions = body.positions;
-  if (typeof body.cash === "number") update.cash = body.cash;
-  if (!Object.keys(update).length) return sendJson(res, 400, { error: "nothing_to_update" });
-  update.updated_at = new Date().toISOString();
-
-  const existing = await dbSelect("portfolios", `user_id=eq.${encodeURIComponent(uid)}&select=id`);
-  let result;
-  if (existing && existing.length > 0) {
-    result = await dbPatch("portfolios", `user_id=eq.${encodeURIComponent(uid)}`, update);
-  } else {
-    result = await dbUpsert("portfolios", { user_id: uid, positions: update.positions ?? [], cash: update.cash ?? 100000, ...update }, "user_id");
+  if (!dbReady || isDemoSession(session)) {
+    return sendJson(res, 503, { error: "database_not_configured" });
   }
-  if (!result) return sendJson(res, 502, { error: "database_error" });
-  sendJson(res, 200, { ok: true, portfolio: result });
+  const body = await readJson(req);
+  await runPaperWrite(session, async (account) => {
+    if (Array.isArray(body.positions)) {
+      if (body.positions.every((row) => row && typeof row === "object" && row.symbol)) {
+        const holdings = {};
+        for (const row of body.positions) {
+          const sym = normalizeTickerSymbol(row.symbol);
+          if (!sym) continue;
+          holdings[sym] = {
+            symbol: sym,
+            qty: Number(row.qty || 0),
+            avgCost: Number(row.avg_price ?? row.avgCost ?? 0)
+          };
+        }
+        account.positions = holdings;
+      } else {
+        account.positions = body.positions;
+      }
+    }
+    if (typeof body.cash === "number") account.cash = body.cash;
+    if (Array.isArray(body.orders)) account.orders = body.orders;
+    if (Array.isArray(body.theses)) account.theses = body.theses;
+    if (Array.isArray(body.funds)) account.funds = body.funds;
+  });
+  const account = await getPaperAccount(session);
+  sendJson(res, 200, {
+    ok: true,
+    portfolio: {
+      positions: account.positions,
+      cash: account.cash,
+      updated_at: account.updatedAt
+    }
+  });
 }
 
 async function getWatchlist(res, session) {
+  if (isDemoSession(session)) {
+    return sendJson(res, 200, {
+      symbols: DASHBOARD_WATCHLIST_DEFAULT.map((row) => row.symbol).filter(Boolean),
+      source: "demo_default"
+    });
+  }
   if (!dbReady) {
     return sendJson(res, 200, {
       symbols: [],
@@ -2668,26 +2703,25 @@ async function getWatchlist(res, session) {
       message: "Supabase not configured; watchlist comes from /api/dashboard/bootstrap defaults."
     });
   }
-  const rows = await dbSelect("watchlists", `user_id=eq.${encodeURIComponent(session.user.id)}&select=symbols,updated_at`);
-  if (!rows) return sendJson(res, 502, { error: "database_error" });
-  if (rows.length === 0) return sendJson(res, 200, { symbols: [] });
-  sendJson(res, 200, rows[0]);
+  const row = await fetchWatchlistRow(session.user.id);
+  if (!row) return sendJson(res, 200, { symbols: [] });
+  sendJson(res, 200, { symbols: row.symbols || [], updated_at: row.updated_at });
 }
 
 async function patchWatchlist(req, res, session) {
+  if (isDemoSession(session)) {
+    return sendJson(res, 200, {
+      ok: true,
+      symbols: DASHBOARD_WATCHLIST_DEFAULT.map((row) => row.symbol).filter(Boolean),
+      source: "demo_local"
+    });
+  }
   if (!dbReady) return sendJson(res, 503, { error: "database_not_configured" });
   const body = await readJson(req);
-  const uid = session.user.id;
   if (!Array.isArray(body.symbols)) return sendJson(res, 400, { error: "symbols must be an array" });
   const symbols = body.symbols.map((s) => String(s).toUpperCase().trim()).filter(Boolean).slice(0, 50);
-
-  const existing = await dbSelect("watchlists", `user_id=eq.${encodeURIComponent(uid)}&select=id`);
-  let result;
-  if (existing && existing.length > 0) {
-    result = await dbPatch("watchlists", `user_id=eq.${encodeURIComponent(uid)}`, { symbols, updated_at: new Date().toISOString() });
-  } else {
-    result = await dbUpsert("watchlists", { user_id: uid, symbols, updated_at: new Date().toISOString() }, "user_id");
-  }
+  await upsertUserProfile(session.user);
+  const result = await saveWatchlistRow(session.user.id, symbols);
   if (!result) return sendJson(res, 502, { error: "database_error" });
   sendJson(res, 200, { ok: true, symbols: result.symbols });
 }
@@ -5915,11 +5949,8 @@ async function lobbying(res) {
 }
 
 async function paperAccount(res, session) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const snapshot = await paperSnapshot(account);
-  await writePaperStore(store);
   sendJson(res, 200, snapshot);
 }
 
@@ -5931,6 +5962,15 @@ function enqueuePaperWrite(fn) {
     console.error("[paper-accounts] write error:", err);
   });
   return paperWriteQueue;
+}
+
+function runPaperWrite(session, mutator) {
+  return new Promise((resolve) => {
+    enqueuePaperWrite(async () => {
+      const result = await mutatePaperAccount(session, mutator);
+      resolve(result);
+    });
+  });
 }
 
 async function paperOrder(req, res, session) {
@@ -5962,97 +6002,83 @@ async function paperOrder(req, res, session) {
   let result;
   let httpStatus = 200;
 
-  await new Promise((resolve) => {
-    enqueuePaperWrite(async () => {
-      const store = await readPaperStore();
-      const key = paperAccountKey(session);
-      const account = ensurePaperAccount(store, key);
+  await runPaperWrite(session, async (account) => {
+    const cached = quoteCache.get(symbol);
+    const price = cached?.quote?.price ?? (MARKET_FALLBACK[symbol]?.price ?? null);
+    const source = cached ? (cached.quote?.source || "finnhub") : "fallback_static";
 
-      const cached = quoteCache.get(symbol);
-      const price = cached?.quote?.price ?? (MARKET_FALLBACK[symbol]?.price ?? null);
-      const source = cached ? (cached.quote?.source || "finnhub") : "fallback_static";
+    if (!price) {
+      result = {
+        error: "unknown_symbol",
+        message: `No price data available for ${symbol}. Check the symbol and try again.`
+      };
+      httpStatus = 400;
+      return;
+    }
 
-      if (!price) {
-        result = {
-          error: "unknown_symbol",
-          message: `No price data available for ${symbol}. Check the symbol and try again.`
-        };
+    const notional = price * qty;
+
+    if (side === "buy") {
+      if (account.cash < notional) {
+        result = { error: "insufficient_funds", cash: account.cash, required: notional };
         httpStatus = 400;
-        resolve();
         return;
       }
-
-      const notional = price * qty;
-
-      if (side === "buy") {
-        if (account.cash < notional) {
-          result = { error: "insufficient_funds", cash: account.cash, required: notional };
-          httpStatus = 400;
-          resolve();
-          return;
-        }
-        account.cash -= notional;
-        const existing = account.positions[symbol];
-        if (existing) {
-          const totalQty = Number(existing.qty) + qty;
-          const totalCost = Number(existing.avgCost) * Number(existing.qty) + price * qty;
-          existing.qty = totalQty;
-          existing.avgCost = totalCost / totalQty;
-        } else {
-          account.positions[symbol] = { symbol, qty, avgCost: price };
-        }
+      account.cash -= notional;
+      const existing = account.positions[symbol];
+      if (existing) {
+        const totalQty = Number(existing.qty) + qty;
+        const totalCost = Number(existing.avgCost) * Number(existing.qty) + price * qty;
+        existing.qty = totalQty;
+        existing.avgCost = totalCost / totalQty;
       } else {
-        const pos = account.positions[symbol];
-        if (!pos || Number(pos.qty) < qty) {
-          result = {
-            error: "insufficient_shares",
-            held: pos ? Number(pos.qty) : 0,
-            requested: qty
-          };
-          httpStatus = 400;
-          resolve();
-          return;
-        }
-        account.cash += notional;
-        pos.qty = Number(pos.qty) - qty;
-        if (pos.qty <= 0) delete account.positions[symbol];
+        account.positions[symbol] = { symbol, qty, avgCost: price };
       }
-
-      const orderId = `paper_${randomBytes(8).toString("hex")}`;
-      const order = {
-        id: orderId,
-        symbol,
-        qty,
-        side,
-        price,
-        notional,
-        status: "filled",
-        type,
-        submittedAt: new Date().toISOString(),
-        source
-      };
-      account.orders.unshift(order);
-      if (account.orders.length > 200) account.orders = account.orders.slice(0, 200);
-
-      const thesisId = String(body.thesisId || "").trim();
-      if (thesisId) {
-        const thesis = findThesis(account, thesisId);
-        if (thesis) thesis.orderId = orderId;
+    } else {
+      const pos = account.positions[symbol];
+      if (!pos || Number(pos.qty) < qty) {
+        result = {
+          error: "insufficient_shares",
+          held: pos ? Number(pos.qty) : 0,
+          requested: qty
+        };
+        httpStatus = 400;
+        return;
       }
+      account.cash += notional;
+      pos.qty = Number(pos.qty) - qty;
+      if (pos.qty <= 0) delete account.positions[symbol];
+    }
 
-      account.updatedAt = new Date().toISOString();
+    const orderId = `paper_${randomBytes(8).toString("hex")}`;
+    const order = {
+      id: orderId,
+      symbol,
+      qty,
+      side,
+      price,
+      notional,
+      status: "filled",
+      type,
+      submittedAt: new Date().toISOString(),
+      source
+    };
+    account.orders.unshift(order);
+    if (account.orders.length > 200) account.orders = account.orders.slice(0, 200);
 
-      await writePaperStore(store);
+    const thesisId = String(body.thesisId || "").trim();
+    if (thesisId) {
+      const thesis = findThesis(account, thesisId);
+      if (thesis) thesis.orderId = orderId;
+    }
 
-      result = {
-        source: "local_paper",
-        mode: "paper-simulated",
-        order,
-        thesisId: thesisId || null,
-        ...(await paperSnapshot(account))
-      };
-      resolve();
-    });
+    result = {
+      source: useSupabasePaper(session) ? "supabase_paper" : "local_paper",
+      mode: "paper-simulated",
+      order,
+      thesisId: thesisId || null,
+      ...(await paperSnapshot(account))
+    };
   });
 
   sendJson(res, httpStatus, result);
@@ -6129,20 +6155,151 @@ async function writePaperStore(store) {
 
 function ensurePaperAccount(store, key) {
   if (!store[key]) {
-    store[key] = {
-      cash: PAPER_STARTING_CASH,
-      positions: {},
-      orders: [],
-      theses: [],
-      funds: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    store[key] = createDefaultPaperAccount();
   }
   const account = store[key];
   if (!Array.isArray(account.theses)) account.theses = [];
   if (!Array.isArray(account.funds)) account.funds = [];
   return account;
+}
+
+function createDefaultPaperAccount() {
+  return {
+    cash: PAPER_STARTING_CASH,
+    positions: {},
+    orders: [],
+    theses: [],
+    funds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function isDemoSession(session) {
+  const id = String(session?.user?.id || "");
+  return id.startsWith("demo-") || id === "demo-user";
+}
+
+function useSupabasePaper(session) {
+  return dbReady && !isDemoSession(session);
+}
+
+const PORTFOLIO_BLOB_VERSION = 1;
+
+function encodePortfolioBlob(account) {
+  return {
+    _ts: PORTFOLIO_BLOB_VERSION,
+    holdings: account.positions || {},
+    orders: account.orders || [],
+    theses: account.theses || [],
+    funds: account.funds || [],
+    createdAt: account.createdAt || new Date().toISOString(),
+    updatedAt: account.updatedAt || new Date().toISOString()
+  };
+}
+
+function decodePortfolioBlob(positionsJson, cash) {
+  if (
+    positionsJson &&
+    typeof positionsJson === "object" &&
+    !Array.isArray(positionsJson) &&
+    positionsJson._ts === PORTFOLIO_BLOB_VERSION
+  ) {
+    return {
+      cash: Number(cash ?? PAPER_STARTING_CASH),
+      positions: positionsJson.holdings || {},
+      orders: positionsJson.orders || [],
+      theses: positionsJson.theses || [],
+      funds: positionsJson.funds || [],
+      createdAt: positionsJson.createdAt || new Date().toISOString(),
+      updatedAt: positionsJson.updatedAt || new Date().toISOString()
+    };
+  }
+  if (Array.isArray(positionsJson) && positionsJson.length) {
+    const holdings = {};
+    for (const row of positionsJson) {
+      const sym = normalizeTickerSymbol(row.symbol);
+      if (!sym) continue;
+      holdings[sym] = {
+        symbol: sym,
+        qty: Number(row.qty || 0),
+        avgCost: Number(row.avg_price ?? row.avgCost ?? 0)
+      };
+    }
+    return { ...createDefaultPaperAccount(), cash: Number(cash ?? PAPER_STARTING_CASH), positions: holdings };
+  }
+  return { ...createDefaultPaperAccount(), cash: Number(cash ?? PAPER_STARTING_CASH) };
+}
+
+async function loadPaperAccountFromSupabase(userId) {
+  const row = await fetchPortfolioRow(userId);
+  if (!row) return null;
+  return decodePortfolioBlob(row.positions, row.cash);
+}
+
+async function savePaperAccountToSupabase(session, account) {
+  account.updatedAt = new Date().toISOString();
+  await upsertUserProfile(session.user);
+  return savePortfolioRow(session.user.id, {
+    cash: account.cash,
+    positions: encodePortfolioBlob(account)
+  });
+}
+
+async function migrateLocalPaperToSupabase(session) {
+  const key = paperAccountKey(session);
+  const store = await readPaperStore();
+  const local = store[key];
+  if (!local) return null;
+  const account = ensurePaperAccount({ [key]: local }, key);
+  await savePaperAccountToSupabase(session, account);
+  return account;
+}
+
+async function getPaperAccount(session) {
+  if (useSupabasePaper(session)) {
+    let account = await loadPaperAccountFromSupabase(session.user.id);
+    if (!account) account = await migrateLocalPaperToSupabase(session);
+    if (!account) {
+      account = createDefaultPaperAccount();
+      await savePaperAccountToSupabase(session, account);
+    }
+    return account;
+  }
+  const store = await readPaperStore();
+  const key = paperAccountKey(session);
+  const existed = Boolean(store[key]);
+  const account = ensurePaperAccount(store, key);
+  if (!existed) await writePaperStore(store);
+  return account;
+}
+
+async function persistPaperAccount(session, account) {
+  if (useSupabasePaper(session)) {
+    await savePaperAccountToSupabase(session, account);
+    return;
+  }
+  const store = await readPaperStore();
+  const key = paperAccountKey(session);
+  store[key] = account;
+  account.updatedAt = new Date().toISOString();
+  await writePaperStore(store);
+}
+
+async function mutatePaperAccount(session, mutator) {
+  if (useSupabasePaper(session)) {
+    const account = await getPaperAccount(session);
+    const result = await mutator(account);
+    await savePaperAccountToSupabase(session, account);
+    return result;
+  }
+  const store = await readPaperStore();
+  const key = paperAccountKey(session);
+  const account = ensurePaperAccount(store, key);
+  const result = await mutator(account);
+  account.updatedAt = new Date().toISOString();
+  await writePaperStore(store);
+  return result;
 }
 
 function normalizeTickerSymbol(value) {
@@ -6253,9 +6410,7 @@ function publicFundRow(fund) {
 }
 
 async function listFunds(res, session) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   sendJson(res, 200, {
     funds: (account.funds || []).map(publicFundRow),
     disclaimer: "Hypothetical baskets for research only. Not a recommendation to buy or sell."
@@ -6287,25 +6442,17 @@ async function createFund(req, res, session) {
   if (symbolRows.length > 24) return sendJson(res, 400, { error: "too_many_symbols", max: 24 });
 
   let created;
-  await new Promise((resolve) => {
-    enqueuePaperWrite(async () => {
-      const store = await readPaperStore();
-      const key = paperAccountKey(session);
-      const account = ensurePaperAccount(store, key);
-      created = {
-        id: `fund_${randomBytes(6).toString("hex")}`,
-        name,
-        tag,
-        symbols: symbolRows,
-        benchmark,
-        createdAt: new Date().toISOString()
-      };
-      account.funds.unshift(created);
-      if (account.funds.length > 50) account.funds = account.funds.slice(0, 50);
-      account.updatedAt = new Date().toISOString();
-      await writePaperStore(store);
-      resolve();
-    });
+  await runPaperWrite(session, async (account) => {
+    created = {
+      id: `fund_${randomBytes(6).toString("hex")}`,
+      name,
+      tag,
+      symbols: symbolRows,
+      benchmark,
+      createdAt: new Date().toISOString()
+    };
+    account.funds.unshift(created);
+    if (account.funds.length > 50) account.funds = account.funds.slice(0, 50);
   });
 
   sendJson(res, 201, {
@@ -6428,9 +6575,7 @@ function lookbackForRange(range) {
 
 async function fundPerformanceRoute(res, session, fundId, url) {
   const range = String(url.searchParams.get("range") || "6m").toLowerCase();
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const fund = findFund(account, fundId);
   if (!fund) return sendJson(res, 404, { error: "fund_not_found" });
 
@@ -6555,9 +6700,7 @@ async function fundsCompareRoute(res, session, url) {
     });
   }
 
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const funds = ids.map((id) => findFund(account, id)).filter(Boolean);
   if (funds.length < 2) {
     return sendJson(res, 404, { error: "fund_not_found", message: "One or both fund ids were not found." });
@@ -7042,9 +7185,7 @@ function buildFundRelationshipGraph(fund, events = []) {
 
 async function fundAttributionRoute(res, session, fundId, url) {
   const range = String(url.searchParams.get("range") || "6m").toLowerCase();
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const fund = findFund(account, fundId);
   if (!fund) return sendJson(res, 404, { error: "fund_not_found" });
 
@@ -7061,9 +7202,7 @@ async function fundAttributionRoute(res, session, fundId, url) {
 }
 
 async function fundPulseRoute(res, session, fundId) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const fund = findFund(account, fundId);
   if (!fund) return sendJson(res, 404, { error: "fund_not_found" });
 
@@ -7294,9 +7433,7 @@ async function monitorsForThesis(thesis) {
 }
 
 async function listTheses(res, session) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const rows = await Promise.all(
     (account.theses || []).map(async (thesis) => {
       const outcome = await computeThesisOutcome(thesis, account);
@@ -7363,22 +7500,13 @@ async function createThesis(req, res, session) {
   };
 
   let saved;
-  await new Promise((resolve) => {
-    enqueuePaperWrite(async () => {
-      const store = await readPaperStore();
-      const key = paperAccountKey(session);
-      const account = ensurePaperAccount(store, key);
-      account.theses.unshift(thesis);
-      if (account.theses.length > 100) account.theses = account.theses.slice(0, 100);
-      account.updatedAt = new Date().toISOString();
-      await writePaperStore(store);
-      saved = thesis;
-      resolve();
-    });
+  await runPaperWrite(session, async (account) => {
+    account.theses.unshift(thesis);
+    if (account.theses.length > 100) account.theses = account.theses.slice(0, 100);
+    saved = thesis;
   });
 
-  const store = await readPaperStore();
-  const account = ensurePaperAccount(store, paperAccountKey(session));
+  const account = await getPaperAccount(session);
   const outcome = await computeThesisOutcome(saved, account);
   const monitors = await monitorsForThesis(saved);
   const normalized = normalizeThesisRecord(saved, { outcome, monitors });
@@ -7397,9 +7525,7 @@ async function createThesis(req, res, session) {
 }
 
 async function thesisMonitorsRoute(res, session, thesisId) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const thesis = findThesis(account, thesisId);
   if (!thesis) return sendJson(res, 404, { error: "thesis_not_found" });
   const monitors = await monitorsForThesis(thesis);
@@ -7423,52 +7549,42 @@ async function patchThesis(req, res, session, thesisId) {
   let result;
   let httpStatus = 200;
 
-  await new Promise((resolve) => {
-    enqueuePaperWrite(async () => {
-      const store = await readPaperStore();
-      const key = paperAccountKey(session);
-      const account = ensurePaperAccount(store, key);
-      const thesis = findThesis(account, thesisId);
-      if (!thesis) {
-        result = { error: "thesis_not_found" };
-        httpStatus = 404;
-        resolve();
-        return;
-      }
+  await runPaperWrite(session, async (account) => {
+    const thesis = findThesis(account, thesisId);
+    if (!thesis) {
+      result = { error: "thesis_not_found" };
+      httpStatus = 404;
+      return;
+    }
 
-      if (body.orderId != null) {
-        thesis.orderId = String(body.orderId).trim() || null;
-      }
-      if (body.timeHorizon != null) thesis.timeHorizon = String(body.timeHorizon || "unspecified");
-      if (body.direction != null) thesis.direction = String(body.direction || "unclear").toLowerCase();
-      if (body.thesisText != null) thesis.thesisText = String(body.thesisText || thesis.thesisText || "");
-      if (body.thesisRestatement != null) thesis.thesisRestatement = String(body.thesisRestatement || "");
-      if (body.bullCase != null) thesis.bullCase = Array.isArray(body.bullCase) ? body.bullCase.map(String) : [];
-      if (body.bearCase != null) thesis.bearCase = Array.isArray(body.bearCase) ? body.bearCase.map(String) : [];
-      if (body.evidenceFor != null) thesis.evidenceFor = Array.isArray(body.evidenceFor) ? body.evidenceFor.map(String) : [];
-      if (body.evidenceAgainst != null) thesis.evidenceAgainst = Array.isArray(body.evidenceAgainst) ? body.evidenceAgainst.map(String) : [];
-      if (body.assumptions != null) thesis.assumptions = Array.isArray(body.assumptions) ? body.assumptions.map(String) : [];
-      if (body.invalidationConditions != null) thesis.invalidationConditions = Array.isArray(body.invalidationConditions) ? body.invalidationConditions.map(String) : [];
-      if (body.watchTriggers != null) thesis.watchTriggers = Array.isArray(body.watchTriggers) ? body.watchTriggers.map(String) : [];
-      if (body.confidence != null && typeof body.confidence === "object") thesis.confidence = body.confidence;
-      if (body.schemaVersion != null) thesis.schemaVersion = Number(body.schemaVersion) || thesis.schemaVersion || 1;
-      if (body.closed === true || body.status === "closed") {
-        thesis.status = "closed";
-        thesis.closedAt = new Date().toISOString();
-      }
+    if (body.orderId != null) {
+      thesis.orderId = String(body.orderId).trim() || null;
+    }
+    if (body.timeHorizon != null) thesis.timeHorizon = String(body.timeHorizon || "unspecified");
+    if (body.direction != null) thesis.direction = String(body.direction || "unclear").toLowerCase();
+    if (body.thesisText != null) thesis.thesisText = String(body.thesisText || thesis.thesisText || "");
+    if (body.thesisRestatement != null) thesis.thesisRestatement = String(body.thesisRestatement || "");
+    if (body.bullCase != null) thesis.bullCase = Array.isArray(body.bullCase) ? body.bullCase.map(String) : [];
+    if (body.bearCase != null) thesis.bearCase = Array.isArray(body.bearCase) ? body.bearCase.map(String) : [];
+    if (body.evidenceFor != null) thesis.evidenceFor = Array.isArray(body.evidenceFor) ? body.evidenceFor.map(String) : [];
+    if (body.evidenceAgainst != null) thesis.evidenceAgainst = Array.isArray(body.evidenceAgainst) ? body.evidenceAgainst.map(String) : [];
+    if (body.assumptions != null) thesis.assumptions = Array.isArray(body.assumptions) ? body.assumptions.map(String) : [];
+    if (body.invalidationConditions != null) thesis.invalidationConditions = Array.isArray(body.invalidationConditions) ? body.invalidationConditions.map(String) : [];
+    if (body.watchTriggers != null) thesis.watchTriggers = Array.isArray(body.watchTriggers) ? body.watchTriggers.map(String) : [];
+    if (body.confidence != null && typeof body.confidence === "object") thesis.confidence = body.confidence;
+    if (body.schemaVersion != null) thesis.schemaVersion = Number(body.schemaVersion) || thesis.schemaVersion || 1;
+    if (body.closed === true || body.status === "closed") {
+      thesis.status = "closed";
+      thesis.closedAt = new Date().toISOString();
+    }
 
-      thesis.updatedAt = new Date().toISOString();
-      account.updatedAt = new Date().toISOString();
-      await writePaperStore(store);
-      result = { thesis };
-      resolve();
-    });
+    thesis.updatedAt = new Date().toISOString();
+    result = { thesis };
   });
 
   if (httpStatus !== 200) return sendJson(res, httpStatus, result);
 
-  const store = await readPaperStore();
-  const account = ensurePaperAccount(store, paperAccountKey(session));
+  const account = await getPaperAccount(session);
   const thesis = findThesis(account, thesisId);
   const outcome = await computeThesisOutcome(thesis, account);
   const monitors = await monitorsForThesis(thesis);
@@ -7488,9 +7604,7 @@ async function patchThesis(req, res, session, thesisId) {
 }
 
 async function thesisUpgradePreview(req, res, session, thesisId) {
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  const account = ensurePaperAccount(store, key);
+  const account = await getPaperAccount(session);
   const thesis = findThesis(account, thesisId);
   if (!thesis) return sendJson(res, 404, { error: "thesis_not_found" });
 
@@ -7538,45 +7652,35 @@ async function thesisAcceptUpgrade(req, res, session, thesisId) {
     return sendJson(res, 400, { error: "invalid_json" });
   }
   let saved = null;
-  await new Promise((resolve) => {
-    enqueuePaperWrite(async () => {
-      const store = await readPaperStore();
-      const key = paperAccountKey(session);
-      const account = ensurePaperAccount(store, key);
-      const thesis = findThesis(account, thesisId);
-      if (!thesis) {
-        saved = { error: "thesis_not_found" };
-        resolve();
-        return;
-      }
-      const preview = body.upgradePreview || {};
-      thesis.originalThesisText = thesis.originalThesisText || thesis.thesisText || thesis.thesis || "";
-      thesis.schemaVersion = Number(body.proposedSchemaVersion) || 2;
-      thesis.direction = String(preview.direction || thesis.direction || "unclear");
-      thesis.timeHorizon = String(preview.timeHorizon || thesis.timeHorizon || "unspecified");
-      thesis.thesisRestatement = String(preview.thesisRestatement || thesis.thesisRestatement || thesis.thesisText || "");
-      thesis.bullCase = Array.isArray(preview.bullCase) ? preview.bullCase.map(String) : [];
-      thesis.bearCase = Array.isArray(preview.bearCase) ? preview.bearCase.map(String) : [];
-      thesis.evidenceFor = Array.isArray(preview.evidenceFor) ? preview.evidenceFor.map(String) : [];
-      thesis.evidenceAgainst = Array.isArray(preview.evidenceAgainst) ? preview.evidenceAgainst.map(String) : [];
-      thesis.assumptions = Array.isArray(preview.assumptions) ? preview.assumptions.map(String) : [];
-      thesis.invalidationConditions = Array.isArray(preview.invalidationConditions)
-        ? preview.invalidationConditions.map(String)
-        : [];
-      thesis.watchTriggers = Array.isArray(preview.watchTriggers) ? preview.watchTriggers.map(String) : [];
-      thesis.confidence = preview.confidence || thesis.confidence || null;
-      thesis.thesisQualityScore = Number(preview.thesisQualityScore) || thesis.thesisQualityScore || null;
-      thesis.updatedAt = new Date().toISOString();
-      account.updatedAt = thesis.updatedAt;
-      await writePaperStore(store);
-      saved = { thesis };
-      resolve();
-    });
+  await runPaperWrite(session, async (account) => {
+    const thesis = findThesis(account, thesisId);
+    if (!thesis) {
+      saved = { error: "thesis_not_found" };
+      return;
+    }
+    const preview = body.upgradePreview || {};
+    thesis.originalThesisText = thesis.originalThesisText || thesis.thesisText || thesis.thesis || "";
+    thesis.schemaVersion = Number(body.proposedSchemaVersion) || 2;
+    thesis.direction = String(preview.direction || thesis.direction || "unclear");
+    thesis.timeHorizon = String(preview.timeHorizon || thesis.timeHorizon || "unspecified");
+    thesis.thesisRestatement = String(preview.thesisRestatement || thesis.thesisRestatement || thesis.thesisText || "");
+    thesis.bullCase = Array.isArray(preview.bullCase) ? preview.bullCase.map(String) : [];
+    thesis.bearCase = Array.isArray(preview.bearCase) ? preview.bearCase.map(String) : [];
+    thesis.evidenceFor = Array.isArray(preview.evidenceFor) ? preview.evidenceFor.map(String) : [];
+    thesis.evidenceAgainst = Array.isArray(preview.evidenceAgainst) ? preview.evidenceAgainst.map(String) : [];
+    thesis.assumptions = Array.isArray(preview.assumptions) ? preview.assumptions.map(String) : [];
+    thesis.invalidationConditions = Array.isArray(preview.invalidationConditions)
+      ? preview.invalidationConditions.map(String)
+      : [];
+    thesis.watchTriggers = Array.isArray(preview.watchTriggers) ? preview.watchTriggers.map(String) : [];
+    thesis.confidence = preview.confidence || thesis.confidence || null;
+    thesis.thesisQualityScore = Number(preview.thesisQualityScore) || thesis.thesisQualityScore || null;
+    thesis.updatedAt = new Date().toISOString();
+    saved = { thesis };
   });
 
   if (saved?.error) return sendJson(res, 404, saved);
-  const store = await readPaperStore();
-  const account = ensurePaperAccount(store, paperAccountKey(session));
+  const account = await getPaperAccount(session);
   const thesis = findThesis(account, thesisId);
   const outcome = await computeThesisOutcome(thesis, account);
   const monitors = await monitorsForThesis(thesis);
@@ -8811,6 +8915,7 @@ async function authLogin(req, res) {
     return sendJson(res, 401, { error: "invalid_credentials", message: "Invalid email or password." });
   }
   const user = { id: acct.id, name: acct.name || email.split("@")[0], email, picture: "", provider: "email" };
+  upsertUserProfile(user).catch(() => {});
   setSessionCookie(res, user, req);
   return sendJson(res, 200, { ok: true, user: { id: user.id, name: user.name, email } });
 }

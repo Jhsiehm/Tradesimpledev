@@ -65,7 +65,47 @@ Delete or overwrite any row still set to:
 
 3. Railway variables: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and optionally `APP_URL=https://YOUR-DOMAIN`.
 
-## 4. Supabase
+## 4. Supabase (Tradesimpledev project)
 
-1. Run `supabase/schema.sql` in Supabase SQL editor.
-2. Railway: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (service role, server-only).
+**Project:** `Tradesimpledev` · ref `uyswlpnpxubxgvlqartu` · region `us-east-1`  
+**API URL:** `https://uyswlpnpxubxgvlqartu.supabase.co`
+
+Schema is in `supabase/schema.sql` (tables: `profiles`, `waitlist`, `portfolios`, `watchlists`, `prediction_events`). If the project is empty, paste that file into **Supabase → SQL Editor → Run**.
+
+### Railway variables (names only — copy values from Supabase dashboard)
+
+| Variable | Where to get it | Notes |
+|----------|-----------------|-------|
+| `SUPABASE_URL` | Supabase → Project Settings → API → Project URL | Must match `uyswlpnpxubxgvlqartu` host |
+| `SUPABASE_SERVICE_ROLE_KEY` | Same page → **service_role** (secret) | Server-only; never expose to browser |
+
+The server sets `data.supabase: true` in `GET /api/config` only when both vars are set and **not** placeholder strings (`YOUR_PROJECT_REF`, `your-service-role-key`, etc.).
+
+### Full Railway checklist
+
+**Required for boot:**
+
+| Variable | Example / notes |
+|----------|-----------------|
+| `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
+| `DATA_ACCURACY_MODE` | `demo` for soft launch |
+| `DEMO_AUTH` | `true` |
+
+**Required for Supabase persistence (email accounts, paper trading, watchlists, waitlist):**
+
+| Variable | Notes |
+|----------|-------|
+| `SUPABASE_URL` | See above |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role, not anon/publishable key |
+
+**Optional but recommended:**
+
+| Variable | Notes |
+|----------|-------|
+| `APP_URL` | Auto from `RAILWAY_PUBLIC_DOMAIN` if unset |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth (if re-enabled) |
+| `FINNHUB_API_KEY` | Live quotes |
+| `ANTHROPIC_API_KEY` | Server-side AI |
+| `ADMIN_SECRET` | Protects `/api/admin/waitlist` via `x-admin-secret` header |
+
+Demo sessions (`demo-*` user IDs) always use local JSON files — they never write to Supabase.

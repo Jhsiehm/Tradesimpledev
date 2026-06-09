@@ -86,6 +86,64 @@ function watchlistRows() {
   return Array.isArray(defaults) && defaults.length ? defaults : [];
 }
 
+function normalizeWatchSymbol(value) {
+  return String(value || "").trim().toUpperCase().replace(/[^A-Z.]/g, "").slice(0, 12);
+}
+
+let watchlistPersistTimer = null;
+
+function scheduleWatchlistPersist() {
+  if (watchlistPersistTimer) clearTimeout(watchlistPersistTimer);
+  watchlistPersistTimer = setTimeout(() => {
+    watchlistPersistTimer = null;
+    persistWatchlist().catch((err) => console.warn("[watchlist] persist failed", err));
+  }, 400);
+}
+
+async function persistWatchlist() {
+  const symbols = [...state.watchlistSymbols];
+  try {
+    await fetchJson("/api/watchlist", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ symbols })
+    });
+  } catch (error) {
+    if (error?.status === 503) return;
+    throw error;
+  }
+}
+
+function setWatchlistSymbols(symbols, { persist = true } = {}) {
+  const next = [];
+  const seen = new Set();
+  for (const raw of symbols || []) {
+    const sym = normalizeWatchSymbol(raw);
+    if (!sym || seen.has(sym)) continue;
+    seen.add(sym);
+    next.push(sym);
+    if (next.length >= 50) break;
+  }
+  state.watchlistSymbols = next;
+  renderWatchlistStrip();
+  populateSymbolSelects();
+  if (persist) scheduleWatchlistPersist();
+}
+
+function toggleWatchlistSymbol(symbol) {
+  const sym = normalizeWatchSymbol(symbol);
+  if (!sym) return;
+  if (state.watchlistSymbols.includes(sym)) {
+    setWatchlistSymbols(state.watchlistSymbols.filter((row) => row !== sym));
+  } else {
+    setWatchlistSymbols([...state.watchlistSymbols, sym]);
+  }
+}
+
+function isOnWatchlist(symbol) {
+  return state.watchlistSymbols.includes(normalizeWatchSymbol(symbol));
+}
+
 function contractWatchlist() {
   const rows = dashboardBootstrap().contractWatchlist;
   return Array.isArray(rows) ? rows : [];
@@ -831,12 +889,32 @@ function setupAnalysisLobbyBillJump() {
   });
 }
 
+function setupMarketsWatchToggle() {
+  if (document.body.dataset.marketsWatchReady === "true") return;
+  document.body.dataset.marketsWatchReady = "true";
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-watch-toggle]");
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleWatchlistSymbol(btn.dataset.watchToggle);
+    renderMarkets();
+  });
+}
+
 function setupWatchlistStripInteraction() {
   const strip = $("#watchlist-strip");
   if (!strip) return;
   if (strip.dataset.interactionReady === "true") return;
   strip.dataset.interactionReady = "true";
   strip.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest("[data-watch-remove]");
+    if (removeBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleWatchlistSymbol(removeBtn.dataset.watchRemove);
+      return;
+    }
     const chip = event.target.closest("[data-watch-symbol]");
     const sym = chip?.dataset?.watchSymbol;
     if (!sym) return;
@@ -1548,6 +1626,7 @@ async function initDashboard() {
   setupAnalysisTickerAi();
   setupAnalysisLobbyBillJump();
   setupWatchlistStripInteraction();
+  setupMarketsWatchToggle();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -2804,6 +2883,7 @@ function renderWatchlistStrip() {
           <span class="watchlist-chip-price">${quote ? money(quote.price) : "—"}</span>
           <span class="${pctCls}">${pctTxt}</span>
         </button>
+        <button type="button" class="watchlist-chip-remove" data-watch-remove="${escapeHtml(row.symbol)}" title="Remove ${escapeHtml(row.symbol)} from watchlist" aria-label="Remove ${escapeHtml(row.symbol)}">×</button>
         ${shareCardLink(row.symbol, "Card")}
       </span>
     `;
@@ -2823,6 +2903,7 @@ function renderMarkets() {
     const pctTxt = pct == null ? "N/A" : `${pct >= 0 ? "+" : ""}${fmt(pct)}%`;
     const chgTxt = chg == null ? "N/A" : signed(chg);
     const policyHtml = marketsPolicySignalHtml(sym);
+    const watching = isOnWatchlist(sym);
     return `
       <tr class="clickable-row" ${drilldownAttrs("analysis", { symbol: sym }, `Open ${sym} analysis`)}>
         <td class="mono ticker-link-cell"><span>${escapeHtml(sym)}</span>${shareCardLink(sym, "Share Card")}</td>
@@ -2832,6 +2913,7 @@ function renderMarkets() {
         <td class="mono">${quote?.high != null ? money(quote.high) : "N/A"}</td>
         <td class="mono">${quote?.low != null ? money(quote.low) : "N/A"}</td>
         <td>${policyHtml}</td>
+        <td><button type="button" class="button button-secondary compact watch-toggle-btn${watching ? " is-watching" : ""}" data-watch-toggle="${escapeHtml(sym)}" title="${watching ? "Remove from watchlist" : "Add to watchlist"}">${watching ? "★" : "☆"}</button></td>
       </tr>
     `;
   }).join("");
