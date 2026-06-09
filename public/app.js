@@ -5249,7 +5249,7 @@ function renderTopSignal() {
       <div class="top-signal-body">
         <div class="top-signal-copy">
           <h3>${escapeHtml(top.shortTitle || top.title)}</h3>
-          <p>${escapeHtml(top.plainEnglish || top.signal || "")}</p>
+          <p>${escapeHtml(top.whyMarketsCare || top.plainEnglish || top.signal || "")}</p>
           <p class="top-signal-impact">${impactLine}</p>
         </div>
         <div class="top-signal-actions">

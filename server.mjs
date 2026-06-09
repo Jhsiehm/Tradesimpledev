@@ -41,11 +41,13 @@ import {
   aiThesisHandler,
   runThesisAnalyzer,
   enrichSnapshotWithRecentNews,
+  fetchBillRelatedHeadlines,
   runScorecardNarrator,
   runEdgarSimplifier,
   runCausalityAnalyzer,
   runShareBriefSummary,
-  inferBillMarketExposureAI
+  inferBillMarketExposureAI,
+  inferLiveBillWhyMarketsCareAI
 } from "./ai-brain.mjs";
 import { getSocialPulse } from "./social-pulse.mjs";
 import {
@@ -628,7 +630,9 @@ const CONTRACT_COMPANY_NAMES = {
   BAH: "Booz Allen Hamilton",
   LDOS: "Leidos",
   SAIC: "Science Applications International",
-  PLTR: "Palantir Technologies"
+  PLTR: "Palantir Technologies",
+  GEO: "The GEO Group",
+  CXW: "CoreCivic"
 };
 
 /** Extra USASpending search names for tickers that do not match a federal recipient keyword. */
@@ -1167,6 +1171,46 @@ const FUNDAMENTALS = {
     plainBull: "Clear crypto rules and higher token prices can expand trading and custody revenue.",
     plainBear: "The business is volatile and regulation can still land in a restrictive way."
   },
+  GEO: {
+    name: "The GEO Group",
+    sector: "Private detention & corrections",
+    marketCap: 2100000000,
+    pe: 8.4,
+    forwardPe: 7.2,
+    ps: 0.42,
+    grossMargin: 28,
+    revenueGrowth: 4,
+    freeCashFlowMargin: 8,
+    debtToEquity: 1.85,
+    beta: 1.12,
+    analystTarget: 18,
+    analystRating: "Hold",
+    analystCount: 4,
+    catalyst: "ICE appropriations · detention bed utilization · contract renewals",
+    moat: "Long-term facility contracts with federal agencies create recurring revenue when enforcement budgets are funded.",
+    plainBull: "Multi-year ICE funding improves visibility for detention bed demand and renewals.",
+    plainBear: "Policy limits on private detention or lower enforcement spending directly hit occupancy."
+  },
+  CXW: {
+    name: "CoreCivic",
+    sector: "Private detention & corrections",
+    marketCap: 1800000000,
+    pe: 9.1,
+    forwardPe: 8.0,
+    ps: 0.38,
+    grossMargin: 26,
+    revenueGrowth: 3,
+    freeCashFlowMargin: 7,
+    debtToEquity: 1.72,
+    beta: 1.08,
+    analystTarget: 16,
+    analystRating: "Hold",
+    analystCount: 3,
+    catalyst: "DHS/ICE funding · immigration enforcement budgets",
+    moat: "Federal detention contracts tie revenue to immigration enforcement appropriations cycles.",
+    plainBull: "Sustained border enforcement funding supports facility utilization.",
+    plainBear: "Budget cuts or shifts away from private operators reduce contract demand."
+  },
   SPY: {
     name: "SPDR S&P 500 ETF",
     sector: "Broad market ETF",
@@ -1276,6 +1320,10 @@ const GOVERNMENT_SIGNAL_EXPOSURES = {
     "stablecoin regulation",
     "banking access policy"
   ],
+  GEO: ["ICE detention funding", "DHS appropriations", "immigration enforcement budgets"],
+  CXW: ["ICE detention funding", "DHS appropriations", "immigration enforcement budgets"],
+  PLTR: ["DHS surveillance contracts", "immigration enforcement IT", "defense AI procurement"],
+  BAH: ["DHS IT modernization", "federal consulting budgets", "cybersecurity procurement"],
   SPY: [
     "Federal Reserve path",
     "tax policy",
@@ -1714,6 +1762,7 @@ const POLICY_STAKEHOLDERS = remapStakeholderKeys(RAW_POLICY_STAKEHOLDERS);
 
 /** In-memory Congress.gov overlays refreshed on interval and /api/congress/bills. */
 const congressLiveCache = new Map();
+const liveBillAnalysisCache = new Map();
 /** Bills discovered from Congress.gov list (not in POLICY_BILLS seeds). */
 const liveCongressBillRegistry = new Map();
 /** In-flight Congress.gov fetches keyed by canonical bill id. */
@@ -1807,11 +1856,39 @@ const CONTRACT_PROFILES = {
     dogeRisk: true,
     agencyBudgetRisk: "medium",
     archetype: "Narrative-Sensitive Contractor",
-    linkedBillIds: remapLinkedBillIds(["H.R.4521-119"]),
+    linkedBillIds: remapLinkedBillIds(["H.R.4521-119", "S.2-119"]),
     note: "PLTR is the only company in our calibration dataset with statistically significant post-award drift (+9.1% mean 20-day AR, p=0.003). Smaller, unexpected awards produce the most drift. Large IDIQ task orders are typically pre-priced.",
     archetypeExplain: "Investors use government AI adoption as evidence that PLTR's software platform is gaining durable institutional demand. A smaller award from a new agency can shift the narrative more than a big renewal of an existing program.",
     bull: "DoD AI spending is bipartisan and growing. New task orders expand both revenue and the platform adoption story.",
     bear: "Concentration in a few large DoD programs means one contract loss is an earnings-level event, not just a footnote."
+  },
+  GEO: {
+    governmentRevenuePct: 0.72,
+    renewalRisk: 0.68,
+    primaryAgencies: ["Department of Homeland Security", "ICE", "U.S. Marshals Service"],
+    primaryPrograms: ["immigration detention facilities", "community corrections"],
+    dogeRisk: false,
+    agencyBudgetRisk: "high",
+    archetype: "Narrative-Sensitive Contractor",
+    linkedBillIds: remapLinkedBillIds(["S.2-119"]),
+    note: "GEO Group operates private detention facilities used by ICE. Appropriations and enforcement budgets directly affect bed-day demand and contract renewals.",
+    archetypeExplain: "ICE detention funding is a direct revenue driver — when Congress advances multi-year enforcement appropriations, investors reprice detention operators on expected facility utilization.",
+    bull: "Multi-year ICE funding reduces near-term appropriations uncertainty for detention operators.",
+    bear: "Policy shifts away from private detention or lower enforcement budgets would hit utilization and contract renewals."
+  },
+  CXW: {
+    governmentRevenuePct: 0.68,
+    renewalRisk: 0.66,
+    primaryAgencies: ["Department of Homeland Security", "ICE", "Federal Bureau of Prisons"],
+    primaryPrograms: ["immigration detention", "correctional facilities"],
+    dogeRisk: false,
+    agencyBudgetRisk: "high",
+    archetype: "Narrative-Sensitive Contractor",
+    linkedBillIds: remapLinkedBillIds(["S.2-119"]),
+    note: "CoreCivic runs immigration detention and corrections facilities. DHS/ICE appropriations are the primary demand signal.",
+    archetypeExplain: "Border and immigration enforcement budgets flow to detention bed capacity — CoreCivic moves with ICE funding visibility more than broad market beta.",
+    bull: "Sustained ICE appropriations support facility occupancy and renewal pipelines.",
+    bear: "Enforcement budget cuts or policy limits on private detention reduce the addressable contract base."
   }
 };
 
@@ -1874,7 +1951,10 @@ const LOBBY_CLIENT_TICKERS = {
   "meta": ["META"],
   "microsoft": ["MSFT"],
   "intel": ["INTC"],
-  "phrma": ["LLY", "MRK", "PFE", "ABBV"]
+  "phrma": ["LLY", "MRK", "PFE", "ABBV"],
+  "geo group": ["GEO"],
+  "corecivic": ["CXW"],
+  "palantir": ["PLTR"]
 };
 
 // Agency signal scores: higher = less analyst coverage = more informational value
@@ -3102,22 +3182,27 @@ function onboardingBillHandler(res) {
 }
 
 function buildLandingSignalPayload(bill, mode, dateKey) {
-  const momentum = computeLegislativeMomentum(bill);
-  const tickers = (bill.affected || []).slice(0, 3);
-  const chain = `Congress.gov → ${bill.status || "Introduced"} → ${tickers.join(", ")}`;
+  const merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+  const momentum = computeLegislativeMomentum(merged);
+  const tickers = (merged.affected || []).slice(0, 3);
+  const statusInfo = merged.statusInfo || statusInfoForBill(merged);
+  const whyMarketsCare = buildWhyMarketsCareRules(merged, tickers) || merged.plainEnglish || merged.signal || "";
+  const chain = (buildCausalChainRules(merged, tickers, statusInfo) || []).join(" ") ||
+    `Congress.gov → ${merged.status || "Introduced"} → ${tickers.join(", ")}`;
   return {
-    billId: bill.id,
+    billId: merged.id,
     label: `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
-    headline: bill.shortTitle || bill.title,
+    headline: merged.shortTitle || merged.title,
     chain,
+    whyMarketsCare,
     confidence: momentum,
-    signal: bill.signal || bill.plainEnglish || "",
+    signal: merged.signal || merged.plainEnglish || "",
     mode,
     date: dateKey,
     pickedAt: new Date().toISOString(),
-    live: Boolean(bill.exactCongressRecord),
-    latestAction: bill.latestAction || null,
-    latestActionDate: bill.latestActionDate || null
+    live: Boolean(merged.exactCongressRecord),
+    latestAction: merged.latestAction || null,
+    latestActionDate: merged.latestActionDate || null
   };
 }
 
@@ -3597,6 +3682,7 @@ async function fetchCongressBillById(billIdRaw) {
       const bill = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, overlay)));
       liveCongressBillRegistry.set(billId, bill);
       bumpLandingSignalCacheVersion();
+      liveBillAnalysisCache.clear();
       return bill;
     } finally {
       congressBillFetchInflight.delete(billId);
@@ -3651,6 +3737,274 @@ async function attachShareBriefAiSummary(req, payload, kind) {
   return payload;
 }
 
+const LIVE_ANALYSIS_UPDATE_CADENCE = "Congress refresh 15min";
+
+function liveBillAnalysisCacheKey(bill) {
+  return `${bill?.id || ""}:${bill?.latestActionDate || "na"}:${(bill?.affected || []).join(",")}`;
+}
+
+function parseBillWhatHappened(bill) {
+  const action = String(bill?.latestAction || "").trim();
+  const title = bill?.shortTitle || bill?.title || bill?.id || "This bill";
+  if (!action) return `${title} — no latest action recorded yet.`;
+  const lower = action.toLowerCase();
+  if (/passed (the )?house|on passage.*passed|agreed to.*house/i.test(action)) {
+    return `House passed ${title} — ${action}`;
+  }
+  if (/passed (the )?senate|agreed to in senate/i.test(lower)) {
+    return `Senate passed ${title} — ${action}`;
+  }
+  if (/became public law|signed by president/i.test(lower)) {
+    return `${title} became law — ${action}`;
+  }
+  if (/rules committee|provides for consideration/i.test(lower)) {
+    return `${title} is on the House floor calendar — ${action}`;
+  }
+  return `${title}: ${action}`;
+}
+
+function billStageLabelForChain(bill, statusInfo) {
+  const label = statusInfo?.label || bill?.status || "In progress";
+  const id = bill?.displayId || bill?.id || "Bill";
+  if (/passed|enacted|law/i.test(label)) return `${id} · ${label}`;
+  if (/floor|chamber/i.test(label)) return `${id} · ${label}`;
+  return `${id} · ${label}`;
+}
+
+function buildWhyMarketsCareRules(bill, tickers = []) {
+  const corpus = billExposureCorpus(bill).toLowerCase();
+  const syms = tickers.slice(0, 6);
+  if (
+    corpus.includes("ice") ||
+    corpus.includes("border patrol") ||
+    corpus.includes("homeland") ||
+    corpus.includes("immigration") ||
+    corpus.includes("detention") ||
+    corpus.includes("secure america") ||
+    String(bill?.policyArea || "").toLowerCase().includes("immigration")
+  ) {
+    const names = syms.map((s) => FUNDAMENTALS[s]?.name || s).join(", ");
+    return `Congress is funding ICE and Border Patrol through DHS — that flows to detention operators (${syms.filter((s) => ["GEO", "CXW"].includes(s)).join(", ") || "GEO, CXW"}), surveillance/IT vendors (${syms.filter((s) => ["PLTR", "BAH"].includes(s)).join(", ") || "PLTR, BAH"}), and border infrastructure contractors. Markets reprice ${names || syms.join(", ")} on enforcement budget visibility.`;
+  }
+  if (syms.length) {
+    return `If ${bill?.shortTitle || bill?.title || "this bill"} advances, mapped tickers (${syms.join(", ")}) may see revenue, compliance, or sentiment effects from the policy mechanism — not a price forecast.`;
+  }
+  return "";
+}
+
+function buildCausalChainRules(bill, tickers = [], statusInfo = null) {
+  const stage = billStageLabelForChain(bill, statusInfo);
+  const corpus = billExposureCorpus(bill).toLowerCase();
+  const chain = [stage];
+  if (
+    corpus.includes("ice") ||
+    corpus.includes("border") ||
+    corpus.includes("homeland") ||
+    corpus.includes("immigration") ||
+    String(bill?.policyArea || "").toLowerCase().includes("immigration")
+  ) {
+    chain.push("→ DHS / ICE / CBP");
+    const contractors = tickers.filter((s) => ["GEO", "CXW", "PLTR", "BAH", "LMT"].includes(s));
+    chain.push(`→ Contractors (${contractors.length ? contractors.join(", ") : "detention & IT vendors"})`);
+    if (tickers.length) chain.push(`→ Tickers: ${tickers.slice(0, 5).join(", ")}`);
+    return chain;
+  }
+  if (tickers.length) {
+    chain.push(`→ Mapped tickers: ${tickers.slice(0, 5).join(", ")}`);
+  }
+  return chain;
+}
+
+function buildLobbyAngleSentence(bill) {
+  const rows = bill?.stakeholders?.lobbying || bill?._ldaRows || [];
+  if (!rows.length && bill?.lobbyingSource !== "senate_lda") return null;
+  const top = rows[0];
+  if (top?.name) {
+    const stance = top.stance === "against" ? "opposing" : top.stance === "for" ? "supporting" : "active on";
+    return `${top.name} is ${stance} this issue${top.amountM != null ? ` (~$${top.amountM}M disclosed)` : ""}.`;
+  }
+  if (bill?.lobbyingSource === "senate_lda" && Number(bill.lobbyingFilingsCount) > 0) {
+    return `Senate LDA shows ${bill.lobbyingFilingsCount} matched filing(s) — $${bill.lobbyingFor ?? 0}M for, $${bill.lobbyingAgainst ?? 0}M against.`;
+  }
+  return null;
+}
+
+async function buildContractAngleSentence(tickers = []) {
+  const profiled = tickers.filter((s) => CONTRACT_PROFILES[s]).slice(0, 2);
+  if (!profiled.length) return null;
+  const parts = [];
+  for (const sym of profiled) {
+    const profile = CONTRACT_PROFILES[sym];
+    try {
+      const ctx = await resolveContractUsaspendingContext(sym);
+      const count = ctx?.awards?.length || 0;
+      const agency = profile.primaryAgencies?.[0] || ctx?.awards?.[0]?.awardingAgency || "federal agencies";
+      parts.push(
+        `${sym} (~${Math.round((profile.governmentRevenuePct || 0) * 100)}% gov revenue${count ? `, ${count} USASpending award(s)` : ""} via ${agency})`
+      );
+    } catch {
+      parts.push(`${sym} (~${Math.round((profile.governmentRevenuePct || 0) * 100)}% gov revenue, ${profile.primaryAgencies?.[0] || "federal"})`);
+    }
+  }
+  return parts.length ? `Contract exposure: ${parts.join("; ")}.` : null;
+}
+
+function buildLiveBillAnalysisRules(bill, tickers, statusInfo) {
+  const whatHappened = parseBillWhatHappened(bill);
+  const whyMarketsCare = buildWhyMarketsCareRules(bill, tickers);
+  return {
+    whatHappened,
+    whyMarketsCare,
+    causalChain: buildCausalChainRules(bill, tickers, statusInfo),
+    lobbyingAngle: buildLobbyAngleSentence(bill),
+    contractAngle: null
+  };
+}
+
+async function buildLiveBillAnalysis(bill, req = null) {
+  const statusInfo = bill.statusInfo || statusInfoForBill(bill);
+  const tickers = (bill.affected || bill.portfolioTickers || []).filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 8);
+  const cacheKey = liveBillAnalysisCacheKey(bill);
+  const cached = liveBillAnalysisCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < Number(process.env.CONGRESS_REFRESH_MS || 900_000)) {
+    return cached.analysis;
+  }
+
+  const freshness = bill.exactCongressRecord || bill._dynamicCongressBill
+    ? process.env.CONGRESS_API_KEY
+      ? "live"
+      : "cached"
+    : bill.scenarioOnly
+      ? "scenario"
+      : "cached";
+
+  let rules = buildLiveBillAnalysisRules(bill, tickers, statusInfo);
+  rules.contractAngle = await buildContractAngleSentence(tickers);
+
+  let whyMarketsCare = rules.whyMarketsCare;
+  let causalChain = rules.causalChain;
+  if (!whyMarketsCare && process.env.ANTHROPIC_API_KEY) {
+    try {
+      const ai = await inferLiveBillWhyMarketsCareAI({
+        bill,
+        billId: bill.id,
+        rateLimitKey: req ? clientIp(req) : "anon",
+        checkRateLimit: checkBriefAiRateLimit
+      });
+      if (ai?.whyMarketsCare) {
+        whyMarketsCare = ai.whyMarketsCare;
+        if (ai.causalChain?.length) causalChain = ai.causalChain;
+      }
+    } catch (err) {
+      console.warn("[ai] live bill analysis skipped:", err.message);
+    }
+  }
+
+  let headline = null;
+  let whatHappened = rules.whatHappened;
+  try {
+    const headlines = await fetchBillRelatedHeadlines(bill, tickers);
+    const match = headlines.find((row) => {
+      const blob = `${row.headline || ""} ${row.summary || ""}`.toLowerCase();
+      return /\bice\b|border patrol|homeland|immigration enforcement|secure america|reconciliation/i.test(blob);
+    });
+    if (match) {
+      headline = {
+        text: match.headline,
+        source: match.source || "Finnhub",
+        publishedAt: match.publishedAt || null
+      };
+      const actionDate = bill.latestActionDate ? formatShortIsoDate(bill.latestActionDate) : "recent Congress.gov action";
+      whatHappened = `${whatHappened} Headlines: ${match.headline} — aligns with Congress.gov action on ${actionDate}.`;
+    }
+  } catch {
+    /* headlines optional */
+  }
+
+  const lobbyRows = (bill.stakeholders?.lobbying || bill?._ldaRows || []).slice(0, 6).map((row) => ({
+    client: row.name || row.client || null,
+    stance: row.stance || null,
+    amountM: row.amountM ?? null,
+    issue: row.issue || null
+  }));
+
+  const analysis = {
+    asOf: new Date().toISOString(),
+    freshness,
+    headline,
+    explanation: {
+      whatHappened,
+      whyMarketsCare: whyMarketsCare || bill.plainEnglish || bill.signal || "",
+      causalChain,
+      lobbyingAngle: rules.lobbyingAngle,
+      contractAngle: rules.contractAngle
+    },
+    linkedEntities: {
+      bills: [{ id: bill.id, title: bill.shortTitle || bill.title || bill.id, url: shareBillPath(bill.id) }],
+      stocks: tickers.map((sym) => ({
+        symbol: sym,
+        name: FUNDAMENTALS[sym]?.name || resolveTradableSymbolName(sym),
+        url: shareStockPath(sym)
+      })),
+      lobbyFilings: lobbyRows,
+      contracts: tickers
+        .filter((sym) => CONTRACT_PROFILES[sym])
+        .map((sym) => ({
+          symbol: sym,
+          name: FUNDAMENTALS[sym]?.name || sym,
+          governmentRevenuePct: CONTRACT_PROFILES[sym].governmentRevenuePct,
+          url: shareContractPath(sym)
+        }))
+    },
+    updateCadence: LIVE_ANALYSIS_UPDATE_CADENCE
+  };
+
+  liveBillAnalysisCache.set(cacheKey, { analysis, cachedAt: Date.now() });
+  return analysis;
+}
+
+function formatShortIsoDate(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value || "");
+  return d.toISOString().slice(0, 10);
+}
+
+function allBrowsablePolicyBills() {
+  const byId = new Map();
+  for (const bill of POLICY_BILLS) byId.set(bill.id, bill);
+  for (const [, bill] of liveCongressBillRegistry) {
+    if (!byId.has(bill.id)) byId.set(bill.id, bill);
+  }
+  return [...byId.values()];
+}
+
+function billActionWithinDays(bill, days = 7) {
+  if (!bill?.latestActionDate) return false;
+  const age = (Date.now() - new Date(bill.latestActionDate).getTime()) / 86400000;
+  return age >= 0 && age <= days;
+}
+
+async function resolveStockPolicyPulse(symbol, fundamentals, req = null) {
+  const sym = String(symbol || "").toUpperCase();
+  const candidates = allBrowsablePolicyBills()
+    .map((bill) => decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill))))
+    .filter((bill) => billMatchesStockByInference(bill, sym) || billMatchesStockBySectorKeyword(bill, fundamentals))
+    .filter((bill) => billActionWithinDays(bill, 7))
+    .sort((a, b) => Number(computeLegislativeMomentum(b) || 0) - Number(computeLegislativeMomentum(a) || 0));
+  const top = candidates[0];
+  if (!top) return null;
+  const liveAnalysis = await buildLiveBillAnalysis(top, req);
+  return {
+    billId: top.id,
+    billTitle: top.shortTitle || top.title || top.id,
+    asOf: liveAnalysis.asOf,
+    whyMarketsCare: liveAnalysis.explanation?.whyMarketsCare || "",
+    causalChain: liveAnalysis.explanation?.causalChain || [],
+    whatHappened: liveAnalysis.explanation?.whatHappened || "",
+    billUrl: shareBillPath(top.id)
+  };
+}
+
 async function buildBillSharePayload(billIdRaw, req = null) {
   const billId = resolveBillIdCanonical(billIdRaw);
   if (!billId) {
@@ -3686,9 +4040,10 @@ async function buildBillSharePayload(billIdRaw, req = null) {
       governmentRevenuePct: CONTRACT_PROFILES[ticker].governmentRevenuePct,
       url: shareContractPath(ticker)
     }));
+  const liveAnalysis = await buildLiveBillAnalysis({ ...merged, statusInfo }, req);
   return {
     billId: canonicalId,
-    live,
+    live: live || liveAnalysis.freshness === "live",
     bill: { ...detail, exposureConfidence: merged.exposureConfidence || detail.exposureConfidence || null },
     statusInfo,
     breakdown,
@@ -3705,6 +4060,8 @@ async function buildBillSharePayload(billIdRaw, req = null) {
     mapping: {
       traceUrls: Object.fromEntries(affected.map((ticker) => [ticker, shareStockPath(ticker)]))
     },
+    liveAnalysis,
+    whyMarketsCare: liveAnalysis.explanation?.whyMarketsCare || null,
     updatedAt: new Date().toISOString(),
     share: {
       canonicalPath: `/bill/${encodeURIComponent(canonicalId)}`,
@@ -3949,7 +4306,7 @@ function billMatchesStockBySectorKeyword(bill, fundamentals) {
 function resolveRelatedBillsForStock(symbol, fundamentals) {
   const sym = String(symbol || "").toUpperCase();
   const byId = new Map();
-  for (const bill of POLICY_BILLS) {
+  for (const bill of allBrowsablePolicyBills()) {
     if (billMatchesStockByInference(bill, sym) || billMatchesStockBySectorKeyword(bill, fundamentals)) {
       byId.set(bill.id, bill);
     }
@@ -4177,7 +4534,8 @@ async function enrichStockSharePayload(payload, symbol, fundamentals, contractPr
       console.warn("[ai] stock share analysis skipped:", err.message);
     }
   }
-  return { ...payload, mapping, analysis };
+  const policyPulse = await resolveStockPolicyPulse(symbol, fundamentals, req);
+  return { ...payload, mapping, analysis, policyPulse };
 }
 
 function resolveRelatedBillsForContract(symbol) {
@@ -6601,7 +6959,10 @@ async function refreshCongressLiveCache() {
     congressLiveCache.set(id, payload);
     await writeCongressCache(id, payload);
   }
-  if (updates.size) bumpLandingSignalCacheVersion();
+  if (updates.size) {
+    bumpLandingSignalCacheVersion();
+    liveBillAnalysisCache.clear();
+  }
   const decorated = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
   const liveBillCount = decorated.filter((b) => b.exactCongressRecord).length;
   noteFeedSuccess("bills", {
@@ -6812,7 +7173,8 @@ async function congressBills(res, url) {
     "broadband","telecom","5g","spectrum","internet access",
     "tax","corporate tax","capital gains",
     "data","privacy","cybersecurity","surveillance",
-    "climate","carbon","emission"
+    "climate","carbon","emission",
+    "ice","border patrol","homeland security","immigration","detention","customs","dhs","secure america","enforcement"
   ];
 
   try {
@@ -10646,6 +11008,18 @@ function inferTickers(title = "") {
   if (lower.includes("space") || lower.includes("nasa") || lower.includes("satellite") || lower.includes("launch vehicle")) matched.push(...["TSLA", "LMT"]);
   if (lower.includes("climate") || lower.includes("carbon") || lower.includes("emission")) matched.push(...["XLE", "TSLA", "ENPH"]);
   if (lower.includes("privacy") || lower.includes("cybersecurity") || lower.includes("data security")) matched.push(...["MSFT", "CRWD", "PANW"]);
+  if (
+    lower.includes("ice") ||
+    lower.includes("border patrol") ||
+    lower.includes("customs and border") ||
+    lower.includes("homeland security") ||
+    lower.includes("immigration enforcement") ||
+    lower.includes("detention") ||
+    lower.includes("secure america") ||
+    /\bdhs\b/.test(lower)
+  ) {
+    matched.push(...["GEO", "CXW", "PLTR", "BAH", "LMT"]);
+  }
   return [...new Set(matched)];
 }
 
@@ -10662,7 +11036,25 @@ const BILL_KEYWORD_BUCKETS = [
   { id: "telecom", patterns: [/broadband/i, /internet access/i, /telecom/i, /spectrum/i, /\b5g\b/i], sectors: ["telecom", "technology"], tickers: ["GOOGL", "META", "MSFT"], tier: "direct" },
   { id: "tax", patterns: [/tax/i, /\birs\b/i, /corporate tax/i, /capital gains/i, /revenue/i], sectors: ["tax", "fiscal"], tickers: ["AAPL", "MSFT", "GOOGL", "META", "AMZN"], tier: "broad_index" },
   { id: "climate", patterns: [/climate/i, /carbon/i, /emission/i, /greenhouse/i], sectors: ["climate", "energy"], tickers: ["XLE", "TSLA", "ENPH"], tier: "sector_etf" },
-  { id: "cyber", patterns: [/privacy/i, /cybersecurity/i, /data security/i, /surveillance/i], sectors: ["cyber", "technology"], tickers: ["MSFT", "CRWD", "PANW"], tier: "direct" }
+  { id: "cyber", patterns: [/privacy/i, /cybersecurity/i, /data security/i, /surveillance/i], sectors: ["cyber", "technology"], tickers: ["MSFT", "CRWD", "PANW"], tier: "direct" },
+  {
+    id: "homeland_border",
+    patterns: [
+      /\bice\b/i,
+      /border patrol/i,
+      /customs and border/i,
+      /\bcbp\b/i,
+      /homeland security/i,
+      /\bdhs\b/i,
+      /immigration enforcement/i,
+      /detention/i,
+      /secure america/i,
+      /immigration/i
+    ],
+    sectors: ["homeland security", "immigration", "defense"],
+    tickers: ["GEO", "CXW", "PLTR", "BAH", "LMT"],
+    tier: "direct"
+  }
 ];
 
 const COMMITTEE_SECTOR_MAP = [
@@ -10673,7 +11065,8 @@ const COMMITTEE_SECTOR_MAP = [
   { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["NVDA", "MSFT", "GOOGL"], tier: "direct" },
   { patterns: [/ways and means/i, /finance/i], sectors: ["tax", "financial"], tickers: ["XLF", "SPY"], tier: "broad_index" },
   { patterns: [/health/i, /education/i, /labor/i], sectors: ["health"], tickers: ["UNH", "LLY", "PFE"], tier: "direct" },
-  { patterns: [/agriculture/i], sectors: ["agriculture"], tickers: ["DE", "ADM"], tier: "direct" }
+  { patterns: [/agriculture/i], sectors: ["agriculture"], tickers: ["DE", "ADM"], tier: "direct" },
+  { patterns: [/homeland security/i, /border/i, /immigration/i], sectors: ["homeland security"], tickers: ["GEO", "CXW", "PLTR"], tier: "direct" }
 ];
 
 const POLICY_AREA_SECTOR_MAP = [
@@ -10683,7 +11076,8 @@ const POLICY_AREA_SECTOR_MAP = [
   { patterns: [/energy/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "TSLA"], tier: "sector_etf" },
   { patterns: [/defense/i, /national security/i, /armed/i], sectors: ["defense"], tickers: ["LMT", "RTX"], tier: "direct" },
   { patterns: [/tax/i], sectors: ["tax"], tickers: ["SPY"], tier: "broad_index" },
-  { patterns: [/transport/i], sectors: ["transport"], tickers: ["UAL", "DAL"], tier: "direct" }
+  { patterns: [/transport/i], sectors: ["transport"], tickers: ["UAL", "DAL"], tier: "direct" },
+  { patterns: [/immigration/i, /homeland/i], sectors: ["homeland security"], tickers: ["GEO", "CXW", "PLTR"], tier: "direct" }
 ];
 
 const EXPOSURE_IMPACT_TIERS = {
@@ -10992,6 +11386,16 @@ function inferTags(title = "") {
   if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china")) tags.push("trade", "foreign policy");
   if (lower.includes("tax") || lower.includes("irs") || lower.includes("corporate tax")) tags.push("tax", "fiscal");
   if (lower.includes("broadband") || lower.includes("telecom") || lower.includes("5g") || lower.includes("spectrum")) tags.push("telecom", "technology");
+  if (
+    lower.includes("ice") ||
+    lower.includes("border") ||
+    lower.includes("homeland") ||
+    lower.includes("immigration") ||
+    lower.includes("detention") ||
+    lower.includes("customs")
+  ) {
+    tags.push("homeland security", "immigration");
+  }
   return [...new Set(tags)];
 }
 
@@ -11691,6 +12095,7 @@ function decorateBill(bill) {
     statusInfo,
     { stakeholders }
   );
+  const exposedBase = applyBillMarketExposure(base);
   return {
     ...base,
     ...metrics,
@@ -11706,7 +12111,8 @@ function decorateBill(bill) {
     catalyst: catalystForBill({ ...base, statusInfo }, metrics),
     nextWatchItems: nextWatchItemsForBill(base, statusInfo),
     stakeholders: stake || bill.stakeholders || null,
-    legislativeContext
+    legislativeContext,
+    whyMarketsCare: buildWhyMarketsCareRules(exposedBase, exposedBase.affected || [], statusInfo) || null
   };
 }
 
@@ -11729,9 +12135,8 @@ function normalizeLiveCongressBill(bill) {
 
   const sponsors = Array.isArray(bill.sponsors) ? bill.sponsors : [];
   const sp = sponsors[0];
-  const tickers = inferTickers(bill.title);
-  const tags = inferTags(bill.title);
-  return {
+  const policyArea = bill.policyArea?.name || bill.policyArea || null;
+  const draft = {
     id: canonicalId,
     title: bill.title,
     shortTitle: bill.title,
@@ -11744,19 +12149,27 @@ function normalizeLiveCongressBill(bill) {
     bipartisanCosponsors: 0,
     floorScheduled: false,
     exactCongressRecord: true,
+    _dynamicCongressBill: true,
     introducedDate: bill.introducedDate || null,
-    policyArea: bill.policyArea?.name || bill.policyArea || null,
+    policyArea,
     latestAction: bill.latestAction?.text || "Updated by Congress.gov",
     latestActionDate: bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText || "",
-    tags,
-    portfolioTickers: tickers,
-    affected: tickers,
+    tags: inferTags(`${bill.title || ""} ${policyArea || ""}`),
     lobbyingAgainst: null,
     lobbyingFor: null,
     plainEnglish: "",
+    signal: "",
+    impact: ""
+  };
+  const exposed = applyBillMarketExposure(draft);
+  const tickers = exposed.affected || [];
+  return {
+    ...draft,
+    ...exposed,
+    portfolioTickers: tickers,
     signal: tickers.length
-      ? `Live Congress.gov bill — may affect ${tickers.join(", ")}. No lobbying or impact model mapped yet.`
-      : "Live Congress.gov bill. No ticker or lobbying mapping available yet.",
+      ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
+      : "Live Congress.gov bill. No ticker mapping available yet.",
     impact: tickers.length
       ? `Potential exposure for ${tickers.join(", ")} — monitor for committee action or lobbying filings.`
       : "No ticker mapping available. Monitor for sector-level impact."

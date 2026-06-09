@@ -402,6 +402,111 @@ export async function fetchCompanyNews(symbol, { days = 2, limit = 8 } = {}) {
   }
 }
 
+const BILL_HEADLINE_TOPIC_PATTERNS = [
+  /\bice\b/i,
+  /border patrol/i,
+  /customs and border/i,
+  /\bcbp\b/i,
+  /homeland security/i,
+  /\bdhs\b/i,
+  /immigration enforcement/i,
+  /detention/i,
+  /secure america/i,
+  /reconciliation/i
+];
+
+export async function fetchBillRelatedHeadlines(bill, tickers = [], { days = 7, limit = 12 } = {}) {
+  const corpus = [
+    bill?.title,
+    bill?.shortTitle,
+    bill?.latestAction,
+    bill?.policyArea,
+    ...(bill?.tags || [])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const pool = [];
+  const seen = new Set();
+  const add = (item) => {
+    const key = item.url || item.headline;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    pool.push(item);
+  };
+
+  const symbols = [...new Set((tickers || []).map((t) => String(t || "").toUpperCase()).filter((t) => /^[A-Z]{1,5}$/.test(t)))].slice(
+    0,
+    4
+  );
+  for (const sym of symbols) {
+    const rows = await fetchCompanyNews(sym, { days, limit: 6 }).catch(() => []);
+    for (const row of rows) {
+      const blob = `${row.headline || ""} ${row.summary || ""}`.toLowerCase();
+      if (BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(blob)) || BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(corpus))) {
+        add(row);
+      }
+    }
+  }
+
+  if (!pool.length && corpus) {
+    for (const sym of symbols.slice(0, 2)) {
+      const rows = await fetchCompanyNews(sym, { days, limit: 4 }).catch(() => []);
+      rows.forEach(add);
+    }
+  }
+
+  return pool
+    .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
+    .slice(0, limit);
+}
+
+/** Haiku causal explanation — cache miss only when rules produce empty whyMarketsCare. */
+export async function inferLiveBillWhyMarketsCareAI({ bill, billId, rateLimitKey, checkRateLimit }) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const id = billId || bill?.id || "";
+  const cacheKey = `live-why:${id}:${bill?.latestActionDate || "na"}`;
+  const cached = await readBillExposureCache(cacheKey);
+  if (cached?.whyMarketsCare) return { ...cached, cached: true };
+
+  if (typeof checkRateLimit === "function" && rateLimitKey) {
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) return null;
+  }
+
+  const system = `You explain why a US congressional bill matters to public markets.
+Return ONLY valid JSON:
+{
+  "whyMarketsCare": "1-2 plain English sentences linking bill stage to agencies, contractors, and tickers",
+  "causalChain": ["Bill stage", "→ Agency", "→ Contractors", "→ Tickers"]
+}
+No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
+
+  const user = [
+    `Bill: ${bill?.displayId || id}`,
+    `Title: ${bill?.title || bill?.shortTitle || ""}`,
+    `Policy area: ${bill?.policyArea || "n/a"}`,
+    `Latest action: ${bill?.latestAction || ""}`,
+    `Mapped tickers: ${(bill?.affected || []).join(", ") || "none"}`
+  ].join("\n");
+
+  const text = await fetchAnthropic({
+    system,
+    user: `Explain why this bill matters to markets now:\n\n${user}`,
+    maxTokens: 320,
+    model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"
+  });
+  const parsed = parseJsonFromText(text);
+  if (!parsed?.whyMarketsCare) return null;
+  const payload = {
+    whyMarketsCare: String(parsed.whyMarketsCare).trim(),
+    causalChain: Array.isArray(parsed.causalChain) ? parsed.causalChain.map(String).slice(0, 6) : []
+  };
+  await writeBillExposureCache(cacheKey, payload);
+  return { ...payload, cached: false };
+}
+
 export async function enrichSnapshotWithRecentNews(snapshot, symbol) {
   const existing = Array.isArray(snapshot?.recentNews) ? snapshot.recentNews.filter(Boolean) : [];
   if (existing.length) return { ...(snapshot || {}), recentNews: existing.slice(0, 8) };

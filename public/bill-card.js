@@ -226,6 +226,11 @@ function buildSteps(data) {
     steps.push({ id: "where", short: "Where it stands", ref: "Legislative position", html: whereHtml });
   }
 
+  const liveHtml = stepLiveAnalysisHtml(data);
+  if (liveHtml) {
+    steps.push({ id: "live-now", short: "Why now", ref: "Live analysis", html: liveHtml });
+  }
+
   steps.push({
     id: "market",
     short: "Market impact",
@@ -318,6 +323,40 @@ function stageTrackerHtml(stagePath, activeKey) {
         })
         .join("")}
     </ol>`;
+}
+
+function stepLiveAnalysisHtml(data) {
+  const live = data.liveAnalysis;
+  const exp = live?.explanation;
+  if (!exp) return "";
+  const chain = Array.isArray(exp.causalChain) ? exp.causalChain : [];
+  const headline = live.headline;
+  return `
+    <h2 class="bill-step-title">Why this matters now</h2>
+    <p class="bill-live-stamp muted mono">Live analysis · updated ${escapeHtml(freshnessText(live.asOf || data.updatedAt))}</p>
+    ${headline?.text
+      ? `<div class="bill-live-headline">
+          <span class="mini-label">Headline</span>
+          <p class="bill-guided-lede">${escapeHtml(headline.text)}</p>
+          <p class="muted mono">${escapeHtml(headline.source || "")}${headline.publishedAt ? ` · ${escapeHtml(formatShortDate(headline.publishedAt))}` : ""}</p>
+        </div>`
+      : ""}
+    <div class="bill-guided-facts">
+      <div class="bill-guided-fact"><span class="bill-guided-fact-label">What happened</span><p>${escapeHtml(exp.whatHappened || "")}</p></div>
+      <div class="bill-guided-fact"><span class="bill-guided-fact-label">Why markets care</span><p>${escapeHtml(exp.whyMarketsCare || "")}</p></div>
+      ${chain.length
+        ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Causal chain</span><p class="bill-causal-chain mono">${escapeHtml(chain.join(" → "))}</p></div>`
+        : ""}
+      ${exp.lobbyingAngle ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Lobbying</span><p>${escapeHtml(exp.lobbyingAngle)}</p></div>` : ""}
+      ${exp.contractAngle ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Contracts</span><p>${escapeHtml(exp.contractAngle)}</p></div>` : ""}
+    </div>
+    <p class="muted bill-guided-note mono">${escapeHtml(live.updateCadence || "Congress refresh 15min")}</p>`;
+}
+
+function liveAnalysisPanelHtml(data) {
+  const html = stepLiveAnalysisHtml(data);
+  if (!html) return "";
+  return `<section class="bill-card-panel bill-live-analysis">${html}</section>`;
 }
 
 function stepMarketHtml(bill, breakdown, data) {
@@ -490,6 +529,7 @@ function renderFullBrief(data) {
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || data.methodologyDisclaimer || "")}</p>
       </header>
       ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2><p>${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI synthesis from live bill data</p></section>` : ""}
+      ${liveAnalysisPanelHtml(data)}
 
       ${legislativeTimelineSection(leg, bill, status)}
       <section class="bill-card-grid">

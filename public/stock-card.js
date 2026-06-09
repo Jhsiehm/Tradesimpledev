@@ -278,6 +278,21 @@ function buildSteps(data) {
   return steps;
 }
 
+function policyPulseBannerHtml(policyPulse) {
+  if (!policyPulse?.whyMarketsCare) return "";
+  const chain = Array.isArray(policyPulse.causalChain) ? policyPulse.causalChain.join(" → ") : "";
+  return `
+    <div class="bill-policy-pulse" role="note">
+      <span class="mini-label">Policy pulse</span>
+      <p class="bill-guided-lede">${escapeHtml(policyPulse.whyMarketsCare)}</p>
+      ${policyPulse.whatHappened ? `<p class="muted">${escapeHtml(policyPulse.whatHappened)}</p>` : ""}
+      ${chain ? `<p class="bill-causal-chain mono muted">${escapeHtml(chain)}</p>` : ""}
+      ${policyPulse.billUrl
+        ? `<a class="card-button ghost compact" href="${escapeHtml(policyPulse.billUrl)}">${escapeHtml(policyPulse.billTitle || policyPulse.billId || "Bill brief")} →</a>`
+        : ""}
+    </div>`;
+}
+
 function stepExposureHtml(data, analysis, mapping) {
   const quote = data.quote || {};
   const pct = Number(quote.pct ?? quote.changePercent ?? 0);
@@ -286,6 +301,7 @@ function stepExposureHtml(data, analysis, mapping) {
   const policyScore = mapping.policyExposure?.score;
   const confidence = mapping.exposureConfidence || "low";
   return `
+    ${policyPulseBannerHtml(data.policyPulse)}
     <p class="bill-card-id mono">${escapeHtml(data.symbol)} · ${escapeHtml(data.company?.name || data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(headline || `${data.symbol} government-to-market profile`)}</h1>
     <div class="bill-guided-facts">
