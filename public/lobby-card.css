@@ -1,1 +1,13 @@
-/* Lobby card uses detail-pages.css + stock-card.css */
+/* Lobby brief — dossier walkthrough extensions (shared classes in bill-card.css) */
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+@media (max-width: 540px) {
+  .bill-guided-cta .card-button {
+    min-height: 46px;
+    flex: 1 1 auto;
+  }
+}
