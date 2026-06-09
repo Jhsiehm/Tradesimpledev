@@ -962,6 +962,11 @@ function briefSummaryCacheKey(kind, payload) {
     const bill = payload.bill || {};
     return `bill:${payload.billId || bill.id}:${bill.latestActionDate || "none"}`;
   }
+  if (kind === "stock") {
+    const mapping = payload.mapping || {};
+    const billIds = (mapping.relatedBills || []).slice(0, 3).map((b) => b.id).join(",");
+    return `stock:${payload.symbol}:${billIds}:${mapping.contractProfile ? "c" : "n"}`;
+  }
   const awards = payload.awards || [];
   const hashParts = awards
     .slice(0, 5)
@@ -1027,6 +1032,18 @@ export async function runShareBriefSummary({ kind, payload, rateLimitKey, checkR
       `Affected tickers: ${(bill.affected || []).join(", ") || "none mapped"}`,
       `Momentum: ${payload.breakdown?.legislativeMomentum?.score ?? "n/a"}/100`,
       `Signal: ${bill.signal || bill.plainEnglish || ""}`
+    ].join("\n");
+  } else if (kind === "stock") {
+    const mapping = payload.mapping || {};
+    user = [
+      `Symbol: ${payload.symbol}`,
+      `Company: ${payload.company?.name || payload.symbol}`,
+      `Sector: ${payload.company?.sector || payload.fundamentals?.sector || "unknown"}`,
+      `Related bills: ${(mapping.relatedBills || []).map((b) => b.displayId || b.id).join(", ") || "none"}`,
+      `Contract profile: ${mapping.contractProfile ? JSON.stringify(mapping.contractProfile) : "none"}`,
+      `Lobbying filings: ${(mapping.lobbyingFilings || []).map((f) => f.client).join(", ") || "none"}`,
+      `Quote: ${payload.quote?.price ?? "n/a"} (${payload.quote?.pct ?? payload.quote?.changePercent ?? "n/a"}%)`,
+      `Rules summary: ${payload.analysis?.plainEnglish || ""}`
     ].join("\n");
   } else {
     const c = payload.causality || {};

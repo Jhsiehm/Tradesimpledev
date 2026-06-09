@@ -228,64 +228,63 @@ function dossierMetaHtml(data) {
 /* ---------- guided walkthrough ---------- */
 
 function buildSteps(data) {
-  const explainer = data.explainer || {};
-  const evidence = data.evidence || {};
-  const riskRows = data.charts?.riskRadar || [];
+  const mapping = data.mapping || {};
+  const analysis = data.analysis || {};
   const steps = [];
 
   steps.push({
     id: "exposure",
     short: "Exposure",
     ref: "Policy exposure",
-    html: stepExposureHtml(data)
+    html: stepExposureHtml(data, analysis, mapping)
   });
 
-  const changedHtml = stepChangedHtml(data.whatChanged, evidence);
-  if (changedHtml) {
-    steps.push({ id: "changed", short: "What changed", ref: "Recent updates", html: changedHtml });
+  const bills = mapping.relatedBills || [];
+  if (bills.length) {
+    steps.push({
+      id: "bills",
+      short: "Legislation",
+      ref: "Related bills",
+      html: stepBillsHtml(bills, data.symbol)
+    });
   }
 
-  steps.push({
-    id: "now",
-    short: "Happening now",
-    ref: "Plain English signal",
-    html: stepNowHtml(explainer, data)
-  });
+  if (mapping.contractProfile) {
+    steps.push({
+      id: "contracts",
+      short: "Contracts",
+      ref: "Government contracts",
+      html: stepContractsHtml(mapping.contractProfile, data)
+    });
+  }
 
-  steps.push({
-    id: "matter",
-    short: "Why it matters",
-    ref: "Market mechanism",
-    html: stepMatterHtml(explainer, evidence)
-  });
+  const lobbyRows = mapping.lobbyingFilings || [];
+  if (lobbyRows.length) {
+    steps.push({
+      id: "lobby",
+      short: "Lobbying",
+      ref: "Lobbying activity",
+      html: stepLobbyHtml(lobbyRows)
+    });
+  }
 
   steps.push({
     id: "watch",
     short: "Watch next",
     ref: "Forward watch",
-    html: stepWatchHtml(explainer, data)
+    html: stepWatchHtml(analysis, data)
   });
-
-  if (riskRows.length) {
-    steps.push({
-      id: "scores",
-      short: "Scores",
-      ref: "Sensitivity metrics",
-      html: stepScoresHtml(riskRows, data)
-    });
-  }
 
   return steps;
 }
 
-function stepExposureHtml(data) {
+function stepExposureHtml(data, analysis, mapping) {
   const quote = data.quote || {};
   const pct = Number(quote.pct ?? quote.changePercent ?? 0);
   const changeClass = pct >= 0 ? "up" : "down";
-  const explainer = data.explainer || {};
-  const headline = data.governmentSignals?.headline || explainer.headline || "";
-  const policyRow = (data.charts?.riskRadar || []).find((row) => /policy/i.test(row.label || ""));
-  const policyCaption = policyRow?.caption || policyRow?.explain || data.governmentSignals?.detail || "";
+  const headline = analysis.plainEnglish || data.governmentSignals?.headline || data.explainer?.headline || "";
+  const policyScore = mapping.policyExposure?.score;
+  const confidence = mapping.exposureConfidence || "low";
   return `
     <p class="bill-card-id mono">${escapeHtml(data.symbol)} · ${escapeHtml(data.company?.name || data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(headline || `${data.symbol} government-to-market profile`)}</h1>
@@ -294,15 +293,123 @@ function stepExposureHtml(data) {
         <span class="bill-guided-fact-label">Quote context</span>
         <p><strong class="mono">${quote.price ? money(quote.price) : "Unavailable"}</strong>${quote.price ? ` <span class="${changeClass} mono">${signed(quote.change || 0)} / ${signed(pct)}%</span>` : ""}</p>
       </div>
-      ${policyCaption
-        ? `<div class="bill-guided-fact">
-            <span class="bill-guided-fact-label">Policy exposure summary</span>
-            <p>${escapeHtml(policyCaption)}</p>
-            ${policyRow ? `<p class="muted mono bill-guided-fact-date">Policy exposure score ${Math.round(Number(policyRow.value || 0))}/100</p>` : ""}
-          </div>`
+      <div class="bill-guided-fact">
+        <span class="bill-guided-fact-label">Policy mapping</span>
+        <p><strong class="mono">${policyScore != null ? `${Math.round(Number(policyScore))}/100` : "—"}</strong> momentum · ${escapeHtml(confidence)} confidence</p>
+        ${(mapping.sectorTags || []).length ? `<p class="muted mono">${escapeHtml((mapping.sectorTags || []).join(" · "))}</p>` : ""}
+      </div>
+      ${analysis.whatChanged
+        ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">What changed</span><p>${escapeHtml(analysis.whatChanged)}</p></div>`
         : ""}
     </div>
+    ${mapping.traceUrls?.topBill || mapping.traceUrls?.contract
+      ? `<div class="brief-trace-row">${mapping.traceUrls?.topBill ? `<a class="brief-trace-cta" href="${escapeHtml(mapping.traceUrls.topBill)}">Top bill →</a>` : ""}${mapping.traceUrls?.contract ? `<a class="brief-trace-cta" href="${escapeHtml(mapping.traceUrls.contract)}">Contracts →</a>` : ""}</div>`
+      : ""}
     <p class="hero-disclaimer stock-guided-disclaimer">Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.</p>`;
+}
+
+function stepBillsHtml(bills, symbol) {
+  return `
+    <h2 class="bill-step-title">Related legislation</h2>
+    <p class="bill-guided-lede">Bills auto-mapped to ${escapeHtml(symbol)} in TradeSimple's policy graph.</p>
+    ${relatedBillsCardsHtml(bills)}`;
+}
+
+function stepContractsHtml(contractProfile, data) {
+  const govPct = contractProfile.governmentRevenuePct != null ? Math.round(contractProfile.governmentRevenuePct * 100) : null;
+  return `
+    <h2 class="bill-step-title">Government contracts</h2>
+    <div class="bill-guided-scores">
+      ${govPct != null ? `<div><span class="score-label">Gov revenue share</span><strong class="mono">${govPct}%</strong></div>` : ""}
+      ${contractProfile.awardCount != null ? `<div><span class="score-label">Award rows</span><strong class="mono">${escapeHtml(String(contractProfile.awardCount))}</strong></div>` : ""}
+      ${contractProfile.topAgency ? `<div><span class="score-label">Top agency</span><strong>${escapeHtml(contractProfile.topAgency)}</strong></div>` : ""}
+    </div>
+    <div class="bill-guided-cta">
+      <a class="card-button bill-cta-primary" href="${escapeHtml(data.mapping?.traceUrls?.contract || `/contract/${encodeURIComponent(data.symbol)}`)}">Open contract brief</a>
+      ${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}
+    </div>`;
+}
+
+function stepLobbyHtml(filings) {
+  return `
+    <h2 class="bill-step-title">Lobbying activity</h2>
+    <p class="bill-guided-lede">Top filings mapped to this symbol by client name and issue overlap.</p>
+    <div class="compact-list">
+      ${filings
+        .map(
+          (row) => `
+        <div>
+          <strong><a href="${escapeHtml(row.url || `/lobby/${encodeURIComponent(row.filingId)}`)}">${escapeHtml(row.client || "Filing")}</a></strong>
+          <span>${escapeHtml(String(row.issue || "").slice(0, 80))}${row.amount ? ` · ${compactMoney(row.amount)}` : ""}</span>
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function stepWatchHtml(analysis, data) {
+  const watchItems = (analysis.whatToWatch || data.explainer?.watchFor || []).slice(0, 5);
+  return `
+    <h2 class="bill-step-title">What to watch next</h2>
+    <ul class="bill-guided-watchlist">${watchItems.length ? watchItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
+    <div class="bill-guided-cta">
+      <a class="card-button bill-cta-primary" href="/dashboard?view=analysis&symbol=${encodeURIComponent(data.symbol || state.symbol)}">Open on dashboard</a>
+      <button type="button" class="card-button ghost" data-brief-mode="full">Switch to full brief</button>
+    </div>
+    <p class="muted bill-guided-note">${escapeHtml(data.share?.evidenceDisclaimer || data.evidence?.disclaimer || "Research context only. Linked sources do not imply causation or investment advice.")}</p>`;
+}
+
+function relatedBillsCardsHtml(bills) {
+  const rows = Array.isArray(bills) ? bills.slice(0, 5) : [];
+  if (!rows.length) return `<p class="muted">No mapped bills yet for this symbol.</p>`;
+  return `
+    <div class="brief-related-bill-cards">
+      ${rows
+        .map(
+          (b) => `
+        <a class="brief-related-bill-card" href="${escapeHtml(b.url || `/bill/${encodeURIComponent(b.id)}`)}">
+          <span class="mono">${escapeHtml(b.displayId || b.id)}</span>
+          <strong>${escapeHtml(b.title || "")}</strong>
+          ${b.momentum != null ? `<span class="muted">Momentum ${escapeHtml(String(b.momentum))}/100</span>` : ""}
+          ${b.latestAction ? `<span class="muted">${escapeHtml(String(b.latestAction).slice(0, 120))}</span>` : ""}
+        </a>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function mappingSidebarHtml(data) {
+  const mapping = data.mapping || {};
+  const analysis = data.analysis || {};
+  const bills = mapping.relatedBills || [];
+  const lobbyRows = mapping.lobbyingFilings || [];
+  if (!bills.length && !mapping.contractProfile && !lobbyRows.length && !analysis.plainEnglish) return "";
+  return `
+    <section class="section-card stock-mapping-panel">
+      <div class="section-head">
+        <span class="mini-label">Auto-mapped policy graph</span>
+        <strong>${escapeHtml(analysis.plainEnglish || data.governmentSignals?.headline || "Pre-enriched mapping from share payload")}</strong>
+      </div>
+      ${bills.length ? `<div class="stock-mapping-block"><span class="mini-label">Related bills</span>${relatedBillsCardsHtml(bills)}</div>` : ""}
+      ${mapping.contractProfile
+        ? `<div class="stock-mapping-block"><span class="mini-label">Contracts</span><p>${mapping.contractProfile.governmentRevenuePct != null ? `~${Math.round(mapping.contractProfile.governmentRevenuePct * 100)}% gov revenue` : "Federal contractor profile"}${mapping.contractProfile.topAgency ? ` · ${escapeHtml(mapping.contractProfile.topAgency)}` : ""}</p><a class="detail-chip-link" href="${escapeHtml(mapping.traceUrls?.contract || `/contract/${encodeURIComponent(data.symbol)}`)}">Contract brief</a></div>`
+        : ""}
+      ${lobbyRows.length
+        ? `<div class="stock-mapping-block"><span class="mini-label">Lobbying</span><div class="compact-list">${lobbyRows
+            .slice(0, 3)
+            .map(
+              (row) =>
+                `<div><strong><a href="${escapeHtml(row.url || `#`)}">${escapeHtml(row.client)}</a></strong><span>${escapeHtml(String(row.issue || "").slice(0, 60))}</span></div>`
+            )
+            .join("")}</div></div>`
+        : ""}
+      ${(analysis.whatToWatch || []).length
+        ? `<div class="stock-mapping-block"><span class="mini-label">Watch next</span><ul>${analysis.whatToWatch
+            .slice(0, 4)
+            .map((item) => `<li>${escapeHtml(item)}</li>`)
+            .join("")}</ul></div>`
+        : ""}
+    </section>`;
 }
 
 function stepChangedHtml(whatChanged, evidence) {
@@ -344,19 +451,6 @@ function stepMatterHtml(explainer, evidence) {
     <h2 class="bill-step-title">${escapeHtml(copy.mechanismLabel)}</h2>
     <p class="bill-guided-lede">${escapeHtml(explainer.whyItMatters || "Government action can matter through revenue, margins, capex, compliance costs, contract visibility, and investor expectations.")}</p>
     ${sourceDetails("Evidence", evidenceSummaryItems(evidence, "mechanism"))}`;
-}
-
-function stepWatchHtml(explainer, data) {
-  const copy = readerModeCopy("citizen");
-  const watchItems = (explainer.watchFor || []).slice(0, 4);
-  return `
-    <h2 class="bill-step-title">${escapeHtml(copy.watchLabel)}</h2>
-    <ul class="bill-guided-watchlist">${watchItems.length ? watchItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
-    <div class="bill-guided-cta">
-      <a class="card-button bill-cta-primary" href="/dashboard?view=analysis&symbol=${encodeURIComponent(data.symbol || state.symbol)}">Open on dashboard</a>
-      <button type="button" class="card-button ghost" data-brief-mode="full">Switch to full brief</button>
-    </div>
-    <p class="muted bill-guided-note">${escapeHtml(data.share?.evidenceDisclaimer || data.evidence?.disclaimer || "Research context only. Linked sources do not imply causation or investment advice.")}</p>`;
 }
 
 function stepScoresHtml(riskRows, data) {
@@ -449,7 +543,7 @@ function renderFullBrief(data) {
               <h1>${escapeHtml(data.symbol)}</h1>
               <span>${escapeHtml(data.company?.name || data.symbol)}</span>
             </div>
-            <p class="hero-lede">${escapeHtml(data.governmentSignals?.headline || explainer.headline || "")}</p>
+            <p class="hero-lede">${escapeHtml(data.analysis?.plainEnglish || data.governmentSignals?.headline || explainer.headline || "")}</p>
             <p class="hero-disclaimer">Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.</p>
           </div>
           <aside class="quote-box">
@@ -461,6 +555,8 @@ function renderFullBrief(data) {
         </div>
 
         ${renderWhatChanged(data.whatChanged, evidence)}
+
+        ${mappingSidebarHtml(data)}
 
         <section class="reader-strip" aria-label="Reader mode">
           ${["citizen", "investor", "analyst"].map((mode) => `
@@ -484,7 +580,7 @@ function renderFullBrief(data) {
           </article>
           <article>
             <span class="mini-label explainer-label">${escapeHtml(modeCopy.watchLabel)}</span>
-            <ul>${(explainer.watchFor || []).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
+            <ul>${((data.analysis?.whatToWatch || explainer.watchFor || []).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")) || "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
           </article>
         </section>
 

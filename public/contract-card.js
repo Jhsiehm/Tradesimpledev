@@ -243,7 +243,7 @@ function stepPaidHtml(data) {
     <p class="bill-card-id mono">${escapeHtml(data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(data.company || data.symbol)}</h1>
     <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>
-    <p class="bill-guided-lede">${escapeHtml(data.causality?.plainEnglish || "Federal contract exposure profile for this company.")}</p>
+    <p class="bill-guided-lede">${escapeHtml(data.analysis?.plainEnglish || data.causality?.plainEnglish || "Federal contract exposure profile for this company.")}</p>
     ${award
       ? `<div class="bill-guided-facts">
           <div class="bill-guided-fact">
@@ -415,7 +415,7 @@ function renderFullBrief(data) {
             <div><span class="label">Dependency score</span><strong>${escapeHtml(String(c.scores?.dependency ?? "—"))}/100</strong></div>
             <div><span class="label">Total obligated (sample)</span><strong>${money(data.totalObligated || 0)}</strong></div>
           </div>
-          <p>${escapeHtml(c.plainEnglish || "")}</p>
+          <p>${escapeHtml(data.analysis?.plainEnglish || c.plainEnglish || "")}</p>
         </div>
         <div class="detail-card-panel">
           <h2>Programs & agencies</h2>

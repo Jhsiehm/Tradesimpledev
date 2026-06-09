@@ -3954,6 +3954,11 @@ function resolveRelatedBillsForStock(symbol, fundamentals) {
       byId.set(bill.id, bill);
     }
   }
+  const profile = CONTRACT_PROFILES[sym];
+  for (const billId of profile?.linkedBillIds || []) {
+    const bill = POLICY_BILLS.find((row) => row.id === billId);
+    if (bill) byId.set(bill.id, bill);
+  }
   return [...byId.values()]
     .sort((a, b) => Number(computeLegislativeMomentum(b) || 0) - Number(computeLegislativeMomentum(a) || 0))
     .slice(0, 5)

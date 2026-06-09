@@ -175,7 +175,7 @@ function buildSteps(data) {
       id: "tickers",
       short: "Related tickers",
       ref: "Mapped symbols",
-      html: stepTickersHtml(tickers)
+      html: stepTickersHtml(tickers, data)
     });
   }
 
@@ -253,12 +253,16 @@ function stepSpendHtml(f) {
     ${f.stance ? `<p><strong>Inferred stance:</strong> ${escapeHtml(f.stance)}</p>` : ""}`;
 }
 
-function stepTickersHtml(tickers) {
+function stepTickersHtml(tickers, data) {
+  const traceUrls = data?.mapping?.traceUrls || {};
   return `
     <h2 class="bill-step-title">Which tickers map to this client?</h2>
     <p class="bill-guided-lede">TradeSimple links lobbying clients to publicly traded symbols when the name match is clear.</p>
     <div class="bill-ticker-row">
-      ${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}
+      ${tickers.map((t) => {
+        const href = traceUrls[t] || `/stock/${encodeURIComponent(t)}`;
+        return `<a class="ticker-chip-link" href="${escapeHtml(href)}">${escapeHtml(t)}</a>`;
+      }).join("")}
     </div>
     <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div>`;
 }
@@ -266,14 +270,19 @@ function stepTickersHtml(tickers) {
 function stepBillsHtml(bills) {
   return `
     <h2 class="bill-step-title">Related legislation</h2>
-    <ul class="bill-guided-watchlist">
+    <div class="brief-related-bill-cards">
       ${bills
+        .slice(0, 6)
         .map(
           (b) =>
-            `<li><a href="/bill/${encodeURIComponent(b.id)}">${escapeHtml(b.displayId || b.id)}</a> — ${escapeHtml(b.title || "")} <span class="muted">Momentum ${escapeHtml(String(b.momentum ?? "—"))}/100</span></li>`
+            `<a class="brief-related-bill-card" href="${escapeHtml(b.url || `/bill/${encodeURIComponent(b.id)}`)}">
+              <span class="mono">${escapeHtml(b.displayId || b.id)}</span>
+              <strong>${escapeHtml(b.title || "")}</strong>
+              ${b.momentum != null ? `<span class="muted">Momentum ${escapeHtml(String(b.momentum))}/100</span>` : ""}
+            </a>`
         )
         .join("")}
-    </ul>`;
+    </div>`;
 }
 
 function stepWatchHtml(f, data) {
