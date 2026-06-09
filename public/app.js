@@ -1532,8 +1532,440 @@ const state = {
   watchlistSymbols: [],
   dataHealth: null,
   _symbolFromUrl: false,
-  billSort: "recent"
+  billSort: "recent",
+  tradeGuidedMode: null,
+  billsGuidedMode: null,
+  tradeGuidedStep: 0,
+  billsGuidedStep: 0
 };
+
+const TRADE_GUIDED_KEY = "ts_trade_guided_mode";
+const BILLS_GUIDED_KEY = "ts_bills_guided_mode";
+let tradeGuidedShell = null;
+let billsGuidedShell = null;
+
+function bumpSessionCount() {
+  try {
+    const n = Number(localStorage.getItem("ts_session_count") || 0) + 1;
+    localStorage.setItem("ts_session_count", String(n));
+    return n;
+  } catch (_) {
+    return 1;
+  }
+}
+
+function defaultTradeGuidedMode() {
+  try {
+    const stored = localStorage.getItem(TRADE_GUIDED_KEY);
+    if (stored === "full" || stored === "guided") return stored;
+    const positions = state.account?.positions?.length || 0;
+    if (positions > 0) return "full";
+    const visits = Number(localStorage.getItem("ts_session_count") || 0);
+    return visits <= 3 ? "guided" : "full";
+  } catch (_) {
+    return "guided";
+  }
+}
+
+function defaultBillsGuidedMode() {
+  try {
+    const stored = localStorage.getItem(BILLS_GUIDED_KEY);
+    if (stored === "full" || stored === "guided") return stored;
+    const opened = localStorage.getItem("ts_bill_brief_opened");
+    return opened ? "full" : "guided";
+  } catch (_) {
+    return "guided";
+  }
+}
+
+function tradeGuidedMode() {
+  if (state.tradeGuidedMode == null) state.tradeGuidedMode = defaultTradeGuidedMode();
+  return state.tradeGuidedMode;
+}
+
+function billsGuidedMode() {
+  if (state.billsGuidedMode == null) state.billsGuidedMode = defaultBillsGuidedMode();
+  return state.billsGuidedMode;
+}
+
+function persistTradeGuidedMode(mode) {
+  state.tradeGuidedMode = BriefShell.persistMode(TRADE_GUIDED_KEY, mode);
+  state.tradeGuidedStep = 0;
+}
+
+function persistBillsGuidedMode(mode) {
+  state.billsGuidedMode = BriefShell.persistMode(BILLS_GUIDED_KEY, mode);
+  state.billsGuidedStep = 0;
+}
+
+function tradeSymbolUniverse() {
+  return [
+    ...new Set([...marketSymbols(), ...paperPositionSymbols(), ...watchlistRows().map((w) => w.symbol)])
+  ].sort();
+}
+
+function tradeSymbolOptionsHtml(selected) {
+  return tradeSymbolUniverse()
+    .map((sym) => `<option value="${escapeHtml(sym)}"${sym === selected ? " selected" : ""}>${escapeHtml(sym)}</option>`)
+    .join("");
+}
+
+function topMomentumBill() {
+  return policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a))[0] || null;
+}
+
+function syncTradeBillsGuidedChrome() {
+  const tradeToggle = $("#trade-mode-toggle");
+  const billsToggle = $("#bills-mode-toggle");
+  if (tradeToggle) {
+    tradeToggle.innerHTML = BriefShell.modeToggleHtml(tradeGuidedMode(), { full: "Full", guided: "Guided" });
+    BriefShell.bindModeToggle(tradeToggle, TRADE_GUIDED_KEY, (mode) => {
+      persistTradeGuidedMode(mode);
+      renderAccount();
+    }, tradeGuidedMode);
+  }
+  if (billsToggle) {
+    billsToggle.innerHTML = BriefShell.modeToggleHtml(billsGuidedMode(), { full: "Full", guided: "Guided" });
+    BriefShell.bindModeToggle(billsToggle, BILLS_GUIDED_KEY, (mode) => {
+      persistBillsGuidedMode(mode);
+      renderBills();
+    }, billsGuidedMode);
+  }
+}
+
+function buildTradeGuidedSteps() {
+  const account = state.account?.account || {};
+  const cash = money(Number(account.cash || account.buyingPower || 0));
+  const equity = money(Number(account.equity || 0));
+  const positions = state.account?.positions || [];
+  const symbol = state.tradeSymbol;
+  const bill = policyBills().find((item) => (item.affected || []).includes(symbol));
+  const steps = [
+    {
+      id: "account",
+      title: "Paper account",
+      sectionRef: "Simulated cash",
+      html: `
+        <h2 class="bill-step-title">Your paper account</h2>
+        <p class="bill-guided-lede">Every TradeSimple user starts with <strong>$100,000</strong> of simulated cash. Nothing here touches real money or a real brokerage.</p>
+        <div class="trade-guided-account-grid">
+          <div class="trade-guided-account-cell"><span>Liquid cash</span><strong>${cash}</strong></div>
+          <div class="trade-guided-account-cell"><span>Total equity</span><strong>${equity}</strong></div>
+        </div>
+        <p class="dossier-redaction mono">Paper trading only · not investment advice</p>`
+    },
+    {
+      id: "ticker",
+      title: "Pick a ticker",
+      sectionRef: "Symbol search",
+      html: `
+        <h2 class="bill-step-title">Pick a ticker to practice with</h2>
+        <p class="bill-guided-lede">Choose a stock symbol tied to policy signals you are tracking. Quotes fill at the latest simulated price.</p>
+        <form class="trade-guided-form" id="guided-pick-form">
+          <label>Symbol
+            <select id="guided-order-symbol" class="dashboard-guided-highlight">${tradeSymbolOptionsHtml(symbol)}</select>
+          </label>
+        </form>
+        <p class="muted bill-guided-note">Try NVDA, LLY, or a ticker from your watchlist.</p>`
+    },
+    {
+      id: "order",
+      title: "Place an order",
+      sectionRef: "Paper ticket",
+      html: `
+        <h2 class="bill-step-title">Place a paper order</h2>
+        <p class="bill-guided-lede">Pick a side, enter a share quantity, and submit. The fill uses the latest quote in your simulated account.</p>
+        <form class="trade-guided-form" id="guided-order-form">
+          <label>Symbol
+            <select name="symbol" id="guided-order-symbol-ticket">${tradeSymbolOptionsHtml(symbol)}</select>
+          </label>
+          <label>Quantity
+            <input name="qty" id="guided-order-qty" type="number" min="0.0001" step="0.0001" value="1" />
+          </label>
+          <label>Side
+            <select name="side" id="guided-order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select>
+          </label>
+          <button class="button button-primary" type="submit">Place paper order</button>
+        </form>
+        <pre class="order-result" id="guided-order-result">No order submitted yet.</pre>
+        <p class="muted bill-guided-note">This does not send real money or real shares anywhere.</p>`
+    },
+    {
+      id: "position",
+      title: "Your position",
+      sectionRef: "Holdings check",
+      html: `
+        <h2 class="bill-step-title">Your paper position</h2>
+        ${positions.length
+          ? `<p class="bill-guided-lede">You own ${positions.length} simulated ${positions.length === 1 ? "position" : "positions"}. Marks update with live quotes.</p>
+            <div class="table-wrap">
+              <table class="terminal-table terminal-table--positions">
+                <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Value</th><th class="num">P/L</th></tr></thead>
+                <tbody>${positions
+                  .map(
+                    (p) =>
+                      `<tr><td>${escapeHtml(p.symbol)}</td><td class="num">${fmt(p.qty)}</td><td class="num">${money(p.marketValue)}</td><td class="num ${p.unrealizedPnl >= 0 ? "up" : "down"}">${money(p.unrealizedPnl)}</td></tr>`
+                  )
+                  .join("")}</tbody>
+              </table>
+            </div>`
+          : `<div class="guided-empty-state"><strong>No positions yet.</strong> Place a paper buy on the previous step — you still have ${cash} of simulated cash.</div>`}
+        <p class="muted bill-guided-note">Positions are stored in your isolated demo account.</p>`
+    },
+    {
+      id: "cta",
+      title: "Next step",
+      sectionRef: "Continue research",
+      html: `
+        <h2 class="bill-step-title">What to do next</h2>
+        <p class="bill-guided-lede">Connect your paper trade to the policy story — track a thesis or open the bill brief behind this ticker.</p>
+        <div class="bill-guided-cta">
+          <a class="card-button bill-cta-primary" href="/dashboard?view=thesis">Track a thesis</a>
+          ${bill
+            ? `<a class="card-button ghost" href="${escapeHtml(billPageUrl(bill))}">Explore related bill</a>`
+            : `<a class="card-button ghost" href="/dashboard?view=bills">Explore bills</a>`}
+          <button type="button" class="card-button ghost" data-trade-guided-full>Switch to full account view</button>
+        </div>`
+    }
+  ];
+  return steps;
+}
+
+function buildBillsGuidedSteps() {
+  const top = policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a))
+    .slice(0, 2);
+  const leadBill = top[0] || null;
+  const alertHtml = top.length
+    ? `<div class="bill-alert-cards">${top.map((bill) => legisAlertCard(bill, { compact: true })).join("")}</div>`
+    : `<div class="guided-empty-state"><strong>No alerts yet.</strong> High-momentum bills appear here once the policy feed loads.</div>`;
+  return [
+    {
+      id: "tracks",
+      title: "What we track",
+      sectionRef: "Policy to markets",
+      html: `
+        <h2 class="bill-step-title">What TradeSimple tracks</h2>
+        <p class="bill-guided-lede">Congressional bills, lobbying filings, and federal contracts — mapped to publicly traded tickers in plain English, before headlines.</p>
+        <p class="dossier-redaction mono">Research context · not investment advice</p>`
+    },
+    {
+      id: "alerts",
+      title: "Momentum alerts",
+      sectionRef: "High-momentum bills",
+      html: `
+        <h2 class="bill-step-title">High-momentum alerts</h2>
+        <p class="bill-guided-lede">These are the top tracked bills by legislative momentum right now.</p>
+        ${alertHtml}`
+    },
+    {
+      id: "filter",
+      title: "Filter bills",
+      sectionRef: "Sort and search",
+      html: `
+        <h2 class="bill-step-title">How to filter the table</h2>
+        <p class="bill-guided-lede">Use the search box to filter by ticker, title, or issue. Sort by recency or momentum — no interaction required on this step.</p>
+        <div class="bills-guided-filter-hint dashboard-guided-panel">
+          <div class="filter-row dashboard-guided-highlight">
+            <input placeholder="Filter bills by ticker, title, or issue" disabled value="" />
+            <label class="filter-select-wrap">
+              <span class="sr-only">Sort bills</span>
+              <select disabled aria-label="Sort bills"><option>Most recent first</option></select>
+            </label>
+            <button class="button button-secondary compact" type="button" disabled>Clear</button>
+          </div>
+        </div>`
+    },
+    {
+      id: "open",
+      title: "Open a bill",
+      sectionRef: "Guided brief",
+      html: `
+        <h2 class="bill-step-title">Open a bill brief</h2>
+        <p class="bill-guided-lede">${leadBill
+          ? `Start with <strong>${escapeHtml(leadBill.shortTitle || leadBill.title)}</strong> — momentum ${billMomentum(leadBill)}/100. The guided brief walks through status, market impact, and what to watch.`
+          : "Once bills load, open any row to launch the guided public brief."}</p>
+        <div class="bill-guided-cta">
+          ${leadBill
+            ? `<a class="card-button bill-cta-primary" href="${escapeHtml(billPageUrl(leadBill))}">Open ${escapeHtml(billDisplayLabel(leadBill))} brief</a>`
+            : ""}
+          <button type="button" class="card-button ghost" data-bills-guided-full>Switch to full bills table</button>
+        </div>`
+    }
+  ];
+}
+
+function wireTradeGuidedExtras() {
+  const pick = $("#guided-order-symbol");
+  const ticket = $("#guided-order-symbol-ticket");
+  if (pick) {
+    pick.value = state.tradeSymbol;
+    pick.addEventListener("change", () => {
+      state.tradeSymbol = pick.value;
+      if (ticket) ticket.value = pick.value;
+      const main = $("#order-symbol");
+      if (main) main.value = pick.value;
+      loadTradeHistory(state.tradeSymbol, state.tradeRange);
+    });
+  }
+  if (ticket && !ticket.dataset.wired) {
+    ticket.dataset.wired = "1";
+    ticket.value = state.tradeSymbol;
+    ticket.addEventListener("change", () => {
+      state.tradeSymbol = ticket.value;
+      if (pick) pick.value = ticket.value;
+      const main = $("#order-symbol");
+      if (main) main.value = ticket.value;
+    });
+  }
+  const form = $("#guided-order-form");
+  if (form && !form.dataset.wired) {
+    form.dataset.wired = "1";
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const payload = new FormData(form);
+      const result = $("#guided-order-result");
+      if (result) result.textContent = "Submitting paper order...";
+      try {
+        const response = await fetchJson("/api/trading/orders", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            symbol: payload.get("symbol"),
+            qty: payload.get("qty"),
+            side: payload.get("side"),
+            ...(state.pendingThesisId ? { thesisId: state.pendingThesisId } : {})
+          })
+        });
+        state.account = response;
+        if (result) {
+          result.textContent = `${response.order.side.toUpperCase()} ${response.order.qty} ${response.order.symbol} filled at ${money(response.order.price)}.`;
+        }
+        renderAccount();
+      } catch (error) {
+        if (result) result.textContent = "Paper order rejected. Check the symbol and quantity.";
+      }
+    });
+  }
+  document.querySelectorAll("[data-trade-guided-full]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      persistTradeGuidedMode("full");
+      renderAccount();
+    });
+  });
+}
+
+function wireBillsGuidedExtras() {
+  document.querySelectorAll("[data-bills-guided-full]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      persistBillsGuidedMode("full");
+      renderBills();
+    });
+  });
+}
+
+function renderTradeGuided() {
+  const host = $("#trade-guided-root");
+  const full = $("#trade-full-root");
+  if (!host || !full) return;
+  syncTradeBillsGuidedChrome();
+  const fundsPanel = $("#hypothetical-funds-panel");
+  if (tradeGuidedMode() !== "guided") {
+    host.hidden = true;
+    full.hidden = false;
+    if (fundsPanel) fundsPanel.hidden = false;
+    if (tradeGuidedShell) BriefShell.detachWalkthrough(tradeGuidedShell);
+    return;
+  }
+  if (fundsPanel) fundsPanel.hidden = true;
+  host.hidden = false;
+  full.hidden = true;
+  const steps = buildTradeGuidedSteps();
+  if (state.tradeGuidedStep >= steps.length) state.tradeGuidedStep = 0;
+  if (tradeGuidedShell) BriefShell.detachWalkthrough(tradeGuidedShell);
+  tradeGuidedShell = {
+    prefix: "trade",
+    escapeHtml,
+    labels: { full: "Full", guided: "Guided", lastNext: "Done", next: "Continue", back: "← Back" },
+    getMode: () => "guided",
+    getSteps: () => steps,
+    getStepIndex: () => state.tradeGuidedStep,
+    setStepIndex: (i) => {
+      state.tradeGuidedStep = i;
+    },
+    isActive: () => tradeGuidedMode() === "guided" && $("#view-trade")?.classList.contains("active"),
+    onLastStepNext: () => {
+      persistTradeGuidedMode("full");
+      renderAccount();
+    },
+    onStepChange: (index) => {
+      if (index === 2 || index === 3) wireTradeGuidedExtras();
+    }
+  };
+  host.innerHTML = BriefShell.renderGuidedArticle({
+    mode: "guided",
+    steps,
+    stepIndex: state.tradeGuidedStep,
+    prefix: "trade",
+    escapeHtml,
+    shellClass: "bill-guided dashboard-guided-shell",
+    labels: tradeGuidedShell.labels,
+    showModeToggle: false
+  });
+  BriefShell.attachWalkthrough(tradeGuidedShell);
+  wireTradeGuidedExtras();
+}
+
+function renderBillsGuided() {
+  const host = $("#bills-guided-root");
+  const full = $("#bills-full-root");
+  if (!host || !full) return;
+  syncTradeBillsGuidedChrome();
+  if (billsGuidedMode() !== "guided") {
+    host.hidden = true;
+    full.hidden = false;
+    if (billsGuidedShell) BriefShell.detachWalkthrough(billsGuidedShell);
+    return;
+  }
+  host.hidden = false;
+  full.hidden = true;
+  const steps = buildBillsGuidedSteps();
+  if (state.billsGuidedStep >= steps.length) state.billsGuidedStep = 0;
+  if (billsGuidedShell) BriefShell.detachWalkthrough(billsGuidedShell);
+  billsGuidedShell = {
+    prefix: "bills",
+    escapeHtml,
+    labels: { full: "Full", guided: "Guided", lastNext: "Open bill brief", next: "Continue", back: "← Back" },
+    getMode: () => "guided",
+    getSteps: () => steps,
+    getStepIndex: () => state.billsGuidedStep,
+    setStepIndex: (i) => {
+      state.billsGuidedStep = i;
+    },
+    isActive: () => billsGuidedMode() === "guided" && $("#view-bills")?.classList.contains("active"),
+    onLastStepNext: () => {
+      const lead = topMomentumBill();
+      if (lead) window.location.href = billPageUrl(lead);
+      else persistBillsGuidedMode("full");
+      renderBills();
+    }
+  };
+  host.innerHTML = BriefShell.renderGuidedArticle({
+    mode: "guided",
+    steps,
+    stepIndex: state.billsGuidedStep,
+    prefix: "bills",
+    escapeHtml,
+    shellClass: "bill-guided dashboard-guided-shell",
+    labels: billsGuidedShell.labels,
+    showModeToggle: false
+  });
+  BriefShell.attachWalkthrough(billsGuidedShell);
+  wireBillsGuidedExtras();
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   setupThemeToggle();
@@ -1601,6 +2033,7 @@ function setupWaitlistForm() {
 }
 
 async function initDashboard() {
+  bumpSessionCount();
   const params = new URLSearchParams(window.location.search);
   const initialSymbol = String(params.get("symbol") || "").toUpperCase().replace(/[^A-Z.]/g, "");
   if (initialSymbol) state._symbolFromUrl = true;
@@ -1610,6 +2043,8 @@ async function initDashboard() {
   } catch (e) {
     console.warn("[init] trading account prefetch failed", e);
   }
+  state.tradeGuidedMode = defaultTradeGuidedMode();
+  state.billsGuidedMode = defaultBillsGuidedMode();
 
   setupNavigation();
   setupDashboardDrilldowns();
@@ -3181,6 +3616,8 @@ function renderContractDetailPanel(row) {
 }
 
 function renderBills() {
+  renderBillsGuided();
+  if (billsGuidedMode() === "guided") return;
   clearSkeleton("#bill-feed");
   const query = ($("#bill-filter")?.value || "").toLowerCase();
   const bills = policyBills({ includeUnmapped: Boolean(query) }).filter((bill) => {
@@ -3361,6 +3798,8 @@ function renderLobbying() {
 }
 
 function renderAccount() {
+  renderTradeGuided();
+  if (tradeGuidedMode() === "guided") return;
   const account = state.account?.account || {};
   $("#account-grid").innerHTML = [
     ["Liquid cash", money(Number(account.cash || account.buyingPower || 0)), "Available to buy stocks right now"],
@@ -5835,11 +6274,13 @@ function showView(view, updateUrl = true) {
   }
   if (view === "analysis" && isFeatureEnabled("ANALYSIS_LAB_ENABLED") && !state.analysis) loadAnalysis(state.activeAnalysisSymbol);
   if (view === "trade" && !state.tradeHistory) loadTradeHistory(state.tradeSymbol, state.tradeRange);
-  if (view === "trade" && !state.account) {
-    // First data arrival replaces these via renderAccount() innerHTML writes.
-    showSkeleton("#account-grid", 4, "default");
-    showSkeleton("#paper-positions-body", 3, "row");
-    showSkeleton("#paper-orders", 2, "card");
+  if (view === "trade") {
+    if (!state.account) {
+      showSkeleton("#account-grid", 4, "default");
+      showSkeleton("#paper-positions-body", 3, "row");
+      showSkeleton("#paper-orders", 2, "card");
+    }
+    renderAccount();
   }
   if (view === "markets" && isViewEnabled("markets")) {
     if (!state.quotes?.length) {
@@ -5854,6 +6295,7 @@ function showView(view, updateUrl = true) {
   }
   if (view === "bills" && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) {
     if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
+    renderBills();
   }
   if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") && !state.contractsLoadedAt) {
     showSkeleton("#contracts-feed", 4, "card");

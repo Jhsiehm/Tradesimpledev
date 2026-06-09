@@ -20,6 +20,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/styles.css?v=redesign-polish-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
+    <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=launch-gates-1" />
   </head>
   <body data-page="dashboard">
@@ -598,8 +600,13 @@
               <h1>Bills</h1>
               <p>Intro dates, committee gates, last action, and vote timing — plus momentum, lobbying, and tickers.</p>
             </div>
-            <span class="status-pill" id="bill-source">Connecting</span>
+            <div class="page-header-actions">
+              <div id="bills-mode-toggle" aria-label="Bills view mode"></div>
+              <span class="status-pill" id="bill-source">Connecting</span>
+            </div>
           </div>
+          <div id="bills-guided-root" class="dashboard-guided-host" hidden></div>
+          <div id="bills-full-root">
           <div class="filter-row">
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
             <label class="filter-select-wrap">
@@ -655,6 +662,7 @@
             </div>
             <div id="bill-stakeholders" class="stakeholder-side"></div>
           </aside>
+          </div>
         </section>
 
         <section class="view terminal-view" id="view-lobbying">
@@ -1219,9 +1227,14 @@
               <h1>Account</h1>
               <p>Holdings, orders, cash balance, and audit log in one place. Every signed-in user starts with $100,000 of simulated cash.</p>
             </div>
-            <span class="status-pill" id="account-source">Loading</span>
+            <div class="page-header-actions">
+              <div id="trade-mode-toggle" aria-label="Trade view mode"></div>
+              <span class="status-pill" id="account-source">Loading</span>
+            </div>
           </div>
 
+          <div id="trade-guided-root" class="dashboard-guided-host" hidden></div>
+          <div id="trade-full-root">
           <div class="overview-metrics-strip account-metrics-strip" id="account-grid" role="list" aria-label="Account metrics"></div>
 
           <div class="trade-workspace">
@@ -1311,6 +1324,8 @@
               </div>
               <div id="paper-orders" class="paper-orders"></div>
             </section>
+          </div>
+
           </div>
 
           <section class="panel funds-panel mt" id="hypothetical-funds-panel">
@@ -1689,7 +1704,8 @@
     </div>
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
-    <script src="/assets/app.js?v=mobile-ux-1" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
+    <script src="/assets/app.js?v=guided-dash-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {

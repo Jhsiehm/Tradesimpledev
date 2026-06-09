@@ -104,7 +104,8 @@
       metaHtml = "",
       footerHtml = "",
       shellClass = "bill-guided stock-card-shell",
-      labels = {}
+      labels = {},
+      showModeToggle = true
     } = opts;
     const esc = escapeHtml || ((v) => String(v ?? ""));
     const total = steps.length;
@@ -116,10 +117,9 @@
     return `
       <article class="${shellClass}" data-brief-shell="${esc(prefix)}">
         ${classifyHtml}
-        <header class="bill-guided-top">
-          ${modeToggleHtml(mode, labels)}
-          ${headerHtml}
-        </header>
+        ${showModeToggle || headerHtml
+          ? `<header class="bill-guided-top">${showModeToggle ? modeToggleHtml(mode, labels) : ""}${headerHtml}</header>`
+          : ""}
         ${metaHtml}
         <div class="bill-guided-bar">
           <nav class="bill-step-toc-wrap" aria-label="Brief steps">

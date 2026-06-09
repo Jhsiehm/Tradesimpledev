@@ -1,5 +1,10 @@
 /* Dashboard guided views — extends dossier walkthrough tokens from bill-card.css */
 
+#view-trade:has(#trade-guided-root:not([hidden])) #trade-full-root,
+#view-bills:has(#bills-guided-root:not([hidden])) #bills-full-root {
+  display: none;
+}
+
 .dashboard-guided-host {
   margin-bottom: 1.5rem;
 }
