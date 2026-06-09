@@ -581,9 +581,13 @@ const METHODOLOGY = {
 };
 
 const MARKET_FALLBACK = {
-  NVDA: { symbol: "NVDA", price: 132.4, change: 1.85, pct: 1.42, high: 148.2, low: 102.6, open: 130.55 },
+  NVDA: { symbol: "NVDA", price: 208.19, change: 2.95, pct: 1.42, high: 212.0, low: 202.0, open: 205.2 },
   AAPL: { symbol: "AAPL", price: 228.6, change: -0.92, pct: -0.4, high: 235.0, low: 218.4, open: 229.5 },
-  LLY: { symbol: "LLY", price: 718.2, change: 6.4, pct: 0.9, high: 742.0, low: 682.0, open: 712.1 },
+  LLY: { symbol: "LLY", price: 796.6, change: 8.6, pct: 1.09, high: 810.0, low: 772.0, open: 788.0 },
+  GME: { symbol: "GME", price: 24.8, change: 5.5, pct: 28.4, high: 26.0, low: 19.0, open: 19.3 },
+  RTX: { symbol: "RTX", price: 112.84, change: -0.35, pct: -0.31, high: 114.5, low: 111.0, open: 113.2 },
+  PLTR: { symbol: "PLTR", price: 132.07, change: 5.3, pct: 4.18, high: 134.0, low: 126.0, open: 126.8 },
+  NOC: { symbol: "NOC", price: 498.3, change: 4.5, pct: 0.92, high: 502.0, low: 490.0, open: 493.8 },
   TSLA: { symbol: "TSLA", price: 285.3, change: 3.1, pct: 1.1, high: 298.0, low: 258.0, open: 282.4 },
   AMZN: { symbol: "AMZN", price: 212.8, change: 2.05, pct: 0.98, high: 218.0, low: 204.0, open: 210.9 },
   MSFT: { symbol: "MSFT", price: 468.2, change: 1.42, pct: 0.31, high: 472.0, low: 452.0, open: 466.8 },
@@ -3434,23 +3438,48 @@ async function autoRecordSignalPredictions() {
   }
 }
 
+function landingQuoteFromFallback(symbol) {
+  const row = enrichStaticQuote(MARKET_FALLBACK[symbol]);
+  if (!row) return null;
+  return { symbol, price: row.price, changePercent: row.changePercent ?? row.pct, source: "fallback_static" };
+}
+
+async function landingQuoteForSymbol(symbol, timeoutMs = 4500) {
+  try {
+    const result = await Promise.race([
+      quoteSnapshot(symbol),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("landing_quote_timeout")), timeoutMs))
+    ]);
+    if (result?.quote) {
+      return { symbol, price: result.quote.price, changePercent: result.quote.changePercent, source: result.quote.source };
+    }
+  } catch {
+    /* fall through to static fallback */
+  }
+  return landingQuoteFromFallback(symbol);
+}
+
 async function landingQuotesHandler(res) {
   const now = Date.now();
   if (landingQuotesCache && now - landingQuotesCachedAt < LANDING_QUOTES_TTL_MS) {
     return sendJson(res, 200, landingQuotesCache);
   }
   try {
-    const quotes = await Promise.all(
-      LANDING_QUOTES_TICKERS.map(async (symbol) => {
-        const result = await quoteSnapshot(symbol);
-        return result.quote ? { symbol, price: result.quote.price, changePercent: result.quote.changePercent, source: result.quote.source } : null;
-      })
-    );
-    landingQuotesCache = { quotes: quotes.filter(Boolean), updatedAt: new Date().toISOString() };
-    landingQuotesCachedAt = now;
-    return sendJson(res, 200, landingQuotesCache);
+    const quotes = (
+      await Promise.all(LANDING_QUOTES_TICKERS.map((symbol) => landingQuoteForSymbol(symbol)))
+    ).filter(Boolean);
+    const payload = { quotes, updatedAt: new Date().toISOString() };
+    if (quotes.length) {
+      landingQuotesCache = payload;
+      landingQuotesCachedAt = now;
+    }
+    return sendJson(res, 200, payload);
   } catch {
-    return sendJson(res, 200, { quotes: [], updatedAt: new Date().toISOString() });
+    if (landingQuotesCache) {
+      return sendJson(res, 200, { ...landingQuotesCache, stale: true });
+    }
+    const quotes = LANDING_QUOTES_TICKERS.map((symbol) => landingQuoteFromFallback(symbol)).filter(Boolean);
+    return sendJson(res, 200, { quotes, updatedAt: new Date().toISOString(), fallback: true });
   }
 }
 
@@ -3693,16 +3722,18 @@ async function fetchCongressBillById(billIdRaw) {
   const ref = parseBillIdToCongressRef(billId);
   if (!ref) return null;
 
+  const key = process.env.CONGRESS_API_KEY;
   const diskOverlay = await readCongressCache(billId);
   if (diskOverlay) {
-    congressLiveCache.set(billId, diskOverlay);
+    const hydrated = await hydrateCongressOverlayWithActions(diskOverlay, billId, key);
+    congressLiveCache.set(billId, hydrated);
     adHocCongressFetchedAt.set(billId, Date.now());
-    const fromDisk = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, diskOverlay)));
+    if (hydrated !== diskOverlay) void writeCongressCache(billId, hydrated);
+    const fromDisk = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, hydrated)));
     liveCongressBillRegistry.set(billId, fromDisk);
     return fromDisk;
   }
 
-  const key = process.env.CONGRESS_API_KEY;
   if (!key) return null;
 
   if (congressBillFetchInflight.has(billId)) {
@@ -3730,9 +3761,35 @@ async function fetchCongressBillById(billIdRaw) {
 }
 
 async function resolvePolicyBillAsync(billIdRaw) {
-  const sync = resolvePolicyBill(billIdRaw);
-  if (sync) return sync;
-  return fetchCongressBillById(billIdRaw);
+  const billId = resolveBillIdCanonical(billIdRaw);
+  if (!billId) return null;
+  let bill = resolvePolicyBill(billIdRaw);
+  if (!bill) bill = await fetchCongressBillById(billIdRaw);
+  if (!bill) return null;
+
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key || !congressRefForBill(bill)) return bill;
+
+  const cached = congressLiveCache.get(billId) || {
+    latestAction: bill.latestAction,
+    latestActionDate: bill.latestActionDate,
+    status: bill.status,
+    title: bill.title,
+    introducedDate: bill.introducedDate,
+    policyArea: bill.policyArea,
+    committees: bill.committees,
+    sponsor: bill.sponsor
+  };
+  if ((cached.actions || cached._congressActions || []).length) return bill;
+
+  const hydrated = await hydrateCongressOverlayWithActions(cached, billId, key);
+  if (!(hydrated.actions || hydrated._congressActions || []).length) return bill;
+
+  congressLiveCache.set(billId, hydrated);
+  void writeCongressCache(billId, hydrated);
+  const merged = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, hydrated)));
+  liveCongressBillRegistry.set(billId, merged);
+  return merged;
 }
 
 function checkBriefAiRateLimit(clientKey) {
@@ -7067,18 +7124,34 @@ function pickSubstantiveCongressAction(actions = [], fallbackText = "") {
   const sorted = [...(actions || [])].sort(
     (a, b) => new Date(b.actionDate || 0).getTime() - new Date(a.actionDate || 0).getTime()
   );
-  const substantive = (text) =>
-    /passed|agreed to|became public law|signed|resolving|conference|rules committee|calendar|floor|reported|markup|hearing|veto|failed|presented to president|to president/i.test(
-      text
-    );
-  for (const row of sorted) {
+  const cleanRow = (row) => {
     const text = String(row.text || row.actionText || "").trim();
-    if (!text || PROCEDURAL_CONGRESS_ACTION.test(text)) continue;
-    if (substantive(text)) return { text, actionDate: row.actionDate || row.date || null };
+    if (!text || PROCEDURAL_CONGRESS_ACTION.test(text)) return null;
+    return { text, actionDate: row.actionDate || row.date || null };
+  };
+  const isPassageAction = (text) =>
+    /passed\s+(house|senate)/i.test(text) ||
+    /agreed to in (the )?(house|senate)/i.test(text) ||
+    (/on passage/i.test(text) && /\bpassed\b/i.test(text)) ||
+    (/motion to reconsider/i.test(text) && /(laid on the table|table)/i.test(text)) ||
+    (/\bpassed\b/i.test(text) && !/committee/i.test(text) && /yeas and nays|roll call|without amendment/i.test(text));
+  const tierMatchers = [
+    (text) => /became public law|signed by president|signed into law|presented to president|to president/i.test(text),
+    isPassageAction,
+    (text) => /conference|resolving differences/i.test(text),
+    (text) => /rules committee|provides for consideration|floor|calendar/i.test(text),
+    (text) =>
+      /passed|agreed to|reported|markup|hearing|veto|failed/i.test(text)
+  ];
+  for (const match of tierMatchers) {
+    for (const row of sorted) {
+      const item = cleanRow(row);
+      if (item && match(item.text)) return item;
+    }
   }
   for (const row of sorted) {
-    const text = String(row.text || row.actionText || "").trim();
-    if (text && !PROCEDURAL_CONGRESS_ACTION.test(text)) return { text, actionDate: row.actionDate || row.date || null };
+    const item = cleanRow(row);
+    if (item) return item;
   }
   return fallbackText ? { text: fallbackText, actionDate: null } : null;
 }
@@ -7195,6 +7268,28 @@ function mapCongressBillDetailToOverlay(b, ref, committees = [], actions = []) {
     sponsor: sp
       ? { name: sp.fullName || sp.lastName || "", party: sp.party || "U", state: sp.state || "" }
       : null
+  };
+}
+
+async function hydrateCongressOverlayWithActions(overlay, billId, key) {
+  if (!overlay || !key) return overlay;
+  if ((overlay.actions || overlay._congressActions || []).length) return overlay;
+  const ref = parseBillIdToCongressRef(billId);
+  if (!ref) return overlay;
+  const baseUrl = `https://api.congress.gov/v3/bill/${ref.congress}/${ref.type}/${ref.number}`;
+  const qs = `format=json&api_key=${encodeURIComponent(key)}`;
+  const actions = await fetchCongressBillActions(baseUrl, qs);
+  if (!actions.length) return overlay;
+  const stage = parseBillStageFromAction(overlay.latestAction, actions, overlay);
+  return {
+    ...overlay,
+    actions,
+    _congressActions: actions,
+    latestAction: stage.latestAction || overlay.latestAction,
+    latestActionDate: stage.latestActionDate || overlay.latestActionDate,
+    lastSubstantiveActionDate: stage.lastSubstantiveActionDate || overlay.lastSubstantiveActionDate,
+    status: coarseBillStatusFromStageKey(stage.statusKey, overlay.status),
+    floorScheduled: stage.floorScheduled
   };
 }
 

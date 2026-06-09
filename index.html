@@ -572,19 +572,19 @@ footer nav a:hover{color:var(--text)}
       <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$22.61</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$891.20</strong> <em class="up">+2.41%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$189.45</strong> <em class="down">-0.83%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$22.61</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$891.20</strong> <em class="up">+2.41%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$189.45</strong> <em class="down">-0.83%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
     </div>
   </div>
@@ -666,16 +666,16 @@ footer nav a:hover{color:var(--text)}
                   <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
                 </div>
                 <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
-                  <strong>NVDA</strong><span>NVIDIA Corp</span><span>$891.20</span><em class="up">+2.41%</em><b>CHIPS</b>
+                  <strong>NVDA</strong><span>NVIDIA Corp</span><span>$208.19</span><em class="up">+1.42%</em><b>CHIPS</b>
                 </button>
                 <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
                   <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
                 </button>
                 <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
-                  <strong>AAPL</strong><span>Apple Inc</span><span>$189.45</span><em class="down">-0.83%</em><b class="tag-blue">Antitrust</b>
+                  <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
                 </button>
                 <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
-                  <strong>PLTR</strong><span>Palantir</span><span>$22.61</span><em class="up">+4.18%</em><b>Contract</b>
+                  <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
                 </button>
               </div>
               <div class="terminal-signal" id="terminal-signal-panel">
@@ -1098,6 +1098,8 @@ function hydrateLandingTicker(){
     .catch(function(){return null})
     .then(function(data){
       if(!data||!data.quotes||!data.quotes.length)return;
+      window.__tsLandingQuotes=data.quotes;
+      document.dispatchEvent(new CustomEvent('ts-landing-quotes',{detail:{quotes:data.quotes}}));
       var map={};
       data.quotes.forEach(function(q){map[q.symbol]=q;});
       // Ticker tape items (both sets, deduped for animation)

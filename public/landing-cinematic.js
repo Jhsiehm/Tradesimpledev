@@ -3,8 +3,8 @@
 
   var TERMINAL_PRESETS = {
     NVDA: {
-      price: "$891.20",
-      pct: "+2.41%",
+      price: "$208.19",
+      pct: "+1.42%",
       pctClass: "up",
       tag: "CHIPS",
       tagDetail: "Policy tag: CHIPS — semiconductor manufacturing appropriations",
@@ -26,8 +26,8 @@
       confidence: 71,
     },
     AAPL: {
-      price: "$189.45",
-      pct: "-0.83%",
+      price: "$228.60",
+      pct: "-0.40%",
       pctClass: "down",
       tag: "Antitrust",
       tagClass: "tag-blue",
@@ -38,7 +38,7 @@
       confidence: 54,
     },
     PLTR: {
-      price: "$22.61",
+      price: "$132.07",
       pct: "+4.18%",
       pctClass: "up",
       tag: "Contract",
@@ -717,6 +717,85 @@
       confidenceFill.classList.add("animate-fill");
     }
 
+    function formatLandingPrice(value) {
+      return "$" + Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatLandingPct(value) {
+      var pct = Number(value || 0);
+      return (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
+    }
+
+    function applyLandingQuotePrices(quotes) {
+      if (!quotes || !quotes.length) return;
+      var map = {};
+      quotes.forEach(function (q) {
+        map[q.symbol] = q;
+      });
+      TICKER_ORDER.forEach(function (sym) {
+        var q = map[sym];
+        if (!q || q.price == null || !TERMINAL_PRESETS[sym]) return;
+        TERMINAL_PRESETS[sym].price = formatLandingPrice(q.price);
+        var pct = Number(q.changePercent || 0);
+        TERMINAL_PRESETS[sym].pct = formatLandingPct(pct);
+        TERMINAL_PRESETS[sym].pctClass = pct >= 0 ? "up" : "down";
+      });
+      qsa(".ts-ticker-item[data-ticker]").forEach(function (btn) {
+        var q = map[btn.getAttribute("data-ticker")];
+        if (!q || q.price == null) return;
+        var strong = btn.querySelector("strong");
+        var em = btn.querySelector("em");
+        if (strong) strong.textContent = formatLandingPrice(q.price);
+        if (em) {
+          var pct = Number(q.changePercent || 0);
+          em.textContent = formatLandingPct(pct);
+          em.className = pct >= 0 ? "up" : "down";
+        }
+      });
+      qsa(".terminal-row[data-ticker]").forEach(function (btn) {
+        var q = map[btn.getAttribute("data-ticker")];
+        if (!q || q.price == null) return;
+        var spans = btn.querySelectorAll("span");
+        var em = btn.querySelector("em");
+        if (spans[1]) spans[1].textContent = formatLandingPrice(q.price);
+        if (em) {
+          var pct = Number(q.changePercent || 0);
+          em.textContent = formatLandingPct(pct);
+          em.className = pct >= 0 ? "up" : "down";
+        }
+      });
+    }
+
+    function fetchLandingQuotes(callback) {
+      if (window.__tsLandingQuotes) {
+        applyLandingQuotePrices(window.__tsLandingQuotes);
+        if (callback) callback(window.__tsLandingQuotes);
+        return;
+      }
+      var url =
+        typeof tsApiUrl === "function"
+          ? tsApiUrl("/api/landing-quotes")
+          : "/api/landing-quotes";
+      fetch(url)
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .catch(function () {
+          return null;
+        })
+        .then(function (data) {
+          if (data && data.quotes && data.quotes.length) {
+            window.__tsLandingQuotes = data.quotes;
+            applyLandingQuotePrices(data.quotes);
+          }
+          if (callback) callback(data && data.quotes);
+        });
+    }
+
+    document.addEventListener("ts-landing-quotes", function (e) {
+      if (e.detail && e.detail.quotes) applyLandingQuotePrices(e.detail.quotes);
+    });
+
     function applyTerminalPreset(ticker, animate) {
       var preset = TERMINAL_PRESETS[ticker];
       if (!preset) return;
@@ -819,11 +898,13 @@
       row.addEventListener("focus", stopAutoCycle);
     });
 
-    selectTerminalRow("NVDA", false);
-    if (!prefersReducedMotion && chainEl) {
-      setChainText(TERMINAL_PRESETS.NVDA.chain, true);
-    }
-    if (!prefersReducedMotion) startAutoCycle();
+    fetchLandingQuotes(function () {
+      selectTerminalRow("NVDA", false);
+      if (!prefersReducedMotion && chainEl) {
+        setChainText(TERMINAL_PRESETS.NVDA.chain, true);
+      }
+      if (!prefersReducedMotion) startAutoCycle();
+    });
 
     /* ── Ticker tape clicks ── */
     qsa(".ts-ticker-item[data-ticker]").forEach(function (item) {
