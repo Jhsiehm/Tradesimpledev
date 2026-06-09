@@ -105,6 +105,7 @@ button { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .public-brand {
@@ -824,6 +825,15 @@ button { font: inherit; color: inherit; }
     grid-template-columns: 1fr;
   }
 
+  .public-nav-actions .bill-mode-toggle {
+    width: 100%;
+  }
+
+  .public-nav-actions .bill-mode-btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
   .hero-grid,
   .main-explainer,
   .score-row,
@@ -840,6 +850,10 @@ button { font: inherit; color: inherit; }
     margin-right: 14px;
   }
 
+  .reader-strip {
+    grid-template-columns: 1fr;
+  }
+
   .score-row {
     grid-template-columns: 1fr;
   }
@@ -853,5 +867,64 @@ button { font: inherit; color: inherit; }
     max-width: none;
     margin-top: 6px;
     text-align: left;
+  }
+
+  #stock-card-root > .bill-guided {
+    padding: 1.1rem 0.85rem 3.5rem;
+  }
+
+  .memo-card .dossier-classify {
+    margin: 0 14px 1rem;
+  }
+}
+
+@media (max-width: 375px) {
+  .public-shell {
+    width: calc(100% - 16px);
+  }
+
+  .ticker-row h1 {
+    font-size: clamp(44px, 14vw, 72px);
+  }
+
+  .hero-lede {
+    font-size: clamp(18px, 5.5vw, 26px);
+  }
+
+  .reader-strip button,
+  .card-button,
+  .nav-link,
+  .nav-button {
+    min-height: 44px;
+  }
+
+  .main-explainer article,
+  .risk-card,
+  .section-card,
+  .chain-card,
+  .stock-guided-score-card {
+    background: var(--panel);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+
+  .main-explainer article p,
+  .main-explainer article li,
+  .risk-card p,
+  .section-card p {
+    color: var(--muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-strip button,
+  .bill-step,
+  .bill-mode-btn,
+  .bill-step-toc button,
+  .bill-step-viewport.is-leaving .bill-step,
+  .bill-step-viewport.is-entering .bill-step {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
   }
 }

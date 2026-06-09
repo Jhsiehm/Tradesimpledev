@@ -1,0 +1,122 @@
+/* Dashboard guided views — extends dossier walkthrough tokens from bill-card.css */
+
+.dashboard-guided-host {
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-guided-host .bill-guided {
+  min-height: auto;
+}
+
+.dashboard-guided-host .bill-step-viewport {
+  min-height: 12rem;
+}
+
+.dashboard-guided-host .bill-guided-top {
+  margin-bottom: 0.75rem;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.page-header-actions .bill-mode-toggle {
+  flex-shrink: 0;
+}
+
+.dashboard-guided-panel {
+  border: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+  background: color-mix(in srgb, var(--panel, #101210) 88%, transparent);
+  padding: 1.25rem 1.35rem;
+  margin: 1rem 0;
+}
+
+.dashboard-guided-highlight {
+  outline: 2px solid var(--green, #c8ff00);
+  outline-offset: 3px;
+}
+
+.trade-guided-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.trade-guided-account-cell {
+  border: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+  padding: 0.85rem 1rem;
+}
+
+.trade-guided-account-cell span {
+  display: block;
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 0.35rem;
+}
+
+.trade-guided-account-cell strong {
+  font-size: 1.15rem;
+}
+
+.trade-guided-form {
+  display: grid;
+  gap: 0.85rem;
+  max-width: 22rem;
+  margin-top: 1rem;
+}
+
+.trade-guided-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.trade-guided-form input,
+.trade-guided-form select {
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  font-size: 1rem;
+}
+
+.trade-guided-form .button {
+  min-height: 44px;
+}
+
+.bills-guided-filter-hint {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.bills-guided-filter-hint .filter-row {
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+@media (max-width: 480px) {
+  .dashboard-guided-host .bill-step {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .dashboard-guided-host .bill-step-controls {
+    gap: 0.5rem;
+  }
+
+  .dashboard-guided-host .dossier-nav-btn,
+  .dashboard-guided-host .bill-step-controls .card-button {
+    min-height: 44px;
+    flex: 1;
+  }
+
+  .page-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

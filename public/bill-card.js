@@ -30,18 +30,11 @@ function storedTheme() {
 }
 
 function storedBriefMode() {
-  try {
-    const stored = localStorage.getItem(BRIEF_MODE_KEY);
-    if (stored === "full" || stored === "guided") return stored;
-  } catch (_) {}
-  return "guided";
+  return BriefShell.storedMode(BRIEF_MODE_KEY, "guided");
 }
 
 function persistBriefMode(mode) {
-  state.mode = mode === "full" ? "full" : "guided";
-  try {
-    localStorage.setItem(BRIEF_MODE_KEY, state.mode);
-  } catch (_) {}
+  state.mode = BriefShell.persistMode(BRIEF_MODE_KEY, mode);
 }
 
 function applyTheme(theme) {
@@ -54,6 +47,9 @@ function applyTheme(theme) {
 }
 
 async function loadBillCard() {
+  try {
+    localStorage.setItem("ts_bill_brief_opened", "1");
+  } catch (_) {}
   const root = document.getElementById("bill-card-root");
   if (!state.billId) {
     root.innerHTML = errorSection("Missing bill id", "Open a bill from the dashboard Bills tab.");
@@ -72,15 +68,43 @@ async function loadBillCard() {
   }
 }
 
+let billBriefShell = null;
+
 function renderApp() {
   const root = document.getElementById("bill-card-root");
   const data = state.data;
+  state.steps = buildSteps(data);
+  if (state.stepIndex >= state.steps.length) state.stepIndex = 0;
+  if (billBriefShell) BriefShell.detachWalkthrough(billBriefShell);
+  billBriefShell = {
+    prefix: "bill",
+    storageKey: BRIEF_MODE_KEY,
+    labels: {
+      full: "Full brief",
+      lastNext: "Open the dashboard",
+      next: "Continue",
+      back: "← Back"
+    },
+    escapeHtml,
+    getMode: () => state.mode,
+    setMode: (m) => {
+      persistBriefMode(m);
+    },
+    getSteps: () => state.steps,
+    getStepIndex: () => state.stepIndex,
+    setStepIndex: (i) => {
+      state.stepIndex = i;
+    },
+    isActive: () => state.mode === "guided",
+    onLastStepNext: () => {
+      window.location.href = `/dashboard?view=bills&bill=${encodeURIComponent(state.billId)}`;
+    },
+    ctx: data
+  };
   if (state.mode === "guided") {
-    state.steps = buildSteps(data);
-    if (state.stepIndex >= state.steps.length) state.stepIndex = 0;
     root.innerHTML = renderGuided(data);
     bindSharedControls(data);
-    bindGuidedControls();
+    BriefShell.attachWalkthrough(billBriefShell);
   } else {
     root.innerHTML = renderFullBrief(data);
     bindSharedControls(data);
@@ -118,11 +142,7 @@ function bindSharedControls(data) {
 }
 
 function modeToggleHtml() {
-  return `
-    <div class="bill-mode-toggle" role="group" aria-label="Brief view mode">
-      <button type="button" data-brief-mode="guided" class="bill-mode-btn${state.mode === "guided" ? " is-active" : ""}" aria-pressed="${state.mode === "guided"}">Guided</button>
-      <button type="button" data-brief-mode="full" class="bill-mode-btn${state.mode === "full" ? " is-active" : ""}" aria-pressed="${state.mode === "full"}">Full brief</button>
-    </div>`;
+  return BriefShell.modeToggleHtml(state.mode, { full: "Full brief" });
 }
 
 function heroActionsHtml() {
@@ -278,9 +298,13 @@ function stageTrackerHtml(stagePath, activeKey) {
 
 function stepMarketHtml(bill, breakdown, data) {
   const momentum = breakdown.legislativeMomentum?.score ?? bill.legislativeMomentum ?? "—";
-  const confidence = breakdown.billSignalConfidence?.label || bill.signalConfidence || "—";
+  const signalConf = breakdown.billSignalConfidence?.label || bill.signalConfidence || "—";
+  const exposureConf = data.exposureConfidence || bill.exposureConfidence || null;
   const catalyst = bill.catalyst || {};
   const tickers = (data.relatedTickers || bill.affected || []).slice(0, 12);
+  const exposureNote = exposureConf
+    ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Exposure confidence</span><p><strong>${escapeHtml(exposureConf)}</strong> <span class="muted">· rules-based ticker mapping${exposureConf === "low" ? " (illustrative)" : ""}</span></p></div>`
+    : "";
   return `
     <h2 class="bill-step-title">Why it matters for markets</h2>
     ${catalyst.label
@@ -290,12 +314,14 @@ function stepMarketHtml(bill, breakdown, data) {
         : ""}
     <div class="bill-guided-scores">
       <div><span class="score-label">Momentum</span><strong class="mono">${escapeHtml(String(momentum))}/100</strong></div>
-      <div><span class="score-label">Signal confidence</span><strong>${escapeHtml(confidence)}</strong></div>
+      <div><span class="score-label">Signal confidence</span><strong>${escapeHtml(signalConf)}</strong></div>
     </div>
+    ${exposureNote}
     ${tickers.length
       ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Related tickers</span>
-        <div class="bill-ticker-row">${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}</div></div>`
-      : ""}`;
+        <div class="bill-ticker-row">${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(typeof t === "string" ? t : t.symbol || t)}">${escapeHtml(typeof t === "string" ? t : t.symbol || t)}</a>`).join("")}</div></div>`
+      : `<p class="muted bill-guided-note">No ticker mapping yet — monitor sector headlines and committee action.</p>`}
+    <p class="dossier-redaction mono">Illustrative model — not investment advice</p>`;
 }
 
 function stepScenariosHtml(data, bill) {
@@ -320,7 +346,7 @@ function scenarioCardHtml(title, rows, tone) {
         ${rows
           .map(
             (row) =>
-              `<li><span class="mono">${escapeHtml(row.symbol || row.ticker || "")}</span> ${escapeHtml(row.headline || row.label || "")} <span class="muted">${escapeHtml(row.range || row.impact || "")}</span></li>`
+              `<li><span class="mono">${escapeHtml(row.symbol || row.sym || row.ticker || "")}</span> ${escapeHtml(row.headline || row.label || row.why || "")} <span class="muted">${escapeHtml(row.range || row.impact || "")}</span></li>`
           )
           .join("")}
       </ul>
@@ -367,157 +393,22 @@ function stepNextHtml(bill, status, leg) {
 
 function renderGuided(data) {
   const bill = data.bill || {};
-  return `
-    <article class="bill-guided stock-card-shell">
-      ${classifyBarHtml(bill)}
-      <header class="bill-guided-top">
-        ${modeToggleHtml()}
-        ${heroActionsHtml()}
-      </header>
-      ${dossierMetaHtml(data)}
-      <div class="bill-guided-bar">
-        <nav class="bill-step-toc-wrap" aria-label="Brief steps">
-          <ol class="bill-step-toc" id="bill-step-toc">
-            ${state.steps
-              .map(
-                (s, i) => `<li><button type="button" data-goto-step="${i}" class="${i === state.stepIndex ? "is-current" : ""}${i < state.stepIndex ? " is-done" : ""}" aria-current="${i === state.stepIndex ? "step" : "false"}">
-                  <span class="bill-step-num mono">${String(i + 1).padStart(2, "0")}</span><span class="bill-step-name">${escapeHtml(s.short)}</span>
-                </button></li>`
-              )
-              .join("")}
-          </ol>
-        </nav>
-        <span class="bill-step-count mono" id="bill-step-count" aria-live="polite">Step ${state.stepIndex + 1} of ${state.steps.length}</span>
-      </div>
-      <section class="bill-step-viewport" id="bill-step-viewport" tabindex="0" aria-label="Current step">
-        ${stepInnerHtml(state.stepIndex)}
-      </section>
-      <div class="bill-step-controls">
-        <button type="button" class="card-button ghost dossier-nav-btn" id="bill-step-back">&larr; Back</button>
-        <button type="button" class="card-button bill-next-btn dossier-nav-btn" id="bill-step-next">Continue &rarr;</button>
-      </div>
+  const steps = state.steps.map((s) => ({ ...s, title: s.short, sectionRef: s.ref }));
+  return BriefShell.renderGuidedArticle({
+    mode: state.mode,
+    steps,
+    stepIndex: state.stepIndex,
+    prefix: "bill",
+    escapeHtml,
+    classifyHtml: classifyBarHtml(bill),
+    headerHtml: heroActionsHtml(),
+    metaHtml: dossierMetaHtml(data),
+    footerHtml: `
       <footer class="bill-guided-footer mono">
         <p>${escapeHtml((data.share?.disclaimer || data.methodologyDisclaimer || "").toUpperCase())}</p>
         <p class="bill-updated">END OF BRIEF&ensp;//&ensp;${escapeHtml((bill.displayId || bill.id || state.billId).toUpperCase())}&ensp;//&ensp;UPDATED ${escapeHtml(freshnessText(data.updatedAt).toUpperCase())}</p>
-      </footer>
-    </article>`;
-}
-
-function stepInnerHtml(index) {
-  const step = state.steps[index];
-  if (!step) return "";
-  const total = state.steps.length;
-  return `
-    <div class="bill-step" data-step-id="${escapeHtml(step.id)}">
-      <p class="bill-step-ref mono">SECTION ${String(index + 1).padStart(2, "0")} / ${String(total).padStart(2, "0")}&ensp;&mdash;&ensp;${escapeHtml(step.ref.toUpperCase())}</p>
-      ${step.html}
-    </div>`;
-}
-
-function bindGuidedControls() {
-  const viewport = document.getElementById("bill-step-viewport");
-  const back = document.getElementById("bill-step-back");
-  const next = document.getElementById("bill-step-next");
-  if (!viewport || !back || !next) return;
-
-  back.addEventListener("click", () => goToStep(state.stepIndex - 1, -1));
-  next.addEventListener("click", () => {
-    if (state.stepIndex >= state.steps.length - 1) {
-      window.location.href = `/dashboard?view=bills&bill=${encodeURIComponent(state.billId)}`;
-      return;
-    }
-    goToStep(state.stepIndex + 1, 1);
-  });
-  document.querySelectorAll("[data-goto-step]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = Number(btn.dataset.gotoStep);
-      if (Number.isFinite(target)) goToStep(target, target > state.stepIndex ? 1 : -1);
-    });
-  });
-
-  document.addEventListener("keydown", onGuidedKeydown);
-
-  let touchX = null;
-  let touchY = null;
-  viewport.addEventListener(
-    "touchstart",
-    (e) => {
-      touchX = e.touches[0]?.clientX ?? null;
-      touchY = e.touches[0]?.clientY ?? null;
-    },
-    { passive: true }
-  );
-  viewport.addEventListener(
-    "touchend",
-    (e) => {
-      if (touchX == null || touchY == null) return;
-      const dx = (e.changedTouches[0]?.clientX ?? touchX) - touchX;
-      const dy = (e.changedTouches[0]?.clientY ?? touchY) - touchY;
-      touchX = null;
-      touchY = null;
-      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-      goToStep(state.stepIndex + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
-    },
-    { passive: true }
-  );
-
-  syncGuidedControls();
-}
-
-function onGuidedKeydown(e) {
-  if (state.mode !== "guided") return;
-  const tag = (e.target?.tagName || "").toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select") return;
-  if (e.key === "ArrowRight") {
-    e.preventDefault();
-    goToStep(state.stepIndex + 1, 1);
-  } else if (e.key === "ArrowLeft") {
-    e.preventDefault();
-    goToStep(state.stepIndex - 1, -1);
-  }
-}
-
-function goToStep(index, dir) {
-  if (index < 0 || index >= state.steps.length || index === state.stepIndex) return;
-  state.stepIndex = index;
-  const viewport = document.getElementById("bill-step-viewport");
-  if (!viewport) return;
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const swap = () => {
-    viewport.innerHTML = stepInnerHtml(state.stepIndex);
-    syncGuidedControls();
-    if (!reduceMotion) {
-      viewport.dataset.dir = dir > 0 ? "fwd" : "back";
-      viewport.classList.remove("is-leaving");
-      viewport.classList.add("is-entering");
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => viewport.classList.remove("is-entering"));
-      });
-    }
-  };
-  if (reduceMotion) {
-    swap();
-  } else {
-    viewport.dataset.dir = dir > 0 ? "fwd" : "back";
-    viewport.classList.add("is-leaving");
-    window.setTimeout(swap, 130);
-  }
-  window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
-}
-
-function syncGuidedControls() {
-  const back = document.getElementById("bill-step-back");
-  const next = document.getElementById("bill-step-next");
-  const count = document.getElementById("bill-step-count");
-  const last = state.stepIndex >= state.steps.length - 1;
-  if (back) back.disabled = state.stepIndex === 0;
-  if (next) next.textContent = last ? "Open the dashboard" : "Continue";
-  if (count) count.textContent = `Step ${state.stepIndex + 1} of ${state.steps.length}`;
-  document.querySelectorAll("[data-goto-step]").forEach((btn) => {
-    const i = Number(btn.dataset.gotoStep);
-    btn.classList.toggle("is-current", i === state.stepIndex);
-    btn.classList.toggle("is-done", i < state.stepIndex);
-    btn.setAttribute("aria-current", i === state.stepIndex ? "step" : "false");
+      </footer>`,
+    labels: { full: "Full brief", lastNext: "Open the dashboard", next: "Continue", back: "← Back" }
   });
 }
 
@@ -681,7 +572,7 @@ function impactSection(title, impacts) {
         ${rows
           .map(
             (row) =>
-              `<li><span class="mono">${escapeHtml(row.symbol || row.ticker || "")}</span> ${escapeHtml(row.headline || row.label || "")} <span class="muted">${escapeHtml(row.range || row.impact || "")}</span></li>`
+              `<li><span class="mono">${escapeHtml(row.symbol || row.sym || row.ticker || "")}</span> ${escapeHtml(row.headline || row.label || row.why || "")} <span class="muted">${escapeHtml(row.range || row.impact || "")}</span></li>`
           )
           .join("")}
       </ul>

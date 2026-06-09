@@ -11,3 +11,13 @@ body {
     flex: 1 1 auto;
   }
 }
+
+@media (max-width: 375px) {
+  .bill-guided-cta {
+    flex-direction: column;
+  }
+
+  .bill-guided-cta .card-button {
+    width: 100%;
+  }
+}

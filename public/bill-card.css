@@ -2,6 +2,13 @@
   max-width: 920px;
   margin: 0 auto;
   padding: 2rem 1.25rem 4rem;
+  overflow-x: hidden;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 .bill-card-hero h1 {
@@ -1077,13 +1084,40 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
 /* mobile */
 
 @media (max-width: 540px) {
+  .bill-card-root {
+    padding: 1.1rem 0.85rem 3.5rem;
+  }
+
   .bill-guided {
-    min-height: calc(100vh - 4rem);
+    min-height: calc(100dvh - 3rem);
+  }
+
+  .bill-guided-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bill-card-hero-top .bill-mode-toggle,
+  .bill-mode-toggle {
+    width: 100%;
+  }
+
+  .bill-mode-btn {
+    flex: 1;
+    min-height: 44px;
   }
 
   .dossier-classify {
     font-size: 0.56rem;
     gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .dossier-classify-note {
+    max-width: 100%;
+    text-align: left;
+    line-height: 1.35;
+    word-break: break-word;
   }
 
   .dossier-meta {
@@ -1091,8 +1125,16 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
     column-gap: 0;
   }
 
+  .bill-step-viewport {
+    min-height: min(58vh, calc(100dvh - 240px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .bill-step {
-    padding: 1.5rem 1.1rem 2rem;
+    padding: 1.35rem 0.95rem 1.75rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .bill-step-name {
@@ -1104,6 +1146,7 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
   }
 
   .bill-step-toc button {
+    min-height: 44px;
     padding: 0.45rem 0.5rem 0.5rem 0.1rem;
     margin-right: 0.35rem;
   }
@@ -1116,21 +1159,61 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
     font-size: 0.52rem;
   }
 
+  .bill-stage-track li {
+    min-width: 2.4rem;
+  }
+
   .dossier-nav-btn {
     flex: 1;
+    min-height: 46px;
     padding: 0 0.5rem;
   }
 
   .bill-guided-title {
     font-size: clamp(1.75rem, 8vw, 2.2rem);
   }
+
+  .bill-scenario-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bill-meta-dl div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .bill-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 375px) {
+  .bill-card-root {
+    padding: 0.85rem 0.65rem 3rem;
+  }
+
+  .bill-guided-title,
+  .bill-step-title {
+    font-size: clamp(1.55rem, 7.5vw, 2rem);
+  }
+
+  .dossier-classify-id,
+  .dossier-classify-note {
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bill-step,
   .bill-mode-btn,
-  .bill-step-toc button {
+  .bill-step-toc button,
+  .bill-step-viewport.is-leaving .bill-step,
+  .bill-step-viewport.is-entering .bill-step {
     transition: none;
+    animation: none;
+    transform: none;
+    opacity: 1;
   }
 }
 

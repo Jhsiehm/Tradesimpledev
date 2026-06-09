@@ -1054,3 +1054,114 @@ Use only the facts provided. No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
   await writeBriefSummaryCache(cacheKey, trimmed);
   return { text: trimmed, cached: false, cacheKey };
 }
+
+const BILL_EXPOSURE_CACHE_DIR = join(DATA_DIR, "cache", "bill-exposure");
+const billExposureMem = new Map();
+
+function billExposureCacheKey(billId, latestActionDate) {
+  return `exposure:bill:${billId}:${latestActionDate || "none"}`;
+}
+
+async function readBillExposureCache(cacheKey) {
+  const mem = billExposureMem.get(cacheKey);
+  if (mem && Date.now() - mem.fetchedAt < BRIEF_SUMMARY_TTL_MS) return mem.payload;
+  try {
+    const raw = await readFile(join(BILL_EXPOSURE_CACHE_DIR, `${safeBriefCacheName(cacheKey)}.json`), "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed?.payload || !parsed.fetchedAt) return null;
+    if (Date.now() - new Date(parsed.fetchedAt).getTime() > BRIEF_SUMMARY_TTL_MS) return null;
+    billExposureMem.set(cacheKey, { payload: parsed.payload, fetchedAt: Date.now() });
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+async function writeBillExposureCache(cacheKey, payload) {
+  billExposureMem.set(cacheKey, { payload, fetchedAt: Date.now() });
+  try {
+    await mkdir(BILL_EXPOSURE_CACHE_DIR, { recursive: true });
+    await writeFile(
+      join(BILL_EXPOSURE_CACHE_DIR, `${safeBriefCacheName(cacheKey)}.json`),
+      JSON.stringify({ fetchedAt: new Date().toISOString(), payload }),
+      "utf8"
+    );
+  } catch {
+    /* disk cache optional */
+  }
+}
+
+const VALID_EXPOSURE_TICKER = /^[A-Z]{1,5}$/;
+
+function normalizeAiExposurePayload(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  const tickers = (Array.isArray(parsed.tickers) ? parsed.tickers : [])
+    .map((t) => String(t || "").toUpperCase().trim())
+    .filter((t) => VALID_EXPOSURE_TICKER.test(t));
+  if (!tickers.length) return null;
+  const bull = (Array.isArray(parsed.bull) ? parsed.bull : []).map((row) => ({
+    symbol: String(row?.symbol || row?.ticker || "").toUpperCase(),
+    range: String(row?.range || row?.impact || "").trim(),
+    why: String(row?.why || row?.reason || "").trim()
+  }));
+  const bear = (Array.isArray(parsed.bear) ? parsed.bear : []).map((row) => ({
+    symbol: String(row?.symbol || row?.ticker || "").toUpperCase(),
+    range: String(row?.range || row?.impact || "").trim(),
+    why: String(row?.why || row?.reason || "").trim()
+  }));
+  return {
+    tickers: [...new Set(tickers)].slice(0, 6),
+    bull,
+    bear,
+    plainEnglish: String(parsed.plainEnglish || parsed.summary || "").trim() || null
+  };
+}
+
+/** Haiku ticker exposure for dynamic bills — cache miss only, 24h TTL. */
+export async function inferBillMarketExposureAI({ bill, billId, rateLimitKey, checkRateLimit }) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const id = billId || bill?.id || "";
+  const cacheKey = billExposureCacheKey(id, bill?.latestActionDate);
+  const cached = await readBillExposureCache(cacheKey);
+  if (cached) return { ...cached, cached: true };
+
+  if (typeof checkRateLimit === "function" && rateLimitKey) {
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) return null;
+  }
+
+  const system = `You map US congressional bills to publicly traded US tickers for a research terminal.
+Return ONLY valid JSON (no markdown):
+{
+  "tickers": ["AAPL"],
+  "bull": [{"symbol":"AAPL","range":"+5 to +10%","why":"plain English mechanism if bill passes"}],
+  "bear": [{"symbol":"AAPL","range":"-3 to -8%","why":"plain English mechanism if bill stalls"}],
+  "plainEnglish": "1-2 sentences, no buy/sell language"
+}
+Rules:
+- tickers must be 1-5 uppercase letters only
+- Use conservative illustrative ranges, not fake precision
+- Only include tickers with plausible policy linkage
+- ${AI_RESEARCH_DISCLAIMER}`;
+
+  const user = [
+    `Bill: ${bill?.displayId || id}`,
+    `Title: ${bill?.title || bill?.shortTitle || ""}`,
+    `Summary: ${bill?.summary || bill?.plainEnglish || ""}`,
+    `Policy area: ${bill?.policyArea || "n/a"}`,
+    `Latest action: ${bill?.latestAction || ""}`,
+    `Committees: ${(bill?._committeeNames || []).join("; ") || "n/a"}`,
+    `Status: ${bill?.status || ""}`
+  ].join("\n");
+
+  const text = await fetchAnthropic({
+    system,
+    user: `Infer market exposure for this bill:\n\n${user}`,
+    maxTokens: 480,
+    model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"
+  });
+  const normalized = normalizeAiExposurePayload(parseJsonFromText(text));
+  if (!normalized) return null;
+  await writeBillExposureCache(cacheKey, normalized);
+  return { ...normalized, cached: false };
+}

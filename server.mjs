@@ -44,7 +44,8 @@ import {
   runScorecardNarrator,
   runEdgarSimplifier,
   runCausalityAnalyzer,
-  runShareBriefSummary
+  runShareBriefSummary,
+  inferBillMarketExposureAI
 } from "./ai-brain.mjs";
 import { getSocialPulse } from "./social-pulse.mjs";
 import {
@@ -3273,8 +3274,8 @@ function publicStockCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=stock-dossier-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=stock-dossier-1" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=stock-dossier-2" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-2" />
   </head>
   <body data-symbol="${escapeHtmlText(symbol)}">
     <main id="stock-card-root" class="stock-card-root" aria-live="polite">
@@ -3284,7 +3285,8 @@ function publicStockCard(res, pathname, { head = false } = {}) {
         <p>Loading government-to-market snapshot.</p>
       </section>
     </main>
-    <script src="/assets/stock-card.js?v=stock-dossier-1" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-2" defer></script>
+    <script src="/assets/stock-card.js?v=stock-dossier-2" defer></script>
   </body>
 </html>`;
   sendHtml(res, 200, html, { head });
@@ -3315,13 +3317,12 @@ function isAdHocCongressFresh(billId) {
 function billFromCongressOverlay(billId, overlay) {
   const ref = parseBillIdToCongressRef(billId);
   const displayId = ref ? congressRefToBillId(ref) || billId : billId;
-  const tickers = inferTickers(overlay.title || "");
-  const tags = inferTags(overlay.title || "");
-  return {
+  const base = {
     id: billId,
     displayId,
     title: overlay.title || billId,
     shortTitle: overlay.title || billId,
+    summary: overlay.summary || null,
     chamber: overlay.chamber || "House",
     status: overlay.status || "introduced",
     sponsor: overlay.sponsor || { name: "—", party: "U", state: "" },
@@ -3336,27 +3337,12 @@ function billFromCongressOverlay(billId, overlay) {
     _committeeNames: overlay._committeeNames || [],
     latestAction: overlay.latestAction || "Updated by Congress.gov",
     latestActionDate: overlay.latestActionDate || null,
-    tags,
-    portfolioTickers: tickers,
-    affected: tickers,
     lobbyingAgainst: null,
     lobbyingFor: null,
-    plainEnglish:
-      overlay.plainEnglish ||
-      (tickers.length
-        ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
-        : "Live Congress.gov bill loaded on demand."),
-    signal:
-      tickers.length
-        ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
-        : "Live Congress.gov bill. Monitor committee action and lobbying filings.",
-    impact:
-      tickers.length
-        ? `Potential exposure for ${tickers.join(", ")} — monitor for committee action.`
-        : "No ticker mapping yet. Monitor for sector-level impact.",
     sourceKind: "congress_exact",
     sourceNote: "Exact Congress.gov record (on-demand fetch)."
   };
+  return applyBillMarketExposure(base);
 }
 
 async function fetchCongressBillOverlay(billId, ref, key) {
@@ -3508,7 +3494,7 @@ async function attachShareBriefAiSummary(req, payload, kind) {
   return payload;
 }
 
-async function buildBillSharePayload(billIdRaw) {
+async function buildBillSharePayload(billIdRaw, req = null) {
   const billId = resolveBillIdCanonical(billIdRaw);
   if (!billId) {
     const err = new Error("unknown_bill_id");
@@ -3524,25 +3510,31 @@ async function buildBillSharePayload(billIdRaw) {
       : `Bill ${billId} is not in TradeSimple's curated set. Set CONGRESS_API_KEY on the server to load any Congress.gov bill, or pick a known bill from the dashboard.`;
     throw err;
   }
-  const merged = decorateBill(mergeCongressLiveIntoBill(bill));
+  let merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+  merged = await enrichBillShareExposure(merged, req);
   const focusSymbol = (merged.affected || merged.portfolioTickers || [])[0] || "";
   const detail = focusSymbol ? enrichPolicyBill(merged, focusSymbol) : merged;
   const breakdown = computeBillMetricBreakdown(merged);
   const statusInfo = statusInfoForBill(merged);
   const canonicalId = merged.id;
   const live = Boolean(merged.exactCongressRecord || merged._dynamicCongressBill);
+  const passImpacts = normalizeBillImpactRows(merged.passImpacts);
+  const failImpacts = normalizeBillImpactRows(merged.failImpacts);
   return {
     billId: canonicalId,
     live,
-    bill: detail,
+    bill: { ...detail, exposureConfidence: merged.exposureConfidence || detail.exposureConfidence || null },
     statusInfo,
     breakdown,
     relatedTickers: (merged.affected || []).slice(0, 12),
-    passImpacts: merged.passImpacts || [],
-    failImpacts: merged.failImpacts || [],
+    passImpacts,
+    failImpacts,
+    exposureConfidence: merged.exposureConfidence || null,
+    exposureSource: merged.exposureSource || null,
+    sectors: merged.sectors || [],
     historicalAnalog: merged.historicalAnalog || null,
     legislativeContext: detail.legislativeContext || merged.legislativeContext || null,
-    methodologyDisclaimer: METHODOLOGY.disclaimer,
+    methodologyDisclaimer: merged.exposureMethodologyDisclaimer || METHODOLOGY.disclaimer,
     updatedAt: new Date().toISOString(),
     share: {
       canonicalPath: `/bill/${encodeURIComponent(canonicalId)}`,
@@ -3558,7 +3550,7 @@ async function shareBillSnapshot(req, res, url) {
   if (enforceShareRateLimit(req, res)) return;
   const billId = url.searchParams.get("billId") || url.searchParams.get("id") || "";
   try {
-    const payload = await buildBillSharePayload(billId);
+    const payload = await buildBillSharePayload(billId, req);
     const withAi = await attachShareBriefAiSummary(req, payload, "bill");
     sendJson(res, 200, { ...withAi, public: true });
   } catch (err) {
@@ -3606,8 +3598,8 @@ function publicBillCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=bill-page-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-1" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=bill-page-2" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-2" />
   </head>
   <body data-bill-id="${escapeHtmlText(billId)}">
     <main id="bill-card-root" class="bill-card-root" aria-live="polite">
@@ -3617,7 +3609,8 @@ function publicBillCard(res, pathname, { head = false } = {}) {
         <p>Loading bill details.</p>
       </section>
     </main>
-    <script src="/assets/bill-card.js?v=bill-dossier-1" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-2" defer></script>
+    <script src="/assets/bill-card.js?v=bill-dossier-2" defer></script>
   </body>
 </html>`;
   sendHtml(res, bill || validFormat ? 200 : 404, html, { head });
@@ -3909,16 +3902,17 @@ function publicContractCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=contract-dossier-1" />
-    <link rel="stylesheet" href="/assets/detail-pages.css?v=contract-dossier-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=contract-dossier-1" />
-    <link rel="stylesheet" href="/assets/contract-card.css?v=contract-dossier-1" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=contract-dossier-2" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=contract-dossier-2" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=contract-dossier-2" />
+    <link rel="stylesheet" href="/assets/contract-card.css?v=contract-dossier-2" />
   </head>
   <body data-contract-symbol="${escapeHtmlText(symbol)}">
     <main id="contract-card-root" class="bill-card-root" aria-live="polite">
       <section class="stock-card-loading"><h1>${escapeHtmlText(symbol || "Contract")}</h1><p>Loading contract brief…</p></section>
     </main>
-    <script src="/assets/contract-card.js?v=contract-dossier-1" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-2" defer></script>
+    <script src="/assets/contract-card.js?v=contract-dossier-2" defer></script>
   </body>
 </html>`;
   sendHtml(res, validSymbol ? 200 : 404, html, { head });
@@ -4038,16 +4032,17 @@ function publicLobbyCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=lobby-dossier-1" />
-    <link rel="stylesheet" href="/assets/detail-pages.css?v=lobby-dossier-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=lobby-dossier-1" />
-    <link rel="stylesheet" href="/assets/lobby-card.css?v=lobby-dossier-1" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=lobby-dossier-2" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=lobby-dossier-2" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=lobby-dossier-2" />
+    <link rel="stylesheet" href="/assets/lobby-card.css?v=lobby-dossier-2" />
   </head>
   <body data-lobby-id="${escapeHtmlText(filingId)}">
     <main id="lobby-card-root" class="bill-card-root" aria-live="polite">
       <section class="stock-card-loading"><h1>Lobbying brief</h1><p>Loading filing…</p></section>
     </main>
-    <script src="/assets/lobby-card.js?v=lobby-dossier-1" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-2" defer></script>
+    <script src="/assets/lobby-card.js?v=lobby-dossier-2" defer></script>
   </body>
 </html>`;
   sendHtml(res, 200, html, { head });
@@ -9959,13 +9954,344 @@ function inferTickers(title = "") {
   if (lower.includes("digital asset") || lower.includes("crypto") || lower.includes("bitcoin") || lower.includes("blockchain") || lower.includes("stablecoin") || lower.includes("virtual currency")) matched.push(...["COIN", "BTC", "ETH"]);
   if (lower.includes("energy") || lower.includes("vehicle") || lower.includes("permit") || lower.includes("clean energy") || lower.includes("solar") || lower.includes("wind") || lower.includes("electric vehicle") || lower.includes("ev ") || lower.includes("charging")) matched.push(...["TSLA", "ENPH", "FSLR"]);
   if (lower.includes("platform") || lower.includes("antitrust") || lower.includes("monopoly") || lower.includes("competition") || lower.includes("big tech") || lower.includes("app store") || lower.includes("marketplace")) matched.push(...["AMZN", "AAPL", "GOOGL", "META"]);
-  if (lower.includes("defense") || lower.includes("military") || lower.includes("pentagon") || lower.includes("national security") || lower.includes("armed forces") || lower.includes("procurement")) matched.push(...["LMT", "PLTR", "BAH"]);
-  if (lower.includes("bank") || lower.includes("financial institution") || lower.includes("lending") || lower.includes("credit") || lower.includes("fdic") || lower.includes("federal reserve")) matched.push(...["JPM", "BAC", "GS"]);
+  if (lower.includes("defense") || lower.includes("military") || lower.includes("pentagon") || lower.includes("national security") || lower.includes("armed forces") || lower.includes("procurement")) matched.push(...["LMT", "RTX", "NOC", "PLTR", "BAH"]);
+  if (lower.includes("bank") || lower.includes("financial institution") || lower.includes("lending") || lower.includes("credit") || lower.includes("fdic") || lower.includes("federal reserve")) matched.push(...["JPM", "BAC", "GS", "KBE", "XLF"]);
   if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china") || lower.includes("foreign investment")) matched.push(...["NVDA", "AAPL", "AMZN"]);
   if (lower.includes("broadband") || lower.includes("internet access") || lower.includes("telecom") || lower.includes("spectrum") || lower.includes("5g")) matched.push(...["GOOGL", "META", "MSFT"]);
   if (lower.includes("tax") || lower.includes("revenue") || lower.includes("irs") || lower.includes("corporate tax") || lower.includes("capital gains")) matched.push(...["AAPL", "MSFT", "GOOGL", "META", "AMZN"]);
   if (lower.includes("space") || lower.includes("nasa") || lower.includes("satellite") || lower.includes("launch vehicle")) matched.push(...["TSLA", "LMT"]);
+  if (lower.includes("climate") || lower.includes("carbon") || lower.includes("emission")) matched.push(...["XLE", "TSLA", "ENPH"]);
+  if (lower.includes("privacy") || lower.includes("cybersecurity") || lower.includes("data security")) matched.push(...["MSFT", "CRWD", "PANW"]);
   return [...new Set(matched)];
+}
+
+const BILL_KEYWORD_BUCKETS = [
+  { id: "semiconductors", patterns: [/semiconductor/i, /chips/i, /microchip/i, /chips act/i], sectors: ["semiconductors", "technology"], tickers: ["NVDA", "INTC", "TSM", "AMD"], tier: "direct" },
+  { id: "ai", patterns: [/artificial intelligence/i, /\bai\b/i, /ai act/i, /machine learning/i, /algorithmic/i], sectors: ["AI", "technology"], tickers: ["NVDA", "MSFT", "GOOGL", "META"], tier: "direct" },
+  { id: "pharma", patterns: [/drug/i, /medicare/i, /medicaid/i, /pharmaceutical/i, /prescription/i, /health insurance/i], sectors: ["health", "pharma"], tickers: ["LLY", "MRK", "PFE", "ABBV"], tier: "direct" },
+  { id: "crypto", patterns: [/digital asset/i, /crypto/i, /bitcoin/i, /blockchain/i, /stablecoin/i, /virtual currency/i, /commodity/i], sectors: ["crypto", "financial"], tickers: ["COIN", "BTC", "ETH"], tier: "crypto_proxy" },
+  { id: "energy", patterns: [/energy/i, /electric vehicle/i, /\bev\b/i, /charging/i, /clean energy/i, /solar/i, /wind/i, /permit/i], sectors: ["energy", "clean energy"], tickers: ["TSLA", "ENPH", "FSLR", "XLE"], tier: "sector_etf" },
+  { id: "antitrust", patterns: [/platform/i, /antitrust/i, /monopoly/i, /competition/i, /big tech/i, /app store/i, /marketplace/i], sectors: ["antitrust", "platform", "technology"], tickers: ["AMZN", "AAPL", "GOOGL", "META"], tier: "direct" },
+  { id: "defense", patterns: [/defense/i, /military/i, /pentagon/i, /national security/i, /armed forces/i, /procurement/i, /weapons/i], sectors: ["defense", "national security"], tickers: ["LMT", "RTX", "NOC", "PLTR"], tier: "direct" },
+  { id: "banking", patterns: [/bank/i, /financial institution/i, /lending/i, /credit union/i, /fdic/i, /federal reserve/i], sectors: ["banking", "financial"], tickers: ["JPM", "BAC", "GS", "KBE", "XLF"], tier: "sector_etf" },
+  { id: "trade", patterns: [/trade/i, /tariff/i, /import/i, /export/i, /china/i, /foreign investment/i], sectors: ["trade", "foreign policy"], tickers: ["NVDA", "AAPL", "AMZN", "SPY"], tier: "broad_index" },
+  { id: "telecom", patterns: [/broadband/i, /internet access/i, /telecom/i, /spectrum/i, /\b5g\b/i], sectors: ["telecom", "technology"], tickers: ["GOOGL", "META", "MSFT"], tier: "direct" },
+  { id: "tax", patterns: [/tax/i, /\birs\b/i, /corporate tax/i, /capital gains/i, /revenue/i], sectors: ["tax", "fiscal"], tickers: ["AAPL", "MSFT", "GOOGL", "META", "AMZN"], tier: "broad_index" },
+  { id: "climate", patterns: [/climate/i, /carbon/i, /emission/i, /greenhouse/i], sectors: ["climate", "energy"], tickers: ["XLE", "TSLA", "ENPH"], tier: "sector_etf" },
+  { id: "cyber", patterns: [/privacy/i, /cybersecurity/i, /data security/i, /surveillance/i], sectors: ["cyber", "technology"], tickers: ["MSFT", "CRWD", "PANW"], tier: "direct" }
+];
+
+const COMMITTEE_SECTOR_MAP = [
+  { patterns: [/banking/i, /financial services/i, /finance/i], sectors: ["banking"], tickers: ["KBE", "XLF", "JPM"], tier: "sector_etf" },
+  { patterns: [/armed services/i, /defense/i, /veterans/i, /intelligence/i], sectors: ["defense"], tickers: ["LMT", "RTX", "NOC"], tier: "direct" },
+  { patterns: [/energy/i, /natural resources/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "XOM", "TSLA"], tier: "sector_etf" },
+  { patterns: [/judiciary/i, /antitrust/i], sectors: ["antitrust", "technology"], tickers: ["GOOGL", "META", "AMZN"], tier: "direct" },
+  { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["NVDA", "MSFT", "GOOGL"], tier: "direct" },
+  { patterns: [/ways and means/i, /finance/i], sectors: ["tax", "financial"], tickers: ["XLF", "SPY"], tier: "broad_index" },
+  { patterns: [/health/i, /education/i, /labor/i], sectors: ["health"], tickers: ["UNH", "LLY", "PFE"], tier: "direct" },
+  { patterns: [/agriculture/i], sectors: ["agriculture"], tickers: ["DE", "ADM"], tier: "direct" }
+];
+
+const POLICY_AREA_SECTOR_MAP = [
+  { patterns: [/health/i, /medicare/i], sectors: ["health"], tickers: ["UNH", "LLY"], tier: "direct" },
+  { patterns: [/finance/i, /financial/i], sectors: ["financial"], tickers: ["XLF", "JPM"], tier: "sector_etf" },
+  { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["QQQ", "NVDA"], tier: "broad_index" },
+  { patterns: [/energy/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "TSLA"], tier: "sector_etf" },
+  { patterns: [/defense/i, /national security/i, /armed/i], sectors: ["defense"], tickers: ["LMT", "RTX"], tier: "direct" },
+  { patterns: [/tax/i], sectors: ["tax"], tickers: ["SPY"], tier: "broad_index" },
+  { patterns: [/transport/i], sectors: ["transport"], tickers: ["UAL", "DAL"], tier: "direct" }
+];
+
+const EXPOSURE_IMPACT_TIERS = {
+  broad_index: { pass: "+2 to +5%", fail: "-2 to -5%" },
+  sector_etf: { pass: "+5 to +12%", fail: "-5 to -12%" },
+  crypto_proxy: { pass: "+8 to +15%", fail: "-8 to -15%" },
+  direct: { pass: "+10 to +25%", fail: "-10 to -25%" }
+};
+
+const EXPOSURE_METHODOLOGY_DISCLAIMER =
+  "Ticker links and pass/stall ranges are illustrative models from keyword, committee, and policy-area rules — not price targets or investment advice.";
+
+const VALID_TICKER_PATTERN = /^[A-Z]{1,5}$/;
+
+function billExposureCorpus(bill) {
+  const parts = [
+    bill.title,
+    bill.shortTitle,
+    bill.summary,
+    bill.plainEnglish,
+    bill.latestAction,
+    bill.policyArea,
+    ...(bill.tags || []),
+    ...(bill._committeeNames || []),
+    ...(bill.committees || []).map((c) => c?.name || c?.committeeName || "")
+  ];
+  return parts.filter(Boolean).join(" ");
+}
+
+function matchExposureBuckets(text, buckets) {
+  const hits = [];
+  for (const bucket of buckets) {
+    const matched = bucket.patterns.some((p) => p.test(text));
+    if (matched) hits.push(bucket);
+  }
+  return hits;
+}
+
+function tickerVolatilityTier(symbol, bucketTier = "direct") {
+  const sym = String(symbol || "").toUpperCase();
+  if (["SPY", "QQQ", "IWM", "DIA"].includes(sym)) return "broad_index";
+  if (["BTC", "ETH"].includes(sym)) return "crypto_proxy";
+  if (["KBE", "XLF", "XLE", "XBI", "SMH"].includes(sym)) return "sector_etf";
+  return bucketTier || "direct";
+}
+
+function buildIllustrativeImpactRows(tickers, bucketTier, confidence) {
+  const passRows = [];
+  const failRows = [];
+  for (const sym of tickers.slice(0, 6)) {
+    if (!VALID_TICKER_PATTERN.test(sym)) continue;
+    const tier = tickerVolatilityTier(sym, bucketTier);
+    const template = EXPOSURE_IMPACT_TIERS[tier] || EXPOSURE_IMPACT_TIERS.direct;
+    const name = FUNDAMENTALS[sym]?.name || sym;
+    const why = `Illustrative model — ${confidence} confidence keyword/committee mapping for ${name}.`;
+    passRows.push({
+      sym,
+      symbol: sym,
+      ticker: sym,
+      dir: 1,
+      range: template.pass,
+      impact: template.pass,
+      why,
+      headline: why,
+      label: why
+    });
+    failRows.push({
+      sym,
+      symbol: sym,
+      ticker: sym,
+      dir: -1,
+      range: template.fail,
+      impact: template.fail,
+      why: `Illustrative stall/fail scenario for ${name}.`,
+      headline: `Stall scenario for ${name}`,
+      label: `Stall scenario for ${name}`
+    });
+  }
+  return { passImpacts: passRows, failImpacts: failRows };
+}
+
+function findRelatedSeedExposure(bill, tags) {
+  const tagSet = new Set(tags);
+  let best = null;
+  let bestScore = 0;
+  for (const seed of POLICY_BILLS) {
+    if (seed.id === bill.id) continue;
+    const seedTags = seed.tags || [];
+    const overlap = seedTags.filter((t) => tagSet.has(t)).length;
+    if (overlap > bestScore) {
+      bestScore = overlap;
+      best = seed;
+    }
+  }
+  if (bestScore >= 2 && best?.affected?.length) {
+    return {
+      tickers: best.affected.slice(0, 5),
+      sectors: best.tags || [],
+      tier: "direct",
+      confidence: "medium",
+      source: "related_seed",
+      plainEnglish: best.plainEnglish || null
+    };
+  }
+  return null;
+}
+
+function inferBillMarketExposure(bill) {
+  const corpus = billExposureCorpus(bill);
+  const lower = corpus.toLowerCase();
+  const keywordHits = matchExposureBuckets(corpus, BILL_KEYWORD_BUCKETS);
+  const committeeText = (bill._committeeNames || []).join(" ");
+  const committeeHits = matchExposureBuckets(committeeText, COMMITTEE_SECTOR_MAP);
+  const policyHits = bill.policyArea ? matchExposureBuckets(String(bill.policyArea), POLICY_AREA_SECTOR_MAP) : [];
+
+  const tickerSet = new Set();
+  const sectorSet = new Set();
+  let dominantTier = "direct";
+
+  for (const hit of keywordHits) {
+    hit.tickers.forEach((t) => tickerSet.add(t));
+    hit.sectors.forEach((s) => sectorSet.add(s));
+    if (hit.tier === "direct") dominantTier = "direct";
+    else if (hit.tier === "sector_etf" && dominantTier !== "direct") dominantTier = "sector_etf";
+  }
+  for (const hit of committeeHits) {
+    hit.tickers.forEach((t) => tickerSet.add(t));
+    hit.sectors.forEach((s) => sectorSet.add(s));
+  }
+  for (const hit of policyHits) {
+    hit.tickers.forEach((t) => tickerSet.add(t));
+    hit.sectors.forEach((s) => sectorSet.add(s));
+    if (!keywordHits.length && !committeeHits.length) dominantTier = hit.tier || dominantTier;
+  }
+
+  for (const [client, syms] of Object.entries(LOBBY_CLIENT_TICKERS)) {
+    if (lower.includes(client)) syms.forEach((t) => tickerSet.add(t));
+  }
+
+  const tags = inferTags(corpus);
+  tags.forEach((t) => sectorSet.add(t));
+
+  let relatedSeed = null;
+  if (tickerSet.size < 2) {
+    relatedSeed = findRelatedSeedExposure(bill, tags);
+    if (relatedSeed) {
+      relatedSeed.tickers.forEach((t) => tickerSet.add(t));
+      relatedSeed.sectors.forEach((s) => sectorSet.add(s));
+    }
+  }
+
+  const tickers = [...tickerSet].filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 8);
+  const sectors = [...sectorSet];
+
+  let exposureConfidence = "low";
+  const signalCount = keywordHits.length + (committeeHits.length ? 1 : 0) + (policyHits.length ? 1 : 0);
+  if (keywordHits.length >= 2 || (keywordHits.length >= 1 && committeeHits.length >= 1)) {
+    exposureConfidence = "high";
+  } else if (keywordHits.length >= 1 || committeeHits.length >= 1 || relatedSeed) {
+    exposureConfidence = "medium";
+  } else if (policyHits.length >= 1 && tickers.length) {
+    exposureConfidence = "low";
+  }
+
+  if (!tickers.length) {
+    return {
+      affected: [],
+      sectors: [],
+      passImpacts: [],
+      failImpacts: [],
+      plainEnglish: null,
+      exposureConfidence: "low",
+      exposureSource: null
+    };
+  }
+
+  const { passImpacts, failImpacts } = buildIllustrativeImpactRows(tickers, dominantTier, exposureConfidence);
+  const statusInfo = statusInfoForBill(bill);
+  const catalyst = catalystForBill(bill);
+  const tickerLabel = tickers.slice(0, 3).join(", ");
+  const plainEnglish =
+    relatedSeed?.plainEnglish ||
+    `This bill may affect ${tickerLabel}${tickers.length > 3 ? " and related names" : ""} via ${sectors.slice(0, 2).join(" / ") || "policy"} channels. ${statusInfo.nextStep || "Monitor committee action."}`;
+
+  return {
+    affected: tickers,
+    portfolioTickers: tickers.slice(0, 3),
+    sectors,
+    tags: tags.length ? tags : sectors.slice(0, 4),
+    passImpacts,
+    failImpacts,
+    plainEnglish,
+    signal: `Rules-based mapping (${exposureConfidence} confidence): may affect ${tickerLabel}.`,
+    impact: `Illustrative exposure for ${tickerLabel} — ${statusInfo.marketMeaning || "monitor legislative path."}`,
+    catalyst,
+    exposureConfidence,
+    exposureSource: relatedSeed ? "rules+related_seed" : "rules",
+    exposureMethodologyDisclaimer: EXPOSURE_METHODOLOGY_DISCLAIMER
+  };
+}
+
+function seedBillHasRichExposure(bill) {
+  return POLICY_BILLS.some((b) => b.id === bill.id) &&
+    ((bill.affected?.length > 0 && bill.passImpacts?.length > 0) ||
+      (bill.affected?.length > 0 && bill.plainEnglish && !bill._dynamicCongressBill));
+}
+
+function applyBillMarketExposure(bill) {
+  if (seedBillHasRichExposure(bill)) return bill;
+  const inferred = inferBillMarketExposure(bill);
+  if (!inferred.affected?.length) return bill;
+  return {
+    ...bill,
+    affected: bill.affected?.length ? bill.affected : inferred.affected,
+    portfolioTickers: bill.portfolioTickers?.length ? bill.portfolioTickers : inferred.portfolioTickers,
+    sectors: bill.sectors?.length ? bill.sectors : inferred.sectors,
+    tags: bill.tags?.length ? bill.tags : inferred.tags,
+    passImpacts: bill.passImpacts?.length ? bill.passImpacts : inferred.passImpacts,
+    failImpacts: bill.failImpacts?.length ? bill.failImpacts : inferred.failImpacts,
+    plainEnglish: bill.plainEnglish || inferred.plainEnglish,
+    signal: bill.signal || inferred.signal,
+    impact: bill.impact || inferred.impact,
+    exposureConfidence: bill.exposureConfidence || inferred.exposureConfidence,
+    exposureSource: bill.exposureSource || inferred.exposureSource,
+    exposureMethodologyDisclaimer: bill.exposureMethodologyDisclaimer || inferred.exposureMethodologyDisclaimer
+  };
+}
+
+function normalizeBillImpactRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => {
+    const sym = String(row.sym || row.symbol || row.ticker || "").toUpperCase();
+    const why = row.why || row.headline || row.label || "";
+    return {
+      ...row,
+      sym,
+      symbol: sym,
+      ticker: sym,
+      headline: row.headline || row.label || why,
+      label: row.label || row.headline || why,
+      range: row.range || row.impact || ""
+    };
+  });
+}
+
+async function enrichBillShareExposure(bill, req = null) {
+  let enriched = applyBillMarketExposure(bill);
+  const needsAi =
+    (!enriched.affected?.length || enriched.exposureConfidence === "low") &&
+    process.env.ANTHROPIC_API_KEY &&
+    !seedBillHasRichExposure(enriched);
+  if (!needsAi) return enriched;
+  try {
+    const ai = await inferBillMarketExposureAI({
+      bill: enriched,
+      billId: enriched.id,
+      rateLimitKey: req ? clientIp(req) : "anon",
+      checkRateLimit: checkBriefAiRateLimit
+    });
+    if (!ai?.tickers?.length) return enriched;
+    if (enriched.exposureConfidence === "high" || enriched.exposureConfidence === "medium") return enriched;
+    const tickers = ai.tickers.filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 6);
+    if (!tickers.length) return enriched;
+    const { passImpacts, failImpacts } = buildIllustrativeImpactRows(tickers, "direct", "medium");
+    if (ai.bull?.length) {
+      ai.bull.slice(0, 6).forEach((item, i) => {
+        if (passImpacts[i] && item?.range) passImpacts[i].range = item.range;
+        if (passImpacts[i] && item?.why) passImpacts[i].why = item.why;
+      });
+    }
+    if (ai.bear?.length) {
+      ai.bear.slice(0, 6).forEach((item, i) => {
+        if (failImpacts[i] && item?.range) failImpacts[i].range = item.range;
+        if (failImpacts[i] && item?.why) failImpacts[i].why = item.why;
+      });
+    }
+    return {
+      ...enriched,
+      affected: tickers,
+      portfolioTickers: tickers.slice(0, 3),
+      passImpacts: enriched.passImpacts?.length ? enriched.passImpacts : passImpacts,
+      failImpacts: enriched.failImpacts?.length ? enriched.failImpacts : failImpacts,
+      plainEnglish: enriched.plainEnglish || ai.plainEnglish || enriched.plainEnglish,
+      signal: enriched.signal || `AI-assisted mapping: may affect ${tickers.slice(0, 3).join(", ")}.`,
+      exposureConfidence: enriched.affected?.length ? enriched.exposureConfidence : "medium",
+      exposureSource: "ai_cache",
+      exposureMethodologyDisclaimer: EXPOSURE_METHODOLOGY_DISCLAIMER
+    };
+  } catch (err) {
+    console.warn("[ai] bill exposure inference skipped:", err.message);
+    return enriched;
+  }
 }
 
 function inferTags(title = "") {

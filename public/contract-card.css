@@ -46,6 +46,19 @@
     min-width: 420px;
     font-size: 0.76rem;
   }
+
+  .contract-flow-list li {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 375px) {
+  .contract-awards-scroll {
+    margin-left: -0.65rem;
+    margin-right: -0.65rem;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
 }
 
 html,
