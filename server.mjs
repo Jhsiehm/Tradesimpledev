@@ -2804,27 +2804,77 @@ async function marketQuotes(res, url) {
   sendJson(res, 200, envelope);
 }
 
-// Returns a single real bill signal for the landing page hero terminal — rotates every 30s.
+// Landing hero signal. With live Congress data: a daily highest-momentum pick,
+// cached per calendar day and invalidated when the Congress live cache refreshes.
+// Without live data: the original 30-second rotation through the seed pool.
+let landingSignalDailyPick = null; // { dateKey, version, payload }
+let landingSignalCacheVersion = 0;
+
+function bumpLandingSignalCacheVersion() {
+  landingSignalCacheVersion += 1;
+}
+
+function landingSignalDateKey(now = new Date()) {
+  return now.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+function buildLandingSignalPayload(bill, mode, dateKey) {
+  const momentum = computeLegislativeMomentum(bill);
+  const tickers = (bill.affected || []).slice(0, 3);
+  const chain = `Congress.gov → ${bill.status || "Introduced"} → ${tickers.join(", ")}`;
+  return {
+    billId: bill.id,
+    label: `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
+    headline: bill.shortTitle || bill.title,
+    chain,
+    confidence: momentum,
+    signal: bill.signal || bill.plainEnglish || "",
+    mode,
+    date: dateKey,
+    pickedAt: new Date().toISOString(),
+    live: Boolean(bill.exactCongressRecord),
+    latestAction: bill.latestAction || null,
+    latestActionDate: bill.latestActionDate || null
+  };
+}
+
 function landingSignalHandler(res) {
   const live = POLICY_BILLS.filter(
     (b) => !b.scenarioOnly && b.affected?.length && b.plainEnglish
   );
   const pool = live.length ? live : POLICY_BILLS.filter((b) => b.affected?.length);
   if (!pool.length) return sendJson(res, 200, null);
-  // Rotate based on time bucket (changes every 30 seconds)
-  const idx = Math.floor(Date.now() / 30_000) % pool.length;
-  const bill = pool[idx];
-  const momentum = computeLegislativeMomentum(bill);
-  const tickers = (bill.affected || []).slice(0, 3);
-  const chain = `Congress.gov → ${bill.status || "Introduced"} → ${tickers.join(", ")}`;
-  sendJson(res, 200, {
-    billId: bill.id,
-    label: `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
-    headline: bill.shortTitle || bill.title,
-    chain,
-    confidence: momentum,
-    signal: bill.signal || bill.plainEnglish || ""
-  });
+
+  // Overlay live Congress.gov status (same merge used by /api/congress/bills).
+  // Without CONGRESS_API_KEY the cache is empty and bills pass through unchanged.
+  const merged = pool.map((b) => mergeCongressLiveIntoBill(b));
+  const hasLiveData = merged.some((b) => b.exactCongressRecord);
+  const dateKey = landingSignalDateKey();
+
+  if (hasLiveData) {
+    // Daily mode: deterministic per calendar day — highest momentum wins,
+    // ties broken stably by bill id.
+    if (
+      !landingSignalDailyPick ||
+      landingSignalDailyPick.dateKey !== dateKey ||
+      landingSignalDailyPick.version !== landingSignalCacheVersion
+    ) {
+      const top = merged
+        .map((bill) => ({ bill, momentum: computeLegislativeMomentum(bill) }))
+        .sort((a, b) => b.momentum - a.momentum || String(a.bill.id).localeCompare(String(b.bill.id)))[0];
+      landingSignalDailyPick = {
+        dateKey,
+        version: landingSignalCacheVersion,
+        payload: buildLandingSignalPayload(top.bill, "daily", dateKey)
+      };
+    }
+    return sendJson(res, 200, landingSignalDailyPick.payload);
+  }
+
+  // Fallback (no live Congress data): rotate every 30 seconds so the landing
+  // page still feels alive in dev/demo mode.
+  const idx = Math.floor(Date.now() / 30_000) % merged.length;
+  sendJson(res, 200, buildLandingSignalPayload(merged[idx], "rotation", dateKey));
 }
 
 // ── Prediction ledger ────────────────────────────────────────────────────────
@@ -3202,7 +3252,7 @@ function publicBillCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=bill-page-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-calendar-taste-2" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-1" />
   </head>
   <body data-bill-id="${escapeHtmlText(billId)}">
     <main id="bill-card-root" class="bill-card-root" aria-live="polite">
@@ -3212,7 +3262,7 @@ function publicBillCard(res, pathname, { head = false } = {}) {
         <p>Loading bill details.</p>
       </section>
     </main>
-    <script src="/assets/bill-card.js?v=bill-calendar-taste-2" defer></script>
+    <script src="/assets/bill-card.js?v=bill-dossier-1" defer></script>
   </body>
 </html>`;
   sendHtml(res, bill ? 200 : 404, html, { head });
@@ -3396,15 +3446,19 @@ function publicContractCard(res, pathname, { head = false } = {}) {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>${escapeHtmlText(title)}</title>
     <meta name="description" content="${escapeHtmlText(description)}" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=detail-pages-1" />
-    <link rel="stylesheet" href="/assets/detail-pages.css?v=detail-pages-1" />
-    <link rel="stylesheet" href="/assets/contract-card.css?v=detail-pages-1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=contract-dossier-1" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=contract-dossier-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=contract-dossier-1" />
+    <link rel="stylesheet" href="/assets/contract-card.css?v=contract-dossier-1" />
   </head>
   <body data-contract-symbol="${escapeHtmlText(symbol)}">
     <main id="contract-card-root" class="bill-card-root" aria-live="polite">
       <section class="stock-card-loading"><h1>${escapeHtmlText(symbol || "Contract")}</h1><p>Loading contract brief…</p></section>
     </main>
-    <script src="/assets/contract-card.js?v=detail-pages-1" defer></script>
+    <script src="/assets/contract-card.js?v=contract-dossier-1" defer></script>
   </body>
 </html>`;
   sendHtml(res, profile ? 200 : 404, html, { head });
@@ -3456,15 +3510,26 @@ async function buildLobbySharePayload(filingIdRaw) {
     err.code = "unknown_filing_id";
     throw err;
   }
+  const relatedTickers = lobbyTickersForClient(filing.client).slice(0, 8);
   const relatedBills = POLICY_BILLS.filter((bill) => {
     const text = `${bill.title || ""} ${(bill.tags || []).join(" ")} ${(bill.affected || []).join(" ")}`.toLowerCase();
     const issue = String(filing.issue || "").toLowerCase();
     const client = String(filing.client || "").toLowerCase();
     return issue.split(/,\s*/).some((tag) => tag.length > 4 && text.includes(tag.slice(0, 12)))
-      || (bill.affected || []).some((t) => client.includes(String(t).toLowerCase()));
+      || (bill.affected || []).some((t) => client.includes(String(t).toLowerCase()))
+      || relatedTickers.some((sym) => (bill.affected || []).includes(sym));
   }).slice(0, 6);
+  let inferredStance = filing.stance || null;
+  if (!inferredStance && relatedBills.length) {
+    const lobbyRows = relatedBills.flatMap((b) => b.stakeholders?.lobbying || []);
+    const clientKey = String(filing.client || "").toLowerCase();
+    const match = lobbyRows.find((row) => String(row.name || "").toLowerCase().includes(clientKey.slice(0, 12)));
+    if (match?.stance) inferredStance = match.stance;
+  }
+  const enrichedFiling = inferredStance && !filing.stance ? { ...filing, stance: inferredStance } : filing;
   return {
-    filing,
+    filing: enrichedFiling,
+    relatedTickers,
     relatedBills: relatedBills.map((b) => ({
       id: b.id,
       displayId: b.displayId || b.id,
@@ -3508,15 +3573,19 @@ function publicLobbyCard(res, pathname, { head = false } = {}) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>${escapeHtmlText(title)}</title>
-    <link rel="stylesheet" href="/assets/stock-card.css?v=detail-pages-1" />
-    <link rel="stylesheet" href="/assets/detail-pages.css?v=detail-pages-1" />
-    <link rel="stylesheet" href="/assets/lobby-card.css?v=detail-pages-1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=lobby-dossier-1" />
+    <link rel="stylesheet" href="/assets/detail-pages.css?v=lobby-dossier-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=lobby-dossier-1" />
+    <link rel="stylesheet" href="/assets/lobby-card.css?v=lobby-dossier-1" />
   </head>
   <body data-lobby-id="${escapeHtmlText(filingId)}">
     <main id="lobby-card-root" class="bill-card-root" aria-live="polite">
       <section class="stock-card-loading"><h1>Lobbying brief</h1><p>Loading filing…</p></section>
     </main>
-    <script src="/assets/lobby-card.js?v=detail-pages-1" defer></script>
+    <script src="/assets/lobby-card.js?v=lobby-dossier-1" defer></script>
   </body>
 </html>`;
   sendHtml(res, 200, html, { head });
@@ -5485,6 +5554,7 @@ async function refreshCongressLiveCache() {
     congressLiveCache.set(id, payload);
     await writeCongressCache(id, payload);
   }
+  if (updates.size) bumpLandingSignalCacheVersion();
   const decorated = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
   const liveBillCount = decorated.filter((b) => b.exactCongressRecord).length;
   noteFeedSuccess("bills", {
@@ -5730,6 +5800,7 @@ async function congressBills(res, url) {
         sponsor: u.sponsor || base.sponsor
       });
     });
+    if (seedUpdates.size) bumpLandingSignalCacheVersion();
 
     let liveBills = [];
     if (liveResp.ok) {

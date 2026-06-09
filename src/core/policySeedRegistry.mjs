@@ -205,6 +205,28 @@ export function initializePolicyBills(rawBills) {
   return rawBills.map(applySeedRegistry);
 }
 
+/** Tolerate common URL typos: HR.5248 → H.R.5248, etc. */
+export function normalizeBillIdInput(id) {
+  let s = String(id || "").trim();
+  if (!s || s.startsWith("scenario:")) return s;
+  s = s.replace(/^HR\.(\d+)/i, "H.R.$1");
+  s = s.replace(/^HR(\d+)(-\d+)$/i, "H.R.$1$2");
+  s = s.replace(/^HJRES\.(\d+)/i, "H.J.Res.$1");
+  s = s.replace(/^HJRES(\d+)(-\d+)$/i, "H.J.Res.$1$2");
+  s = s.replace(/^SJRES\.(\d+)/i, "S.J.Res.$1");
+  s = s.replace(/^SJRES(\d+)(-\d+)$/i, "S.J.Res.$1$2");
+  s = s.replace(/^HRES\.(\d+)/i, "H.Res.$1");
+  s = s.replace(/^HRES(\d+)(-\d+)$/i, "H.Res.$1$2");
+  s = s.replace(/^SRES\.(\d+)/i, "S.Res.$1");
+  s = s.replace(/^SRES(\d+)(-\d+)$/i, "S.Res.$1$2");
+  const ref = parseBillIdToCongressRef(s);
+  if (ref) {
+    const canonical = congressRefToBillId(ref);
+    if (canonical) return canonical;
+  }
+  return s;
+}
+
 /** Map legacy dashboard IDs (pre-migration) to canonical bill ids. */
 export function resolveBillIdCanonical(billIdRaw) {
   const raw = String(billIdRaw || "").trim();
@@ -215,9 +237,10 @@ export function resolveBillIdCanonical(billIdRaw) {
   } catch {
     decoded = raw;
   }
-  const reg = SEED_REGISTRY[decoded] || SEED_REGISTRY[raw];
+  const normalized = normalizeBillIdInput(decoded);
+  const reg = SEED_REGISTRY[normalized] || SEED_REGISTRY[decoded] || SEED_REGISTRY[raw];
   if (reg?.migrateId) return reg.migrateId;
-  return decoded;
+  return normalized;
 }
 
 export function remapStakeholderKeys(stakeholders, registry = SEED_REGISTRY) {
