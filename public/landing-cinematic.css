@@ -4414,3 +4414,151 @@ html[data-theme="light"] .signal-freshness {
     white-space: nowrap;
   }
 }
+
+/* ── MOBILE POLISH PASS ──────────────────────────────────── */
+/* Light theme: sound trigger used a dark-theme ivory tint and was illegible */
+html[data-theme="light"] .landing-cinematic .nav-sound-trigger {
+  color: rgba(20, 22, 18, 0.55);
+}
+
+html[data-theme="light"] .landing-cinematic .nav-divider {
+  color: rgba(20, 22, 18, 0.25);
+}
+
+/* Reduced motion: kill smooth scrolling (index.html sets it globally with
+   `html{...}` after this sheet loads, so :root is needed to win the cascade) */
+@media (prefers-reduced-motion: reduce) {
+  html:root {
+    scroll-behavior: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Open mobile menu was transparent — nav links rendered over the hero
+     headline illegibly. Give the expanded nav an opaque glass panel. */
+  .landing-cinematic .ts-nav.ts-nav-open {
+    z-index: 30;
+    background:
+      linear-gradient(180deg, rgba(8, 8, 8, 0.97), rgba(8, 8, 8, 0.94)),
+      repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 4px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-soft);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+    max-height: calc(100dvh - 36px);
+    overflow-y: auto;
+  }
+
+  html[data-theme="light"] .landing-cinematic .ts-nav.ts-nav-open {
+    background: rgba(241, 238, 230, 0.97);
+  }
+
+  /* Touch-friendly menu rows (44px+ targets) */
+  .landing-cinematic .ts-nav.ts-nav-open .ts-nav-links {
+    gap: 0;
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .ts-nav-links > a {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 46px;
+    padding: 0 2px;
+    border-bottom: 1px solid rgba(232, 228, 220, 0.08);
+    font-size: 11px;
+  }
+
+  html[data-theme="light"] .landing-cinematic .ts-nav.ts-nav-open .ts-nav-links > a {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .nav-divider {
+    display: none;
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .nav-sound-suite {
+    border-bottom: 1px solid rgba(232, 228, 220, 0.08);
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .nav-sound-trigger {
+    min-height: 46px;
+    font-size: 11px;
+  }
+
+  /* 44px tap targets for nav controls */
+  .landing-cinematic .ts-nav-menu-btn {
+    min-height: 44px;
+    padding: 10px 18px;
+  }
+
+  .landing-cinematic .terminal-button {
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .ts-nav-actions {
+    gap: 10px;
+  }
+
+  .landing-cinematic .ts-nav.ts-nav-open .ts-nav-actions .terminal-button {
+    flex: 1;
+  }
+
+  /* Demo terminal watchlist rows were ~23px tall — too cramped to tap */
+  .landing-cinematic .cinema-terminal-slot .terminal-row {
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+
+  /* Briefing modal close target */
+  .landing-cinematic .briefing-close {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Safe-area insets for notched phones (viewport-fit=cover) */
+  .landing-cinematic .ts-nav {
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+  }
+
+  .landing-cinematic .ts-classification-strip {
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+  }
+
+  .landing-cinematic .briefing-modal {
+    padding: max(18px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+}
+
+/* Archive reference row: was 3 stacked sparse rows on mobile — wrap inline */
+@media (max-width: 980px) {
+  .landing-cinematic .hero-reference-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* "Est. 2026 / Policy & equity" wrapped to two cramped lines beside the logo */
+  .landing-cinematic .ts-brand small {
+    display: none;
+  }
+
+  /* Footer links need real touch targets */
+  body.landing-cinematic footer nav {
+    flex-wrap: wrap;
+    gap: 4px 18px;
+  }
+
+  body.landing-cinematic footer nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 2px;
+  }
+}
