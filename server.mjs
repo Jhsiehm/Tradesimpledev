@@ -3145,7 +3145,7 @@ async function marketQuotes(res, url) {
 // cached per calendar day and invalidated when the Congress live cache refreshes.
 // Without live data: the original 30-second rotation through the seed pool.
 let landingSignalDailyPick = null; // { dateKey, version, payload }
-let landingSignalCacheVersion = 1;
+let landingSignalCacheVersion = 2;
 
 function bumpLandingSignalCacheVersion() {
   landingSignalCacheVersion += 1;
@@ -3156,6 +3156,11 @@ function landingSignalDateKey(now = new Date()) {
 }
 
 const ONBOARDING_BILL_FALLBACK = "H.R.3633-119";
+const EDITORIAL_LEAD_BILL_ID = String(process.env.EDITORIAL_LEAD_BILL_ID || "S.2-119").trim();
+const EDITORIAL_LEAD_CONTEXT = String(
+  process.env.EDITORIAL_LEAD_CONTEXT ||
+    "Senate reconciliation vehicle — immigration enforcement and detention operators on the watchlist."
+).trim();
 
 function landingSignalBillPool() {
   const byId = new Map();
@@ -3209,6 +3214,14 @@ function pickTopMomentumBill(pool = landingSignalBillPool()) {
 }
 
 function resolveOnboardingBill(pool = landingSignalBillPool()) {
+  const editorial = resolveEditorialLeadBill(pool);
+  if (editorial) {
+    return {
+      billId: editorial.id,
+      title: editorial.shortTitle || editorial.title || editorial.id,
+      reason: "editorial_lead"
+    };
+  }
   const top = pickTopMomentumBill(pool);
   if (top) {
     return {
@@ -3237,10 +3250,26 @@ function onboardingBillBriefPath(meta = getOnboardingBillMeta()) {
 }
 
 function onboardingBillHandler(res) {
-  return sendJson(res, 200, getOnboardingBillMeta());
+  onboardingBillHandlerAsync(res).catch((err) => {
+    console.error("[onboarding-bill]", err.message);
+    sendJson(res, 500, { error: "onboarding_bill_failed" });
+  });
 }
 
-function buildLandingSignalPayload(bill, mode, dateKey) {
+async function onboardingBillHandlerAsync(res) {
+  const pool = landingSignalBillPool();
+  const editorial = await resolveEditorialLeadBillAsync(pool);
+  if (editorial) {
+    return sendJson(res, 200, {
+      billId: editorial.id,
+      title: editorial.shortTitle || editorial.title || editorial.id,
+      reason: "editorial_lead"
+    });
+  }
+  return sendJson(res, 200, resolveOnboardingBill(pool));
+}
+
+function buildLandingSignalPayload(bill, mode, dateKey, { editorial = false } = {}) {
   const merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
   const momentum = computeLegislativeMomentum(merged);
   const tickers = (merged.affected || []).slice(0, 3);
@@ -3248,32 +3277,66 @@ function buildLandingSignalPayload(bill, mode, dateKey) {
   const whyMarketsCare = buildWhyMarketsCareRules(merged, tickers) || merged.plainEnglish || merged.signal || "";
   const chain = (buildCausalChainRules(merged, tickers, statusInfo) || []).join(" ") ||
     `Congress.gov → ${merged.status || "Introduced"} → ${tickers.join(", ")}`;
+  const freshness = buildFreshnessBadge({
+    type: "bill",
+    bill: merged,
+    relatedContracts: [],
+    exposureSource: merged.exposureSource || null
+  });
   return {
     billId: merged.id,
-    label: `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
+    label: editorial
+      ? `Editorial lead · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`
+      : `LegisAlert · ${tickers[0] || "Policy"} · Policy exposure ${momentum}/100`,
     headline: merged.shortTitle || merged.title,
+    editorialContext: editorial ? EDITORIAL_LEAD_CONTEXT : null,
+    briefPath: shareBillPath(merged.id),
     chain,
     whyMarketsCare,
     confidence: momentum,
     signal: merged.signal || merged.plainEnglish || "",
     mode,
+    editorial: Boolean(editorial),
     date: dateKey,
     pickedAt: new Date().toISOString(),
     live: Boolean(merged.exactCongressRecord),
     latestAction: merged.latestAction || null,
-    latestActionDate: merged.latestActionDate || null
+    latestActionDate: merged.latestActionDate || null,
+    freshness
   };
 }
 
 function landingSignalHandler(res) {
+  landingSignalHandlerAsync(res).catch((err) => {
+    console.error("[landing-signal]", err.message);
+    sendJson(res, 500, { error: "landing_signal_failed" });
+  });
+}
+
+async function landingSignalHandlerAsync(res) {
   const pool = landingSignalBillPool();
   if (!pool.length) return sendJson(res, 200, null);
 
-  // Overlay live Congress.gov status (same merge used by /api/congress/bills).
-  // Without CONGRESS_API_KEY the cache is empty and bills pass through unchanged.
+  const editorialBill = await resolveEditorialLeadBillAsync(pool);
   const merged = pool.map((b) => mergeCongressLiveIntoBill(b));
-  const hasLiveData = merged.some((b) => b.exactCongressRecord);
+  const hasLiveData = merged.some((b) => b.exactCongressRecord) || Boolean(editorialBill?.exactCongressRecord);
   const dateKey = landingSignalDateKey();
+
+  if (editorialBill) {
+    if (
+      !landingSignalDailyPick ||
+      landingSignalDailyPick.dateKey !== dateKey ||
+      landingSignalDailyPick.version !== landingSignalCacheVersion ||
+      landingSignalDailyPick.payload?.billId !== editorialBill.id
+    ) {
+      landingSignalDailyPick = {
+        dateKey,
+        version: landingSignalCacheVersion,
+        payload: buildLandingSignalPayload(editorialBill, "editorial", dateKey, { editorial: true })
+      };
+    }
+    return sendJson(res, 200, landingSignalDailyPick.payload);
+  }
 
   if (hasLiveData) {
     // Daily mode: deterministic per calendar day — highest momentum wins,
@@ -4048,13 +4111,14 @@ async function buildLiveBillAnalysis(bill, req = null) {
     return cached.analysis;
   }
 
-  const freshness = mergedBill.exactCongressRecord || mergedBill._dynamicCongressBill
-    ? process.env.CONGRESS_API_KEY
-      ? "live"
-      : "cached"
-    : mergedBill.scenarioOnly
-      ? "scenario"
-      : "cached";
+  const freshnessBadge = buildFreshnessBadge({
+    type: "bill",
+    bill: mergedBill,
+    relatedContracts: [],
+    exposureSource: mergedBill.exposureSource
+  });
+  const freshness =
+    freshnessBadge.level === "verified" ? "live" : freshnessBadge.level === "stale" ? "cached" : mergedBill.scenarioOnly ? "scenario" : "cached";
 
   let rules = buildLiveBillAnalysisRules(mergedBill, tickers, statusInfo);
   rules.contractAngle = await buildContractAngleSentence(tickers);
@@ -4108,6 +4172,7 @@ async function buildLiveBillAnalysis(bill, req = null) {
   const analysis = {
     asOf: new Date().toISOString(),
     freshness,
+    freshnessBadge,
     headline,
     explanation: {
       whatHappened,
@@ -4161,6 +4226,303 @@ function billActionWithinDays(bill, days = 7) {
   return age >= 0 && age <= days;
 }
 
+function freshnessDaysSince(value) {
+  if (!value) return null;
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, (Date.now() - t) / 86400000);
+}
+
+function freshnessShortDate(value) {
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function freshnessSourceLine(sources = []) {
+  return sources
+    .map((row) => {
+      const name = row.source || row.kind || "Source";
+      const date = row.asOf ? freshnessShortDate(row.asOf) : "";
+      if (date) return `${name} ${date}`;
+      if (row.note) return `${name} · ${row.note}`;
+      return name;
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function buildFreshnessBadge(entity = {}) {
+  const type = entity.type || entity.entityType;
+  if (type === "stock") return buildStockFreshnessBadge(entity);
+  if (type === "contract") return buildContractFreshnessBadge(entity);
+  if (type === "lobby") return buildLobbyFreshnessBadge(entity);
+  return buildBillFreshnessBadge(entity);
+}
+
+function buildBillFreshnessBadge({ bill = {}, relatedContracts = [], exposureSource = null } = {}) {
+  const sources = [];
+  let verified = false;
+  let stale = false;
+  const expSrc = exposureSource || bill.exposureSource || null;
+
+  if (bill.exactCongressRecord || bill._dynamicCongressBill) {
+    const asOf = bill.latestActionDate || bill.lastSubstantiveActionDate || null;
+    const days = freshnessDaysSince(asOf);
+    sources.push({
+      kind: "congress",
+      asOf,
+      source: "Congress",
+      note: bill.latestAction ? String(bill.latestAction).slice(0, 72) : undefined
+    });
+    if (days != null && days <= 7) verified = true;
+    else stale = true;
+  }
+
+  const ldaCount = Number(bill.lobbyingFilingsCount || 0);
+  if (bill.lobbyingSource === "senate_lda" && ldaCount > 0) {
+    sources.push({
+      kind: "lda",
+      asOf: bill.lobbyingPostedAt || bill.latestActionDate || null,
+      source: "LDA",
+      note: `${ldaCount} filing${ldaCount === 1 ? "" : "s"}`
+    });
+    verified = true;
+  }
+
+  const awardRows = (relatedContracts || []).filter((row) => row.directUrl && Number(row.awardCount || 0) > 0);
+  if (awardRows.length) {
+    const awardTotal = awardRows.reduce((sum, row) => sum + Number(row.awardCount || 0), 0);
+    sources.push({
+      kind: "usaspending",
+      asOf: null,
+      source: "USASpending",
+      note: `${awardTotal} award${awardTotal === 1 ? "" : "s"}`
+    });
+    verified = true;
+  }
+
+  if (expSrc && !bill.exactCongressRecord) {
+    sources.push({
+      kind: expSrc.includes("seed") ? "seed" : "rules",
+      asOf: null,
+      source: expSrc.includes("seed") ? "Seed mapping" : "Rules mapping"
+    });
+  }
+
+  const modeledOnly =
+    bill.scenarioOnly ||
+    bill.dataLayer === "scenario" ||
+    (!bill.exactCongressRecord && !bill._dynamicCongressBill && !verified && !stale);
+
+  let level = "modeled";
+  let label = "Modeled";
+  let detail = "Rules-based exposure and illustrative scenarios — no live Congress overlay.";
+  if (verified) {
+    level = "verified";
+    label = "Verified";
+    detail = "Live public records back this brief.";
+  } else if (stale) {
+    level = "stale";
+    label = "Stale";
+    detail = "Live source connected, but the latest action or award is aging.";
+  } else if (modeledOnly) {
+    level = "modeled";
+    label = "Modeled";
+    detail = "Illustrative mapping — confirm status on Congress.gov before acting.";
+  }
+
+  return { level, label, detail, sources, sourcesLine: freshnessSourceLine(sources) };
+}
+
+function buildStockFreshnessBadge({ quote = {}, relatedBills = [], recentNews = [], updatedAt = null } = {}) {
+  const sources = [];
+  let verified = false;
+  let stale = false;
+  const qSrc = quote.source || quote.providerCode || null;
+  const qTs = quote.providerTimestamp || quote.fetchedAt || updatedAt || null;
+  const quoteDays = freshnessDaysSince(qTs);
+
+  if (qSrc && qSrc !== "fallback_static" && qSrc !== "fallback" && qSrc !== "unavailable") {
+    const liveQuote = qSrc === "finnhub" || qSrc === "yfinance" || qSrc === "alpaca";
+    sources.push({
+      kind: "quote",
+      asOf: qTs,
+      source: liveQuote ? "Finnhub live" : quoteProviderLabel(qSrc),
+      note: quote.delayLabel || undefined
+    });
+    if (liveQuote && quoteDays != null && quoteDays <= 2) verified = true;
+    else if (liveQuote) stale = true;
+  } else {
+    sources.push({ kind: "quote", asOf: qTs, source: "Modeled quote", note: "Fallback tape" });
+  }
+
+  if (relatedBills.length) {
+    sources.push({
+      kind: "policy",
+      asOf: relatedBills[0]?.latestActionDate || null,
+      source: "Bill mapping",
+      note: `${relatedBills.length} mapped bill${relatedBills.length === 1 ? "" : "s"}`
+    });
+  }
+
+  const headline = (recentNews || [])[0];
+  if (headline?.publishedAt) {
+    sources.push({
+      kind: "news",
+      asOf: headline.publishedAt,
+      source: headline.source || "Headlines",
+      note: headline.headline ? String(headline.headline).slice(0, 64) : undefined
+    });
+    const newsDays = freshnessDaysSince(headline.publishedAt);
+    if (newsDays != null && newsDays <= 7) verified = true;
+    else if (newsDays != null) stale = true;
+  }
+
+  let level = verified ? "verified" : stale ? "stale" : "modeled";
+  const labels = { verified: "Verified", stale: "Stale", modeled: "Modeled" };
+  const details = {
+    verified: "Live quote and/or recent headlines back this snapshot.",
+    stale: "Quote or headline feed is connected but no longer fresh.",
+    modeled: "Quote fallback or partial mapping — treat policy links as illustrative."
+  };
+  return {
+    level,
+    label: labels[level],
+    detail: details[level],
+    sources,
+    sourcesLine: freshnessSourceLine(sources)
+  };
+}
+
+function buildContractFreshnessBadge({ awards = [], relatedBills = [], updatedAt = null, source = "usaspending.gov" } = {}) {
+  const sources = [];
+  let verified = false;
+  let stale = false;
+  const rows = Array.isArray(awards) ? awards : [];
+  const withUrl = rows.filter((row) => row.directUrl);
+  const newestAward = rows.reduce((best, row) => {
+    const ts = Date.parse(row.endDate || row.startDate || "");
+    if (!Number.isFinite(ts)) return best;
+    if (!best || ts > Date.parse(best.endDate || best.startDate || "")) return row;
+    return best;
+  }, null);
+
+  if (withUrl.length) {
+    sources.push({
+      kind: "usaspending",
+      asOf: newestAward?.endDate || newestAward?.startDate || updatedAt || null,
+      source: "USASpending",
+      note: `${rows.length} award${rows.length === 1 ? "" : "s"}`
+    });
+    const awardDays = freshnessDaysSince(newestAward?.endDate || newestAward?.startDate || updatedAt);
+    if (awardDays != null && awardDays <= 7) verified = true;
+    else stale = true;
+  } else if (rows.length) {
+    sources.push({
+      kind: "usaspending",
+      asOf: updatedAt,
+      source: source || "USASpending",
+      note: `${rows.length} award row${rows.length === 1 ? "" : "s"}`
+    });
+    stale = true;
+  }
+
+  if (relatedBills.length) {
+    sources.push({
+      kind: "policy",
+      asOf: relatedBills[0]?.latestActionDate || null,
+      source: "Bill linkage",
+      note: `${relatedBills.length} related bill${relatedBills.length === 1 ? "" : "s"}`
+    });
+  }
+
+  let level = verified ? "verified" : stale || rows.length ? "stale" : "modeled";
+  const labels = { verified: "Verified", stale: "Stale", modeled: "Modeled" };
+  const details = {
+    verified: "USASpending awards with direct URLs anchor this contract brief.",
+    stale: "Awards loaded but the latest obligation period is aging.",
+    modeled: "No live USASpending rows — profile text is illustrative."
+  };
+  return {
+    level,
+    label: labels[level],
+    detail: details[level],
+    sources,
+    sourcesLine: freshnessSourceLine(sources)
+  };
+}
+
+function buildLobbyFreshnessBadge({ filing = {}, relatedBills = [], source = "senate_lda", updatedAt = null } = {}) {
+  const sources = [];
+  let verified = false;
+  let stale = false;
+  const postedAt = filing.postedAt || filing.filingDate || filing.dtPosted || updatedAt || null;
+  const filingDays = freshnessDaysSince(postedAt);
+
+  if (source === "senate_lda" || filing.source === "senate_lda") {
+    sources.push({
+      kind: "lda",
+      asOf: postedAt,
+      source: "Senate LDA",
+      note: filing.client || filing.registrant || undefined
+    });
+    if (filingDays != null && filingDays <= 45) verified = true;
+    else if (postedAt) stale = true;
+  } else {
+    sources.push({ kind: "lda", asOf: postedAt, source: "Illustrative LDA", note: "Sample filing" });
+  }
+
+  if (relatedBills.length) {
+    sources.push({
+      kind: "policy",
+      asOf: relatedBills[0]?.latestActionDate || null,
+      source: "Bill linkage",
+      note: `${relatedBills.length} related bill${relatedBills.length === 1 ? "" : "s"}`
+    });
+  }
+
+  let level = verified ? "verified" : stale ? "stale" : "modeled";
+  const labels = { verified: "Verified", stale: "Stale", modeled: "Modeled" };
+  const details = {
+    verified: "Senate LDA filing date and bill linkage are live.",
+    stale: "Filing is on record but no longer recent.",
+    modeled: "Illustrative lobbying sample — not a live LDA pull."
+  };
+  return {
+    level,
+    label: labels[level],
+    detail: details[level],
+    sources,
+    sourcesLine: freshnessSourceLine(sources)
+  };
+}
+
+function resolveEditorialLeadBill(pool = landingSignalBillPool()) {
+  if (!EDITORIAL_LEAD_BILL_ID) return null;
+  let bill = resolvePolicyBill(EDITORIAL_LEAD_BILL_ID);
+  if (!bill) bill = liveCongressBillRegistry.get(EDITORIAL_LEAD_BILL_ID);
+  if (!bill) {
+    const canonical = resolveBillIdCanonical(EDITORIAL_LEAD_BILL_ID);
+    bill = pool.find((row) => row.id === canonical || row.id === EDITORIAL_LEAD_BILL_ID);
+  }
+  if (!bill) return null;
+  return decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+}
+
+async function resolveEditorialLeadBillAsync(pool = landingSignalBillPool()) {
+  const sync = resolveEditorialLeadBill(pool);
+  if (sync) return sync;
+  if (!EDITORIAL_LEAD_BILL_ID) return null;
+  try {
+    const fetched = await resolvePolicyBillAsync(EDITORIAL_LEAD_BILL_ID);
+    if (!fetched) return null;
+    return decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(fetched)));
+  } catch {
+    return null;
+  }
+}
+
 async function resolveStockPolicyPulse(symbol, fundamentals, req = null) {
   const sym = String(symbol || "").toUpperCase();
   const candidates = allBrowsablePolicyBills()
@@ -4211,9 +4573,15 @@ async function buildBillSharePayload(billIdRaw, req = null) {
   const affected = (merged.affected || []).slice(0, 12);
   const relatedContracts = await buildRelatedContractsForBill(affected);
   const liveAnalysis = await buildLiveBillAnalysis({ ...merged, statusInfo }, req);
+  const freshness = buildFreshnessBadge({
+    type: "bill",
+    bill: merged,
+    relatedContracts,
+    exposureSource: merged.exposureSource || null
+  });
   return {
     billId: canonicalId,
-    live: live || liveAnalysis.freshness === "live",
+    live: live || liveAnalysis.freshness === "live" || freshness.level === "verified",
     bill: { ...detail, exposureConfidence: merged.exposureConfidence || detail.exposureConfidence || null },
     statusInfo,
     breakdown,
@@ -4231,6 +4599,7 @@ async function buildBillSharePayload(billIdRaw, req = null) {
       traceUrls: Object.fromEntries(affected.map((ticker) => [ticker, shareStockPath(ticker)]))
     },
     liveAnalysis,
+    freshness,
     whyMarketsCare: liveAnalysis.explanation?.whyMarketsCare || null,
     updatedAt: new Date().toISOString(),
     share: {
@@ -4973,6 +5342,13 @@ async function buildContractSharePayload(symbolRaw) {
     analysis: { plainEnglish: analysisPlain },
     source: "usaspending.gov",
     updatedAt: new Date().toISOString(),
+    freshness: buildFreshnessBadge({
+      type: "contract",
+      awards,
+      relatedBills,
+      updatedAt: new Date().toISOString(),
+      source: "usaspending.gov"
+    }),
     share: {
       canonicalPath: `/contract/${encodeURIComponent(symbol)}`,
       canonicalUrl: `${APP_URL}/contract/${encodeURIComponent(symbol)}`,
@@ -5109,22 +5485,31 @@ async function buildLobbySharePayload(filingIdRaw) {
     if (match?.stance) inferredStance = match.stance;
   }
   const enrichedFiling = inferredStance && !filing.stance ? { ...filing, stance: inferredStance } : filing;
+  const mappedBills = relatedBills.map((b) => ({
+    id: b.id,
+    displayId: b.displayId || b.id,
+    title: b.shortTitle || b.title,
+    momentum: computeLegislativeMomentum(b),
+    affected: (b.affected || []).slice(0, 6),
+    latestActionDate: b.latestActionDate || null,
+    url: shareBillPath(b.id)
+  }));
   return {
     filing: enrichedFiling,
     relatedTickers,
-    relatedBills: relatedBills.map((b) => ({
-      id: b.id,
-      displayId: b.displayId || b.id,
-      title: b.shortTitle || b.title,
-      momentum: computeLegislativeMomentum(b),
-      affected: (b.affected || []).slice(0, 6),
-      url: shareBillPath(b.id)
-    })),
+    relatedBills: mappedBills,
     mapping: {
       traceUrls: Object.fromEntries(relatedTickers.map((ticker) => [ticker, shareStockPath(ticker)]))
     },
     source: filing.source || "senate_lda",
     updatedAt: new Date().toISOString(),
+    freshness: buildFreshnessBadge({
+      type: "lobby",
+      filing: enrichedFiling,
+      relatedBills,
+      source: filing.source || "senate_lda",
+      updatedAt: new Date().toISOString()
+    }),
     share: {
       canonicalPath: `/lobby/${encodeURIComponent(filing.filingId)}`,
       canonicalUrl: `${APP_URL}/lobby/${encodeURIComponent(filing.filingId)}`,
@@ -5420,7 +5805,21 @@ async function buildStockSnapshot(
     };
   }
 
-  return enrichStockSharePayload(payload, symbol, fundamentals, contractProfile, req);
+  return attachStockFreshness(
+    await enrichStockSharePayload(payload, symbol, fundamentals, contractProfile, req),
+    relatedBills
+  );
+}
+
+function attachStockFreshness(payload, relatedBills = []) {
+  payload.freshness = buildFreshnessBadge({
+    type: "stock",
+    quote: payload.quote,
+    relatedBills,
+    recentNews: payload.recentNews || [],
+    updatedAt: payload.updatedAt
+  });
+  return payload;
 }
 
 function plainList(items) {

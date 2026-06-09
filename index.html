@@ -682,6 +682,8 @@ footer nav a:hover{color:var(--text)}
                 <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
                 <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
                 <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
+                <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
+                <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
                 <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
                 <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
                 <div class="confidence-row">
@@ -1141,6 +1143,16 @@ function hydrateLandingSignal(){
     return verb+' '+Math.floor(hrs/24)+'d ago';
   }
   function freshnessText(d){
+    if(!d)return '';
+    if(d.freshness&&d.freshness.sourcesLine){
+      var lvl=d.freshness.level==='verified'?'Live records':d.freshness.level==='stale'?'Live · aging':'Illustrative model';
+      return lvl+' · '+d.freshness.sourcesLine;
+    }
+    if(d.mode==='editorial'||d.editorial){
+      var ctx=d.editorialContext||'Editorial lead signal';
+      var src=d.freshness&&d.freshness.level==='verified'?'Live Congress':d.live?'Congress overlay':'Illustrative mapping';
+      return ctx+' · '+src;
+    }
     if(d.mode==='daily'){
       var dt=d.date?new Date(d.date+'T12:00:00Z'):new Date();
       var txt='Signal of the day · '+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -1158,9 +1170,36 @@ function hydrateLandingSignal(){
     var confText=document.getElementById('terminal-confidence-text');
     var confFill=document.getElementById('terminal-confidence-fill');
     var fresh=document.getElementById('terminal-signal-freshness');
+    var editorial=document.getElementById('terminal-signal-editorial');
+    var briefLink=document.getElementById('terminal-signal-brief-link');
+    var primaryCta=document.getElementById('primary-cta');
     if(label) label.textContent=d.label||label.textContent;
     if(fresh) fresh.textContent=freshnessText(d);
     if(headline) headline.textContent=d.headline||headline.textContent;
+    if(editorial){
+      if(d.editorial&&d.editorialContext){
+        editorial.hidden=false;
+        editorial.textContent=d.editorialContext;
+      }else{
+        editorial.hidden=true;
+        editorial.textContent='';
+      }
+    }
+    if(briefLink){
+      if(d.billId){
+        var briefPath=d.briefPath||('/bill/'+encodeURIComponent(d.billId));
+        briefLink.href=briefPath;
+        briefLink.hidden=false;
+        if(d.editorial) briefLink.textContent='Read '+d.billId+' brief →';
+      }else{
+        briefLink.hidden=true;
+      }
+    }
+    if(primaryCta&&d.editorial&&d.billId){
+      var leadPath=d.briefPath||('/bill/'+encodeURIComponent(d.billId));
+      primaryCta.href=leadPath;
+      primaryCta.textContent='Read today\'s bill brief →';
+    }
     if(chain){ chain.textContent=''; chain.setAttribute('data-full-text',d.chain||'');
       // Restart the typewriter if the cinematic script has that function
       if(typeof window.tsRestartTypewriter==='function') window.tsRestartTypewriter(chain);
@@ -1193,6 +1232,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=signal-freshness-1" defer></script>
+<script src="assets/landing-cinematic.js?v=signal-freshness-2" defer></script>
 </body>
 </html>

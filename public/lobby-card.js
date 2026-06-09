@@ -114,6 +114,10 @@ function heroActionsHtml() {
     </div>`;
 }
 
+function freshnessChipHtml(data) {
+  return BriefShell.freshnessChipHtml(data?.freshness, escapeHtml);
+}
+
 function classifyBarHtml(f) {
   return `
     <div class="dossier-classify mono" aria-hidden="true">
@@ -204,6 +208,7 @@ function stepFilerHtml(f, data) {
   return `
     <p class="bill-card-id mono">${escapeHtml(f.filingId || state.filingId)}</p>
     <h1 class="bill-guided-title">${escapeHtml(f.client || "Lobbying client")}</h1>
+    <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
     <div class="bill-card-badges">
       ${stance}
       <span class="dossier-stamp modeled">Lobbying disclosure</span>
@@ -335,6 +340,7 @@ function renderFullBrief(data) {
         </div>
         <p class="bill-card-id mono">${escapeHtml(f.filingId || state.filingId)}</p>
         <h1>${escapeHtml(f.client || "Lobbying client")}</h1>
+        <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
         <p>${escapeHtml(f.issue || "Issue not listed")}</p>
         <p class="muted">Filed by ${escapeHtml(f.registrant || "unknown")} · ${escapeHtml(f.postedAt || "—")}</p>
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || "")}</p>

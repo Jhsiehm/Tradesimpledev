@@ -173,6 +173,26 @@ function heroActionsHtml() {
     </div>`;
 }
 
+function freshnessChipHtml(data) {
+  return BriefShell.freshnessChipHtml(data?.freshness || data?.liveAnalysis?.freshnessBadge, escapeHtml);
+}
+
+function rulesExplanationHtml(data) {
+  const exp = data.liveAnalysis?.explanation;
+  if (!exp) return "";
+  const parts = [exp.whatHappened, exp.whyMarketsCare].filter(Boolean);
+  if (!parts.length) return "";
+  return `
+    <section class="bill-card-panel bill-rules-summary">
+      <h2>What we know from records</h2>
+      ${exp.whatHappened ? `<p>${escapeHtml(exp.whatHappened)}</p>` : ""}
+      ${exp.whyMarketsCare && exp.whyMarketsCare !== exp.whatHappened
+        ? `<p class="muted">${escapeHtml(exp.whyMarketsCare)}</p>`
+        : ""}
+      <p class="muted bill-guided-note mono">Deterministic rules · ${escapeHtml(data.liveAnalysis?.updateCadence || "Congress refresh 15min")}</p>
+    </section>`;
+}
+
 function classifyBarHtml(bill) {
   return `
     <div class="dossier-classify mono" aria-hidden="true">
@@ -262,6 +282,9 @@ function stepBillHtml(bill, data) {
   const prov = provenanceLabel(bill);
   const status = data.statusInfo || {};
   const oneLiner = bill.plainEnglish || bill.signal || (bill.title !== bill.shortTitle ? bill.title : "") || "";
+  const rulesLead = data.liveAnalysis?.explanation?.whyMarketsCare
+    ? `<p class="bill-guided-lede">${escapeHtml(data.liveAnalysis.explanation.whyMarketsCare)}</p><p class="muted">From live bill records</p>`
+    : "";
   const ai = data.aiSummary?.text
     ? `<p class="bill-guided-lede bill-ai-lede">${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI summary · from live bill data</p>`
     : "";
@@ -271,8 +294,10 @@ function stepBillHtml(bill, data) {
   return `
     <p class="bill-card-id mono">${escapeHtml(bill.displayId || bill.id || state.billId)}</p>
     <h1 class="bill-guided-title">${escapeHtml(bill.shortTitle || bill.title || state.billId)}</h1>
+    <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
     ${onboardingLead}
-    ${ai || (oneLiner ? `<p class="bill-guided-lede">${escapeHtml(oneLiner)}</p>` : "")}
+    ${rulesLead || ai || (oneLiner ? `<p class="bill-guided-lede">${escapeHtml(oneLiner)}</p>` : "")}
+    ${rulesLead && ai ? ai : ""}
     <div class="bill-card-badges">
       <span class="dossier-stamp ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
       <span class="dossier-chip mono">${escapeHtml(status.label || bill.status || "Status")}</span>
@@ -522,6 +547,7 @@ function renderFullBrief(data) {
         <p class="bill-card-id mono">${escapeHtml(bill.displayId || bill.id || state.billId)}</p>
         <h1>${escapeHtml(bill.shortTitle || bill.title || state.billId)}</h1>
         ${bill.title && bill.shortTitle && bill.title !== bill.shortTitle ? `<p class="bill-card-long-title muted">${escapeHtml(bill.title)}</p>` : ""}
+        <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
         <div class="bill-card-badges">
           <span class="bill-prov-pill ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
           <span class="status-stage-chip">${escapeHtml(status.label || bill.status || "Status")}</span>
@@ -529,6 +555,7 @@ function renderFullBrief(data) {
         </div>
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || data.methodologyDisclaimer || "")}</p>
       </header>
+      ${rulesExplanationHtml(data)}
       ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2><p>${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI synthesis from live bill data</p></section>` : ""}
       ${liveAnalysisPanelHtml(data)}
 

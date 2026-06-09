@@ -395,6 +395,25 @@
     return `<a class="brief-trace-cta" href="${esc(stockPageUrl(sym))}">${esc(label)} →</a>`;
   }
 
+  function freshnessChipHtml(freshness, escapeHtml) {
+    if (!freshness?.level) return "";
+    const esc = escapeHtml || ((value) => String(value ?? ""));
+    const level = freshness.level === "verified" || freshness.level === "stale" ? freshness.level : "modeled";
+    const label = freshness.label || (level === "verified" ? "Verified" : level === "stale" ? "Stale" : "Modeled");
+    const detail = freshness.detail || "";
+    const sources = freshness.sourcesLine || "";
+    const title = [label, detail, sources].filter(Boolean).join(" · ");
+    return `
+      <details class="freshness-chip freshness-chip--${esc(level)}">
+        <summary class="freshness-chip-summary" title="${esc(title)}">
+          <span class="freshness-chip-dot" aria-hidden="true"></span>
+          <span class="freshness-chip-label">${esc(label)}</span>
+        </summary>
+        ${detail ? `<p class="freshness-chip-detail muted">${esc(detail)}</p>` : ""}
+        ${sources ? `<p class="freshness-chip-sources mono">${esc(sources)}</p>` : ""}
+      </details>`;
+  }
+
   global.BriefShell = {
     storedMode,
     persistMode,
@@ -411,6 +430,7 @@
     stockPageUrl,
     lobbyPageUrl,
     traceTickerCtaHtml,
+    freshnessChipHtml,
     init
   };
 })(typeof window !== "undefined" ? window : globalThis);

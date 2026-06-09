@@ -114,6 +114,10 @@ function heroActionsHtml() {
     </div>`;
 }
 
+function freshnessChipHtml(data) {
+  return BriefShell.freshnessChipHtml(data?.freshness, escapeHtml);
+}
+
 function classifyBarHtml(data) {
   return `
     <div class="dossier-classify mono" aria-hidden="true">
@@ -242,6 +246,7 @@ function stepPaidHtml(data) {
   return `
     <p class="bill-card-id mono">${escapeHtml(data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(data.company || data.symbol)}</h1>
+    <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
     <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>
     <p class="bill-guided-lede">${escapeHtml(data.analysis?.plainEnglish || data.causality?.plainEnglish || "Federal contract exposure profile for this company.")}</p>
     ${award
@@ -400,6 +405,7 @@ function renderFullBrief(data) {
         </div>
         <p class="bill-card-id mono">${escapeHtml(data.symbol)}</p>
         <h1>${escapeHtml(data.company || data.symbol)}</h1>
+        <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
         <p class="muted">${escapeHtml(c.archetype || "Government contractor profile")} · ${escapeHtml(c.scores?.confidence || "—")} confidence</p>
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || "")}</p>
         <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>

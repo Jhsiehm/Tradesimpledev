@@ -2747,6 +2747,37 @@ html[data-theme="light"] .signal-freshness {
   color: rgba(26, 24, 18, 0.5);
 }
 
+.signal-editorial-context {
+  position: relative;
+  z-index: 1;
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(244, 241, 232, 0.72);
+  max-width: 42ch;
+}
+
+html[data-theme="light"] .signal-editorial-context {
+  color: rgba(26, 24, 18, 0.72);
+}
+
+.signal-brief-cta {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  margin-top: 0.55rem;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+  text-decoration: none;
+}
+
+.signal-brief-cta:hover {
+  text-decoration: underline;
+}
+
 .terminal-signal.is-updating {
   opacity: 0.94;
   transition: opacity 0.2s ease;

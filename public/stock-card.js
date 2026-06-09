@@ -195,6 +195,10 @@ function themeSwitchHtml() {
     </div>`;
 }
 
+function freshnessChipHtml(data) {
+  return BriefShell.freshnessChipHtml(data?.freshness, escapeHtml);
+}
+
 function classifyBarHtml(data) {
   return `
     <div class="dossier-classify mono" aria-hidden="true">
@@ -304,6 +308,7 @@ function stepExposureHtml(data, analysis, mapping) {
     ${policyPulseBannerHtml(data.policyPulse)}
     <p class="bill-card-id mono">${escapeHtml(data.symbol)} · ${escapeHtml(data.company?.name || data.symbol)}</p>
     <h1 class="bill-guided-title">${escapeHtml(headline || `${data.symbol} government-to-market profile`)}</h1>
+    <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
     <div class="bill-guided-facts">
       <div class="bill-guided-fact">
         <span class="bill-guided-fact-label">Quote context</span>
@@ -552,6 +557,7 @@ function renderFullBrief(data) {
           <span class="mini-label">Government-to-market snapshot</span>
           <span>${escapeHtml(quoteMeta)}</span>
         </div>
+        <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
 
         <div class="hero-grid">
           <div>
