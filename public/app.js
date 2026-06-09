@@ -2335,7 +2335,7 @@ function renderOverview() {
   const cash = Number(accountMeta.cash ?? PAPER_STARTING_CASH);
   const fromAccount = (state.account?.positions || []).slice().sort((a, b) => Number(b.marketValue || 0) - Number(a.marketValue || 0));
   const rows = !fromAccount.length
-    ? `<tr><td colspan="6">No open positions yet. Place a paper trade in Account to populate this table and the policy map.</td></tr>`
+    ? `<tr class="empty-state-row"><td colspan="6"><div class="guided-empty-state"><strong>Start here:</strong> you hold $100,000 of simulated cash and no positions. Place a paper trade to light up this table and your policy exposure map. <button type="button" class="button button-secondary compact" data-show-view="trade">Open paper trading →</button></div></td></tr>`
     : fromAccount
         .map((position) => {
           let quote = quoteFor(position.symbol);
@@ -3111,10 +3111,13 @@ function renderBills() {
       .toLowerCase()
       .includes(query);
   });
+  renderBillAlertCards();
   const feed = $("#bill-feed");
   if (!feed) return;
   if (!bills.length) {
-    feed.innerHTML = `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`;
+    feed.innerHTML = query
+      ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
+      : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
     return;
   }
   feed.innerHTML = sortBillsForTable(bills).map((bill) => {
@@ -3139,18 +3142,18 @@ function renderBills() {
           <a class="bill-page-open muted" href="${escapeHtml(pageUrl)}">Full page →</a>
         </td>
         <td><a class="bill-page-link" href="${escapeHtml(pageUrl)}">${escapeHtml(bill.title || "")}</a></td>
-        <td class="bill-stage-cell">
+        <td class="bill-stage-cell" data-label="Stage">
           <span class="status-stage-chip ${toneClassFromStatus(status.tone)}" style="color:${stageColor}">${escapeHtml(status.label)}</span>
           ${billLegislativeContext(bill)?.primaryCommittee && billLegislativeContext(bill).primaryCommittee !== "—"
             ? `<small class="stage-cell-committee">${escapeHtml(billLegislativeContext(bill).primaryCommittee)}</small>`
             : ""}
           <small class="stage-cell-next">${escapeHtml(status.nextStep || "")}</small>
         </td>
-        <td><span class="score-badge ${momentum >= 67 ? "high" : momentum < 35 ? "low" : "medium"}">${momentum}/100</span></td>
-        <td><span class="score-badge ${lobby >= 67 ? "high" : lobby < 35 ? "low" : "medium"}">${lobby}/100</span></td>
-        <td>${escapeHtml(billConfidenceLabel(bill))}</td>
-        <td class="mono ticker-link-cell">${tickerLinks || "—"}</td>
-        <td class="bill-calendar-cell">${billCalendarCellHtml(bill)}</td>
+        <td data-label="Momentum"><span class="score-badge ${momentum >= 67 ? "high" : momentum < 35 ? "low" : "medium"}">${momentum}/100</span></td>
+        <td data-label="Lobby pressure"><span class="score-badge ${lobby >= 67 ? "high" : lobby < 35 ? "low" : "medium"}">${lobby}/100</span></td>
+        <td data-label="Confidence">${escapeHtml(billConfidenceLabel(bill))}</td>
+        <td class="mono ticker-link-cell" data-label="Tickers">${tickerLinks || "—"}</td>
+        <td class="bill-calendar-cell" data-label="Calendar">${billCalendarCellHtml(bill)}</td>
       </tr>
       <tr id="${detailsId}" hidden>
         <td colspan="8">
@@ -3192,6 +3195,23 @@ function renderBills() {
   }).join("");
   renderBillStakeholders();
   renderPolicyCatalysts();
+}
+
+/* Bill alert spotlight — renders the two highest-momentum tracked bills as
+   legisAlertCard()s. Buttons inside the cards (Ask why, Explain metrics,
+   Ask AI) are handled globally by setupLegisCardDelegation(). */
+function renderBillAlertCards() {
+  const host = $("#bill-alert-cards");
+  if (!host) return;
+  const top = policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a))
+    .slice(0, 2);
+  if (!top.length) {
+    host.innerHTML = `<div class="guided-empty-state"><strong>No alerts yet.</strong> High-momentum bills appear here as soon as the policy feed loads.</div>`;
+    return;
+  }
+  host.innerHTML = top.map((bill) => legisAlertCard(bill, { compact: true })).join("");
 }
 
 function renderLobbying() {
@@ -3288,7 +3308,7 @@ function renderAccount() {
         <td>${positionPolicyRiskHtml(position.symbol)}</td>
       </tr>
     `).join("")
-    : `<tr><td colspan="7"><div style="padding:1.5rem;text-align:center"><p style="margin:0 0 0.5rem;font-weight:600">No positions yet</p><p class="muted" style="margin:0 0 1rem;font-size:0.85rem">Search a ticker in the terminal bar above, then use the order ticket to place your first paper trade. Starting cash: $100,000.</p><button type="button" class="button button-secondary" onclick="document.querySelector('#terminal-search')?.focus()">Search a ticker →</button></div></td></tr>`;
+    : `<tr class="empty-state-row"><td colspan="7"><div class="guided-empty-state positions-empty-state"><strong>No positions yet.</strong> Pick a symbol in the order ticket, choose a quantity, and place your first paper trade — you start with $100,000 of simulated cash. Nothing here touches real money.</div></td></tr>`;
 
   $("#paper-orders").innerHTML = (state.account?.orders || []).length
     ? state.account.orders.slice(0, 8).map((order) => `
@@ -5737,6 +5757,12 @@ function showView(view, updateUrl = true) {
   }
   if (view === "analysis" && isFeatureEnabled("ANALYSIS_LAB_ENABLED") && !state.analysis) loadAnalysis(state.activeAnalysisSymbol);
   if (view === "trade" && !state.tradeHistory) loadTradeHistory(state.tradeSymbol, state.tradeRange);
+  if (view === "trade" && !state.account) {
+    // First data arrival replaces these via renderAccount() innerHTML writes.
+    showSkeleton("#account-grid", 4, "default");
+    showSkeleton("#paper-positions-body", 3, "row");
+    showSkeleton("#paper-orders", 2, "card");
+  }
   if (view === "markets" && isViewEnabled("markets")) {
     if (!state.quotes?.length) {
       showSkeleton("#market-body", 8, "row");

@@ -6050,17 +6050,19 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   /* Content padding */
   .main-content, .view { padding: 14px 12px; }
 
-  /* Bills table — hide less critical columns */
-  .bill-table th:nth-child(3),
-  .bill-table td:nth-child(3),
-  .bill-table th:nth-child(4),
-  .bill-table td:nth-child(4) { display: none; }
+  /* Markets table — keep ticker, price, change, policy; drop open/high/low */
+  .terminal-table--markets th:nth-child(4),
+  .terminal-table--markets td:nth-child(4),
+  .terminal-table--markets th:nth-child(5),
+  .terminal-table--markets td:nth-child(5),
+  .terminal-table--markets th:nth-child(6),
+  .terminal-table--markets td:nth-child(6) { display: none; }
 
-  /* Markets table — keep symbol, price, change only */
-  #market-body tr td:nth-child(4),
-  #market-body tr td:nth-child(5) { display: none; }
-  .market-table th:nth-child(4),
-  .market-table th:nth-child(5) { display: none; }
+  /* Positions table — keep symbol, qty, price, P/L, risk; drop avg cost + market value */
+  .terminal-table--positions th:nth-child(3),
+  .terminal-table--positions td:nth-child(3),
+  .terminal-table--positions th:nth-child(5),
+  .terminal-table--positions td:nth-child(5) { display: none; }
 
   /* Overview metrics grid */
   .overview-metrics-grid,
@@ -6087,14 +6089,111 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .research-drawer-btn,
   .analysis-ticker-ai-btn { bottom: 72px; right: 12px; }
 
-  /* Paper positions table scrollable */
-  .positions-table-wrap,
-  #paper-positions-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .positions-table-wrap table,
-  #paper-positions-table table { min-width: 520px; }
+  /* Paper positions table fits without sideways scrolling once the two
+     secondary columns are hidden; let cells wrap instead of forcing width.
+     (Selector strength beats the 640px table min-width in dashboard-professional.css.) */
+  body[data-page="dashboard"] table.terminal-table.terminal-table--positions { width: 100%; min-width: 0 !important; }
+  .terminal-table--positions th,
+  .terminal-table--positions td { white-space: normal; overflow-wrap: anywhere; }
+  .terminal-table--positions .guided-empty-state { margin: 10px 0; }
 
   /* Analysis tab — hide secondary panels */
   .analysis-aside { display: none; }
+
+  /* Bill stage track scrolls sideways instead of clipping */
+  .legis-card .stage-track { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+
+  /* Touch-friendly tap targets */
+  .legis-card-footer-actions .button,
+  .research-drawer-global .button,
+  .range-chip,
+  .filter-row .button { min-height: 40px; }
+  .research-form button[type="submit"] { min-height: 44px; }
+}
+
+/* ── Mobile fixes: bills table, drawer, freshness bar ────── */
+
+/* Hide the floating Ask AI button while the drawer is open — it overlapped
+   the drawer's own input on phones. */
+body:has(.research-drawer-global.open) .research-drawer-btn { display: none; }
+
+/* Bill alert spotlight (legisAlertCard strip on the Bills view) */
+.bill-alert-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+@media (max-width: 900px) {
+  .bill-alert-cards { grid-template-columns: 1fr; }
+}
+
+/* Source freshness chips — stop them collapsing into tall ovals on phones */
+@media (max-width: 640px) {
+  body[data-page="dashboard"] .source-freshness-inner .source-freshness-chip {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  body[data-page="dashboard"] .source-freshness-inner { gap: 8px; }
+  body[data-page="dashboard"] .source-freshness-inner .source-freshness-grid {
+    flex-basis: 100%;
+    order: 3;
+  }
+}
+
+/* Bills intelligence table — stacked cards on phones. Each row becomes a
+   bordered card; data-label attributes (set in renderBills) provide the
+   field names that the hidden thead used to supply. */
+@media (max-width: 640px) {
+  /* !important needed: dashboard-professional.css forces a 640px min-width on
+     workspace tables with a higher-specificity selector. */
+  body[data-page="dashboard"] table.terminal-table.terminal-table--bills { min-width: 0 !important; }
+  body[data-page="dashboard"] .terminal-table--bills .bill-stage-cell,
+  body[data-page="dashboard"] .terminal-table--bills .bill-calendar-cell { min-width: 0 !important; }
+  .terminal-table--bills,
+  .terminal-table--bills tbody,
+  .terminal-table--bills tr,
+  .terminal-table--bills td { display: block; width: 100%; }
+  .terminal-table--bills thead { display: none; }
+  .terminal-table--bills tbody tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin: 0 0 10px;
+    padding: 12px;
+  }
+  .terminal-table--bills tbody tr[hidden] { display: none; }
+  .terminal-table--bills td {
+    height: auto;
+    padding: 4px 0;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* Stacked cells read top-to-bottom; numeric right-alignment no longer applies */
+  body[data-page="dashboard"] table.terminal-table--bills td { text-align: left !important; }
+  .terminal-table--bills .bill-source-mini { white-space: normal; }
+  .terminal-table--bills td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 2px;
+  }
+  .terminal-table--bills td[data-label="Momentum"],
+  .terminal-table--bills td[data-label="Lobby pressure"],
+  .terminal-table--bills td[data-label="Confidence"] {
+    display: inline-block;
+    width: auto;
+    min-width: 30%;
+    vertical-align: top;
+    margin-right: 10px;
+  }
+  .terminal-table--bills .bill-page-open { display: inline-block; margin-top: 2px; }
+  /* Expanded quick-preview row: keep the inner lobbying table scrollable */
+  .terminal-table--bills .bill-detail-shell { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* Roadmap phase 9–12: relationship map, social pulse, fund compare */

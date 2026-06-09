@@ -307,14 +307,20 @@
     if (state.animateIn && !state.animateInPlayed && state.mode !== "candle") {
       const line = svg.querySelector(".ts-chart-line");
       if (line && typeof line.getTotalLength === "function") {
-        const len = line.getTotalLength();
-        line.style.strokeDasharray = `${len}`;
-        line.style.strokeDashoffset = `${len}`;
-        requestAnimationFrame(() => {
-          line.style.transition = "stroke-dashoffset 1.05s cubic-bezier(0.16, 1, 0.3, 1)";
-          line.style.strokeDashoffset = "0";
-        });
-        state.animateInPlayed = true;
+        // getTotalLength() throws InvalidStateError when the chart lives in a
+        // hidden view (display:none) — skip the draw-in animation, never crash render.
+        try {
+          const len = line.getTotalLength();
+          line.style.strokeDasharray = `${len}`;
+          line.style.strokeDashoffset = `${len}`;
+          requestAnimationFrame(() => {
+            line.style.transition = "stroke-dashoffset 1.05s cubic-bezier(0.16, 1, 0.3, 1)";
+            line.style.strokeDashoffset = "0";
+          });
+          state.animateInPlayed = true;
+        } catch {
+          state.animateInPlayed = true;
+        }
       }
     }
 

@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=launch-gates-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=mobile-ux-2" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=launch-gates-1" />
   </head>
   <body data-page="dashboard">
@@ -317,7 +317,7 @@
               <span id="market-table-meta">Live quotes</span>
             </div>
             <div class="table-wrap">
-              <table class="terminal-table">
+              <table class="terminal-table terminal-table--markets">
                 <thead>
                   <tr>
                     <th>Ticker</th>
@@ -614,13 +614,20 @@
             </div>
             <div id="bill-catalyst-feed" class="policy-catalyst-list compact"></div>
           </section>
+          <section class="panel bill-alert-panel">
+            <div class="panel-head panel-head-quiet">
+              <h2>High-momentum alerts</h2>
+              <span>Top tracked bills by legislative momentum</span>
+            </div>
+            <div id="bill-alert-cards" class="bill-alert-cards"></div>
+          </section>
           <section class="panel">
             <div class="panel-head panel-head-quiet">
               <h2>Legislative intelligence table</h2>
               <span data-freshness>Pending</span>
             </div>
             <div class="table-wrap">
-              <table class="terminal-table">
+              <table class="terminal-table terminal-table--bills">
                 <thead>
                   <tr>
                     <th>Bill / model ID</th>
@@ -1677,8 +1684,8 @@
       </div>
     </div>
 
-    <script src="/assets/charts.js?v=terminal-contrast-1"></script>
-    <script src="/assets/app.js?v=launch-gates-1" defer></script>
+    <script src="/assets/charts.js?v=mobile-ux-1"></script>
+    <script src="/assets/app.js?v=mobile-ux-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
