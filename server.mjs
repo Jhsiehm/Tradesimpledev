@@ -3273,7 +3273,8 @@ function publicStockCard(res, pathname, { head = false } = {}) {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=roadmap-phase9-12" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=stock-dossier-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=stock-dossier-1" />
   </head>
   <body data-symbol="${escapeHtmlText(symbol)}">
     <main id="stock-card-root" class="stock-card-root" aria-live="polite">
@@ -3283,7 +3284,7 @@ function publicStockCard(res, pathname, { head = false } = {}) {
         <p>Loading government-to-market snapshot.</p>
       </section>
     </main>
-    <script src="/assets/stock-card.js?v=roadmap-phase9-12" defer></script>
+    <script src="/assets/stock-card.js?v=stock-dossier-1" defer></script>
   </body>
 </html>`;
   sendHtml(res, 200, html, { head });

@@ -64,6 +64,18 @@ a { color: inherit; }
 button { font: inherit; color: inherit; }
 
 .stock-card-root { min-height: 100vh; }
+#stock-card-root > .bill-guided {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); }
+
+.card-button.ghost {
+  background: transparent;
+}
 .stock-card-loading,
 .stock-card-error {
   width: min(760px, calc(100% - 32px));
@@ -225,9 +237,10 @@ button { font: inherit; color: inherit; }
 .hero-disclaimer {
   max-width: 640px;
   margin: 18px 0 0;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--muted) 88%, var(--ink));
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .quote-box,
@@ -299,13 +312,20 @@ button { font: inherit; color: inherit; }
 .changed-item.caution { border-left-color: var(--red); }
 .changed-item.info { border-left-color: var(--green); }
 
+.changed-label,
 .changed-item span {
   display: block;
   margin-bottom: 2px;
-  color: var(--amber);
+  color: var(--ink);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.changed-ribbon .changed-label {
+  margin-bottom: 8px;
 }
 
 .reader-strip {
@@ -321,12 +341,13 @@ button { font: inherit; color: inherit; }
 .reader-strip button {
   display: grid;
   gap: 2px;
-  min-height: 34px;
-  border: 1px solid transparent;
+  min-height: 44px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: color-mix(in srgb, var(--ink) 82%, var(--muted));
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .reader-strip button span {
@@ -334,15 +355,24 @@ button { font: inherit; color: inherit; }
 }
 
 .reader-strip button small {
-  color: var(--faint);
+  color: var(--muted);
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10px;
+}
+
+.reader-strip button:hover,
+.reader-strip button:focus-visible {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--green) 35%, transparent);
+  outline-offset: 2px;
 }
 
 .reader-strip button.active {
   color: var(--ink);
-  border-color: rgba(200, 255, 0, 0.36);
-  background: rgba(200, 255, 0, 0.1);
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line-strong));
+  background: color-mix(in srgb, var(--green) 12%, var(--panel));
 }
 
 .reader-mode-note {
@@ -362,8 +392,14 @@ button { font: inherit; color: inherit; }
 .main-explainer article {
   min-height: 190px;
   padding: 18px;
-  background: var(--claim-bg);
-  color: var(--claim-ink);
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.main-explainer .explainer-label {
+  color: color-mix(in srgb, var(--green) 72%, var(--ink));
+  font-weight: 600;
 }
 
 .main-explainer h2 {
@@ -371,11 +407,12 @@ button { font: inherit; color: inherit; }
   font-size: 24px;
   line-height: 1.18;
   letter-spacing: 0;
+  color: var(--ink);
 }
 
 .main-explainer article p,
 .main-explainer article li {
-  color: var(--claim-muted);
+  color: var(--muted);
 }
 
 .main-explainer ul,
@@ -403,13 +440,19 @@ button { font: inherit; color: inherit; }
 }
 
 .risk-card span {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
   font-size: 12px;
+  font-weight: 500;
 }
 
 .risk-card strong {
   font-family: var(--mono);
   font-size: 24px;
+  color: var(--ink);
+}
+
+.risk-card p {
+  color: var(--muted);
 }
 
 .risk-track {
@@ -540,8 +583,8 @@ button { font: inherit; color: inherit; }
   line-height: 1.5;
 }
 
-.main-explainer .claim-sources ul {
-  color: var(--claim-muted);
+.main-explainer .claim-sources summary {
+  color: color-mix(in srgb, var(--green) 80%, var(--ink));
 }
 
 .source-detail-list {
@@ -703,6 +746,64 @@ button { font: inherit; color: inherit; }
   .chain-steps {
     grid-template-columns: 1fr;
   }
+}
+
+/* guided walkthrough extensions */
+
+.stock-guided-toolbar {
+  align-items: center;
+}
+
+.stock-meta-note {
+  margin: -0.6rem 0 1.2rem;
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
+.stock-guided-disclaimer {
+  margin-top: 1rem;
+  font-size: 0.72rem;
+}
+
+.stock-guided-changed {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stock-guided-changed .changed-item {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.stock-guided-score-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.stock-guided-score-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+}
+
+.stock-guided-score-card > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.memo-card .dossier-classify {
+  margin: 0 28px 1rem;
+}
+
+.public-nav-actions .bill-mode-toggle {
+  margin-right: 0.25rem;
 }
 
 @media (max-width: 640px) {

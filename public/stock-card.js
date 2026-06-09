@@ -1,10 +1,15 @@
 const READER_MODE_KEY = "ts_reader_mode";
 const THEME_KEY = "ts_theme";
+const BRIEF_MODE_KEY = "ts_stock_brief_mode";
 
 const state = {
   symbol: document.body.dataset.symbol || pathSymbol() || "NVDA",
-  mode: storedReaderMode(),
-  theme: storedTheme()
+  readerMode: storedReaderMode(),
+  theme: storedTheme(),
+  briefMode: storedBriefMode(),
+  data: null,
+  steps: [],
+  stepIndex: 0
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -40,6 +45,21 @@ function storedTheme() {
   return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
+function storedBriefMode() {
+  try {
+    const stored = localStorage.getItem(BRIEF_MODE_KEY);
+    if (stored === "full" || stored === "guided") return stored;
+  } catch (_) {}
+  return "guided";
+}
+
+function persistBriefMode(mode) {
+  state.briefMode = mode === "full" ? "full" : "guided";
+  try {
+    localStorage.setItem(BRIEF_MODE_KEY, state.briefMode);
+  } catch (_) {}
+}
+
 function applyTheme(theme) {
   const normalized = theme === "light" ? "light" : "dark";
   state.theme = normalized;
@@ -51,12 +71,13 @@ function applyTheme(theme) {
 
 async function loadStockCard() {
   const root = document.getElementById("stock-card-root");
+  const fetchMode = state.briefMode === "guided" ? "citizen" : state.readerMode;
   try {
-    const data = await fetchJson(`/api/share/stock?symbol=${encodeURIComponent(state.symbol)}&mode=${encodeURIComponent(state.mode)}`);
+    const data = await fetchJson(`/api/share/stock?symbol=${encodeURIComponent(state.symbol)}&mode=${encodeURIComponent(fetchMode)}`);
     state.symbol = data.symbol || state.symbol;
+    state.data = data;
     document.title = `${state.symbol} government-to-market explainer | TradeSimple`;
-    root.innerHTML = renderCard(data);
-    bindCardControls();
+    renderApp();
   } catch (err) {
     root.innerHTML = `
       <section class="stock-card-error">
@@ -68,12 +89,30 @@ async function loadStockCard() {
   }
 }
 
-function bindCardControls() {
+function renderApp() {
+  const root = document.getElementById("stock-card-root");
+  const data = state.data;
+  if (!data) return;
+  if (state.briefMode === "guided") {
+    state.steps = buildSteps(data);
+    if (state.stepIndex >= state.steps.length) state.stepIndex = 0;
+    root.innerHTML = renderGuided(data);
+    bindSharedControls(data);
+    bindGuidedControls();
+  } else {
+    root.innerHTML = renderFullBrief(data);
+    bindSharedControls(data);
+  }
+}
+
+/* ---------- shared controls ---------- */
+
+function bindSharedControls(data) {
   document.querySelectorAll("[data-reader-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mode = btn.dataset.readerMode;
-      if (!isReaderMode(mode)) return;
-      state.mode = mode;
+      if (!isReaderMode(mode) || mode === state.readerMode) return;
+      state.readerMode = mode;
       try {
         localStorage.setItem(READER_MODE_KEY, mode);
       } catch (_) {}
@@ -107,9 +146,396 @@ function bindCardControls() {
       }
     });
   }
+
+  document.querySelectorAll("[data-brief-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.briefMode;
+      if (mode === state.briefMode) return;
+      persistBriefMode(mode);
+      state.stepIndex = 0;
+      loadStockCard();
+      window.scrollTo({ top: 0 });
+    });
+  });
 }
 
-function renderCard(data) {
+function modeToggleHtml() {
+  return `
+    <div class="bill-mode-toggle" role="group" aria-label="Brief view mode">
+      <button type="button" data-brief-mode="guided" class="bill-mode-btn${state.briefMode === "guided" ? " is-active" : ""}" aria-pressed="${state.briefMode === "guided"}">Guided</button>
+      <button type="button" data-brief-mode="full" class="bill-mode-btn${state.briefMode === "full" ? " is-active" : ""}" aria-pressed="${state.briefMode === "full"}">Full brief</button>
+    </div>`;
+}
+
+function heroActionsHtml() {
+  return `
+    <div class="bill-card-actions">
+      <button type="button" class="card-button ghost" id="public-share-copy">Copy link</button>
+      <a class="card-button ghost" href="/dashboard?view=analysis">Dashboard</a>
+    </div>`;
+}
+
+function themeSwitchHtml() {
+  return `
+    <div class="theme-switch" aria-label="Theme mode">
+      <button type="button" data-theme-mode="dark" class="${state.theme === "dark" ? "active" : ""}" aria-pressed="${state.theme === "dark"}">Dark</button>
+      <button type="button" data-theme-mode="light" class="${state.theme === "light" ? "active" : ""}" aria-pressed="${state.theme === "light"}">Light</button>
+    </div>`;
+}
+
+function classifyBarHtml(data) {
+  return `
+    <div class="dossier-classify mono" aria-hidden="true">
+      <span class="dossier-classify-id">TRADESIMPLE STOCK BRIEF&ensp;//&ensp;${escapeHtml((data.symbol || state.symbol).toUpperCase())}</span>
+      <span class="dossier-classify-note">GOVERNMENT-TO-MARKET&ensp;·&ensp;NOT INVESTMENT ADVICE</span>
+    </div>`;
+}
+
+function dossierMetaHtml(data) {
+  const quote = data.quote || {};
+  const quoteMeta = formatQuoteMeta(quote, data.updatedAt);
+  const policyRow = (data.charts?.riskRadar || []).find((row) => /policy/i.test(row.label || ""));
+  const rows = [
+    ["Symbol", (data.symbol || state.symbol).toUpperCase()],
+    ["Company", data.company?.name || data.symbol || "—"],
+    ["Quote", quote.price ? money(quote.price) : "Unavailable"],
+    ["Policy exposure", policyRow ? `${Math.round(Number(policyRow.value || 0))}/100` : "—"]
+  ];
+  return `
+    <dl class="dossier-meta mono">
+      ${rows
+        .map(
+          ([label, value]) =>
+            `<div class="dossier-meta-row"><dt>${escapeHtml(label)}</dt><span class="dossier-leader" aria-hidden="true"></span><dd>${escapeHtml(String(value).toUpperCase())}</dd></div>`
+        )
+        .join("")}
+    </dl>
+    <p class="muted mono stock-meta-note">${escapeHtml(quoteMeta)}</p>`;
+}
+
+/* ---------- guided walkthrough ---------- */
+
+function buildSteps(data) {
+  const explainer = data.explainer || {};
+  const evidence = data.evidence || {};
+  const riskRows = data.charts?.riskRadar || [];
+  const steps = [];
+
+  steps.push({
+    id: "exposure",
+    short: "Exposure",
+    ref: "Policy exposure",
+    html: stepExposureHtml(data)
+  });
+
+  const changedHtml = stepChangedHtml(data.whatChanged, evidence);
+  if (changedHtml) {
+    steps.push({ id: "changed", short: "What changed", ref: "Recent updates", html: changedHtml });
+  }
+
+  steps.push({
+    id: "now",
+    short: "Happening now",
+    ref: "Plain English signal",
+    html: stepNowHtml(explainer, data)
+  });
+
+  steps.push({
+    id: "matter",
+    short: "Why it matters",
+    ref: "Market mechanism",
+    html: stepMatterHtml(explainer, evidence)
+  });
+
+  steps.push({
+    id: "watch",
+    short: "Watch next",
+    ref: "Forward watch",
+    html: stepWatchHtml(explainer, data)
+  });
+
+  if (riskRows.length) {
+    steps.push({
+      id: "scores",
+      short: "Scores",
+      ref: "Sensitivity metrics",
+      html: stepScoresHtml(riskRows, data)
+    });
+  }
+
+  return steps;
+}
+
+function stepExposureHtml(data) {
+  const quote = data.quote || {};
+  const pct = Number(quote.pct ?? quote.changePercent ?? 0);
+  const changeClass = pct >= 0 ? "up" : "down";
+  const explainer = data.explainer || {};
+  const headline = data.governmentSignals?.headline || explainer.headline || "";
+  const policyRow = (data.charts?.riskRadar || []).find((row) => /policy/i.test(row.label || ""));
+  const policyCaption = policyRow?.caption || policyRow?.explain || data.governmentSignals?.detail || "";
+  return `
+    <p class="bill-card-id mono">${escapeHtml(data.symbol)} · ${escapeHtml(data.company?.name || data.symbol)}</p>
+    <h1 class="bill-guided-title">${escapeHtml(headline || `${data.symbol} government-to-market profile`)}</h1>
+    <div class="bill-guided-facts">
+      <div class="bill-guided-fact">
+        <span class="bill-guided-fact-label">Quote context</span>
+        <p><strong class="mono">${quote.price ? money(quote.price) : "Unavailable"}</strong>${quote.price ? ` <span class="${changeClass} mono">${signed(quote.change || 0)} / ${signed(pct)}%</span>` : ""}</p>
+      </div>
+      ${policyCaption
+        ? `<div class="bill-guided-fact">
+            <span class="bill-guided-fact-label">Policy exposure summary</span>
+            <p>${escapeHtml(policyCaption)}</p>
+            ${policyRow ? `<p class="muted mono bill-guided-fact-date">Policy exposure score ${Math.round(Number(policyRow.value || 0))}/100</p>` : ""}
+          </div>`
+        : ""}
+    </div>
+    <p class="hero-disclaimer stock-guided-disclaimer">Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.</p>`;
+}
+
+function stepChangedHtml(whatChanged, evidence) {
+  const items = Array.isArray(whatChanged?.items) ? whatChanged.items.slice(0, 4) : [];
+  if (!items.length) return "";
+  return `
+    <h2 class="bill-step-title">What changed recently?</h2>
+    <div class="stock-guided-changed">
+      ${items.slice(0, 3).map((item) => `
+        <article class="changed-item ${escapeHtml(item.severity || "info")}">
+          <span>${escapeHtml(item.label || "Snapshot item")}</span>
+          <p>${escapeHtml(item.detail || String(item))}</p>
+        </article>`).join("")}
+    </div>
+    ${sourceDetails("Why this appears", [
+      ...items,
+      evidence?.recentNews?.[0]?.headline ? {
+        label: "Top headline",
+        detail: evidence.recentNews[0].headline,
+        sourceType: evidence.recentNews[0].sourceLabel || evidence.recentNews[0].source || "News",
+        freshness: evidence.recentNews[0].publishedAt,
+        confidence: evidence.recentNews[0].confidence || "Medium",
+        reason: "Top company headline included in the current news window."
+      } : null
+    ])}`;
+}
+
+function stepNowHtml(explainer, data) {
+  const copy = readerModeCopy("citizen");
+  return `
+    <h2 class="bill-step-title">${escapeHtml(copy.signalLabel)}</h2>
+    <p class="bill-guided-lede">${escapeHtml(explainer.now || data.governmentSignals?.detail || "No government signal summary available.")}</p>
+    ${sourceDetails("Sources", evidenceSummaryItems(data.evidence || {}, "policy"))}`;
+}
+
+function stepMatterHtml(explainer, evidence) {
+  const copy = readerModeCopy("citizen");
+  return `
+    <h2 class="bill-step-title">${escapeHtml(copy.mechanismLabel)}</h2>
+    <p class="bill-guided-lede">${escapeHtml(explainer.whyItMatters || "Government action can matter through revenue, margins, capex, compliance costs, contract visibility, and investor expectations.")}</p>
+    ${sourceDetails("Evidence", evidenceSummaryItems(evidence, "mechanism"))}`;
+}
+
+function stepWatchHtml(explainer, data) {
+  const copy = readerModeCopy("citizen");
+  const watchItems = (explainer.watchFor || []).slice(0, 4);
+  return `
+    <h2 class="bill-step-title">${escapeHtml(copy.watchLabel)}</h2>
+    <ul class="bill-guided-watchlist">${watchItems.length ? watchItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
+    <div class="bill-guided-cta">
+      <a class="card-button bill-cta-primary" href="/dashboard?view=analysis&symbol=${encodeURIComponent(data.symbol || state.symbol)}">Open on dashboard</a>
+      <button type="button" class="card-button ghost" data-brief-mode="full">Switch to full brief</button>
+    </div>
+    <p class="muted bill-guided-note">${escapeHtml(data.share?.evidenceDisclaimer || data.evidence?.disclaimer || "Research context only. Linked sources do not imply causation or investment advice.")}</p>`;
+}
+
+function stepScoresHtml(riskRows, data) {
+  const mode = data.readerMode || state.readerMode;
+  return `
+    <h2 class="bill-step-title">Sensitivity and context scores</h2>
+    <p class="bill-guided-lede muted">Modeled context scores — not buy/sell signals. Switch to full brief for Investor and Analyst reader modes.</p>
+    <div class="stock-guided-score-grid">
+      ${riskRows.slice(0, 5).map((row) => guidedRiskCard(row, mode)).join("")}
+    </div>
+    <p class="dossier-redaction mono">Deterministic models · not investment advice</p>`;
+}
+
+function guidedRiskCard(row, mode = "citizen") {
+  const value = Math.max(0, Math.min(100, Number(row.value || 0)));
+  const analystLine = mode === "analyst"
+    ? `<small class="analyst-meta">Raw score ${Math.round(value)}/100 · confidence ${escapeHtml(row.confidence || "Medium")}</small>`
+    : "";
+  return `
+    <div class="bill-guided-scores stock-guided-score-card">
+      <div>
+        <span class="score-label">${escapeHtml(row.label || "Risk")}</span>
+        <strong class="mono">${Math.round(value)}</strong>
+      </div>
+      <div class="risk-track"><i style="width:${value}%"></i></div>
+      <p class="muted">${escapeHtml(row.caption || row.explain || "")}</p>
+      ${analystLine}
+    </div>`;
+}
+
+function renderGuided(data) {
+  return `
+    <article class="bill-guided stock-card-shell">
+      ${classifyBarHtml(data)}
+      <header class="bill-guided-top">
+        ${modeToggleHtml()}
+        <div class="bill-card-actions stock-guided-toolbar">
+          ${themeSwitchHtml()}
+          ${heroActionsHtml()}
+        </div>
+      </header>
+      ${dossierMetaHtml(data)}
+      <div class="bill-guided-bar">
+        <nav class="bill-step-toc-wrap" aria-label="Brief steps">
+          <ol class="bill-step-toc" id="bill-step-toc">
+            ${state.steps
+              .map(
+                (s, i) => `<li><button type="button" data-goto-step="${i}" class="${i === state.stepIndex ? "is-current" : ""}${i < state.stepIndex ? " is-done" : ""}" aria-current="${i === state.stepIndex ? "step" : "false"}">
+                  <span class="bill-step-num mono">${String(i + 1).padStart(2, "0")}</span><span class="bill-step-name">${escapeHtml(s.short)}</span>
+                </button></li>`
+              )
+              .join("")}
+          </ol>
+        </nav>
+        <span class="bill-step-count mono" id="bill-step-count" aria-live="polite">Step ${state.stepIndex + 1} of ${state.steps.length}</span>
+      </div>
+      <section class="bill-step-viewport" id="bill-step-viewport" tabindex="0" aria-label="Current step">
+        ${stepInnerHtml(state.stepIndex)}
+      </section>
+      <div class="bill-step-controls">
+        <button type="button" class="card-button ghost dossier-nav-btn" id="bill-step-back">&larr; Back</button>
+        <button type="button" class="card-button bill-next-btn dossier-nav-btn" id="bill-step-next">Continue &rarr;</button>
+      </div>
+      <footer class="bill-guided-footer mono">
+        <p>${escapeHtml((data.share?.evidenceDisclaimer || data.evidence?.disclaimer || "Research context only.").toUpperCase())}</p>
+        <p class="bill-updated">END OF BRIEF&ensp;//&ensp;${escapeHtml((data.symbol || state.symbol).toUpperCase())}&ensp;//&ensp;UPDATED ${escapeHtml(freshnessText(data.updatedAt).toUpperCase())}</p>
+      </footer>
+    </article>`;
+}
+
+function stepInnerHtml(index) {
+  const step = state.steps[index];
+  if (!step) return "";
+  const total = state.steps.length;
+  return `
+    <div class="bill-step" data-step-id="${escapeHtml(step.id)}">
+      <p class="bill-step-ref mono">SECTION ${String(index + 1).padStart(2, "0")} / ${String(total).padStart(2, "0")}&ensp;&mdash;&ensp;${escapeHtml(step.ref.toUpperCase())}</p>
+      ${step.html}
+    </div>`;
+}
+
+function bindGuidedControls() {
+  const viewport = document.getElementById("bill-step-viewport");
+  const back = document.getElementById("bill-step-back");
+  const next = document.getElementById("bill-step-next");
+  if (!viewport || !back || !next) return;
+
+  back.addEventListener("click", () => goToStep(state.stepIndex - 1, -1));
+  next.addEventListener("click", () => {
+    if (state.stepIndex >= state.steps.length - 1) {
+      window.location.href = `/dashboard?view=analysis&symbol=${encodeURIComponent(state.symbol)}`;
+      return;
+    }
+    goToStep(state.stepIndex + 1, 1);
+  });
+  document.querySelectorAll("[data-goto-step]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = Number(btn.dataset.gotoStep);
+      if (Number.isFinite(target)) goToStep(target, target > state.stepIndex ? 1 : -1);
+    });
+  });
+
+  document.addEventListener("keydown", onGuidedKeydown);
+
+  let touchX = null;
+  let touchY = null;
+  viewport.addEventListener(
+    "touchstart",
+    (e) => {
+      touchX = e.touches[0]?.clientX ?? null;
+      touchY = e.touches[0]?.clientY ?? null;
+    },
+    { passive: true }
+  );
+  viewport.addEventListener(
+    "touchend",
+    (e) => {
+      if (touchX == null || touchY == null) return;
+      const dx = (e.changedTouches[0]?.clientX ?? touchX) - touchX;
+      const dy = (e.changedTouches[0]?.clientY ?? touchY) - touchY;
+      touchX = null;
+      touchY = null;
+      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      goToStep(state.stepIndex + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    },
+    { passive: true }
+  );
+
+  syncGuidedControls();
+}
+
+function onGuidedKeydown(e) {
+  if (state.briefMode !== "guided") return;
+  const tag = (e.target?.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (e.key === "ArrowRight") {
+    e.preventDefault();
+    goToStep(state.stepIndex + 1, 1);
+  } else if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    goToStep(state.stepIndex - 1, -1);
+  }
+}
+
+function goToStep(index, dir) {
+  if (index < 0 || index >= state.steps.length || index === state.stepIndex) return;
+  state.stepIndex = index;
+  const viewport = document.getElementById("bill-step-viewport");
+  if (!viewport) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const swap = () => {
+    viewport.innerHTML = stepInnerHtml(state.stepIndex);
+    syncGuidedControls();
+    if (!reduceMotion) {
+      viewport.dataset.dir = dir > 0 ? "fwd" : "back";
+      viewport.classList.remove("is-leaving");
+      viewport.classList.add("is-entering");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => viewport.classList.remove("is-entering"));
+      });
+    }
+  };
+  if (reduceMotion) {
+    swap();
+  } else {
+    viewport.dataset.dir = dir > 0 ? "fwd" : "back";
+    viewport.classList.add("is-leaving");
+    window.setTimeout(swap, 130);
+  }
+  window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+}
+
+function syncGuidedControls() {
+  const back = document.getElementById("bill-step-back");
+  const next = document.getElementById("bill-step-next");
+  const count = document.getElementById("bill-step-count");
+  const last = state.stepIndex >= state.steps.length - 1;
+  if (back) back.disabled = state.stepIndex === 0;
+  if (next) next.textContent = last ? "Open dashboard" : "Continue";
+  if (count) count.textContent = `Step ${state.stepIndex + 1} of ${state.steps.length}`;
+  document.querySelectorAll("[data-goto-step]").forEach((btn) => {
+    const i = Number(btn.dataset.gotoStep);
+    btn.classList.toggle("is-current", i === state.stepIndex);
+    btn.classList.toggle("is-done", i < state.stepIndex);
+    btn.setAttribute("aria-current", i === state.stepIndex ? "step" : "false");
+  });
+}
+
+/* ---------- full brief ---------- */
+
+function renderFullBrief(data) {
   const quote = data.quote || {};
   const pct = Number(quote.pct ?? quote.changePercent ?? 0);
   const changeClass = pct >= 0 ? "up" : "down";
@@ -118,8 +544,7 @@ function renderCard(data) {
   const riskRows = data.charts?.riskRadar || [];
   const evidence = data.evidence || {};
   const edgar = data.edgar || {};
-  const whatChanged = data.whatChanged?.items || [];
-  const modeCopy = readerModeCopy(data.readerMode || state.mode);
+  const modeCopy = readerModeCopy(data.readerMode || state.readerMode);
   const quoteMeta = formatQuoteMeta(quote, data.updatedAt);
 
   return `
@@ -130,16 +555,15 @@ function renderCard(data) {
           <span>TradeSimple</span>
         </a>
         <div class="public-nav-actions">
-          <div class="theme-switch" aria-label="Theme mode">
-            <button type="button" data-theme-mode="dark" class="${state.theme === "dark" ? "active" : ""}" aria-pressed="${state.theme === "dark"}">Dark</button>
-            <button type="button" data-theme-mode="light" class="${state.theme === "light" ? "active" : ""}" aria-pressed="${state.theme === "light"}">Light</button>
-          </div>
+          ${modeToggleHtml()}
+          ${themeSwitchHtml()}
           <a href="/dashboard?view=analysis" class="nav-link">Dashboard</a>
           <button type="button" id="public-share-copy" class="nav-button">Copy link</button>
         </div>
       </header>
 
       <section class="memo-card">
+        ${classifyBarHtml(data)}
         <div class="card-topline">
           <span class="mini-label">Government-to-market snapshot</span>
           <span>${escapeHtml(quoteMeta)}</span>
@@ -166,7 +590,7 @@ function renderCard(data) {
 
         <section class="reader-strip" aria-label="Reader mode">
           ${["citizen", "investor", "analyst"].map((mode) => `
-            <button type="button" data-reader-mode="${mode}" class="${state.mode === mode ? "active" : ""}">
+            <button type="button" data-reader-mode="${mode}" class="${state.readerMode === mode ? "active" : ""}" aria-pressed="${state.readerMode === mode}">
               <span>${titleCase(mode)}</span>
               <small>${escapeHtml(readerModeCopy(mode).buttonHint)}</small>
             </button>`).join("")}
@@ -175,23 +599,23 @@ function renderCard(data) {
 
         <section class="main-explainer">
           <article>
-            <span class="mini-label">${escapeHtml(modeCopy.signalLabel)}</span>
+            <span class="mini-label explainer-label">${escapeHtml(modeCopy.signalLabel)}</span>
             <h2>${escapeHtml(explainer.now || data.governmentSignals?.detail || "No government signal summary available.")}</h2>
             ${sourceDetails("Sources", evidenceSummaryItems(evidence, "policy"))}
           </article>
           <article>
-            <span class="mini-label">${escapeHtml(modeCopy.mechanismLabel)}</span>
+            <span class="mini-label explainer-label">${escapeHtml(modeCopy.mechanismLabel)}</span>
             <p>${escapeHtml(explainer.whyItMatters || "Government action can matter through revenue, margins, capex, compliance costs, contract visibility, and investor expectations.")}</p>
             ${sourceDetails("Evidence", evidenceSummaryItems(evidence, "mechanism"))}
           </article>
           <article>
-            <span class="mini-label">${escapeHtml(modeCopy.watchLabel)}</span>
+            <span class="mini-label explainer-label">${escapeHtml(modeCopy.watchLabel)}</span>
             <ul>${(explainer.watchFor || []).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>New filings, rule text, contracts, and company commentary.</li>"}</ul>
           </article>
         </section>
 
         <section class="score-row">
-          ${riskRows.slice(0, 5).map((row) => riskCard(row, data.readerMode || state.mode)).join("")}
+          ${riskRows.slice(0, 5).map((row) => riskCard(row, data.readerMode || state.readerMode)).join("")}
         </section>
 
         <section class="two-col">
@@ -299,18 +723,17 @@ function renderWhatChanged(whatChanged, evidence) {
     return `
     <section class="changed-ribbon">
       <div>
-        <span class="mini-label">What changed?</span>
+        <span class="mini-label changed-label">What changed?</span>
         <p class="muted">No change items in this snapshot yet. Open a prior share or wait for the next refresh.</p>
       </div>
     </section>`;
   }
-  const visible = items;
   return `
     <section class="changed-ribbon">
       <div>
-        <span class="mini-label">What changed?</span>
+        <span class="mini-label changed-label">What changed?</span>
         <div class="changed-list">
-          ${visible.slice(0, 3).map((item) => `
+          ${items.slice(0, 3).map((item) => `
             <article class="changed-item ${escapeHtml(item.severity || "info")}">
               <span>${escapeHtml(item.label || "Snapshot item")}</span>
               <p>${escapeHtml(item.detail || String(item))}</p>
@@ -318,7 +741,7 @@ function renderWhatChanged(whatChanged, evidence) {
         </div>
       </div>
       ${sourceDetails("Why this appears", [
-        ...visible,
+        ...items,
         evidence?.recentNews?.[0]?.headline ? {
           label: "Top headline",
           detail: evidence.recentNews[0].headline,
