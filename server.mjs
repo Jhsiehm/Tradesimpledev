@@ -2354,6 +2354,16 @@ server.listen(PORT, "0.0.0.0", async () => {
   if (process.env.SENATE_LDA_API_KEY) {
     refreshLdaLobbyingCache().catch((err) => console.warn("[data] Initial LDA refresh failed:", err.message));
   }
+  setTimeout(() => {
+    try {
+      const report = validateBillPipelineSample();
+      if (report.warnings.length) {
+        console.warn(`[data] Bill pipeline self-check: ${report.warnings.length} issue(s) — ${report.warnings.slice(0, 4).join("; ")}`);
+      }
+    } catch (err) {
+      console.warn("[data] Bill pipeline self-check skipped:", err.message);
+    }
+  }, 15_000);
 
   if (process.env.FINNHUB_API_KEY) {
     Promise.all(["SPY", "NVDA", "QQQ"].map((sym) => quoteSnapshot(sym)))
@@ -2595,6 +2605,7 @@ async function route(req, res) {
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
+  if (pathname === "/api/admin/validate-bills" && req.method === "GET") return validateBillsAdmin(req, res);
   if (pathname === "/terminal" || pathname === "/terminal/") {
     return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dhome");
   }
@@ -3015,6 +3026,14 @@ async function waitlistAdmin(req, res) {
   }
 }
 
+function validateBillsAdmin(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  return sendJson(res, 200, validateBillPipelineSample());
+}
+
 async function waitlistSignup(req, res) {
   const body = await readJson(req);
   const email = String(body.email || "").trim().toLowerCase();
@@ -3122,7 +3141,7 @@ async function marketQuotes(res, url) {
 // cached per calendar day and invalidated when the Congress live cache refreshes.
 // Without live data: the original 30-second rotation through the seed pool.
 let landingSignalDailyPick = null; // { dateKey, version, payload }
-let landingSignalCacheVersion = 0;
+let landingSignalCacheVersion = 1;
 
 function bumpLandingSignalCacheVersion() {
   landingSignalCacheVersion += 1;
@@ -3139,19 +3158,41 @@ function landingSignalBillPool() {
   for (const b of POLICY_BILLS) {
     if (b.scenarioOnly || !b.affected?.length) continue;
     if (!b.plainEnglish && !b._dynamicCongressBill) continue;
+    if (!landingSignalBillQualifies(b)) continue;
     byId.set(b.id, b);
   }
   for (const [, b] of liveCongressBillRegistry) {
-    if (!byId.has(b.id) && b.affected?.length) byId.set(b.id, b);
+    if (!byId.has(b.id) && b.affected?.length && landingSignalBillQualifies(b)) byId.set(b.id, b);
   }
   const pool = [...byId.values()];
-  return pool.length ? pool : POLICY_BILLS.filter((b) => b.affected?.length);
+  return pool.length ? pool : POLICY_BILLS.filter((b) => b.affected?.length && landingSignalBillQualifies(b));
+}
+
+function landingSignalBillQualifies(bill) {
+  const merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+  const tickers = merged.affected || [];
+  if (!tickers.length) return false;
+  const why =
+    buildWhyMarketsCareRules(merged, tickers) ||
+    merged.plainEnglish ||
+    merged.signal ||
+    "";
+  if (!why || why.length < 36) return Boolean((merged.plainEnglish || merged.signal || "").length > 36);
+  const corpus = billExposureCorpus(merged);
+  if (/ICE and Border Patrol|detention operators/i.test(why) && !isHomelandEnforcementCorpus(corpus, merged)) {
+    return false;
+  }
+  return true;
 }
 
 function landingMomentumScore(bill) {
   let score = computeLegislativeMomentum(bill);
-  if (billActionWithinDays(bill, 3)) score += 12;
-  else if (billActionWithinDays(bill, 7)) score += 6;
+  const stageKey = normalizeStatusKey(bill.status, bill.latestAction, bill);
+  if (stageKey === "passed_one_chamber") score += 10;
+  else if (stageKey === "resolving") score += 8;
+  else if (stageKey === "floor") score += 4;
+  if (billActionWithinDays(bill, 2)) score += 14;
+  else if (billActionWithinDays(bill, 7)) score += 7;
   return score;
 }
 
@@ -3604,9 +3645,10 @@ function billFromCongressOverlay(billId, overlay) {
 async function fetchCongressBillOverlay(billId, ref, key) {
   const baseUrl = `https://api.congress.gov/v3/bill/${ref.congress}/${ref.type}/${ref.number}`;
   const qs = `format=json&api_key=${encodeURIComponent(key)}`;
-  const [detailResp, commResp] = await Promise.all([
+  const [detailResp, commResp, actions] = await Promise.all([
     fetchWithTimeout(`${baseUrl}?${qs}`, {}, 10_000),
-    fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 10_000).catch(() => null)
+    fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 10_000).catch(() => null),
+    fetchCongressBillActions(baseUrl, qs)
   ]);
   if (!detailResp.ok) return null;
   const data = await detailResp.json();
@@ -3620,33 +3662,14 @@ async function fetchCongressBillOverlay(billId, ref, key) {
       committees = [];
     }
   }
-  const actionText = (b.latestAction?.text || "").toLowerCase();
-  let status = "introduced";
-  if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
-  else if (actionText.includes("passed senate") || actionText.includes("passed house")) status = "floor";
-  else if (actionText.includes("reported") || actionText.includes("ordered to be reported")) status = "markup";
-  else if (actionText.includes("committee")) status = "committee";
-  const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
-  const sp = sponsors[0];
+  const overlay = mapCongressBillDetailToOverlay(b, ref, committees, actions);
   const chamberRaw = b.originChamber || b.type || ref.type;
   const chamber = String(chamberRaw).toLowerCase().includes("senate") ? "Senate" : "House";
-  const policyArea = b.policyArea?.name || b.policyArea || null;
   return {
     id: billId,
-    title: b.title || billId,
-    introducedDate: b.introducedDate || null,
-    policyArea: policyArea ? String(policyArea) : null,
-    committees,
-    _committeeNames: committees.map((c) => c.name).filter(Boolean),
-    latestAction: b.latestAction?.text || "Updated by Congress.gov",
-    latestActionDate: b.latestAction?.actionDate || b.updateDate || null,
-    cosponsors: b.cosponsors?.count != null ? Number(b.cosponsors.count) : null,
-    status,
+    ...overlay,
     chamber,
-    exactCongressRecord: true,
-    sponsor: sp
-      ? { name: sp.fullName || sp.lastName || "", party: sp.party || "U", state: sp.state || "" }
-      : { name: "—", party: "U", state: "" }
+    sponsor: overlay.sponsor || { name: "—", party: "U", state: "" }
   };
 }
 
@@ -3758,21 +3781,24 @@ function liveBillAnalysisCacheKey(bill) {
 }
 
 function parseBillWhatHappened(bill) {
-  const action = String(bill?.latestAction || "").trim();
+  const parsed = parseBillStageFromAction(bill.latestAction, bill.actions || bill._congressActions, bill);
+  const action = String(parsed.latestAction || bill?.latestAction || "").trim();
   const title = bill?.shortTitle || bill?.title || bill?.id || "This bill";
   if (!action) return `${title} — no latest action recorded yet.`;
-  const lower = action.toLowerCase();
-  if (/passed (the )?house|on passage.*passed|agreed to.*house/i.test(action)) {
-    return `House passed ${title} — ${action}`;
+  const key = parsed.statusKey;
+  if (key === "passed_one_chamber") {
+    if (/senate/i.test(action)) return `Senate passed ${title} — ${action}`;
+    if (/house/i.test(action)) return `House passed ${title} — ${action}`;
+    return `One chamber passed ${title} — ${action}`;
   }
-  if (/passed (the )?senate|agreed to in senate/i.test(lower)) {
-    return `Senate passed ${title} — ${action}`;
+  if (key === "enacted") return `${title} became law — ${action}`;
+  if (key === "resolving") return `${title} in conference / resolving differences — ${action}`;
+  if (/presented to president|to president/i.test(action)) return `${title} sent to the President — ${action}`;
+  if (key === "floor" && (parsed.floorScheduled || /rules committee|calendar/i.test(action))) {
+    return `${title} is on the floor calendar — ${action}`;
   }
-  if (/became public law|signed by president/i.test(lower)) {
-    return `${title} became law — ${action}`;
-  }
-  if (/rules committee|provides for consideration/i.test(lower)) {
-    return `${title} is on the House floor calendar — ${action}`;
+  if (/agreed to in house|agreed to in senate/i.test(action)) {
+    return `Chamber agreed to ${title} — ${action}`;
   }
   return `${title}: ${action}`;
 }
@@ -3801,9 +3827,25 @@ function isHomelandEnforcementCorpus(corpus, bill = {}) {
 function buildWhyMarketsCareRules(bill, tickers = []) {
   const corpus = billExposureCorpus(bill).toLowerCase();
   const syms = tickers.slice(0, 6);
+  const names = syms.map((s) => FUNDAMENTALS[s]?.name || s).join(", ");
   if (isHomelandEnforcementCorpus(corpus, bill)) {
-    const names = syms.map((s) => FUNDAMENTALS[s]?.name || s).join(", ");
     return `Congress is funding ICE and Border Patrol through DHS — that flows to detention operators (${syms.filter((s) => ["GEO", "CXW"].includes(s)).join(", ") || "GEO, CXW"}), surveillance/IT vendors (${syms.filter((s) => ["PLTR", "BAH"].includes(s)).join(", ") || "PLTR, BAH"}), and border infrastructure contractors. Markets reprice ${names || syms.join(", ")} on enforcement budget visibility.`;
+  }
+  if (
+    /\bdigital asset|crypto|bitcoin|blockchain|stablecoin|virtual currency|clarity act\b/i.test(corpus) ||
+    (bill.tags || []).some((t) => /crypto|digital asset/i.test(String(t)))
+  ) {
+    return `Digital-asset market-structure bills affect exchanges and crypto proxies (${syms.filter((s) => ["COIN", "BTC", "ETH"].includes(s)).join(", ") || "COIN, BTC, ETH"}). Markets reprice ${names || syms.join(", ")} on passage odds and compliance clarity — not a price forecast.`;
+  }
+  if (
+    /\bforeign affairs|international relations|caucasus|diplomatic|embassy|state department|foreign aid\b/i.test(corpus) ||
+    String(bill?.policyArea || "").toLowerCase().includes("international")
+  ) {
+    const defenseSyms = syms.filter((s) => ["LMT", "RTX", "GD", "NOC", "BAH", "PLTR"].includes(s));
+    return `Foreign-affairs and security-authorization bills shift diplomatic contracting and defense supplier visibility (${defenseSyms.join(", ") || "LMT, RTX, GD"}). ${names || syms.join(", ")} may see sentiment effects from authorization levels — not a price forecast.`;
+  }
+  if (/\bdefense|military|pentagon|national security|armed forces\b/i.test(corpus)) {
+    return `Defense authorization and procurement bills flow through prime contractors (${syms.filter((s) => ["LMT", "RTX", "NOC", "PLTR", "BAH"].includes(s)).join(", ") || "LMT, RTX, PLTR"}). ${names || syms.join(", ")} reprice on budget visibility and program language — not a price forecast.`;
   }
   if (syms.length) {
     return `If ${bill?.shortTitle || bill?.title || "this bill"} advances, mapped tickers (${syms.join(", ")}) may see revenue, compliance, or sentiment effects from the policy mechanism — not a price forecast.`;
@@ -3832,15 +3874,22 @@ function buildCausalChainRules(bill, tickers = [], statusInfo = null) {
 }
 
 function buildLobbyAngleSentence(bill) {
-  const rows = bill?.stakeholders?.lobbying || bill?._ldaRows || [];
-  if (!rows.length && bill?.lobbyingSource !== "senate_lda") return null;
+  const merged = applyLobbyingOverlay(bill);
+  const rows = merged?.stakeholders?.lobbying || merged?._ldaRows || [];
+  if (!rows.length && merged?.lobbyingSource !== "senate_lda") return null;
   const top = rows[0];
   if (top?.name) {
     const stance = top.stance === "against" ? "opposing" : top.stance === "for" ? "supporting" : "active on";
-    return `${top.name} is ${stance} this issue${top.amountM != null ? ` (~$${top.amountM}M disclosed)` : ""}.`;
+    const amtM =
+      top.amountM != null
+        ? top.amountM
+        : top.amount != null
+          ? Math.round((Number(top.amount) / 1_000_000) * 10) / 10
+          : null;
+    return `${top.name} is ${stance} this issue${amtM != null ? ` (~$${amtM}M disclosed)` : ""}.`;
   }
-  if (bill?.lobbyingSource === "senate_lda" && Number(bill.lobbyingFilingsCount) > 0) {
-    return `Senate LDA shows ${bill.lobbyingFilingsCount} matched filing(s) — $${bill.lobbyingFor ?? 0}M for, $${bill.lobbyingAgainst ?? 0}M against.`;
+  if (merged?.lobbyingSource === "senate_lda" && Number(merged.lobbyingFilingsCount) > 0) {
+    return `Senate LDA shows ${merged.lobbyingFilingsCount} matched filing(s) — $${merged.lobbyingFor ?? 0}M for, $${merged.lobbyingAgainst ?? 0}M against.`;
   }
   return null;
 }
@@ -3865,6 +3914,61 @@ async function buildContractAngleSentence(tickers = []) {
   return parts.length ? `Contract exposure: ${parts.join("; ")}.` : null;
 }
 
+async function buildRelatedContractsForBill(affected = []) {
+  const tickers = [...new Set((affected || []).map((t) => String(t || "").toUpperCase()).filter((t) => VALID_TICKER_PATTERN.test(t)))].slice(0, 8);
+  const rows = [];
+  for (const ticker of tickers) {
+    const profile = CONTRACT_PROFILES[ticker];
+    let awardCount = null;
+    let topAgency = profile?.primaryAgencies?.[0] || null;
+    let directUrl = usaspendingSearchUrl(resolveContractCompanyName(ticker));
+    try {
+      const ctx = await resolveContractUsaspendingContext(ticker);
+      if (ctx?.awards?.length) {
+        awardCount = ctx.awards.length;
+        topAgency = ctx.awards[0]?.awardingAgency || topAgency;
+        directUrl = ctx.awards[0]?.directUrl || directUrl;
+      }
+    } catch {
+      /* USASpending optional */
+    }
+    if (!profile && !awardCount) continue;
+    rows.push({
+      symbol: ticker,
+      name: FUNDAMENTALS[ticker]?.name || resolveTradableSymbolName(ticker),
+      governmentRevenuePct: profile?.governmentRevenuePct ?? null,
+      awardCount,
+      topAgency,
+      directUrl,
+      url: shareContractPath(ticker)
+    });
+  }
+  return rows;
+}
+
+function headlineMatchesBillTopic(bill, text = "") {
+  const blob = String(text || "").toLowerCase();
+  if (!blob.trim()) return false;
+  const tokens = billMatchTokens(billExposureCorpus(bill));
+  let hits = 0;
+  for (const token of tokens) {
+    if (token.length < 4) continue;
+    if (blob.includes(token)) hits += 1;
+  }
+  if (hits >= 2) return true;
+  const corpus = billExposureCorpus(bill).toLowerCase();
+  if (isHomelandEnforcementCorpus(corpus, bill)) {
+    return /\bice\b|border patrol|homeland|immigration enforcement|secure america|reconciliation/i.test(blob);
+  }
+  if (/\bcrypto|digital asset|bitcoin|blockchain|stablecoin\b/i.test(corpus)) {
+    return /\bcrypto|digital asset|bitcoin|blockchain|stablecoin|coinbase\b/i.test(blob);
+  }
+  if (/\bforeign affairs|international|caucasus|diplomatic\b/i.test(corpus)) {
+    return /\bforeign affairs|diplomatic|congress|house passed|senate\b/i.test(blob);
+  }
+  return hits >= 1 && blob.includes(String(bill?.shortTitle || bill?.title || "").slice(0, 24).toLowerCase());
+}
+
 function buildLiveBillAnalysisRules(bill, tickers, statusInfo) {
   const whatHappened = parseBillWhatHappened(bill);
   const whyMarketsCare = buildWhyMarketsCareRules(bill, tickers);
@@ -3878,23 +3982,24 @@ function buildLiveBillAnalysisRules(bill, tickers, statusInfo) {
 }
 
 async function buildLiveBillAnalysis(bill, req = null) {
-  const statusInfo = bill.statusInfo || statusInfoForBill(bill);
-  const tickers = (bill.affected || bill.portfolioTickers || []).filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 8);
-  const cacheKey = liveBillAnalysisCacheKey(bill);
+  const mergedBill = applyLobbyingOverlay(bill);
+  const statusInfo = mergedBill.statusInfo || statusInfoForBill(mergedBill);
+  const tickers = (mergedBill.affected || mergedBill.portfolioTickers || []).filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 8);
+  const cacheKey = liveBillAnalysisCacheKey(mergedBill);
   const cached = liveBillAnalysisCache.get(cacheKey);
   if (cached && Date.now() - cached.cachedAt < Number(process.env.CONGRESS_REFRESH_MS || 900_000)) {
     return cached.analysis;
   }
 
-  const freshness = bill.exactCongressRecord || bill._dynamicCongressBill
+  const freshness = mergedBill.exactCongressRecord || mergedBill._dynamicCongressBill
     ? process.env.CONGRESS_API_KEY
       ? "live"
       : "cached"
-    : bill.scenarioOnly
+    : mergedBill.scenarioOnly
       ? "scenario"
       : "cached";
 
-  let rules = buildLiveBillAnalysisRules(bill, tickers, statusInfo);
+  let rules = buildLiveBillAnalysisRules(mergedBill, tickers, statusInfo);
   rules.contractAngle = await buildContractAngleSentence(tickers);
 
   let whyMarketsCare = rules.whyMarketsCare;
@@ -3902,8 +4007,8 @@ async function buildLiveBillAnalysis(bill, req = null) {
   if (!whyMarketsCare && process.env.ANTHROPIC_API_KEY) {
     try {
       const ai = await inferLiveBillWhyMarketsCareAI({
-        bill,
-        billId: bill.id,
+        bill: mergedBill,
+        billId: mergedBill.id,
         rateLimitKey: req ? clientIp(req) : "anon",
         checkRateLimit: checkBriefAiRateLimit
       });
@@ -3919,28 +4024,27 @@ async function buildLiveBillAnalysis(bill, req = null) {
   let headline = null;
   let whatHappened = rules.whatHappened;
   try {
-    const headlines = await fetchBillRelatedHeadlines(bill, tickers);
-    const match = headlines.find((row) => {
-      const blob = `${row.headline || ""} ${row.summary || ""}`.toLowerCase();
-      return /\bice\b|border patrol|homeland|immigration enforcement|secure america|reconciliation/i.test(blob);
-    });
+    const headlines = await fetchBillRelatedHeadlines(mergedBill, tickers);
+    const match = headlines.find((row) =>
+      headlineMatchesBillTopic(mergedBill, `${row.headline || ""} ${row.summary || ""}`)
+    );
     if (match) {
       headline = {
         text: match.headline,
         source: match.source || "Finnhub",
         publishedAt: match.publishedAt || null
       };
-      const actionDate = bill.latestActionDate ? formatShortIsoDate(bill.latestActionDate) : "recent Congress.gov action";
+      const actionDate = mergedBill.latestActionDate ? formatShortIsoDate(mergedBill.latestActionDate) : "recent Congress.gov action";
       whatHappened = `${whatHappened} Headlines: ${match.headline} — aligns with Congress.gov action on ${actionDate}.`;
     }
   } catch {
     /* headlines optional */
   }
 
-  const lobbyRows = (bill.stakeholders?.lobbying || bill?._ldaRows || []).slice(0, 6).map((row) => ({
+  const lobbyRows = (mergedBill.stakeholders?.lobbying || mergedBill._ldaRows || []).slice(0, 6).map((row) => ({
     client: row.name || row.client || null,
     stance: row.stance || null,
-    amountM: row.amountM ?? null,
+    amountM: row.amountM ?? (row.amount != null ? Math.round((Number(row.amount) / 1_000_000) * 10) / 10 : null),
     issue: row.issue || null
   }));
 
@@ -3956,7 +4060,7 @@ async function buildLiveBillAnalysis(bill, req = null) {
       contractAngle: rules.contractAngle
     },
     linkedEntities: {
-      bills: [{ id: bill.id, title: bill.shortTitle || bill.title || bill.id, url: shareBillPath(bill.id) }],
+      bills: [{ id: mergedBill.id, title: mergedBill.shortTitle || mergedBill.title || mergedBill.id, url: shareBillPath(mergedBill.id) }],
       stocks: tickers.map((sym) => ({
         symbol: sym,
         name: FUNDAMENTALS[sym]?.name || resolveTradableSymbolName(sym),
@@ -4048,14 +4152,7 @@ async function buildBillSharePayload(billIdRaw, req = null) {
   const passImpacts = normalizeBillImpactRows(merged.passImpacts);
   const failImpacts = normalizeBillImpactRows(merged.failImpacts);
   const affected = (merged.affected || []).slice(0, 12);
-  const relatedContracts = affected
-    .filter((ticker) => CONTRACT_PROFILES[ticker])
-    .map((ticker) => ({
-      symbol: ticker,
-      name: FUNDAMENTALS[ticker]?.name || resolveTradableSymbolName(ticker),
-      governmentRevenuePct: CONTRACT_PROFILES[ticker].governmentRevenuePct,
-      url: shareContractPath(ticker)
-    }));
+  const relatedContracts = await buildRelatedContractsForBill(affected);
   const liveAnalysis = await buildLiveBillAnalysis({ ...merged, statusInfo }, req);
   return {
     billId: canonicalId,
@@ -4269,7 +4366,26 @@ function resolveContractCompanyName(symbol) {
 
 function findRelatedBillsForSymbol(symbol) {
   const sym = String(symbol || "").toUpperCase();
-  return POLICY_BILLS.filter((b) => (b.affected || []).includes(sym)).slice(0, 8);
+  const fundamentals = FUNDAMENTALS[sym] || { name: sym, sector: "" };
+  const byId = new Map();
+  for (const bill of allBrowsablePolicyBills()) {
+    if (billMatchesStockByInference(bill, sym) || billMatchesStockBySectorKeyword(bill, fundamentals)) {
+      byId.set(bill.id, bill);
+    }
+  }
+  const profile = CONTRACT_PROFILES[sym];
+  for (const billId of profile?.linkedBillIds || []) {
+    const bill = resolvePolicyBill(billId) || liveCongressBillRegistry.get(billId);
+    if (bill) byId.set(bill.id, bill);
+  }
+  return [...byId.values()]
+    .sort((a, b) => Number(computeLegislativeMomentum(b) || 0) - Number(computeLegislativeMomentum(a) || 0))
+    .slice(0, 8);
+}
+
+function resolveRelatedBillsForSymbol(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  return resolveRelatedBillsForStock(sym, FUNDAMENTALS[sym] || { name: sym, sector: "" });
 }
 
 function shareBillPath(billId) {
@@ -4329,7 +4445,7 @@ function resolveRelatedBillsForStock(symbol, fundamentals) {
   }
   const profile = CONTRACT_PROFILES[sym];
   for (const billId of profile?.linkedBillIds || []) {
-    const bill = POLICY_BILLS.find((row) => row.id === billId);
+    const bill = resolvePolicyBill(billId) || liveCongressBillRegistry.get(billId);
     if (bill) byId.set(bill.id, bill);
   }
   return [...byId.values()]
@@ -4557,12 +4673,15 @@ async function enrichStockSharePayload(payload, symbol, fundamentals, contractPr
 function resolveRelatedBillsForContract(symbol) {
   const sym = String(symbol || "").toUpperCase().trim();
   const profile = CONTRACT_PROFILES[sym] || null;
+  const fundamentals = FUNDAMENTALS[sym] || { name: sym, sector: "" };
   const byId = new Map();
-  for (const bill of POLICY_BILLS) {
-    if ((bill.affected || []).includes(sym)) byId.set(bill.id, bill);
+  for (const bill of allBrowsablePolicyBills()) {
+    if ((bill.affected || []).includes(sym) || billMatchesStockByInference(bill, sym) || billMatchesStockBySectorKeyword(bill, fundamentals)) {
+      byId.set(bill.id, bill);
+    }
   }
   for (const billId of profile?.linkedBillIds || []) {
-    const bill = POLICY_BILLS.find((row) => row.id === billId);
+    const bill = resolvePolicyBill(billId) || liveCongressBillRegistry.get(billId);
     if (bill) byId.set(bill.id, bill);
   }
   return [...byId.values()]
@@ -6923,6 +7042,227 @@ function parseSeedBillId(id) {
   return parseBillIdToCongressRef(id);
 }
 
+const PROCEDURAL_CONGRESS_ACTION =
+  /^(read the first time|read twice|referred to|received in|held at the desk|message on senate action|cleared for white house|sponsor introductory remarks)/i;
+
+const LIVE_BILL_KEYWORDS = [
+  "drug", "pharma", "health", "medicare", "medicaid", "prescription",
+  "chip", "semiconductor", "microchip",
+  "artificial intelligence", "machine learning", "algorithmic", " ai ",
+  "crypto", "digital asset", "bitcoin", "blockchain", "stablecoin",
+  "energy", "vehicle", "electric", "solar", "wind", "clean energy", "charging",
+  "platform", "antitrust", "monopoly", "competition", "big tech", "app store",
+  "defense", "military", "pentagon", "national security", "procurement",
+  "bank", "financial institution", "lending", "federal reserve",
+  "trade", "tariff", "import", "export", "china", "foreign investment",
+  "broadband", "telecom", "5g", "spectrum", "internet access",
+  "tax", "corporate tax", "capital gains",
+  "data", "privacy", "cybersecurity", "surveillance",
+  "climate", "carbon", "emission",
+  "foreign affairs", "international relations", "diplomatic", "caucasus",
+  "ice", "border patrol", "homeland security", "immigration", "detention", "customs", "dhs", "secure america", "enforcement"
+];
+
+function pickSubstantiveCongressAction(actions = [], fallbackText = "") {
+  const sorted = [...(actions || [])].sort(
+    (a, b) => new Date(b.actionDate || 0).getTime() - new Date(a.actionDate || 0).getTime()
+  );
+  const substantive = (text) =>
+    /passed|agreed to|became public law|signed|resolving|conference|rules committee|calendar|floor|reported|markup|hearing|veto|failed|presented to president|to president/i.test(
+      text
+    );
+  for (const row of sorted) {
+    const text = String(row.text || row.actionText || "").trim();
+    if (!text || PROCEDURAL_CONGRESS_ACTION.test(text)) continue;
+    if (substantive(text)) return { text, actionDate: row.actionDate || row.date || null };
+  }
+  for (const row of sorted) {
+    const text = String(row.text || row.actionText || "").trim();
+    if (text && !PROCEDURAL_CONGRESS_ACTION.test(text)) return { text, actionDate: row.actionDate || row.date || null };
+  }
+  return fallbackText ? { text: fallbackText, actionDate: null } : null;
+}
+
+function parseBillStageFromAction(latestAction = "", actionHistory = null, bill = {}) {
+  let action = String(latestAction || "").trim();
+  let actionDate = bill.latestActionDate || null;
+  if (Array.isArray(actionHistory) && actionHistory.length) {
+    const picked = pickSubstantiveCongressAction(actionHistory, action);
+    if (picked?.text) {
+      action = picked.text;
+      actionDate = picked.actionDate || actionDate;
+    }
+  }
+  const s = action.toLowerCase();
+  const passedCommittee = /passed\s+(house|senate)\s+[^.]{0,90}committee/.test(s);
+  let statusKey = "introduced";
+  let floorScheduled = Boolean(bill.floorScheduled);
+
+  if (s.includes("failed cloture") || s.includes("failed") || s.includes("withdrawn") || s.includes("dead")) statusKey = "failed";
+  else if (s.includes("veto")) statusKey = "vetoed";
+  else if (s.includes("incorporated") || s.includes("included in") || s.includes("folded into")) statusKey = "incorporated";
+  else if (
+    s.includes("became public law") ||
+    s.includes("signed by president") ||
+    s.includes("signed into law") ||
+    s.includes("presented to president") ||
+    s.includes("to president")
+  ) {
+    statusKey = "enacted";
+  } else if (s.includes("conference") || s.includes("resolving differences")) statusKey = "resolving";
+  else if (s.includes("motion to reconsider") && (s.includes("laid on the table") || s.includes("table"))) statusKey = "passed_one_chamber";
+  else if (passedCommittee) statusKey = "reported";
+  else if (
+    s.includes("passed senate") ||
+    s.includes("passed house") ||
+    s.includes("passed one chamber") ||
+    s.includes("agreed to in house") ||
+    s.includes("agreed to in the house") ||
+    s.includes("agreed to in senate") ||
+    (s.includes("agreed to") && s.includes("house")) ||
+    (/on passage.*passed/i.test(action) && /house|senate/i.test(action))
+  ) {
+    statusKey = "passed_one_chamber";
+  } else if (/\bpassed\b/.test(s) && !s.includes("committee") && (s.includes("without amendment") || s.includes("yeas and nays") || s.includes("roll call"))) {
+    statusKey = "passed_one_chamber";
+  } else if (
+    s.includes("rules committee") &&
+    (s.includes("consideration") || s.includes("provides for") || s.includes("calendar") || /\bs\.\s*\d+\b/.test(s))
+  ) {
+    statusKey = "floor";
+    floorScheduled = true;
+  } else if (floorScheduled || s.includes("floor") || s.includes("calendar")) statusKey = "floor";
+  else if (s.includes("reported") || s.includes("ordered to be reported")) statusKey = "reported";
+  else if (s.includes("markup") || s.includes("hearing held") || s.includes("hearing")) statusKey = "markup";
+  else if (s.includes("committee") || s.includes("referred")) statusKey = "committee";
+  else if (s.includes("introduced") || s.includes("live")) statusKey = "introduced";
+
+  return {
+    statusKey,
+    latestAction: action,
+    latestActionDate: actionDate,
+    lastSubstantiveActionDate: actionDate,
+    floorScheduled
+  };
+}
+
+function coarseBillStatusFromStageKey(statusKey, fallback = "introduced") {
+  if (statusKey === "enacted") return "passed";
+  if (["passed_one_chamber", "resolving", "floor"].includes(statusKey)) return "floor";
+  if (["reported", "markup"].includes(statusKey)) return "markup";
+  if (statusKey === "committee") return "committee";
+  if (["failed", "vetoed", "incorporated"].includes(statusKey)) return fallback || "introduced";
+  return fallback || "introduced";
+}
+
+async function fetchCongressBillActions(baseUrl, qs) {
+  try {
+    const resp = await fetchWithTimeout(`${baseUrl}/actions?${qs}&limit=40&sort=actionDate+desc`, {}, 8000);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return (data.actions || []).map((row) => ({
+      text: row.text || row.actionText || "",
+      actionDate: row.actionDate || row.date || null
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function mapCongressBillDetailToOverlay(b, ref, committees = [], actions = []) {
+  const picked = pickSubstantiveCongressAction(actions, b.latestAction?.text || "");
+  const latestAction = picked?.text || b.latestAction?.text || "Updated by Congress.gov";
+  const latestActionDate = picked?.actionDate || b.latestAction?.actionDate || b.updateDate || null;
+  const stage = parseBillStageFromAction(latestAction, actions, { floorScheduled: false, latestActionDate });
+  const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
+  const sp = sponsors[0];
+  const policyArea = b.policyArea?.name || b.policyArea || null;
+  return {
+    title: b.title || ref?.id,
+    introducedDate: b.introducedDate || null,
+    policyArea: policyArea ? String(policyArea) : null,
+    committees,
+    _committeeNames: committees.map((c) => c.name).filter(Boolean),
+    latestAction,
+    latestActionDate,
+    lastSubstantiveActionDate: stage.lastSubstantiveActionDate || latestActionDate,
+    actions,
+    _congressActions: actions,
+    cosponsors: b.cosponsors?.count != null ? Number(b.cosponsors.count) : null,
+    status: coarseBillStatusFromStageKey(stage.statusKey),
+    exactCongressRecord: true,
+    floorScheduled: stage.floorScheduled,
+    sponsor: sp
+      ? { name: sp.fullName || sp.lastName || "", party: sp.party || "U", state: sp.state || "" }
+      : null
+  };
+}
+
+async function refreshDynamicCongressRegistry(key) {
+  const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
+  for (const id of [...liveCongressBillRegistry.keys()]) {
+    if (!seedIds.has(id)) liveCongressBillRegistry.delete(id);
+  }
+  let added = 0;
+  const liveResp = await fetchWithTimeout(
+    `https://api.congress.gov/v3/bill/${CURRENT_CONGRESS}?format=json&limit=50&sort=updateDate+desc&api_key=${encodeURIComponent(key)}`,
+    {},
+    9000
+  );
+  if (!liveResp.ok) return added;
+  const data = await liveResp.json();
+  const seenIds = new Set(seedIds);
+  for (const bill of data.bills || []) {
+    const titleLower = (bill.title || "").toLowerCase();
+    if (!LIVE_BILL_KEYWORDS.some((kw) => titleLower.includes(kw))) continue;
+    const normalized = decorateBill(normalizeLiveCongressBill(bill));
+    if (!seenIds.has(normalized.id) && normalized.affected?.length > 0) {
+      seenIds.add(normalized.id);
+      liveCongressBillRegistry.set(normalized.id, normalized);
+      added += 1;
+    }
+  }
+  return added;
+}
+
+function validateBillPipelineSample() {
+  const pool = allBrowsablePolicyBills()
+    .map((b) => decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(b))))
+    .filter((b) => b.affected?.length);
+  const byMomentum = [...pool].sort((a, b) => computeLegislativeMomentum(b) - computeLegislativeMomentum(a));
+  const byRecency = [...pool].sort((a, b) => {
+    const da = new Date(a.lastSubstantiveActionDate || a.latestActionDate || 0).getTime();
+    const db = new Date(b.lastSubstantiveActionDate || b.latestActionDate || 0).getTime();
+    return db - da;
+  });
+  const sample = [...new Map([...byMomentum.slice(0, 10), ...byRecency.slice(0, 5)].map((b) => [b.id, b])).values()];
+  const warnings = [];
+  const rows = [];
+  for (const bill of sample) {
+    const stageKey = normalizeStatusKey(bill.status, bill.latestAction, bill);
+    const why = buildWhyMarketsCareRules(bill, bill.affected || []);
+    const row = { billId: bill.id, stageKey, affected: (bill.affected || []).slice(0, 4), ldaFilings: bill.lobbyingFilingsCount || 0 };
+    if (!bill.affected?.length) warnings.push(`${bill.id}: empty affected`);
+    if (/ICE and Border Patrol/i.test(why || "") && !isHomelandEnforcementCorpus(billExposureCorpus(bill), bill)) {
+      warnings.push(`${bill.id}: homeland copy on non-homeland bill`);
+    }
+    if (bill.exactCongressRecord && /passed house/i.test(bill.latestAction || "") && stageKey === "introduced") {
+      warnings.push(`${bill.id}: stage mismatch (passed house → ${stageKey})`);
+    }
+    if (process.env.SENATE_LDA_API_KEY && billLobbyingOverlay.get(bill.id)?.lobbyingFilingsCount > 0 && !bill.lobbyingSource) {
+      warnings.push(`${bill.id}: LDA overlay not applied`);
+    }
+    rows.push(row);
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    sampleSize: rows.length,
+    registrySize: liveCongressBillRegistry.size,
+    warnings,
+    rows
+  };
+}
+
 function congressRefForBill(bill) {
   if (bill?.congressRef) return bill.congressRef;
   if (bill?.scenarioOnly || String(bill?.id || "").startsWith("scenario:")) return null;
@@ -6948,6 +7288,11 @@ function mergeCongressLiveIntoBill(bill) {
   if (!cached) return applyLobbyingOverlay(bill);
   const isSeed = POLICY_BILLS.some((b) => b.id === bill.id);
   if (isSeed && !seedMetadataMatchesBill(cached, bill)) return applyLobbyingOverlay(bill);
+  const stage = parseBillStageFromAction(
+    cached.latestAction || bill.latestAction,
+    cached.actions || cached._congressActions,
+    { ...bill, floorScheduled: bill.floorScheduled }
+  );
   return applyLobbyingOverlay({
     ...bill,
     title: cached.title || bill.title,
@@ -6955,10 +7300,14 @@ function mergeCongressLiveIntoBill(bill) {
     policyArea: cached.policyArea || bill.policyArea || null,
     committees: cached.committees?.length ? cached.committees : bill.committees,
     _committeeNames: cached._committeeNames || bill._committeeNames,
-    latestAction: cached.latestAction || bill.latestAction,
-    latestActionDate: cached.latestActionDate || bill.latestActionDate,
+    latestAction: stage.latestAction || cached.latestAction || bill.latestAction,
+    latestActionDate: stage.latestActionDate || cached.latestActionDate || bill.latestActionDate,
+    lastSubstantiveActionDate: cached.lastSubstantiveActionDate || stage.lastSubstantiveActionDate || stage.latestActionDate,
+    actions: cached.actions || bill.actions,
+    _congressActions: cached.actions || bill._congressActions,
     cosponsors: cached.cosponsors ?? bill.cosponsors,
-    status: cached.status || bill.status,
+    status: coarseBillStatusFromStageKey(stage.statusKey, cached.status || bill.status),
+    floorScheduled: stage.floorScheduled || bill.floorScheduled,
     exactCongressRecord: true,
     _placeholderFacts: false,
     sponsor: cached.sponsor || bill.sponsor,
@@ -6969,13 +7318,19 @@ function mergeCongressLiveIntoBill(bill) {
 
 async function refreshCongressLiveCache() {
   const key = process.env.CONGRESS_API_KEY;
-  if (!key) return { updated: 0 };
+  if (!key) return { updated: 0, dynamic: 0 };
   const updates = await refreshSeedBillMetadata(key);
   for (const [id, payload] of updates.entries()) {
     congressLiveCache.set(id, payload);
     await writeCongressCache(id, payload);
+    const seedBill = POLICY_BILLS.find((b) => b.id === id);
+    if (seedBill) {
+      const normalized = decorateBill(mergeCongressLiveIntoBill(seedBill));
+      liveCongressBillRegistry.set(id, normalized);
+    }
   }
-  if (updates.size) {
+  const dynamicCount = await refreshDynamicCongressRegistry(key).catch(() => 0);
+  if (updates.size || dynamicCount) {
     bumpLandingSignalCacheVersion();
     liveBillAnalysisCache.clear();
   }
@@ -6987,7 +7342,7 @@ async function refreshCongressLiveCache() {
     liveCount: liveBillCount,
     scenarioCount: decorated.length - liveBillCount
   });
-  return { updated: updates.size };
+  return { updated: updates.size, dynamic: dynamicCount };
 }
 
 async function refreshLdaLobbyingCache() {
@@ -7000,7 +7355,8 @@ async function refreshLdaLobbyingCache() {
     apiKey: key,
     fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000)
   });
-  const overlays = aggregateLobbyingForBills(POLICY_BILLS, filings);
+  const billPool = allBrowsablePolicyBills().map((b) => applyBillMarketExposure(b));
+  const overlays = aggregateLobbyingForBills(billPool, filings);
   billLobbyingOverlay.clear();
   let matched = 0;
   for (const [id, payload] of overlays.entries()) {
@@ -7091,9 +7447,10 @@ async function refreshSeedBillMetadata(key) {
       if (!parsed) return null;
       const baseUrl = `https://api.congress.gov/v3/bill/${parsed.congress}/${parsed.type}/${parsed.number}`;
       const qs = `format=json&api_key=${encodeURIComponent(key)}`;
-      const [detailResp, commResp] = await Promise.all([
+      const [detailResp, commResp, actions] = await Promise.all([
         fetchWithTimeout(`${baseUrl}?${qs}`, {}, 8000),
-        fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 8000).catch(() => null)
+        fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 8000).catch(() => null),
+        fetchCongressBillActions(baseUrl, qs)
       ]);
       if (!detailResp.ok) return null;
       const data = await detailResp.json();
@@ -7108,28 +7465,29 @@ async function refreshSeedBillMetadata(key) {
           committees = [];
         }
       }
-      const actionText = (b.latestAction?.text || "").toLowerCase();
-      let status = bill.status;
-      if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
-      else if (actionText.includes("passed senate") || actionText.includes("passed house")) status = "floor";
-      else if (actionText.includes("reported") || actionText.includes("ordered to be reported")) status = "markup";
-      else if (actionText.includes("committee")) status = "committee";
+      const mapped = mapCongressBillDetailToOverlay(b, parsed, committees, actions);
       const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
       const sp = sponsors[0];
-      const policyArea = b.policyArea?.name || b.policyArea || null;
       return {
         id: bill.id,
-        title: b.title || bill.title,
-        introducedDate: b.introducedDate || bill.introducedDate || null,
-        policyArea: policyArea ? String(policyArea) : null,
-        committees,
-        _committeeNames: committees.map((c) => c.name).filter(Boolean),
-        latestAction: b.latestAction?.text || bill.latestAction,
-        latestActionDate: b.latestAction?.actionDate || bill.latestActionDate,
-        cosponsors: b.cosponsors?.count != null ? Number(b.cosponsors.count) : bill.cosponsors,
-        status,
+        title: mapped.title || bill.title,
+        introducedDate: mapped.introducedDate || bill.introducedDate || null,
+        policyArea: mapped.policyArea || bill.policyArea || null,
+        committees: mapped.committees,
+        _committeeNames: mapped._committeeNames,
+        latestAction: mapped.latestAction || bill.latestAction,
+        latestActionDate: mapped.latestActionDate || bill.latestActionDate,
+        lastSubstantiveActionDate: mapped.lastSubstantiveActionDate,
+        actions: mapped.actions,
+        _congressActions: mapped._congressActions,
+        cosponsors: mapped.cosponsors ?? bill.cosponsors,
+        status: mapped.status || bill.status,
+        floorScheduled: mapped.floorScheduled,
         exactCongressRecord: true,
-        sponsor: sp ? { name: sp.fullName || sp.lastName || bill.sponsor?.name || "", party: sp.party || bill.sponsor?.party || "U", state: sp.state || bill.sponsor?.state || "" } : bill.sponsor
+        sponsor: mapped.sponsor ||
+          (sp
+            ? { name: sp.fullName || sp.lastName || bill.sponsor?.name || "", party: sp.party || bill.sponsor?.party || "U", state: sp.state || bill.sponsor?.state || "" }
+            : bill.sponsor)
       };
     })
   );
@@ -7176,39 +7534,17 @@ async function congressBills(res, url) {
     });
   }
 
-  const LIVE_BILL_KEYWORDS = [
-    "drug","pharma","health","medicare","medicaid","prescription",
-    "chip","semiconductor","microchip",
-    "artificial intelligence","machine learning","algorithmic"," ai ",
-    "crypto","digital asset","bitcoin","blockchain","stablecoin",
-    "energy","vehicle","electric","solar","wind","clean energy","charging",
-    "platform","antitrust","monopoly","competition","big tech","app store",
-    "defense","military","pentagon","national security","procurement",
-    "bank","financial institution","lending","federal reserve",
-    "trade","tariff","import","export","china","foreign investment",
-    "broadband","telecom","5g","spectrum","internet access",
-    "tax","corporate tax","capital gains",
-    "data","privacy","cybersecurity","surveillance",
-    "climate","carbon","emission",
-    "ice","border patrol","homeland security","immigration","detention","customs","dhs","secure america","enforcement"
-  ];
-
   try {
     const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
-    liveCongressBillRegistry.clear();
 
-    const [seedUpdates, liveResp] = await Promise.all([
+    const [seedUpdatesMap, dynamicCount] = await Promise.all([
       refreshSeedBillMetadata(key),
-      fetchWithTimeout(
-        `https://api.congress.gov/v3/bill/${CURRENT_CONGRESS}?format=json&limit=50&sort=updateDate+desc&api_key=${encodeURIComponent(key)}`,
-        {},
-        9000
-      )
+      refreshDynamicCongressRegistry(key)
     ]);
 
     const refreshedSeeds = POLICY_BILLS.map((bill) => {
       const base = mergeCongressLiveIntoBill(bill);
-      const u = seedUpdates.get(bill.id);
+      const u = seedUpdatesMap.get(bill.id);
       if (!u) return decorateBill(base);
       if (!seedMetadataMatchesBill(u, bill)) return decorateBill(base);
       congressLiveCache.set(bill.id, u);
@@ -7218,6 +7554,7 @@ async function congressBills(res, url) {
         title: u.title || base.title,
         latestAction: u.latestAction,
         latestActionDate: u.latestActionDate,
+        lastSubstantiveActionDate: u.lastSubstantiveActionDate,
         cosponsors: u.cosponsors,
         status: u.status,
         exactCongressRecord: true,
@@ -7225,23 +7562,9 @@ async function congressBills(res, url) {
         sponsor: u.sponsor || base.sponsor
       });
     });
-    if (seedUpdates.size) bumpLandingSignalCacheVersion();
+    if (seedUpdatesMap.size || dynamicCount) bumpLandingSignalCacheVersion();
 
-    let liveBills = [];
-    if (liveResp.ok) {
-      const data = await liveResp.json();
-      const seenIds = new Set(seedIds);
-      for (const bill of data.bills || []) {
-        const titleLower = (bill.title || "").toLowerCase();
-        if (!LIVE_BILL_KEYWORDS.some((kw) => titleLower.includes(kw))) continue;
-        const normalized = decorateBill(normalizeLiveCongressBill(bill));
-        if (!seenIds.has(normalized.id) && normalized.affected?.length > 0) {
-          seenIds.add(normalized.id);
-          liveCongressBillRegistry.set(normalized.id, normalized);
-          liveBills.push(normalized);
-        }
-      }
-    }
+    const liveBills = [...liveCongressBillRegistry.values()].filter((b) => !seedIds.has(b.id));
 
     const bills = filterBills([...refreshedSeeds, ...liveBills], query);
     const liveBillCount = bills.filter((b) => b.exactCongressRecord).length;
@@ -11018,39 +11341,40 @@ function inferTickers(title = "") {
   if (lower.includes("platform") || lower.includes("antitrust") || lower.includes("monopoly") || lower.includes("competition") || lower.includes("big tech") || lower.includes("app store") || lower.includes("marketplace")) matched.push(...["AMZN", "AAPL", "GOOGL", "META"]);
   if (lower.includes("defense") || lower.includes("military") || lower.includes("pentagon") || lower.includes("national security") || lower.includes("armed forces") || lower.includes("procurement")) matched.push(...["LMT", "RTX", "NOC", "PLTR", "BAH"]);
   if (lower.includes("bank") || lower.includes("financial institution") || lower.includes("lending") || lower.includes("credit") || lower.includes("fdic") || lower.includes("federal reserve")) matched.push(...["JPM", "BAC", "GS", "KBE", "XLF"]);
-  if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china") || lower.includes("foreign investment")) matched.push(...["NVDA", "AAPL", "AMZN"]);
+  if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china trade")) matched.push(...["NVDA", "AAPL", "AMZN"]);
   if (lower.includes("broadband") || lower.includes("internet access") || lower.includes("telecom") || lower.includes("spectrum") || lower.includes("5g")) matched.push(...["GOOGL", "META", "MSFT"]);
   if (lower.includes("tax") || lower.includes("revenue") || lower.includes("irs") || lower.includes("corporate tax") || lower.includes("capital gains")) matched.push(...["AAPL", "MSFT", "GOOGL", "META", "AMZN"]);
   if (lower.includes("space") || lower.includes("nasa") || lower.includes("satellite") || lower.includes("launch vehicle")) matched.push(...["TSLA", "LMT"]);
   if (lower.includes("climate") || lower.includes("carbon") || lower.includes("emission")) matched.push(...["XLE", "TSLA", "ENPH"]);
   if (lower.includes("privacy") || lower.includes("cybersecurity") || lower.includes("data security")) matched.push(...["MSFT", "CRWD", "PANW"]);
-  if (
-    lower.includes("ice") ||
-    lower.includes("border patrol") ||
-    lower.includes("customs and border") ||
-    lower.includes("homeland security") ||
-    lower.includes("immigration enforcement") ||
-    lower.includes("detention") ||
-    lower.includes("secure america") ||
-    /\bdhs\b/.test(lower)
-  ) {
+  if (/\bice\b/.test(lower) || lower.includes("border patrol") || lower.includes("customs and border") || lower.includes("homeland security") || lower.includes("immigration enforcement") || lower.includes("detention") || lower.includes("secure america") || /\bdhs\b/.test(lower)) {
     matched.push(...["GEO", "CXW", "PLTR", "BAH", "LMT"]);
+  }
+  if (/\bforeign affairs\b|\binternational relations\b|caucasus|diplomatic|foreign aid/.test(lower)) {
+    matched.push(...["LMT", "RTX", "GD", "NOC"]);
   }
   return [...new Set(matched)];
 }
 
 const BILL_KEYWORD_BUCKETS = [
-  { id: "semiconductors", patterns: [/semiconductor/i, /chips/i, /microchip/i, /chips act/i], sectors: ["semiconductors", "technology"], tickers: ["NVDA", "INTC", "TSM", "AMD"], tier: "direct" },
+  { id: "semiconductors", patterns: [/semiconductor/i, /\bchips\b/i, /microchip/i, /chips act/i], sectors: ["semiconductors", "technology"], tickers: ["NVDA", "INTC", "TSM", "AMD"], tier: "direct" },
   { id: "ai", patterns: [/artificial intelligence/i, /\bai\b/i, /ai act/i, /machine learning/i, /algorithmic/i], sectors: ["AI", "technology"], tickers: ["NVDA", "MSFT", "GOOGL", "META"], tier: "direct" },
-  { id: "pharma", patterns: [/drug/i, /medicare/i, /medicaid/i, /pharmaceutical/i, /prescription/i, /health insurance/i], sectors: ["health", "pharma"], tickers: ["LLY", "MRK", "PFE", "ABBV"], tier: "direct" },
-  { id: "crypto", patterns: [/digital asset/i, /crypto/i, /bitcoin/i, /blockchain/i, /stablecoin/i, /virtual currency/i, /commodity/i], sectors: ["crypto", "financial"], tickers: ["COIN", "BTC", "ETH"], tier: "crypto_proxy" },
-  { id: "energy", patterns: [/energy/i, /electric vehicle/i, /\bev\b/i, /charging/i, /clean energy/i, /solar/i, /wind/i, /permit/i], sectors: ["energy", "clean energy"], tickers: ["TSLA", "ENPH", "FSLR", "XLE"], tier: "sector_etf" },
+  { id: "pharma", patterns: [/\bdrug\b/i, /medicare/i, /medicaid/i, /pharmaceutical/i, /prescription/i, /health insurance/i], sectors: ["health", "pharma"], tickers: ["LLY", "MRK", "PFE", "ABBV"], tier: "direct" },
+  { id: "crypto", patterns: [/digital asset/i, /\bcrypto\b/i, /\bbitcoin\b/i, /blockchain/i, /stablecoin/i, /virtual currency/i, /clarity act/i], sectors: ["crypto", "financial"], tickers: ["COIN", "BTC", "ETH"], tier: "crypto_proxy" },
+  { id: "energy", patterns: [/energy/i, /electric vehicle/i, /\bev\b/i, /charging/i, /clean energy/i, /solar/i, /wind/i, /\bpermit/i], sectors: ["energy", "clean energy"], tickers: ["TSLA", "ENPH", "FSLR", "XLE"], tier: "sector_etf" },
   { id: "antitrust", patterns: [/platform/i, /antitrust/i, /monopoly/i, /competition/i, /big tech/i, /app store/i, /marketplace/i], sectors: ["antitrust", "platform", "technology"], tickers: ["AMZN", "AAPL", "GOOGL", "META"], tier: "direct" },
   { id: "defense", patterns: [/defense/i, /military/i, /pentagon/i, /national security/i, /armed forces/i, /procurement/i, /weapons/i], sectors: ["defense", "national security"], tickers: ["LMT", "RTX", "NOC", "PLTR"], tier: "direct" },
-  { id: "banking", patterns: [/bank/i, /financial institution/i, /lending/i, /credit union/i, /fdic/i, /federal reserve/i], sectors: ["banking", "financial"], tickers: ["JPM", "BAC", "GS", "KBE", "XLF"], tier: "sector_etf" },
-  { id: "trade", patterns: [/trade/i, /tariff/i, /import/i, /export/i, /china/i, /foreign investment/i], sectors: ["trade", "foreign policy"], tickers: ["NVDA", "AAPL", "AMZN", "SPY"], tier: "broad_index" },
+  {
+    id: "foreign_affairs",
+    patterns: [/foreign affairs/i, /international relations/i, /diplomatic/i, /caucasus/i, /embassy/i, /state department/i, /foreign aid/i],
+    sectors: ["foreign policy", "defense"],
+    tickers: ["LMT", "RTX", "GD", "NOC", "BAH"],
+    tier: "direct"
+  },
+  { id: "banking", patterns: [/\bbank/i, /financial institution/i, /lending/i, /credit union/i, /\bfdic\b/i, /federal reserve/i], sectors: ["banking", "financial"], tickers: ["JPM", "BAC", "GS", "KBE", "XLF"], tier: "sector_etf" },
+  { id: "trade", patterns: [/\btrade\b/i, /tariff/i, /\bimport\b/i, /\bexport\b/i, /foreign investment/i, /trade with china/i, /china trade/i], sectors: ["trade", "foreign policy"], tickers: ["NVDA", "AAPL", "AMZN", "SPY"], tier: "broad_index" },
   { id: "telecom", patterns: [/broadband/i, /internet access/i, /telecom/i, /spectrum/i, /\b5g\b/i], sectors: ["telecom", "technology"], tickers: ["GOOGL", "META", "MSFT"], tier: "direct" },
-  { id: "tax", patterns: [/tax/i, /\birs\b/i, /corporate tax/i, /capital gains/i, /revenue/i], sectors: ["tax", "fiscal"], tickers: ["AAPL", "MSFT", "GOOGL", "META", "AMZN"], tier: "broad_index" },
+  { id: "tax", patterns: [/\btax\b/i, /\birs\b/i, /corporate tax/i, /capital gains/i], sectors: ["tax", "fiscal"], tickers: ["AAPL", "MSFT", "GOOGL", "META", "AMZN"], tier: "broad_index" },
   { id: "climate", patterns: [/climate/i, /carbon/i, /emission/i, /greenhouse/i], sectors: ["climate", "energy"], tickers: ["XLE", "TSLA", "ENPH"], tier: "sector_etf" },
   { id: "cyber", patterns: [/privacy/i, /cybersecurity/i, /data security/i, /surveillance/i], sectors: ["cyber", "technology"], tickers: ["MSFT", "CRWD", "PANW"], tier: "direct" },
   {
@@ -11091,6 +11415,7 @@ const POLICY_AREA_SECTOR_MAP = [
   { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["QQQ", "NVDA"], tier: "broad_index" },
   { patterns: [/energy/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "TSLA"], tier: "sector_etf" },
   { patterns: [/defense/i, /national security/i, /armed/i], sectors: ["defense"], tickers: ["LMT", "RTX"], tier: "direct" },
+  { patterns: [/international/i, /foreign/i], sectors: ["foreign policy"], tickers: ["LMT", "RTX", "GD"], tier: "direct" },
   { patterns: [/tax/i], sectors: ["tax"], tickers: ["SPY"], tier: "broad_index" },
   { patterns: [/transport/i], sectors: ["transport"], tickers: ["UAL", "DAL"], tier: "direct" },
   { patterns: [/immigration/i, /homeland/i], sectors: ["homeland security"], tickers: ["GEO", "CXW", "PLTR"], tier: "direct" }
@@ -11201,10 +11526,25 @@ function findRelatedSeedExposure(bill, tags) {
   return null;
 }
 
+const BROAD_MEGACAP_TICKERS = new Set(["NVDA", "AAPL", "AMZN", "GOOGL", "META", "MSFT", "SPY"]);
+
+function corpusIncludesLobbyClient(corpus, client) {
+  const needle = String(client || "").toLowerCase().trim();
+  if (!needle) return false;
+  if (needle.length <= 4) {
+    return new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(corpus);
+  }
+  return corpus.includes(needle);
+}
+
 function inferBillMarketExposure(bill) {
   const corpus = billExposureCorpus(bill);
   const lower = corpus.toLowerCase();
-  const keywordHits = matchExposureBuckets(corpus, BILL_KEYWORD_BUCKETS);
+  const keywordHitsRaw = matchExposureBuckets(corpus, BILL_KEYWORD_BUCKETS);
+  const hasForeignAffairs = keywordHitsRaw.some((h) => h.id === "foreign_affairs");
+  const keywordHits = hasForeignAffairs
+    ? keywordHitsRaw.filter((h) => !["trade", "tax", "telecom"].includes(h.id))
+    : keywordHitsRaw;
   const committeeText = (bill._committeeNames || []).join(" ");
   const committeeHits = matchExposureBuckets(committeeText, COMMITTEE_SECTOR_MAP);
   const policyHits = bill.policyArea ? matchExposureBuckets(String(bill.policyArea), POLICY_AREA_SECTOR_MAP) : [];
@@ -11230,11 +11570,18 @@ function inferBillMarketExposure(bill) {
   }
 
   for (const [client, syms] of Object.entries(LOBBY_CLIENT_TICKERS)) {
-    if (lower.includes(client)) syms.forEach((t) => tickerSet.add(t));
+    if (corpusIncludesLobbyClient(lower, client)) syms.forEach((t) => tickerSet.add(t));
   }
 
   const tags = inferTags(corpus);
   tags.forEach((t) => sectorSet.add(t));
+
+  if (keywordHits.some((h) => h.id === "foreign_affairs") && !keywordHits.some((h) => h.id === "trade" || h.id === "crypto" || h.id === "ai")) {
+    for (const sym of BROAD_MEGACAP_TICKERS) tickerSet.delete(sym);
+  }
+  if (keywordHits.some((h) => h.id === "crypto") && !/\bcrypto|bitcoin|blockchain|digital asset|stablecoin|virtual currency|clarity act\b/i.test(lower)) {
+    for (const sym of ["COIN", "BTC", "ETH"]) tickerSet.delete(sym);
+  }
 
   let relatedSeed = null;
   if (tickerSet.size < 2) {
@@ -11399,12 +11746,12 @@ function inferTags(title = "") {
   if (lower.includes("platform") || lower.includes("antitrust") || lower.includes("competition") || lower.includes("big tech")) tags.push("antitrust", "platform", "technology");
   if (lower.includes("defense") || lower.includes("military") || lower.includes("pentagon") || lower.includes("national security")) tags.push("defense", "national security");
   if (lower.includes("bank") || lower.includes("financial institution") || lower.includes("lending") || lower.includes("federal reserve")) tags.push("banking", "financial");
-  if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china")) tags.push("trade", "foreign policy");
+  if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china trade")) tags.push("trade", "foreign policy");
   if (lower.includes("tax") || lower.includes("irs") || lower.includes("corporate tax")) tags.push("tax", "fiscal");
   if (lower.includes("broadband") || lower.includes("telecom") || lower.includes("5g") || lower.includes("spectrum")) tags.push("telecom", "technology");
   if (
-    lower.includes("ice") ||
-    lower.includes("border") ||
+    /\bice\b/.test(lower) ||
+    /\bborder\b/.test(lower) ||
     lower.includes("homeland") ||
     lower.includes("immigration") ||
     lower.includes("detention") ||
@@ -11512,29 +11859,8 @@ const BILL_STATUS_INFO = {
 };
 
 function normalizeStatusKey(status, latestAction = "", bill = {}) {
-  const s = `${status || ""} ${latestAction || ""}`.toLowerCase();
-  const passedCommittee = /passed\s+(house|senate)\s+[^.]{0,90}committee/.test(s);
-  if (s.includes("failed cloture") || s.includes("failed") || s.includes("withdrawn") || s.includes("dead")) return "failed";
-  if (s.includes("veto")) return "vetoed";
-  if (s.includes("incorporated") || s.includes("included in") || s.includes("folded into")) return "incorporated";
-  if (s.includes("became public law") || s.includes("signed by president") || s.includes("signed into law") || s.includes("enacted")) return "enacted";
-  if (s.includes("conference") || s.includes("resolving differences")) return "resolving";
-  if (s.includes("motion to reconsider") && s.includes("laid on the table")) return "passed_one_chamber";
-  if (passedCommittee) return "reported";
-  if (s.includes("passed senate") || s.includes("passed house") || s.includes("passed one chamber")) return "passed_one_chamber";
-  if (/\bpassed\b/.test(s) && !s.includes("committee")) return "passed_one_chamber";
-  if (
-    s.includes("rules committee") &&
-    (s.includes("consideration") || s.includes("provides for") || /\bs\.\s*\d+\b/.test(s))
-  ) {
-    return "floor";
-  }
-  if (bill.floorScheduled || s.includes("floor") || s.includes("calendar")) return "floor";
-  if (s.includes("reported") || s.includes("ordered to be reported")) return "reported";
-  if (s.includes("markup") || s.includes("hearing held") || s.includes("hearing")) return "markup";
-  if (s.includes("committee") || s.includes("referred")) return "committee";
-  if (s.includes("introduced") || s.includes("live")) return "introduced";
-  return "introduced";
+  const combined = `${status || ""} ${latestAction || ""}`.trim();
+  return parseBillStageFromAction(combined, bill.actions || bill._congressActions, bill).statusKey;
 }
 
 function subscoreStageProgress(statusKey) {
@@ -12146,12 +12472,9 @@ function normalizeLiveCongressBill(bill) {
     number: String(bill.number)
   };
   const canonicalId = congressRefToBillId(ref) || `${bill.type}.${bill.number}-${bill.congress}`;
-  const actionText = `${bill.latestAction?.text || ""} ${bill.title || ""}`.toLowerCase();
-  let status = "introduced";
-  if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
-  else if (actionText.includes("passed senate") || actionText.includes("passed house")) status = "floor";
-  else if (actionText.includes("reported") || actionText.includes("ordered to be reported")) status = "markup";
-  else if (actionText.includes("committee")) status = "committee";
+  const latestActionText = bill.latestAction?.text || "Updated by Congress.gov";
+  const latestActionDate = bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText || "";
+  const stage = parseBillStageFromAction(latestActionText, null, { latestActionDate, floorScheduled: false });
 
   const chamberRaw = bill.originChamber || bill.type || "House";
   const chamber = String(chamberRaw).toLowerCase().includes("senate") ? "Senate" : "House";
@@ -12164,19 +12487,20 @@ function normalizeLiveCongressBill(bill) {
     title: bill.title,
     shortTitle: bill.title,
     chamber,
-    status,
+    status: coarseBillStatusFromStageKey(stage.statusKey),
     sponsor: sp
       ? { name: sp.fullName || sp.lastName || "", party: sp.party || "U", state: sp.state || "" }
       : { name: "", party: "U", state: "" },
     cosponsors: Number(bill.cosponsors?.count ?? bill.cosponsors ?? 0),
     bipartisanCosponsors: 0,
-    floorScheduled: false,
+    floorScheduled: stage.floorScheduled,
     exactCongressRecord: true,
     _dynamicCongressBill: true,
     introducedDate: bill.introducedDate || null,
     policyArea,
-    latestAction: bill.latestAction?.text || "Updated by Congress.gov",
-    latestActionDate: bill.latestAction?.actionDate || bill.updateDate || bill.updateDateIncludingText || "",
+    latestAction: stage.latestAction || latestActionText,
+    latestActionDate: stage.latestActionDate || latestActionDate,
+    lastSubstantiveActionDate: stage.lastSubstantiveActionDate || latestActionDate,
     tags: inferTags(`${bill.title || ""} ${policyArea || ""}`),
     lobbyingAgainst: null,
     lobbyingFor: null,

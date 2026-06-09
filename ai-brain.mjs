@@ -427,6 +427,31 @@ export async function fetchBillRelatedHeadlines(bill, tickers = [], { days = 7, 
     .join(" ")
     .toLowerCase();
 
+  const corpusTokens = new Set(
+    corpus
+      .replace(/&/g, " and ")
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 3 && !["with", "from", "that", "this", "house", "senate", "states", "united"].includes(token))
+  );
+
+  const headlineMatchesBillCorpus = (blob) => {
+    let hits = 0;
+    for (const token of corpusTokens) {
+      if (blob.includes(token)) hits += 1;
+    }
+    if (hits >= 2) return true;
+    if (BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(blob)) && BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(corpus))) {
+      return true;
+    }
+    if (/\bcrypto|digital asset|bitcoin|blockchain|stablecoin\b/i.test(corpus) && /\bcrypto|digital asset|bitcoin|blockchain|stablecoin\b/i.test(blob)) {
+      return true;
+    }
+    if (/\bforeign affairs|international|caucasus|diplomatic\b/i.test(corpus) && /\bforeign affairs|diplomatic|congress|house passed|senate\b/i.test(blob)) {
+      return true;
+    }
+    return hits >= 1 && blob.includes(String(bill?.shortTitle || bill?.title || "").slice(0, 20).toLowerCase());
+  };
+
   const pool = [];
   const seen = new Set();
   const add = (item) => {
@@ -444,7 +469,7 @@ export async function fetchBillRelatedHeadlines(bill, tickers = [], { days = 7, 
     const rows = await fetchCompanyNews(sym, { days, limit: 6 }).catch(() => []);
     for (const row of rows) {
       const blob = `${row.headline || ""} ${row.summary || ""}`.toLowerCase();
-      if (BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(blob)) || BILL_HEADLINE_TOPIC_PATTERNS.some((p) => p.test(corpus))) {
+      if (headlineMatchesBillCorpus(blob)) {
         add(row);
       }
     }

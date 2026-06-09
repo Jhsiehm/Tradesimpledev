@@ -396,10 +396,11 @@ function stepMarketHtml(bill, breakdown, data) {
           .slice(0, 4)
           .map(
             (row) =>
-              `<a class="brief-related-bill-card" href="${escapeHtml(row.url || `/contract/${encodeURIComponent(row.symbol)}`)}">
+                `<a class="brief-related-bill-card" href="${escapeHtml(row.url || `/contract/${encodeURIComponent(row.symbol)}`)}">
                 <span class="mono">${escapeHtml(row.symbol)}</span>
                 <strong>${escapeHtml(row.name || row.symbol)}</strong>
                 ${row.governmentRevenuePct != null ? `<span class="muted">~${Math.round(row.governmentRevenuePct * 100)}% gov revenue</span>` : ""}
+                ${row.awardCount ? `<span class="muted">${escapeHtml(String(row.awardCount))} USASpending award(s)${row.topAgency ? ` · ${escapeHtml(row.topAgency)}` : ""}</span>` : ""}
               </a>`
           )
           .join("")}</div></div>`
@@ -578,10 +579,11 @@ function renderFullBrief(data) {
             .map(
               (row) =>
                 `<a class="brief-related-bill-card" href="${escapeHtml(row.url || `/contract/${encodeURIComponent(row.symbol)}`)}">
-                  <span class="mono">${escapeHtml(row.symbol)}</span>
-                  <strong>${escapeHtml(row.name || row.symbol)}</strong>
-                  ${row.governmentRevenuePct != null ? `<span class="muted">~${Math.round(row.governmentRevenuePct * 100)}% gov revenue</span>` : ""}
-                </a>`
+                <span class="mono">${escapeHtml(row.symbol)}</span>
+                <strong>${escapeHtml(row.name || row.symbol)}</strong>
+                ${row.governmentRevenuePct != null ? `<span class="muted">~${Math.round(row.governmentRevenuePct * 100)}% gov revenue</span>` : ""}
+                ${row.awardCount ? `<span class="muted">${escapeHtml(String(row.awardCount))} USASpending award(s)${row.topAgency ? ` · ${escapeHtml(row.topAgency)}` : ""}</span>` : ""}
+              </a>`
             )
             .join("")}
         </div>
