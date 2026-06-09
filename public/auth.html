@@ -66,7 +66,7 @@
       <span class="logo">T</span><b>TRADESIMPLE</b>
     </a>
     <h1 id="title">Create your account</h1>
-    <p class="sub" id="subtitle">Sign up with email and password to access the thesis terminal.</p>
+    <p class="sub" id="subtitle">Sign up with email and password — your watchlist, theses, and paper trades sync across devices.</p>
 
     <div class="tabs" role="tablist">
       <button class="tab" data-tab="login" type="button">Log in</button>
@@ -131,8 +131,8 @@
     var signup = mode === "signup";
     title.textContent = signup ? "Create your account" : "Welcome back";
     subtitle.textContent = signup
-      ? "Sign up with email and password to access the thesis terminal."
-      : "Sign in with the email and password you used at signup.";
+      ? "Sign up with email and password — your watchlist, theses, and paper trades sync across devices."
+      : "Sign in to pick up your watchlist, theses, and paper account where you left off.";
     authSubmit.textContent = signup ? "Create account" : "Log in";
     pwHint.style.display = signup ? "block" : "none";
     pw.minLength = signup ? 8 : 1;

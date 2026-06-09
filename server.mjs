@@ -2655,6 +2655,13 @@ async function patchPortfolio(req, res, session) {
     return sendJson(res, 503, { error: "database_not_configured" });
   }
   const body = await readJson(req);
+  const hasUpdate =
+    Array.isArray(body.positions) ||
+    typeof body.cash === "number" ||
+    Array.isArray(body.orders) ||
+    Array.isArray(body.theses) ||
+    Array.isArray(body.funds);
+  if (!hasUpdate) return sendJson(res, 400, { error: "nothing_to_update" });
   await runPaperWrite(session, async (account) => {
     if (Array.isArray(body.positions)) {
       if (body.positions.every((row) => row && typeof row === "object" && row.symbol)) {
@@ -2716,14 +2723,21 @@ async function patchWatchlist(req, res, session) {
       source: "demo_local"
     });
   }
-  if (!dbReady) return sendJson(res, 503, { error: "database_not_configured" });
   const body = await readJson(req);
   if (!Array.isArray(body.symbols)) return sendJson(res, 400, { error: "symbols must be an array" });
   const symbols = body.symbols.map((s) => String(s).toUpperCase().trim()).filter(Boolean).slice(0, 50);
+  if (!dbReady) {
+    return sendJson(res, 200, {
+      ok: true,
+      symbols,
+      source: "local_session",
+      message: "Supabase not configured; watchlist changes apply for this session only."
+    });
+  }
   await upsertUserProfile(session.user);
   const result = await saveWatchlistRow(session.user.id, symbols);
   if (!result) return sendJson(res, 502, { error: "database_error" });
-  sendJson(res, 200, { ok: true, symbols: result.symbols });
+  sendJson(res, 200, { ok: true, symbols: result.symbols, source: "supabase" });
 }
 
 async function waitlistAdmin(req, res) {
@@ -6272,18 +6286,6 @@ async function getPaperAccount(session) {
   const account = ensurePaperAccount(store, key);
   if (!existed) await writePaperStore(store);
   return account;
-}
-
-async function persistPaperAccount(session, account) {
-  if (useSupabasePaper(session)) {
-    await savePaperAccountToSupabase(session, account);
-    return;
-  }
-  const store = await readPaperStore();
-  const key = paperAccountKey(session);
-  store[key] = account;
-  account.updatedAt = new Date().toISOString();
-  await writePaperStore(store);
 }
 
 async function mutatePaperAccount(session, mutator) {

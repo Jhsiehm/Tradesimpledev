@@ -818,6 +818,7 @@ html[data-theme="light"] .theme-toggle-btn.is-active {
 }
 
 .watchlist-chip-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -826,7 +827,7 @@ html[data-theme="light"] .theme-toggle-btn.is-active {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--bg-2);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .watchlist-chip {
@@ -857,6 +858,33 @@ html[data-theme="light"] .theme-toggle-btn.is-active {
 
 .watchlist-chip-price {
   opacity: 0.85;
+}
+
+.watchlist-chip-remove {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2, rgba(255, 255, 255, 0.14));
+  background: rgba(8, 8, 8, 0.92);
+  color: var(--muted, #8c8c82);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.watchlist-chip-remove:hover {
+  color: var(--text, #e8e4dc);
+  border-color: var(--lime, #c8ff00);
+}
+
+.watch-toggle-btn.is-watching {
+  color: var(--lime, #c8ff00);
 }
 
 .ticker-link-cell {

@@ -5725,7 +5725,7 @@ function syncOnboardingSteps() {
   });
   const watchlistCopy = checklist.querySelector('[data-step="watchlist"] p');
   if (watchlistCopy && !isFeatureEnabled("SETTINGS_PAGE_ENABLED")) {
-    watchlistCopy.textContent = "Tap tickers on Home to track symbols you care about.";
+    watchlistCopy.textContent = "Use the ☆ button on Markets to add tickers — they sync across devices when you are signed in.";
   }
   const billsCopy = checklist.querySelector('[data-step="bills"] p');
   if (billsCopy && !isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
