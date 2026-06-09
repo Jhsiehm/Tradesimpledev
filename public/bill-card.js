@@ -1,10 +1,13 @@
 const THEME_KEY = "ts_theme";
 const BRIEF_MODE_KEY = "ts_bill_brief_mode";
+const ONBOARDING_COMPLETE_KEY = "ts_onboarding_complete";
+const urlParams = new URLSearchParams(window.location.search);
+const isOnboardingVisit = urlParams.get("onboarding") === "1";
 
 const state = {
   billId: document.body.dataset.billId || pathBillId() || "",
   theme: storedTheme(),
-  mode: storedBriefMode(),
+  mode: isOnboardingVisit ? "guided" : storedBriefMode(),
   data: null,
   steps: [],
   stepIndex: 0
@@ -47,9 +50,11 @@ function applyTheme(theme) {
 }
 
 async function loadBillCard() {
-  try {
-    localStorage.setItem("ts_bill_brief_opened", "1");
-  } catch (_) {}
+  if (!isOnboardingVisit) {
+    try {
+      localStorage.setItem("ts_bill_brief_opened", "1");
+    } catch (_) {}
+  }
   const root = document.getElementById("bill-card-root");
   if (!state.billId) {
     root.innerHTML = errorSection("Missing bill id", "Open a bill from the dashboard Bills tab.");
@@ -81,13 +86,14 @@ function renderApp() {
     storageKey: BRIEF_MODE_KEY,
     labels: {
       full: "Full brief",
-      lastNext: "Open the dashboard",
+      lastNext: isOnboardingVisit ? "Open your dashboard →" : "Open the dashboard",
       next: "Continue",
       back: "← Back"
     },
     escapeHtml,
-    getMode: () => state.mode,
+    getMode: () => (isOnboardingVisit ? "guided" : state.mode),
     setMode: (m) => {
+      if (isOnboardingVisit) return;
       persistBriefMode(m);
     },
     getSteps: () => state.steps,
@@ -95,8 +101,21 @@ function renderApp() {
     setStepIndex: (i) => {
       state.stepIndex = i;
     },
-    isActive: () => state.mode === "guided",
+    isActive: () => state.mode === "guided" || isOnboardingVisit,
     onLastStepNext: () => {
+      if (isOnboardingVisit) {
+        try {
+          localStorage.setItem(ONBOARDING_COMPLETE_KEY, "1");
+          localStorage.setItem("ts_bill_brief_opened", "1");
+        } catch (_) {}
+        try {
+          const clean = new URL(window.location.href);
+          clean.searchParams.delete("onboarding");
+          window.history.replaceState({}, "", clean.pathname + (clean.search || ""));
+        } catch (_) {}
+        window.location.href = "/dashboard?view=home&onboarded=1";
+        return;
+      }
       window.location.href = `/dashboard?view=bills&bill=${encodeURIComponent(state.billId)}`;
     },
     ctx: data
@@ -131,6 +150,7 @@ function bindSharedControls(data) {
   }
   document.querySelectorAll("[data-brief-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (isOnboardingVisit) return;
       const mode = btn.dataset.briefMode;
       if (mode === state.mode) return;
       persistBriefMode(mode);
@@ -240,9 +260,13 @@ function stepBillHtml(bill, data) {
   const ai = data.aiSummary?.text
     ? `<p class="bill-guided-lede bill-ai-lede">${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI summary · from live bill data</p>`
     : "";
+  const onboardingLead = isOnboardingVisit
+    ? `<p class="bill-guided-lede muted">Your first policy brief — we'll connect this bill to the tickers and contracts that matter.</p>`
+    : "";
   return `
     <p class="bill-card-id mono">${escapeHtml(bill.displayId || bill.id || state.billId)}</p>
     <h1 class="bill-guided-title">${escapeHtml(bill.shortTitle || bill.title || state.billId)}</h1>
+    ${onboardingLead}
     ${ai || (oneLiner ? `<p class="bill-guided-lede">${escapeHtml(oneLiner)}</p>` : "")}
     <div class="bill-card-badges">
       <span class="dossier-stamp ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
@@ -302,6 +326,7 @@ function stepMarketHtml(bill, breakdown, data) {
   const exposureConf = data.exposureConfidence || bill.exposureConfidence || null;
   const catalyst = bill.catalyst || {};
   const tickers = (data.relatedTickers || bill.affected || []).slice(0, 12);
+  const traceUrls = data.mapping?.traceUrls || {};
   const exposureNote = exposureConf
     ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Exposure confidence</span><p><strong>${escapeHtml(exposureConf)}</strong> <span class="muted">· rules-based ticker mapping${exposureConf === "low" ? " (illustrative)" : ""}</span></p></div>`
     : "";
@@ -319,9 +344,27 @@ function stepMarketHtml(bill, breakdown, data) {
     ${exposureNote}
     ${tickers.length
       ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Related tickers</span>
-        <div class="bill-ticker-row">${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(typeof t === "string" ? t : t.symbol || t)}">${escapeHtml(typeof t === "string" ? t : t.symbol || t)}</a>`).join("")}</div>
+        <div class="bill-ticker-row">${tickers.map((t) => {
+          const sym = typeof t === "string" ? t : t.symbol || t;
+          const href = traceUrls[sym] || `/stock/${encodeURIComponent(sym)}`;
+          return `<a class="ticker-chip-link" href="${escapeHtml(href)}">${escapeHtml(sym)}</a>`;
+        }).join("")}</div>
         <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div></div>`
       : `<p class="muted bill-guided-note">No ticker mapping yet — monitor sector headlines and committee action.</p>`}
+    ${(data.relatedContracts || []).length
+      ? `<div class="bill-guided-fact"><span class="bill-guided-fact-label">Related contracts</span>
+        <div class="brief-related-bill-cards">${(data.relatedContracts || [])
+          .slice(0, 4)
+          .map(
+            (row) =>
+              `<a class="brief-related-bill-card" href="${escapeHtml(row.url || `/contract/${encodeURIComponent(row.symbol)}`)}">
+                <span class="mono">${escapeHtml(row.symbol)}</span>
+                <strong>${escapeHtml(row.name || row.symbol)}</strong>
+                ${row.governmentRevenuePct != null ? `<span class="muted">~${Math.round(row.governmentRevenuePct * 100)}% gov revenue</span>` : ""}
+              </a>`
+          )
+          .join("")}</div></div>`
+      : ""}
     <p class="dossier-redaction mono">Illustrative model — not investment advice</p>`;
 }
 
@@ -396,7 +439,7 @@ function renderGuided(data) {
   const bill = data.bill || {};
   const steps = state.steps.map((s) => ({ ...s, title: s.short, sectionRef: s.ref }));
   return BriefShell.renderGuidedArticle({
-    mode: state.mode,
+    mode: isOnboardingVisit ? "guided" : state.mode,
     steps,
     stepIndex: state.stepIndex,
     prefix: "bill",
@@ -404,6 +447,7 @@ function renderGuided(data) {
     classifyHtml: classifyBarHtml(bill),
     headerHtml: heroActionsHtml(),
     metaHtml: dossierMetaHtml(data),
+    showModeToggle: !isOnboardingVisit,
     footerHtml: `
       <footer class="bill-guided-footer mono">
         <p>${escapeHtml((data.share?.disclaimer || data.methodologyDisclaimer || "").toUpperCase())}</p>
@@ -477,9 +521,30 @@ function renderFullBrief(data) {
       <section class="bill-card-panel">
         <h2>Related tickers</h2>
         <div class="bill-ticker-row">
-          ${tickers.map((t) => `<a class="ticker-chip-link" href="/stock/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join("")}
+          ${tickers.map((t) => {
+            const href = (data.mapping?.traceUrls || {})[t] || `/stock/${encodeURIComponent(t)}`;
+            return `<a class="ticker-chip-link" href="${escapeHtml(href)}">${escapeHtml(t)}</a>`;
+          }).join("")}
         </div>
         <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(tickers[0], escapeHtml)}</div>
+      </section>` : ""}
+
+      ${(data.relatedContracts || []).length ? `
+      <section class="bill-card-panel">
+        <h2>Related contracts</h2>
+        <div class="brief-related-bill-cards">
+          ${(data.relatedContracts || [])
+            .slice(0, 6)
+            .map(
+              (row) =>
+                `<a class="brief-related-bill-card" href="${escapeHtml(row.url || `/contract/${encodeURIComponent(row.symbol)}`)}">
+                  <span class="mono">${escapeHtml(row.symbol)}</span>
+                  <strong>${escapeHtml(row.name || row.symbol)}</strong>
+                  ${row.governmentRevenuePct != null ? `<span class="muted">~${Math.round(row.governmentRevenuePct * 100)}% gov revenue</span>` : ""}
+                </a>`
+            )
+            .join("")}
+        </div>
       </section>` : ""}
 
       ${impactSection("If it passes", data.passImpacts || bill.passImpacts)}

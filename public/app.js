@@ -2373,10 +2373,10 @@ async function initLanding() {
   const sessionLink = document.querySelector("[data-session-link]");
   if (session?.user) {
     sessionLink.textContent = "Open terminal";
-    sessionLink.href = "/dashboard?view=trade";
+    sessionLink.href = "/dashboard?view=home";
   } else if (config.auth.demo) {
     sessionLink.textContent = "Try demo terminal";
-    sessionLink.href = "/auth/demo?next=/dashboard%3Fview%3Dtrade";
+    sessionLink.href = "/auth/demo?next=/dashboard%3Fview%3Dhome";
   }
 }
 
@@ -2418,6 +2418,7 @@ function setupWaitlistForm() {
 async function initDashboard() {
   bumpSessionCount();
   const params = new URLSearchParams(window.location.search);
+  markOnboardingCompleteFromUrl(params);
   const initialSymbol = String(params.get("symbol") || "").toUpperCase().replace(/[^A-Z.]/g, "");
   if (initialSymbol) state._symbolFromUrl = true;
 
@@ -2454,6 +2455,7 @@ async function initDashboard() {
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
 
   const [config, session] = await Promise.all([fetchJson("/api/config"), fetchJson("/api/session")]);
+  if (await redirectToOnboardingIfNeeded(session, params)) return;
   syncFeatureGatesFromConfig(config);
   applyFeatureGateVisibility();
   if (isFeatureEnabled("AI_RESEARCH_ENABLED")) setupResearchDrawer();
@@ -2479,7 +2481,8 @@ async function initDashboard() {
   }
 
   const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
-  const requestedView = params.get("view") || defaultView;
+  const rawView = params.get("view") || defaultView;
+  const requestedView = rawView === "home" ? "overview" : rawView;
   const initialView = isViewEnabled(requestedView) ? requestedView : disabledFeatureFallbackView();
   showView(initialView, false);
 
@@ -6639,6 +6642,7 @@ function ensureThesisLabReady() {
 }
 
 function showView(view, updateUrl = true) {
+  if (view === "home") view = "overview";
   if (!isViewEnabled(view)) {
     showView(disabledFeatureFallbackView(), updateUrl);
     return;
@@ -7519,7 +7523,40 @@ function methodologyModalEscape(e) {
 }
 
 const ONBOARDING_STORAGE_KEY = "ts_onboarding_v3";
+const ONBOARDING_COMPLETE_KEY = "ts_onboarding_complete";
 let appConfirmResolver = null;
+
+function isOnboardingComplete() {
+  try {
+    return localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+async function redirectToOnboardingIfNeeded(session, params) {
+  if (!session?.user) return false;
+  if (isOnboardingComplete()) return false;
+  if (params.get("onboarded") === "1") return false;
+  try {
+    const meta = await fetchJson("/api/onboarding/bill");
+    if (!meta?.billId) return false;
+    window.location.replace(`/bill/${encodeURIComponent(meta.billId)}?onboarding=1`);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function markOnboardingCompleteFromUrl(params) {
+  if (params.get("onboarded") !== "1") return;
+  try {
+    localStorage.setItem(ONBOARDING_COMPLETE_KEY, "1");
+  } catch (_) {}
+  params.delete("onboarded");
+  const clean = params.toString();
+  window.history.replaceState({}, "", clean ? `${window.location.pathname}?${clean}` : window.location.pathname);
+}
 
 function setupOnboardingModal() {
   const modal = $("#onboarding-modal");
@@ -7541,7 +7578,7 @@ function setupOnboardingModal() {
     if (e.key === "Escape" && modal && !modal.hidden) close();
   });
   try {
-    if (!localStorage.getItem(ONBOARDING_STORAGE_KEY)) {
+    if (!localStorage.getItem(ONBOARDING_STORAGE_KEY) && !isOnboardingComplete()) {
       setTimeout(() => openOnboardingModal(), 900);
     }
   } catch (_) {}

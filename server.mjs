@@ -203,7 +203,7 @@ function clientIp(req) {
   return req.socket?.remoteAddress || "anon";
 }
 
-function sanitizeRelativePath(raw, fallback = "/dashboard?view=thesis&welcome=1") {
+function sanitizeRelativePath(raw, fallback = "/dashboard?view=home") {
   const next = String(raw || "").trim();
   if (!next.startsWith("/") || next.startsWith("//")) return fallback;
   if (next.includes("\\") || next.includes("\0") || /^\/\\/.test(next)) return fallback;
@@ -2516,7 +2516,7 @@ async function route(req, res) {
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
   if (pathname === "/terminal" || pathname === "/terminal/") {
-    return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1");
+    return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dhome");
   }
   if (pathname === "/auth/demo") return startDemoSession(req, res);
   if (pathname === "/auth/logout") return logout(res, req);
@@ -2529,6 +2529,7 @@ async function route(req, res) {
   if (pathname === "/.well-known/security.txt") return sendStatic(res, ".well-known/security.txt");
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
+  if (pathname === "/api/onboarding/bill" && req.method === "GET") return onboardingBillHandler(res);
 
   // ── Email/password accounts (public — these create the session) ──
   if (pathname === "/api/auth/signup" && req.method === "POST") return authSignup(req, res);
@@ -3051,6 +3052,55 @@ function landingSignalDateKey(now = new Date()) {
   return now.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
+const ONBOARDING_BILL_FALLBACK = "H.R.3633-119";
+
+function landingSignalBillPool() {
+  const live = POLICY_BILLS.filter(
+    (b) => !b.scenarioOnly && b.affected?.length && b.plainEnglish
+  );
+  return live.length ? live : POLICY_BILLS.filter((b) => b.affected?.length);
+}
+
+function pickTopMomentumBill(pool = landingSignalBillPool()) {
+  if (!pool.length) return null;
+  const merged = pool.map((b) => mergeCongressLiveIntoBill(b));
+  return merged
+    .map((bill) => ({ bill, momentum: computeLegislativeMomentum(bill) }))
+    .sort((a, b) => b.momentum - a.momentum || String(a.bill.id).localeCompare(String(b.bill.id)))[0]?.bill;
+}
+
+function resolveOnboardingBill(pool = landingSignalBillPool()) {
+  const top = pickTopMomentumBill(pool);
+  if (top) {
+    return {
+      billId: top.id,
+      title: top.shortTitle || top.title || top.id,
+      reason: "top_momentum"
+    };
+  }
+  const fallback =
+    POLICY_BILLS.find((b) => b.id === ONBOARDING_BILL_FALLBACK) ||
+    POLICY_BILLS.find((b) => b.affected?.length) ||
+    POLICY_BILLS[0];
+  return {
+    billId: fallback?.id || ONBOARDING_BILL_FALLBACK,
+    title: fallback?.shortTitle || fallback?.title || ONBOARDING_BILL_FALLBACK,
+    reason: "fallback"
+  };
+}
+
+function getOnboardingBillMeta() {
+  return resolveOnboardingBill();
+}
+
+function onboardingBillBriefPath(meta = getOnboardingBillMeta()) {
+  return `/bill/${encodeURIComponent(meta.billId)}?onboarding=1`;
+}
+
+function onboardingBillHandler(res) {
+  return sendJson(res, 200, getOnboardingBillMeta());
+}
+
 function buildLandingSignalPayload(bill, mode, dateKey) {
   const momentum = computeLegislativeMomentum(bill);
   const tickers = (bill.affected || []).slice(0, 3);
@@ -3072,10 +3122,7 @@ function buildLandingSignalPayload(bill, mode, dateKey) {
 }
 
 function landingSignalHandler(res) {
-  const live = POLICY_BILLS.filter(
-    (b) => !b.scenarioOnly && b.affected?.length && b.plainEnglish
-  );
-  const pool = live.length ? live : POLICY_BILLS.filter((b) => b.affected?.length);
+  const pool = landingSignalBillPool();
   if (!pool.length) return sendJson(res, 200, null);
 
   // Overlay live Congress.gov status (same merge used by /api/congress/bills).
@@ -3092,13 +3139,11 @@ function landingSignalHandler(res) {
       landingSignalDailyPick.dateKey !== dateKey ||
       landingSignalDailyPick.version !== landingSignalCacheVersion
     ) {
-      const top = merged
-        .map((bill) => ({ bill, momentum: computeLegislativeMomentum(bill) }))
-        .sort((a, b) => b.momentum - a.momentum || String(a.bill.id).localeCompare(String(b.bill.id)))[0];
+      const topBill = pickTopMomentumBill(pool);
       landingSignalDailyPick = {
         dateKey,
         version: landingSignalCacheVersion,
-        payload: buildLandingSignalPayload(top.bill, "daily", dateKey)
+        payload: buildLandingSignalPayload(topBill, "daily", dateKey)
       };
     }
     return sendJson(res, 200, landingSignalDailyPick.payload);
@@ -3364,9 +3409,9 @@ function escapeHtmlText(value) {
 function publicStockCard(res, pathname, { head = false } = {}) {
   const raw = decodeURIComponent(pathname.slice("/stock/".length)).split(/[/?#]/)[0];
   const symbol = normalizeStockSymbol(raw);
+  const ogHeadline = buildStockOgPreview(symbol);
   const title = `${symbol} government-to-market explainer | TradeSimple`;
-  const description =
-    `${symbol}: government signal, market mechanism, evidence, and watch-next context. Not investment advice.`;
+  const description = ogHeadline.slice(0, 280);
   const html = `<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
@@ -3632,13 +3677,23 @@ async function buildBillSharePayload(billIdRaw, req = null) {
   const live = Boolean(merged.exactCongressRecord || merged._dynamicCongressBill);
   const passImpacts = normalizeBillImpactRows(merged.passImpacts);
   const failImpacts = normalizeBillImpactRows(merged.failImpacts);
+  const affected = (merged.affected || []).slice(0, 12);
+  const relatedContracts = affected
+    .filter((ticker) => CONTRACT_PROFILES[ticker])
+    .map((ticker) => ({
+      symbol: ticker,
+      name: FUNDAMENTALS[ticker]?.name || resolveTradableSymbolName(ticker),
+      governmentRevenuePct: CONTRACT_PROFILES[ticker].governmentRevenuePct,
+      url: shareContractPath(ticker)
+    }));
   return {
     billId: canonicalId,
     live,
     bill: { ...detail, exposureConfidence: merged.exposureConfidence || detail.exposureConfidence || null },
     statusInfo,
     breakdown,
-    relatedTickers: (merged.affected || []).slice(0, 12),
+    relatedTickers: affected,
+    relatedContracts,
     passImpacts,
     failImpacts,
     exposureConfidence: merged.exposureConfidence || null,
@@ -3647,6 +3702,9 @@ async function buildBillSharePayload(billIdRaw, req = null) {
     historicalAnalog: merged.historicalAnalog || null,
     legislativeContext: detail.legislativeContext || merged.legislativeContext || null,
     methodologyDisclaimer: merged.exposureMethodologyDisclaimer || METHODOLOGY.disclaimer,
+    mapping: {
+      traceUrls: Object.fromEntries(affected.map((ticker) => [ticker, shareStockPath(ticker)]))
+    },
     updatedAt: new Date().toISOString(),
     share: {
       canonicalPath: `/bill/${encodeURIComponent(canonicalId)}`,
@@ -3841,6 +3899,22 @@ function findRelatedBillsForSymbol(symbol) {
   return POLICY_BILLS.filter((b) => (b.affected || []).includes(sym)).slice(0, 8);
 }
 
+function shareBillPath(billId) {
+  return `/bill/${encodeURIComponent(billId)}`;
+}
+
+function shareStockPath(symbol) {
+  return `/stock/${encodeURIComponent(String(symbol || "").toUpperCase())}`;
+}
+
+function shareContractPath(symbol) {
+  return `/contract/${encodeURIComponent(String(symbol || "").toUpperCase())}`;
+}
+
+function shareLobbyPath(filingId) {
+  return `/lobby/${encodeURIComponent(filingId)}`;
+}
+
 function formatRelatedBillRef(bill) {
   const merged = decorateBill(mergeCongressLiveIntoBill(bill));
   const metrics = augmentBillMetrics(merged);
@@ -3849,8 +3923,256 @@ function formatRelatedBillRef(bill) {
     title: bill.shortTitle || bill.title || bill.id,
     displayId: bill.displayId || bill.id,
     momentum: metrics.legislativeMomentum ?? bill.legislativeMomentum ?? null,
-    latestAction: bill.latestAction || merged.latestAction || null
+    latestAction: bill.latestAction || merged.latestAction || null,
+    url: shareBillPath(bill.id)
   };
+}
+
+function billMatchesStockByInference(bill, symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  if ((bill.affected || []).includes(sym)) return true;
+  const merged = applyBillMarketExposure(bill);
+  return (merged.affected || []).includes(sym);
+}
+
+function billMatchesStockBySectorKeyword(bill, fundamentals) {
+  const corpus = billExposureCorpus(bill).toLowerCase();
+  const sector = String(fundamentals?.sector || "").toLowerCase();
+  const sectorWords = sector.split(/[\s/,&]+/).filter((word) => word.length > 3);
+  if (sectorWords.some((word) => corpus.includes(word))) return true;
+  const nameTokens = normalizeLobbyEntityName(fundamentals?.name || "")
+    .split(" ")
+    .filter((token) => token.length > 3);
+  return nameTokens.some((token) => corpus.includes(token));
+}
+
+function resolveRelatedBillsForStock(symbol, fundamentals) {
+  const sym = String(symbol || "").toUpperCase();
+  const byId = new Map();
+  for (const bill of POLICY_BILLS) {
+    if (billMatchesStockByInference(bill, sym) || billMatchesStockBySectorKeyword(bill, fundamentals)) {
+      byId.set(bill.id, bill);
+    }
+  }
+  return [...byId.values()]
+    .sort((a, b) => Number(computeLegislativeMomentum(b) || 0) - Number(computeLegislativeMomentum(a) || 0))
+    .slice(0, 5)
+    .map(formatRelatedBillRef);
+}
+
+function buildContractProfileSummary(symbol, profile, awardHint = null) {
+  if (profile) {
+    return {
+      symbol,
+      governmentRevenuePct: profile.governmentRevenuePct,
+      awardCount: awardHint?.awardCount ?? null,
+      topAgency: profile.primaryAgencies?.[0] || null
+    };
+  }
+  if (awardHint?.awardCount) {
+    return {
+      symbol,
+      governmentRevenuePct: null,
+      awardCount: awardHint.awardCount,
+      topAgency: awardHint.topAgency || null
+    };
+  }
+  return null;
+}
+
+function resolveLobbyFilingsForStock(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  const pool = getLobbyFilingsPool();
+  const matches = [];
+  const seen = new Set();
+  const companyNorm = normalizeLobbyEntityName(FUNDAMENTALS[sym]?.name || "");
+  for (const filing of pool) {
+    const tickers = lobbyTickersForClient(filing.client);
+    const clientNorm = normalizeLobbyEntityName(filing.client);
+    const nameMatch = companyNorm && clientNorm.includes(companyNorm.split(" ")[0]);
+    if (!tickers.includes(sym) && !nameMatch) continue;
+    const id = filing.filingId || lobbyingFilingId(filing);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    matches.push(filing);
+  }
+  return matches
+    .sort((a, b) => {
+      const amt = Number(b.amount || 0) - Number(a.amount || 0);
+      if (amt !== 0) return amt;
+      return String(b.postedAt || "").localeCompare(String(a.postedAt || ""));
+    })
+    .slice(0, 3)
+    .map((f) => ({
+      filingId: f.filingId,
+      client: f.client,
+      amount: f.amount,
+      issue: f.issue,
+      url: shareLobbyPath(f.filingId)
+    }));
+}
+
+function inferStockSectorTags(symbol, fundamentals, relatedBills) {
+  const tags = new Set();
+  for (const billRef of relatedBills) {
+    const raw = POLICY_BILLS.find((row) => row.id === billRef.id);
+    (raw?.tags || raw?.sectors || []).forEach((tag) => tags.add(String(tag).toLowerCase()));
+  }
+  const sector = String(fundamentals?.sector || "").toLowerCase();
+  if (/semiconductor|chip|tech|software|ai/.test(sector)) tags.add("tech");
+  if (/defense|aerospace|security/.test(sector) || CONTRACT_PROFILES[symbol]) tags.add("defense");
+  if (/health|pharma|biotech/.test(sector)) tags.add("health");
+  if (/energy|utility|oil|gas/.test(sector)) tags.add("energy");
+  if (/financial|bank|insurance/.test(sector)) tags.add("financial");
+  return [...tags].slice(0, 5);
+}
+
+function computeStockExposureConfidence(symbol, relatedBills, contractProfile, lobbyingFilings) {
+  const sym = String(symbol || "").toUpperCase();
+  const directBill = relatedBills.some((billRef) => {
+    const raw = POLICY_BILLS.find((row) => row.id === billRef.id);
+    return (raw?.affected || []).includes(sym);
+  });
+  if (directBill && contractProfile) return "high";
+  if (directBill || contractProfile) return "medium";
+  if (relatedBills.length || lobbyingFilings.length) return "low";
+  return "low";
+}
+
+function buildStockPolicyExposureDrivers(symbol, relatedBills, contractProfile, fundamentals) {
+  const drivers = [];
+  if (contractProfile?.governmentRevenuePct != null) {
+    drivers.push(`~${Math.round(contractProfile.governmentRevenuePct * 100)}% government revenue concentration`);
+  }
+  relatedBills.slice(0, 3).forEach((bill) => {
+    drivers.push(`${bill.displayId || bill.id}: ${String(bill.title || "").slice(0, 72)}`);
+  });
+  if (!drivers.length && fundamentals?.sector) drivers.push(`${fundamentals.sector} sector policy sensitivity`);
+  return drivers.slice(0, 4);
+}
+
+function buildStockTraceUrls(symbol, relatedBills, contractProfile) {
+  const urls = { stock: shareStockPath(symbol) };
+  if (contractProfile) urls.contract = shareContractPath(symbol);
+  if (relatedBills[0]?.id) urls.topBill = shareBillPath(relatedBills[0].id);
+  return urls;
+}
+
+function buildStockShareAnalysisRules(symbol, fundamentals, payload, mapping) {
+  const relatedBills = mapping?.relatedBills || [];
+  const contractProfile = mapping?.contractProfile;
+  const lobbyingFilings = mapping?.lobbyingFilings || [];
+  const companyName = fundamentals?.name || symbol;
+  const topBill = relatedBills[0];
+  let plainEnglish = "";
+  if (relatedBills.length && contractProfile) {
+    plainEnglish = `${companyName} (${symbol}) sits at the intersection of ${relatedBills.length} mapped bill${relatedBills.length === 1 ? "" : "s"} and federal contract exposure${
+      contractProfile.governmentRevenuePct != null
+        ? ` (~${Math.round(contractProfile.governmentRevenuePct * 100)}% of revenue)`
+        : ""
+    }. Legislative momentum on ${topBill?.displayId || topBill?.id || "key bills"} can move contract visibility and investor expectations.`;
+  } else if (relatedBills.length) {
+    plainEnglish = `${companyName} is linked to ${relatedBills.length} active bill${relatedBills.length === 1 ? "" : "s"} in TradeSimple's policy graph${
+      topBill ? `, led by ${topBill.displayId || topBill.id}` : ""
+    }. Changes in committee action or floor timing can affect the addressable market and compliance costs.`;
+  } else if (contractProfile) {
+    plainEnglish = `${companyName} is profiled as a government contractor${
+      contractProfile.governmentRevenuePct != null
+        ? ` with ~${Math.round(contractProfile.governmentRevenuePct * 100)}% revenue from federal awards`
+        : ""
+    }. Budget and recompete cycles are the primary policy mechanism to watch.`;
+  } else if (lobbyingFilings.length) {
+    plainEnglish = `${companyName} shows ${lobbyingFilings.length} recent lobbying filing${lobbyingFilings.length === 1 ? "" : "s"} tied to this symbol. Filings signal legislative pressure but are not standalone buy or sell signals.`;
+  } else {
+    plainEnglish = `${companyName} (${symbol}) has limited high-confidence policy mapping in TradeSimple's curated graph. Monitor sector headlines and new filings for emerging links.`;
+  }
+
+  const whatChangedItems = Array.isArray(payload?.whatChanged?.items) ? payload.whatChanged.items : [];
+  const quote = payload?.quote || {};
+  const quoteLine = quote.price
+    ? `Quote ${quote.price}${quote.pct != null || quote.changePercent != null ? ` (${Number(quote.pct ?? quote.changePercent) >= 0 ? "+" : ""}${Number(quote.pct ?? quote.changePercent).toFixed(2)}%)` : ""}`
+    : null;
+  const headlineItem = payload?.recentNews?.[0]?.headline || payload?.evidence?.recentNews?.[0]?.headline;
+  const whatChanged = [whatChangedItems.slice(0, 2).map((item) => item.detail || item.label).join(" "), quoteLine, headlineItem ? `Headline: ${headlineItem}` : null]
+    .filter(Boolean)
+    .join(" · ") || null;
+
+  const whatToWatch = [];
+  relatedBills.slice(0, 3).forEach((bill) => {
+    whatToWatch.push(`${bill.displayId || bill.id}: ${String(bill.latestAction || bill.title || "").slice(0, 100)}`);
+  });
+  if (contractProfile?.topAgency) {
+    whatToWatch.push(`${contractProfile.topAgency} budget and renewal decisions affecting ${symbol}`);
+  }
+  const profileRow = CONTRACT_PROFILES[symbol];
+  if (profileRow?.renewalRisk != null && profileRow.renewalRisk > 0.5) {
+    whatToWatch.push("Contract recompete and renewal risk flagged in TradeSimple model");
+  }
+  lobbyingFilings.slice(0, 2).forEach((filing) => {
+    whatToWatch.push(`Lobbying: ${filing.client} on ${String(filing.issue || "mapped issues").slice(0, 80)}`);
+  });
+  if (!whatToWatch.length) whatToWatch.push("New bill filings, rule text, contracts, and company earnings commentary");
+
+  return {
+    plainEnglish,
+    whatChanged,
+    whatToWatch: whatToWatch.slice(0, 5)
+  };
+}
+
+function buildStockOgPreview(symbol) {
+  const sym = normalizeStockSymbol(symbol);
+  const fundamentals = FUNDAMENTALS[sym] || { name: sym, sector: "Tracked equity" };
+  const relatedBills = resolveRelatedBillsForStock(sym, fundamentals);
+  const contractProfileSummary = buildContractProfileSummary(sym, CONTRACT_PROFILES[sym], null);
+  const mapping = {
+    relatedBills,
+    contractProfile: contractProfileSummary,
+    lobbyingFilings: []
+  };
+  const analysis = buildStockShareAnalysisRules(sym, fundamentals, {}, mapping);
+  return analysis.plainEnglish || `${sym}: government signal and policy exposure context. Not investment advice.`;
+}
+
+async function enrichStockSharePayload(payload, symbol, fundamentals, contractProfile, req = null) {
+  const relatedBills = resolveRelatedBillsForStock(symbol, fundamentals);
+  const contractProfileSummary = buildContractProfileSummary(symbol, contractProfile, null);
+  try {
+    await resolveLobbyFilingsForShare();
+  } catch {
+    /* lobby pool optional */
+  }
+  const lobbyingFilings = resolveLobbyFilingsForStock(symbol);
+  const exposureConfidence = computeStockExposureConfidence(symbol, relatedBills, contractProfileSummary, lobbyingFilings);
+  const policyScore = relatedBills.reduce((max, bill) => Math.max(max, Number(bill.momentum || 0)), 0);
+  const mapping = {
+    exposureConfidence,
+    policyExposure: {
+      score: policyScore,
+      drivers: buildStockPolicyExposureDrivers(symbol, relatedBills, contractProfileSummary, fundamentals)
+    },
+    relatedBills,
+    contractProfile: contractProfileSummary,
+    lobbyingFilings,
+    sectorTags: inferStockSectorTags(symbol, fundamentals, relatedBills),
+    traceUrls: buildStockTraceUrls(symbol, relatedBills, contractProfileSummary)
+  };
+  let analysis = buildStockShareAnalysisRules(symbol, fundamentals, payload, mapping);
+  const thinMapping = relatedBills.length === 0 && !contractProfileSummary;
+  if (thinMapping && process.env.ANTHROPIC_API_KEY) {
+    try {
+      const aiSummary = await runShareBriefSummary({
+        kind: "stock",
+        payload: { ...payload, mapping, analysis },
+        rateLimitKey: req ? clientIp(req) : "anon",
+        checkRateLimit: checkBriefAiRateLimit
+      });
+      if (aiSummary?.text) analysis = { ...analysis, plainEnglish: aiSummary.text, aiGenerated: true };
+    } catch (err) {
+      console.warn("[ai] stock share analysis skipped:", err.message);
+    }
+  }
+  return { ...payload, mapping, analysis };
 }
 
 function resolveRelatedBillsForContract(symbol) {
@@ -4069,6 +4391,14 @@ async function buildContractSharePayload(symbolRaw) {
   let causality = contractCausalitySnapshot(symbol);
   if (!profile) causality = enhanceGenericContractCausality(causality, symbol, company, awards);
   const relatedBills = causality.relatedBills || resolveRelatedBillsForContract(symbol);
+  const topAward = awards.reduce(
+    (best, row) => (Number(row.obligatedAmount || 0) > Number(best?.obligatedAmount || 0) ? row : best),
+    awards[0]
+  );
+  const totalObligated = awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0);
+  const analysisPlain = profile
+    ? `${company} is modeled as a ${profile.archetype || "government contractor"} with ~${Math.round(profile.governmentRevenuePct * 100)}% federal revenue exposure. Top recent award: ${compactMoney(topAward?.obligatedAmount || 0)} from ${topAward?.awardingAgency || "a federal agency"}.`
+    : `${company} (${symbol}) has ${awards.length} USASpending award row(s) totaling ~${compactMoney(totalObligated)}.${relatedBills.length ? ` ${relatedBills.length} related bill(s) map to this symbol.` : " No mapped bills yet."}`;
   return {
     symbol,
     company,
@@ -4079,8 +4409,13 @@ async function buildContractSharePayload(symbolRaw) {
     usaspendingResolvedVia: ctx.resolvedVia || "company_search",
     awards,
     awardCount: awards.length,
-    totalObligated: awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0),
+    totalObligated,
     causality,
+    mapping: {
+      relatedStocks: [{ symbol, name: company }],
+      traceUrls: { stock: shareStockPath(symbol), contract: shareContractPath(symbol) }
+    },
+    analysis: { plainEnglish: analysisPlain },
     source: "usaspending.gov",
     updatedAt: new Date().toISOString(),
     share: {
@@ -4227,8 +4562,12 @@ async function buildLobbySharePayload(filingIdRaw) {
       displayId: b.displayId || b.id,
       title: b.shortTitle || b.title,
       momentum: computeLegislativeMomentum(b),
-      affected: (b.affected || []).slice(0, 6)
+      affected: (b.affected || []).slice(0, 6),
+      url: shareBillPath(b.id)
     })),
+    mapping: {
+      traceUrls: Object.fromEntries(relatedTickers.map((ticker) => [ticker, shareStockPath(ticker)]))
+    },
     source: filing.source || "senate_lda",
     updatedAt: new Date().toISOString(),
     share: {
@@ -4299,7 +4638,8 @@ async function shareStockSnapshot(req, res, url) {
       includeNarrator: true,
       includeEdgar: true,
       includeNews: true,
-      includeLobbyMap: true
+      includeLobbyMap: true,
+      req
     });
     sendJson(res, 200, {
       ...payload,
@@ -4344,7 +4684,8 @@ async function buildStockSnapshot(
     includeNarrator = false,
     includeEdgar = false,
     includeNews = true,
-    includeLobbyMap = true
+    includeLobbyMap = true,
+    req = null
   } = {}
 ) {
   const normalizedReaderMode = normalizeReaderMode(readerMode || mode);
@@ -4524,7 +4865,7 @@ async function buildStockSnapshot(
     };
   }
 
-  return payload;
+  return enrichStockSharePayload(payload, symbol, fundamentals, contractProfile, req);
 }
 
 function plainList(items) {
@@ -9936,7 +10277,13 @@ async function authSignup(req, res) {
     return sendJson(res, 500, { error: "signup_failed", message: "Could not create the account. Please try again." });
   }
   setSessionCookie(res, user, req);
-  return sendJson(res, 200, { ok: true, user: { id: user.id, name, email } });
+  const onboarding = getOnboardingBillMeta();
+  return sendJson(res, 200, {
+    ok: true,
+    user: { id: user.id, name, email },
+    onboardingBillId: onboarding.billId,
+    onboardingBillTitle: onboarding.title
+  });
 }
 
 async function authLogin(req, res) {
@@ -9958,7 +10305,13 @@ async function authLogin(req, res) {
   const user = { id: acct.id, name: acct.name || email.split("@")[0], email, picture: "", provider: "email" };
   upsertUserProfile(user).catch(() => {});
   setSessionCookie(res, user, req);
-  return sendJson(res, 200, { ok: true, user: { id: user.id, name: user.name, email } });
+  const onboarding = getOnboardingBillMeta();
+  return sendJson(res, 200, {
+    ok: true,
+    user: { id: user.id, name: user.name, email },
+    onboardingBillId: onboarding.billId,
+    onboardingBillTitle: onboarding.title
+  });
 }
 
 function authLogoutApi(res, req) {
@@ -10024,7 +10377,7 @@ async function finishOAuth(req, res, providerName, url) {
     `${CSRF_COOKIE}=${newCsrfToken()}; ${csrfCookieAttrs(SESSION_TTL_SECONDS, req)}`,
     `${OAUTH_COOKIE}=; ${cookieAttrs(0, req)}`
   ]);
-  redirect(res, "/dashboard?view=trade");
+  redirect(res, "/dashboard?view=home");
 }
 
 async function verifyOidcToken(idToken, provider, nonce) {

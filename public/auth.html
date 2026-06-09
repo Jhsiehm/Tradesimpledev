@@ -129,7 +129,7 @@
       <div class="msg" id="msg" role="status" aria-live="polite"></div>
     </form>
 
-    <a class="alt" href="/auth/demo?next=/dashboard%3Fview%3Dthesis%26welcome%3D1" style="margin-top:22px">Try the demo (no account)</a>
+    <a class="alt" id="demo-link" href="/auth/demo?next=/dashboard%3Fview%3Dhome" style="margin-top:22px">Try the demo (no account)</a>
 
     <p class="foot">
       Research signal terminal · not financial advice.<br/>
@@ -150,8 +150,49 @@
   var emailInput = document.getElementById("email");
   var emailErr = document.getElementById("email-err");
   var pwErr = document.getElementById("pw-err");
+  var ONBOARDING_COMPLETE_KEY = "ts_onboarding_complete";
   var params = new URLSearchParams(window.location.search);
-  var defaultNext = "/dashboard?view=thesis&welcome=1";
+  var defaultNext = "/dashboard?view=home";
+
+  function isOnboardingComplete() {
+    try {
+      return localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function onboardingBillPath(billId) {
+    return "/bill/" + encodeURIComponent(billId || "") + "?onboarding=1";
+  }
+
+  async function resolveOnboardingBillId(fromResponse) {
+    if (fromResponse && fromResponse.onboardingBillId) return fromResponse.onboardingBillId;
+    try {
+      var signalRes = await fetch("/api/onboarding/bill", { credentials: "same-origin" });
+      if (signalRes.ok) {
+        var signal = await signalRes.json();
+        if (signal && signal.billId) return signal.billId;
+      }
+    } catch (_) {}
+    try {
+      var landingRes = await fetch("/api/landing-signal");
+      if (landingRes.ok) {
+        var landing = await landingRes.json();
+        if (landing && landing.billId) return landing.billId;
+      }
+    } catch (_) {}
+    return "H.R.3633-119";
+  }
+
+  async function postAuthRedirect(mode, data) {
+    if (mode === "signup" || !isOnboardingComplete()) {
+      var billId = await resolveOnboardingBillId(data);
+      window.location.assign(onboardingBillPath(billId));
+      return;
+    }
+    window.location.assign(redirectNext);
+  }
 
   function safeNext(raw) {
     var next = String(raw || "").trim();
@@ -310,9 +351,13 @@
           resetButton(mode);
           return;
         }
-        showOk(mode === "signup" ? "Account created. Opening Thesis Lab." : "Signed in. Opening dashboard.");
+        showOk(
+          mode === "signup" || !isOnboardingComplete()
+            ? (mode === "signup" ? "Account created. Opening your first brief." : "Signed in. Opening your first brief.")
+            : "Signed in. Opening your dashboard."
+        );
         window.setTimeout(function () {
-          window.location.assign(redirectNext);
+          postAuthRedirect(mode, res.data);
         }, 350);
       })
       .catch(function () {
