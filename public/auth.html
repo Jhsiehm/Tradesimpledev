@@ -12,67 +12,105 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   :root{
-    --bg:#080808;--bg-2:#0e0f0e;--lime:#C8FF00;--amber:#FFA500;--red:#e0524d;
+    --bg:#0a0b09;--bg-2:#10110f;--lime:#C8FF00;--amber:#FFA500;--red:#e0524d;
     --text:#E8E4DC;--muted:#8C8C82;--faint:#4A4A4A;--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);
     --mono:"Space Mono",ui-monospace,monospace;--sans:"Outfit",system-ui,sans-serif;--serif:"Cormorant Garamond",Georgia,serif;
+    --ease:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
-    font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;
-    display:flex;align-items:center;justify-content:center;padding:24px;
+    font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100dvh;
+    display:flex;align-items:center;justify-content:center;padding:clamp(16px,5vw,28px);
     background-image:
-      repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(200,255,0,.012) 39px,rgba(200,255,0,.012) 40px),
-      repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(200,255,0,.008) 39px,rgba(200,255,0,.008) 40px);
+      radial-gradient(ellipse at 18% 0%,rgba(200,255,0,.04) 0%,transparent 42%),
+      repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(200,255,0,.01) 39px,rgba(200,255,0,.01) 40px),
+      repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(200,255,0,.007) 39px,rgba(200,255,0,.007) 40px);
+  }
+  .skip-link{
+    position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;
+  }
+  .skip-link:focus{
+    position:fixed;left:16px;top:16px;width:auto;height:auto;overflow:visible;z-index:100;
+    padding:10px 16px;background:var(--lime);color:#0a0d00;font-size:13px;font-weight:600;
+    border-radius:8px;text-decoration:none;outline:2px solid var(--text);outline-offset:3px;
   }
   .card{
-    width:100%;max-width:420px;background:var(--bg-2);border:1px solid var(--line);
-    border-radius:14px;padding:34px 30px;box-shadow:0 40px 120px -40px rgba(0,0,0,.8);
+    position:relative;width:100%;max-width:440px;background:var(--bg-2);border:1px solid var(--line);
+    border-radius:14px;padding:clamp(26px,6vw,36px) clamp(22px,5vw,32px);
+    box-shadow:0 36px 96px -28px rgba(12,18,8,.72),0 0 0 1px rgba(200,255,0,.04);
+    overflow:hidden;
   }
+  .card::before{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:.04;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .card > *{position:relative;z-index:1}
   .brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:10px;text-decoration:none;color:inherit}
   .brand-logo{width:56px;height:56px;object-fit:contain;display:block;flex-shrink:0}
-  .brand b{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px}
-  h1{font-family:var(--serif);font-weight:600;font-size:27px;margin:18px 0 4px;line-height:1.15}
-  .sub{color:var(--muted);font-size:13.5px;margin-bottom:22px;line-height:1.5}
-  .tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:4px;margin-bottom:20px}
-  .tab{flex:1;padding:9px;border:none;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;
-    cursor:pointer;border-radius:6px;transition:background .15s,color .15s}
+  .brand b{font-family:var(--mono);font-weight:700;letter-spacing:.1em;font-size:12px}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(1.65rem,5vw,1.75rem);margin:18px 0 6px;line-height:1.12;letter-spacing:-.02em;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.55;max-width:36ch}
+  .tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:4px;margin-bottom:22px}
+  .tab{flex:1;padding:10px;border:none;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;
+    cursor:pointer;border-radius:6px;transition:background .25s var(--ease),color .25s var(--ease),transform .2s var(--ease)}
+  .tab:hover:not(.active){background:rgba(255,255,255,.04);color:var(--text)}
+  .tab:active{transform:scale(.98)}
+  .tab:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
   .tab.active{background:var(--lime);color:#0a0d00}
-  label{display:block;font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;
+  label{display:block;font-size:12px;font-family:var(--sans);font-weight:500;letter-spacing:.01em;
     color:var(--muted);margin:14px 0 6px}
-  input{width:100%;padding:12px 13px;background:#0a0b0a;border:1px solid var(--line-2);border-radius:8px;
-    color:var(--text);font:inherit;font-size:15px;transition:border-color .15s}
-  input:focus{outline:none;border-color:var(--lime)}
+  input{width:100%;padding:12px 13px;background:#0c0d0b;border:1px solid var(--line-2);border-radius:8px;
+    color:var(--text);font:inherit;font-size:15px;transition:border-color .25s var(--ease),box-shadow .25s var(--ease),background .25s var(--ease)}
+  input:hover{border-color:rgba(255,255,255,.2)}
+  input:focus{outline:none;border-color:var(--lime);box-shadow:0 0 0 3px rgba(200,255,0,.14)}
+  input:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+  input[aria-invalid="true"]{border-color:var(--red);box-shadow:0 0 0 3px rgba(224,82,77,.12)}
+  .field-err{display:none;margin-top:6px;font-size:12px;color:var(--red);line-height:1.4}
+  .field-err.show{display:block}
   .field-name{display:none}
   body[data-mode="signup"] .field-name{display:block}
   .btn{width:100%;margin-top:20px;padding:13px;background:var(--lime);color:#0a0d00;border:none;border-radius:8px;
-    font:inherit;font-weight:700;font-size:15px;cursor:pointer;transition:opacity .15s}
-  .btn:hover{opacity:.9}
-  .btn:disabled{opacity:.5;cursor:default}
+    font:inherit;font-weight:700;font-size:15px;cursor:pointer;
+    transition:transform .25s var(--ease),box-shadow .25s var(--ease),background .25s var(--ease)}
+  .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 28px rgba(200,255,0,.18)}
+  .btn:active:not(:disabled){transform:translateY(0) scale(.98)}
+  .btn:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+  .btn:disabled{opacity:.5;cursor:default;transform:none;box-shadow:none}
   .msg{margin-top:14px;font-size:13px;line-height:1.45;min-height:1px;display:none}
   .msg.err{display:block;color:var(--red)}
   .msg.ok{display:block;color:var(--lime)}
-  .divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:var(--faint);font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+  .divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:var(--faint);font-size:11px;font-family:var(--mono);letter-spacing:.06em}
   .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
   .alt{display:block;width:100%;padding:11px;text-align:center;background:none;border:1px solid var(--line-2);
-    border-radius:8px;color:var(--text);font:inherit;font-size:14px;cursor:pointer;text-decoration:none;margin-bottom:10px;transition:border-color .15s}
-  .alt:hover{border-color:var(--line-2);background:rgba(255,255,255,.03)}
+    border-radius:8px;color:var(--text);font:inherit;font-size:14px;cursor:pointer;text-decoration:none;margin-bottom:10px;
+    transition:border-color .25s var(--ease),background .25s var(--ease),transform .25s var(--ease)}
+  .alt:hover{border-color:rgba(200,255,0,.28);background:rgba(200,255,0,.04);transform:translateY(-1px)}
+  .alt:active{transform:scale(.98)}
+  .alt:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
   .foot{margin-top:18px;text-align:center;font-size:12px;color:var(--faint);line-height:1.5}
-  .foot a{color:var(--muted)}
+  .foot a{color:var(--muted);transition:color .2s var(--ease)}
+  .foot a:hover{color:var(--text)}
   .hint{font-size:11.5px;color:var(--faint);margin-top:6px}
+  @media(max-width:375px){
+    .card{border-radius:12px;padding:22px 18px}
+    h1{font-size:1.55rem}
+    .sub{font-size:13px}
+  }
 </style>
 </head>
 <body data-mode="signup">
-  <div class="card">
+  <a class="skip-link" href="#main-content">Skip to form</a>
+  <main class="card" id="main-content">
     <a class="brand" href="/" aria-label="TradeSimple home">
-      <img class="brand-logo" src="/tradesimple-logo.png" width="56" height="56" alt="TradeSimple"/>
-      <b>TRADESIMPLE</b>
+      <img class="brand-logo" src="/tradesimple-logo.png" width="56" height="56" alt="TradeSimple logo"/>
+      <b>TradeSimple</b>
     </a>
     <h1 id="title">Create your account</h1>
-    <p class="sub" id="subtitle">Sign up with email and password — your watchlist, theses, and paper trades sync across devices.</p>
+    <p class="sub" id="subtitle">Sign up with email and password. Your watchlist, theses, and paper trades sync across devices.</p>
 
     <div class="tabs" role="tablist">
-      <button class="tab" data-tab="login" type="button">Log in</button>
-      <button class="tab active" data-tab="signup" type="button">Sign up</button>
+      <button class="tab" data-tab="login" type="button" role="tab" aria-selected="false">Log in</button>
+      <button class="tab active" data-tab="signup" type="button" role="tab" aria-selected="true">Sign up</button>
     </div>
 
     <form id="auth-form" novalidate>
@@ -81,9 +119,11 @@
         <input id="name" name="name" type="text" autocomplete="name" placeholder="Alex"/>
       </div>
       <label for="email">Email</label>
-      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@email.com" required/>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@email.com" required aria-describedby="email-err"/>
+      <span class="field-err" id="email-err" role="alert"></span>
       <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8"/>
+      <input id="password" name="password" type="password" autocomplete="new-password" placeholder="••••••••" required minlength="8" aria-describedby="pw-err pwHint"/>
+      <span class="field-err" id="pw-err" role="alert"></span>
       <div class="hint" id="pwHint">At least 8 characters.</div>
       <button class="btn" id="auth-submit" type="submit">Create account</button>
       <div class="msg" id="msg" role="status" aria-live="polite"></div>
@@ -95,7 +135,7 @@
       Research signal terminal · not financial advice.<br/>
       <a href="/">← Back to home</a>
     </p>
-  </div>
+  </main>
 
 <script>
 (function () {
@@ -107,6 +147,9 @@
   var subtitle = document.getElementById("subtitle");
   var pwHint = document.getElementById("pwHint");
   var pw = document.getElementById("password");
+  var emailInput = document.getElementById("email");
+  var emailErr = document.getElementById("email-err");
+  var pwErr = document.getElementById("pw-err");
   var params = new URLSearchParams(window.location.search);
   var defaultNext = "/dashboard?view=thesis&welcome=1";
 
@@ -128,12 +171,14 @@
   function setMode(mode) {
     body.dataset.mode = mode;
     document.querySelectorAll(".tab").forEach(function (t) {
-      t.classList.toggle("active", t.dataset.tab === mode);
+      var active = t.dataset.tab === mode;
+      t.classList.toggle("active", active);
+      t.setAttribute("aria-selected", active ? "true" : "false");
     });
     var signup = mode === "signup";
     title.textContent = signup ? "Create your account" : "Welcome back";
     subtitle.textContent = signup
-      ? "Sign up with email and password — your watchlist, theses, and paper trades sync across devices."
+      ? "Sign up with email and password. Your watchlist, theses, and paper trades sync across devices."
       : "Sign in to pick up your watchlist, theses, and paper account where you left off.";
     authSubmit.textContent = signup ? "Create account" : "Log in";
     pwHint.style.display = signup ? "block" : "none";
@@ -141,12 +186,29 @@
     pw.setAttribute("autocomplete", signup ? "new-password" : "current-password");
     document.title = signup ? "TradeSimple — Create account" : "TradeSimple — Log in";
     clearMsg();
+    clearFieldErrors();
   }
 
   function clearMsg() {
     msg.className = "msg";
     msg.textContent = "";
   }
+
+  function clearFieldErrors() {
+    emailErr.className = "field-err";
+    emailErr.textContent = "";
+    pwErr.className = "field-err";
+    pwErr.textContent = "";
+    emailInput.removeAttribute("aria-invalid");
+    pw.removeAttribute("aria-invalid");
+  }
+
+  function showFieldErr(el, errEl, text) {
+    errEl.textContent = text;
+    errEl.className = "field-err show";
+    el.setAttribute("aria-invalid", "true");
+  }
+
   function showErr(t) {
     msg.className = "msg err";
     msg.textContent = t;
@@ -160,6 +222,25 @@
     authSubmit.disabled = false;
     authSubmit.textContent = mode === "signup" ? "Create account" : "Log in";
   }
+
+  function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  emailInput.addEventListener("input", function () {
+    if (emailInput.getAttribute("aria-invalid") === "true") {
+      emailErr.className = "field-err";
+      emailErr.textContent = "";
+      emailInput.removeAttribute("aria-invalid");
+    }
+  });
+  pw.addEventListener("input", function () {
+    if (pw.getAttribute("aria-invalid") === "true") {
+      pwErr.className = "field-err";
+      pwErr.textContent = "";
+      pw.removeAttribute("aria-invalid");
+    }
+  });
 
   async function parseApiResponse(response) {
     var text = await response.text();
@@ -177,22 +258,28 @@
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     clearMsg();
+    clearFieldErrors();
     var mode = body.dataset.mode;
-    var email = document.getElementById("email").value.trim();
+    var email = emailInput.value.trim();
     var password = pw.value;
     var name = document.getElementById("name").value.trim();
+    var hasError = false;
+
     if (!email) {
-      showErr("Enter your email.");
-      return;
+      showFieldErr(emailInput, emailErr, "Enter your email.");
+      hasError = true;
+    } else if (!isValidEmail(email)) {
+      showFieldErr(emailInput, emailErr, "Enter a valid email address.");
+      hasError = true;
     }
     if (!password) {
-      showErr("Enter your password.");
-      return;
+      showFieldErr(pw, pwErr, "Enter your password.");
+      hasError = true;
+    } else if (mode === "signup" && password.length < 8) {
+      showFieldErr(pw, pwErr, "Password must be at least 8 characters.");
+      hasError = true;
     }
-    if (mode === "signup" && password.length < 8) {
-      showErr("Password must be at least 8 characters.");
-      return;
-    }
+    if (hasError) return;
 
     authSubmit.disabled = true;
     authSubmit.textContent = mode === "signup" ? "Creating…" : "Logging in…";
@@ -210,11 +297,20 @@
       .then(parseApiResponse)
       .then(function (res) {
         if (!res.ok) {
-          showErr(res.data.message || "Something went wrong.");
+          var apiMsg = res.data.message || "";
+          if (/password|credential|invalid/i.test(apiMsg)) {
+            showErr(apiMsg);
+          } else if (mode === "signup" && /exist|already/i.test(apiMsg)) {
+            showErr(apiMsg);
+          } else {
+            showErr(apiMsg || (mode === "signup"
+              ? "Could not create account. Try a different email or check your connection."
+              : "Sign-in failed. Check your email and password."));
+          }
           resetButton(mode);
           return;
         }
-        showOk(mode === "signup" ? "Account created — opening Thesis Lab…" : "Welcome back…");
+        showOk(mode === "signup" ? "Account created. Opening Thesis Lab." : "Signed in. Opening dashboard.");
         window.setTimeout(function () {
           window.location.assign(redirectNext);
         }, 350);

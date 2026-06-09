@@ -6,9 +6,9 @@
   --red: #e24b4a;
   --blue: #4a9ee8;
   --rose: #d4605a;
-  --bg: #080808;
-  --bg-2: #0A0A0A;
-  --bg-3: #111111;
+  --bg: #0a0b09;
+  --bg-2: #10110f;
+  --bg-3: #141513;
   --line: #1E1E1E;
   --line-2: #2A2A2A;
   --text: #E8E4DC;
@@ -224,6 +224,34 @@ html[data-theme="light"] .sidebar-signout:hover {
 * { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.skip-link:focus {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: var(--green);
+  color: #071004;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
 
 html,
 body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
@@ -447,6 +475,7 @@ button { color: inherit; }
   font-size: 13px;
 }
 .nav-item:hover { background: var(--bg-3); color: var(--text); }
+.nav-item:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .nav-item.active { border-color: var(--green-2); background: rgba(200, 255, 0, 0.1); color: var(--green); }
 .sidebar-footer-actions {
   padding: 10px 12px 12px;
@@ -549,8 +578,19 @@ button { color: inherit; }
   outline: none;
 }
 .search-box input { padding: 0 12px 0 64px; }
+.search-box input:focus,
+.filter-row input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--green) 42%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
+}
+.search-box input:focus-visible,
+.filter-row input:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 .filter-row input { padding: 0 12px; }
-.ticker-tape { white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.ticker-tape { white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .theme-toggle {
   display: inline-flex;

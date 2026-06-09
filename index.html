@@ -30,7 +30,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=mobile-polish-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=redesign-polish-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -39,7 +39,7 @@
   --green:var(--signal-green);--green-dim:#344700;--green-glow:rgba(200,255,0,.12);
   --green-glow-strong:rgba(200,255,0,.2);
   --amber:var(--warning-amber);--red:#e0524d;--blue:#5a9fd4;
-  --bg:#080808;--bg-2:#0A0A0A;--bg-3:#111111;--bg-edge:#2A2A2A;
+  --bg:#0a0b09;--bg-2:#10110f;--bg-3:#141513;--bg-edge:#2A2A2A;
   --line:rgba(255,255,255,.06);--line-2:rgba(255,255,255,.1);--line-3:rgba(255,255,255,.17);
   --text:var(--text-main);--muted:#8C8C82;--faint:#4A4A4A;
   --ivory:var(--text-main);--forest:#1F4A35;--slate:#3F4542;
@@ -107,7 +107,7 @@ html[data-theme="light"] .grid-overlay{display:none}
   background:rgba(8,9,9,.72);
   border:1px solid var(--line-2);
   backdrop-filter:saturate(160%) blur(22px);
-  box-shadow:0 18px 48px rgba(0,0,0,.35);
+  box-shadow:0 18px 48px rgba(10,14,8,.38);
   transition:background .3s,box-shadow .3s;
 }
 html[data-theme="light"] .nav-inner{
@@ -176,10 +176,15 @@ html[data-theme="light"] .nav-inner{
 }
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(91,191,130,.25)}
 .btn-primary:hover::after{clip-path:circle(150% at var(--mx,50%) var(--my,50%))}
+.btn-primary:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.btn-primary:active{transform:translateY(0) scale(.98) !important}
 
 .btn-ghost{border:1px solid var(--line-2);color:var(--muted)}
 .btn-ghost:hover{border-color:var(--line-3);color:var(--text);transform:translateY(-1px)}
+.btn-ghost:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .btn-ghost:active{transform:scale(.98) !important}
+.skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+.skip-link:focus{position:fixed;left:16px;top:16px;width:auto;height:auto;overflow:visible;z-index:10000;padding:10px 16px;background:var(--green);color:#071004;font-size:13px;font-weight:600;border-radius:8px;text-decoration:none;outline:2px solid var(--text);outline-offset:3px}
 @keyframes scroll-left{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
 .up{color:var(--green);background:rgba(91,220,145,.09)}
 .dn{color:var(--red);background:rgba(224,82,77,.12)}
@@ -454,6 +459,7 @@ footer nav a:hover{color:var(--text)}
 </style>
 </head>
 <body class="landing-cinematic">
+<a class="skip-link" href="#top">Skip to content</a>
 
 <div class="ts-scroll-progress" aria-hidden="true"><span class="ts-scroll-progress-bar"></span></div>
 <nav class="ts-section-dots" aria-label="Page sections">
@@ -585,7 +591,7 @@ footer nav a:hover{color:var(--text)}
 
   <div class="ts-hero-content">
     <div class="ts-hero-copy">
-      <p class="ts-kicker"><span></span>Directive 01: multi-angle surveillance</p>
+      <p class="ts-kicker"><span></span>Live policy surveillance</p>
       <h1>Markets<br><em>move</em> when<br>bills <i>pass.</i></h1>
       <p class="ts-subcopy">
         Congressional activity, lobbying filings, federal contracts, and market data —

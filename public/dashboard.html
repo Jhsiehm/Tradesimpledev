@@ -19,10 +19,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=mobile-ux-2" />
+    <link rel="stylesheet" href="/assets/styles.css?v=redesign-polish-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=launch-gates-1" />
   </head>
   <body data-page="dashboard">
+    <a class="skip-link" href="#workspace-main">Skip to content</a>
     <div class="terminal-shell">
       <aside class="sidebar" id="main-sidebar">
         <div class="sidebar-brand-row">
@@ -117,7 +118,7 @@
         <span>Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.</span>
       </section>
 
-      <main class="workspace">
+      <main class="workspace" id="workspace-main">
         <section class="view active dashboard-overview-view" id="view-overview">
           <section class="portfolio-command portfolio-command-hero">
             <div class="portfolio-command-copy">
@@ -1969,7 +1970,13 @@
 
             fetch("/api/settings/anthropic", {
               method: "POST",
-              headers: { "content-type": "application/json" },
+              credentials: "same-origin",
+              headers: (function () {
+                var h = { "content-type": "application/json" };
+                var m = document.cookie.match(/(?:^|;\s*)ts_csrf=([^;]*)/);
+                if (m) h["X-CSRF-Token"] = decodeURIComponent(m[1]);
+                return h;
+              })(),
               body: JSON.stringify({ apiKey: key, model: model })
             })
             .then(function (r) { return r.json(); })
