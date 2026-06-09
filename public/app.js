@@ -149,6 +149,170 @@ function contractWatchlist() {
   return Array.isArray(rows) ? rows : [];
 }
 
+function tradableSymbolRows() {
+  const rows = dashboardBootstrap().tradableSymbols;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function symbolHasSource(row, source) {
+  return (row?.sources || []).includes(source);
+}
+
+function symbolSourceBadgeLabel(source) {
+  if (source === "contract") return "Contract";
+  if (source === "bill") return "Bill";
+  if (source === "lobby") return "Lobby";
+  if (source === "seed") return "Market";
+  return source;
+}
+
+function mergePickerSymbolRows(extra = []) {
+  const map = new Map();
+  for (const row of tradableSymbolRows()) {
+    map.set(row.symbol, { ...row, sources: [...(row.sources || [])] });
+  }
+  for (const raw of extra) {
+    const sym = normalizeWatchSymbol(raw);
+    if (!sym || map.has(sym)) continue;
+    map.set(sym, { symbol: sym, name: sym, sources: [] });
+  }
+  return [...map.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+function filterPickerSymbolRows(query, extra = []) {
+  const q = String(query || "").trim().toUpperCase();
+  const rows = mergePickerSymbolRows(extra);
+  if (!q) return rows.slice(0, 80);
+  return rows
+    .filter((row) => row.symbol.includes(q) || String(row.name || "").toUpperCase().includes(q))
+    .slice(0, 40);
+}
+
+function renderSymbolPickerOptions(rows, { activeSymbol = "" } = {}) {
+  if (!rows.length) {
+    return `<li class="symbol-combobox-empty" role="option">No matching symbols</li>`;
+  }
+  return rows
+    .map((row) => {
+      const badges = (row.sources || [])
+        .slice(0, 3)
+        .map((source) => `<span class="symbol-source-badge symbol-source-${escapeHtml(source)}">${escapeHtml(symbolSourceBadgeLabel(source))}</span>`)
+        .join("");
+      const selected = row.symbol === activeSymbol ? ' aria-selected="true"' : "";
+      return `<li class="symbol-combobox-option" role="option" data-symbol="${escapeHtml(row.symbol)}"${selected}>
+        <span class="symbol-combobox-sym">${escapeHtml(row.symbol)}</span>
+        <span class="symbol-combobox-name">${escapeHtml(row.name || row.symbol)}</span>
+        <span class="symbol-combobox-badges">${badges}</span>
+      </li>`;
+    })
+    .join("");
+}
+
+function pickerExtraSymbols() {
+  return [
+    ...paperPositionSymbols(),
+    ...watchlistRows().map((w) => w.symbol),
+    state.activeAnalysisSymbol,
+    state.tradeSymbol
+  ].filter(Boolean);
+}
+
+function setSymbolPickerValue(input, symbol, { notify = true } = {}) {
+  if (!input) return;
+  const sym = normalizeWatchSymbol(symbol);
+  input.value = sym;
+  const wrap = input.closest(".symbol-combobox");
+  const list = wrap?.querySelector(".symbol-combobox-list");
+  if (list) {
+    list.innerHTML = renderSymbolPickerOptions(filterPickerSymbolRows(sym, pickerExtraSymbols()), { activeSymbol: sym });
+    list.hidden = true;
+  }
+  if (notify) {
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+function wireSymbolCombobox(input) {
+  if (!input || input.dataset.comboboxReady === "true") return;
+  input.dataset.comboboxReady = "true";
+  const wrap = input.closest(".symbol-combobox");
+  const list = wrap?.querySelector(".symbol-combobox-list");
+  if (!list) return;
+
+  const refreshList = (open = true) => {
+    const sym = normalizeWatchSymbol(input.value);
+    list.innerHTML = renderSymbolPickerOptions(filterPickerSymbolRows(input.value, pickerExtraSymbols()), {
+      activeSymbol: sym
+    });
+    list.hidden = !open;
+    input.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+
+  input.addEventListener("focus", () => refreshList(true));
+  input.addEventListener("input", () => refreshList(true));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+    if (event.key === "Enter") {
+      const first = list.querySelector(".symbol-combobox-option[data-symbol]");
+      if (first && list.hidden === false) {
+        event.preventDefault();
+        setSymbolPickerValue(input, first.dataset.symbol);
+        list.hidden = true;
+      }
+    }
+  });
+
+  list.addEventListener("mousedown", (event) => {
+    const option = event.target.closest(".symbol-combobox-option[data-symbol]");
+    if (!option) return;
+    event.preventDefault();
+    setSymbolPickerValue(input, option.dataset.symbol);
+    list.hidden = true;
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!wrap.contains(event.target)) {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  input.addEventListener("change", () => {
+    input.value = normalizeWatchSymbol(input.value);
+  });
+}
+
+function initSymbolPickers() {
+  document.querySelectorAll(".symbol-combobox-input").forEach((input) => wireSymbolCombobox(input));
+  populateThesisSymbolDatalist();
+}
+
+function populateThesisSymbolDatalist() {
+  const list = document.getElementById("thesis-symbol-datalist");
+  if (!list) return;
+  list.innerHTML = mergePickerSymbolRows(pickerExtraSymbols())
+    .slice(0, 120)
+    .map((row) => `<option value="${escapeHtml(row.symbol)}">${escapeHtml(row.name || row.symbol)}</option>`)
+    .join("");
+}
+
+function orderSuccessMessage(response) {
+  const order = response?.order || {};
+  const sym = String(order.symbol || "").toUpperCase();
+  const base = `${String(order.side || "").toUpperCase()} ${order.qty} ${sym} filled at ${money(order.price)}.`;
+  const links = [`<a href="${escapeHtml(stockPageUrl(sym))}">Stock brief</a>`];
+  const row = tradableSymbolRows().find((item) => item.symbol === sym);
+  if (row && symbolHasSource(row, "contract")) {
+    links.push(`<a href="/contract/${encodeURIComponent(sym)}">Contract brief</a>`);
+  }
+  const brokerNote = response.broker === "alpaca_paper" ? " Routed via Alpaca paper API." : "";
+  return `${base}${brokerNote} <span class="order-success-links">${links.join(" · ")}</span>`;
+}
+
 const LIVE_FEED_INTERVALS = {
   marketMs: 30000,
   cryptoMs: 30000,
@@ -271,8 +435,10 @@ function paperPositionSymbols() {
 }
 
 function quoteSymbolUniverse() {
+  const catalog = tradableSymbolRows().map((row) => row.symbol);
   return [
     ...new Set([
+      ...catalog.slice(0, 40),
       ...marketsDefaultSymbols(),
       ...tapeDefaultQuoteSymbols(),
       ...marketSymbols(),
@@ -318,29 +484,18 @@ function portfolioTickerSet() {
 }
 
 function isTrackedTicker(sym) {
-  return marketSymbols().includes(sym) || portfolioTickerSet().has(sym);
+  return tradableSymbolRows().some((row) => row.symbol === sym) || marketSymbols().includes(sym) || portfolioTickerSet().has(sym);
 }
 
 function populateSymbolSelects() {
-  const symbols = [
-    ...new Set([
-      ...marketSymbols(),
-      ...paperPositionSymbols(),
-      ...watchlistRows().map((w) => w.symbol)
-    ])
-  ].sort();
+  const symbols = mergePickerSymbolRows(pickerExtraSymbols()).map((row) => row.symbol);
   for (const id of ["analysis-symbol", "order-symbol"]) {
-    const select = document.getElementById(id);
-    if (!select) continue;
-    const current = select.value;
-    select.innerHTML = symbols.map((sym) => `<option value="${escapeHtml(sym)}">${escapeHtml(sym)}</option>`).join("");
-    if (symbols.includes(current)) select.value = current;
-    else if (symbols.includes(state.activeAnalysisSymbol) && id === "analysis-symbol") {
-      select.value = state.activeAnalysisSymbol;
-    } else if (symbols.includes(state.tradeSymbol) && id === "order-symbol") {
-      select.value = state.tradeSymbol;
-    }
+    const input = document.getElementById(id);
+    if (!input) continue;
+    const current = normalizeWatchSymbol(input.value || (id === "analysis-symbol" ? state.activeAnalysisSymbol : state.tradeSymbol));
+    setSymbolPickerValue(input, current, { notify: false });
   }
+  initSymbolPickers();
 }
 
 function renderCausalityTickerRow() {
@@ -968,23 +1123,17 @@ function openTickerAnalysis(symbol) {
   }
   state.activeAnalysisSymbol = sym;
   const sel = $("#analysis-symbol");
-  if (sel && [...sel.options].some((option) => option.value === sym || option.textContent === sym)) sel.value = sym;
+  if (sel) setSymbolPickerValue(sel, sym, { notify: false });
   showView("analysis");
   loadAnalysis(sym);
 }
 
 function openTradeForSymbol(symbol, options = {}) {
-  const sym = String(symbol || "").toUpperCase().replace(/[^A-Z.]/g, "");
+  const sym = normalizeWatchSymbol(symbol);
   if (!sym) return showView("trade");
-  const orderSelect = $("#order-symbol");
-  if (orderSelect && ![...orderSelect.options].some((option) => option.value === sym)) {
-    const opt = document.createElement("option");
-    opt.value = sym;
-    opt.textContent = sym;
-    orderSelect.appendChild(opt);
-  }
   state.tradeSymbol = sym;
-  if (orderSelect) orderSelect.value = sym;
+  const orderSelect = $("#order-symbol");
+  if (orderSelect) setSymbolPickerValue(orderSelect, sym, { notify: false });
   const sideSelect = $("#order-side");
   if (options.side && sideSelect) sideSelect.value = options.side;
   const qtyInput = $("#order-qty");
@@ -1599,15 +1748,20 @@ function persistBillsGuidedMode(mode) {
 }
 
 function tradeSymbolUniverse() {
-  return [
-    ...new Set([...marketSymbols(), ...paperPositionSymbols(), ...watchlistRows().map((w) => w.symbol)])
-  ].sort();
+  return mergePickerSymbolRows(pickerExtraSymbols()).map((row) => row.symbol);
+}
+
+function tradeSymbolPickerHtml(inputId, selected) {
+  const sym = normalizeWatchSymbol(selected);
+  return `
+    <div class="symbol-combobox symbol-combobox--guided">
+      <input type="text" class="symbol-combobox-input dashboard-guided-highlight" id="${escapeHtml(inputId)}" name="symbol" value="${escapeHtml(sym)}" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-autocomplete="list" aria-expanded="false" />
+      <ul class="symbol-combobox-list" role="listbox" hidden></ul>
+    </div>`;
 }
 
 function tradeSymbolOptionsHtml(selected) {
-  return tradeSymbolUniverse()
-    .map((sym) => `<option value="${escapeHtml(sym)}"${sym === selected ? " selected" : ""}>${escapeHtml(sym)}</option>`)
-    .join("");
+  return tradeSymbolPickerHtml("guided-order-symbol-fallback", selected);
 }
 
 function topMomentumBill() {
@@ -1666,10 +1820,10 @@ function buildTradeGuidedSteps() {
         <p class="bill-guided-lede">Choose a stock symbol tied to policy signals you are tracking. Quotes fill at the latest simulated price.</p>
         <form class="trade-guided-form" id="guided-pick-form">
           <label>Symbol
-            <select id="guided-order-symbol" class="dashboard-guided-highlight">${tradeSymbolOptionsHtml(symbol)}</select>
+            ${tradeSymbolPickerHtml("guided-order-symbol", symbol)}
           </label>
         </form>
-        <p class="muted bill-guided-note">Try NVDA, LLY, or a ticker from your watchlist.</p>`
+        <p class="muted bill-guided-note">Try PLTR, LMT, NVDA, or search the full policy-linked catalog.</p>`
     },
     {
       id: "order",
@@ -1680,7 +1834,7 @@ function buildTradeGuidedSteps() {
         <p class="bill-guided-lede">Pick a side, enter a share quantity, and submit. The fill uses the latest quote in your simulated account.</p>
         <form class="trade-guided-form" id="guided-order-form">
           <label>Symbol
-            <select name="symbol" id="guided-order-symbol-ticket">${tradeSymbolOptionsHtml(symbol)}</select>
+            ${tradeSymbolPickerHtml("guided-order-symbol-ticket", symbol)}
           </label>
           <label>Quantity
             <input name="qty" id="guided-order-qty" type="number" min="0.0001" step="0.0001" value="1" />
@@ -1724,6 +1878,7 @@ function buildTradeGuidedSteps() {
         <p class="bill-guided-lede">Connect your paper trade to the policy story — track a thesis or open the bill brief behind this ticker.</p>
         <div class="bill-guided-cta">
           <a class="card-button bill-cta-primary" href="/dashboard?view=thesis">Track a thesis</a>
+          <a class="brief-trace-cta" href="${escapeHtml(publicStockCardUrl(symbol))}">Trace ${escapeHtml(symbol)} →</a>
           ${bill
             ? `<a class="card-button ghost" href="${escapeHtml(billPageUrl(bill))}">Explore related bill</a>`
             : `<a class="card-button ghost" href="/dashboard?view=bills">Explore bills</a>`}
@@ -1802,25 +1957,23 @@ function buildBillsGuidedSteps() {
 function wireTradeGuidedExtras() {
   const pick = $("#guided-order-symbol");
   const ticket = $("#guided-order-symbol-ticket");
+  initSymbolPickers();
+  const syncPickers = (sym) => {
+    state.tradeSymbol = sym;
+    if (pick) setSymbolPickerValue(pick, sym, { notify: false });
+    if (ticket) setSymbolPickerValue(ticket, sym, { notify: false });
+    const main = $("#order-symbol");
+    if (main) setSymbolPickerValue(main, sym, { notify: false });
+    loadTradeHistory(sym, state.tradeRange);
+  };
   if (pick) {
-    pick.value = state.tradeSymbol;
-    pick.addEventListener("change", () => {
-      state.tradeSymbol = pick.value;
-      if (ticket) ticket.value = pick.value;
-      const main = $("#order-symbol");
-      if (main) main.value = pick.value;
-      loadTradeHistory(state.tradeSymbol, state.tradeRange);
-    });
+    setSymbolPickerValue(pick, state.tradeSymbol, { notify: false });
+    pick.addEventListener("change", () => syncPickers(normalizeWatchSymbol(pick.value)));
   }
   if (ticket && !ticket.dataset.wired) {
     ticket.dataset.wired = "1";
-    ticket.value = state.tradeSymbol;
-    ticket.addEventListener("change", () => {
-      state.tradeSymbol = ticket.value;
-      if (pick) pick.value = ticket.value;
-      const main = $("#order-symbol");
-      if (main) main.value = ticket.value;
-    });
+    setSymbolPickerValue(ticket, state.tradeSymbol, { notify: false });
+    ticket.addEventListener("change", () => syncPickers(normalizeWatchSymbol(ticket.value)));
   }
   const form = $("#guided-order-form");
   if (form && !form.dataset.wired) {
@@ -1843,7 +1996,7 @@ function wireTradeGuidedExtras() {
         });
         state.account = response;
         if (result) {
-          result.textContent = `${response.order.side.toUpperCase()} ${response.order.qty} ${response.order.symbol} filled at ${money(response.order.price)}.`;
+          result.innerHTML = orderSuccessMessage(response);
         }
         renderAccount();
       } catch (error) {
@@ -2100,19 +2253,9 @@ async function initDashboard() {
     state.tradeSymbol = initialSymbol;
     thesisPrimeTicker(initialSymbol);
     const analysisSelect = $("#analysis-symbol");
-    if (analysisSelect && ![...analysisSelect.options].some((o) => o.value === initialSymbol)) {
-      const opt = document.createElement("option");
-      opt.value = initialSymbol;
-      opt.textContent = initialSymbol;
-      analysisSelect.appendChild(opt);
-    }
+    if (analysisSelect) setSymbolPickerValue(analysisSelect, initialSymbol, { notify: false });
     const orderSelect = $("#order-symbol");
-    if (orderSelect && ![...orderSelect.options].some((o) => o.value === initialSymbol)) {
-      const opt = document.createElement("option");
-      opt.value = initialSymbol;
-      opt.textContent = initialSymbol;
-      orderSelect.appendChild(opt);
-    }
+    if (orderSelect) setSymbolPickerValue(orderSelect, initialSymbol, { notify: false });
   }
 
   const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
@@ -3032,7 +3175,7 @@ function renderResearchJourney() {
       if (view === "analysis") {
         state.activeAnalysisSymbol = sym;
         const sel = $("#analysis-symbol");
-        if (sel) sel.value = sym;
+        if (sel) setSymbolPickerValue(sel, sym, { notify: false });
       }
       showView(view);
     });
@@ -5694,6 +5837,9 @@ function legisAlertCard(bill, options = {}) {
       <div class="legis-card-footer">
         <span class="muted" style="font-size:11px;font-family:var(--mono)">${sponsorLine}</span>
         <div class="legis-card-footer-actions">
+          ${(bill.affected || [])[0]
+            ? `<a class="brief-trace-cta" href="${escapeHtml(publicStockCardUrl((bill.affected || [])[0]))}">Trace ${escapeHtml((bill.affected || [])[0])} →</a>`
+            : ""}
           <button type="button" class="button button-ghost compact" data-methodology-bill="${escapeHtml(bill.id)}">Explain metrics</button>
           <button type="button" class="button button-secondary compact" data-ask-why="${escapeHtml(bill.id)}">Ask why (metrics)</button>
           <button type="button" class="button button-ghost compact" data-show-view="research">Ask AI</button>
@@ -6342,16 +6488,17 @@ function showView(view, updateUrl = true) {
 function setupAnalysisControls() {
   const select = $("#analysis-symbol");
   if (!select) return;
-  select.value = state.activeAnalysisSymbol;
+  setSymbolPickerValue(select, state.activeAnalysisSymbol, { notify: false });
+  wireSymbolCombobox(select);
   select.addEventListener("change", () => {
-    state.activeAnalysisSymbol = select.value;
+    state.activeAnalysisSymbol = normalizeWatchSymbol(select.value);
     if ($("#view-analysis")?.classList.contains("active")) {
       const params = new URLSearchParams(window.location.search);
       params.set("view", "analysis");
-      params.set("symbol", select.value);
+      params.set("symbol", state.activeAnalysisSymbol);
       window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
     }
-    loadAnalysis(select.value);
+    loadAnalysis(state.activeAnalysisSymbol);
   });
 }
 
@@ -6360,9 +6507,10 @@ function setupTradeControls() {
   const qtyInput = $("#order-qty");
   const sideSelect = $("#order-side");
   if (!symbolSelect) return;
-  symbolSelect.value = state.tradeSymbol;
+  setSymbolPickerValue(symbolSelect, state.tradeSymbol, { notify: false });
+  wireSymbolCombobox(symbolSelect);
   symbolSelect.addEventListener("change", () => {
-    state.tradeSymbol = symbolSelect.value;
+    state.tradeSymbol = normalizeWatchSymbol(symbolSelect.value);
     loadTradeHistory(state.tradeSymbol, state.tradeRange);
     updateOrderEstimate();
     if ($("#view-trade")?.classList.contains("active")) {
@@ -6622,7 +6770,7 @@ function setupForms() {
         void thesisRefreshSavedOutcome();
         state.pendingThesisId = null;
       }
-      $("#order-result").textContent = `${response.order.side.toUpperCase()} ${response.order.qty} ${response.order.symbol} filled at ${money(response.order.price)}. New buying power: ${money(response.account.buyingPower)}.`;
+      $("#order-result").innerHTML = `${orderSuccessMessage(response)} New buying power: ${money(response.account.buyingPower)}.`;
     } catch (error) {
       let msg = "Paper order rejected. Check the symbol and quantity.";
       try {

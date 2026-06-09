@@ -648,6 +648,106 @@ function buildContractWatchlist() {
   }));
 }
 
+function resolveTradableSymbolName(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  return (
+    FUNDAMENTALS[sym]?.name ||
+    CONTRACT_COMPANY_NAMES[sym] ||
+    CONTRACT_SEARCH_HINTS[sym] ||
+    sym
+  );
+}
+
+const finnhubSymbolNameCache = new Map();
+
+/** Unified tradable universe — bills, contracts, lobbying, fundamentals, market seeds. */
+function getTradableSymbolCatalog() {
+  const map = new Map();
+  const add = (rawSymbol, source, nameHint) => {
+    const sym = String(rawSymbol || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z.]/g, "")
+      .slice(0, 12);
+    if (!sym) return;
+    const row = map.get(sym) || { symbol: sym, name: resolveTradableSymbolName(sym), sources: new Set() };
+    row.sources.add(source);
+    if (nameHint && nameHint !== sym) row.name = nameHint;
+    map.set(sym, row);
+  };
+
+  for (const sym of Object.keys(CONTRACT_PROFILES)) add(sym, "contract", resolveTradableSymbolName(sym));
+  for (const [sym, name] of Object.entries(CONTRACT_COMPANY_NAMES)) add(sym, "contract", name);
+  for (const [sym, name] of Object.entries(CONTRACT_SEARCH_HINTS)) add(sym, "contract", name);
+  for (const sym of Object.keys(FUNDAMENTALS)) add(sym, "seed", FUNDAMENTALS[sym]?.name);
+  for (const sym of Object.keys(MARKET_FALLBACK)) add(sym, "seed", resolveTradableSymbolName(sym));
+  for (const bill of POLICY_BILLS) {
+    for (const sym of bill.affected || []) add(sym, "bill", resolveTradableSymbolName(sym));
+  }
+  for (const syms of Object.values(LOBBY_CLIENT_TICKERS)) {
+    for (const sym of syms) add(sym, "lobby", resolveTradableSymbolName(sym));
+  }
+  for (const bucket of BILL_KEYWORD_BUCKETS) {
+    for (const sym of bucket.tickers || []) add(sym, "bill", resolveTradableSymbolName(sym));
+  }
+  for (const row of COMMITTEE_SECTOR_MAP) {
+    for (const sym of row.tickers || []) add(sym, "bill", resolveTradableSymbolName(sym));
+  }
+  for (const row of POLICY_AREA_SECTOR_MAP) {
+    for (const sym of row.tickers || []) add(sym, "bill", resolveTradableSymbolName(sym));
+  }
+
+  const symbols = [...map.values()]
+    .map((row) => ({
+      symbol: row.symbol,
+      name: row.name,
+      sources: [...row.sources].sort()
+    }))
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+
+  return {
+    source: "symbol_registry",
+    count: symbols.length,
+    symbols,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function enrichCatalogNamesFromFinnhub(catalog) {
+  const token = process.env.FINNHUB_API_KEY;
+  if (!token) return catalog;
+  const needs = catalog.symbols.filter((row) => row.name === row.symbol).slice(0, 24);
+  await Promise.all(
+    needs.map(async (row) => {
+      if (finnhubSymbolNameCache.has(row.symbol)) {
+        const cached = finnhubSymbolNameCache.get(row.symbol);
+        if (cached) row.name = cached;
+        return;
+      }
+      try {
+        const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(row.symbol)}&token=${encodeURIComponent(token)}`;
+        const response = await fetchWithTimeout(url, {}, 5000);
+        if (!response.ok) {
+          finnhubSymbolNameCache.set(row.symbol, row.name);
+          return;
+        }
+        const data = await response.json();
+        const name = data.name || row.name;
+        finnhubSymbolNameCache.set(row.symbol, name);
+        row.name = name;
+      } catch {
+        finnhubSymbolNameCache.set(row.symbol, row.name);
+      }
+    })
+  );
+  return catalog;
+}
+
+async function symbolsCatalogRoute(res) {
+  const catalog = await enrichCatalogNamesFromFinnhub(getTradableSymbolCatalog());
+  sendJson(res, 200, catalog);
+}
+
 async function dashboardBootstrapPayload(session) {
   let watchlistSymbols = [];
   if (dbReady && !isDemoSession(session)) {
@@ -667,6 +767,7 @@ async function dashboardBootstrapPayload(session) {
     watchlistDefault: DASHBOARD_WATCHLIST_DEFAULT,
     watchlistSymbols,
     contractWatchlist: buildContractWatchlist(),
+    tradableSymbols: getTradableSymbolCatalog().symbols,
     policyBlurbs: buildDashboardPolicyBlurbs(),
     holdingPalette: ["#5eead4", "#93c5fd", "#fcd34d", "#f87171", "#c4b5fd", "#a78bfa", "#fb923c", "#60a5fa", "#e879f9", "#4ade80"]
   };
@@ -2492,6 +2593,9 @@ async function route(req, res) {
     if (pathname === "/api/dashboard/bootstrap" && req.method === "GET") {
       return dashboardBootstrapRoute(res, session);
     }
+    if (pathname === "/api/symbols/catalog" && req.method === "GET") {
+      return symbolsCatalogRoute(res);
+    }
     if (pathname === "/api/ui/bootstrap" && req.method === "GET") {
       return uiBootstrapRoute(res, session);
     }
@@ -2647,6 +2751,7 @@ function publicConfig() {
     },
     safety: {
       liveTradingEnabled: process.env.ALLOW_LIVE_TRADING === "true",
+      alpacaPaperEnabled: alpacaPaperEnabled(),
       tradingBaseUrl: process.env.ALPACA_TRADING_BASE_URL || "https://paper-api.alpaca.markets"
     },
     features: { ...FEATURE_GATES }
@@ -3668,7 +3773,7 @@ function contractCausalitySnapshot(symbol) {
       evidence,
       aiGenerated: false,
       billCount: relatedBills.length,
-      relatedBills: relatedBills.slice(0, 6).map((b) => ({ id: b.id, title: b.shortTitle || b.title, displayId: b.displayId || b.id }))
+      relatedBills: resolveRelatedBillsForContract(sym)
     };
   }
   const isNarrative = profile.archetype === "Narrative-Sensitive Contractor";
@@ -3704,7 +3809,7 @@ function contractCausalitySnapshot(symbol) {
     evidence,
     aiGenerated: false,
     billCount: relatedBills.length,
-    relatedBills: relatedBills.slice(0, 6).map((b) => ({ id: b.id, title: b.shortTitle || b.title, displayId: b.displayId || b.id })),
+    relatedBills: resolveRelatedBillsForContract(sym),
     profile: {
       governmentRevenuePct: profile.governmentRevenuePct,
       renewalRisk: profile.renewalRisk,
@@ -3727,6 +3832,118 @@ function resolveContractCompanyName(symbol) {
 function findRelatedBillsForSymbol(symbol) {
   const sym = String(symbol || "").toUpperCase();
   return POLICY_BILLS.filter((b) => (b.affected || []).includes(sym)).slice(0, 8);
+}
+
+function formatRelatedBillRef(bill) {
+  const merged = decorateBill(mergeCongressLiveIntoBill(bill));
+  const metrics = augmentBillMetrics(merged);
+  return {
+    id: bill.id,
+    title: bill.shortTitle || bill.title || bill.id,
+    displayId: bill.displayId || bill.id,
+    momentum: metrics.legislativeMomentum ?? bill.legislativeMomentum ?? null,
+    latestAction: bill.latestAction || merged.latestAction || null
+  };
+}
+
+function resolveRelatedBillsForContract(symbol) {
+  const sym = String(symbol || "").toUpperCase().trim();
+  const profile = CONTRACT_PROFILES[sym] || null;
+  const byId = new Map();
+  for (const bill of POLICY_BILLS) {
+    if ((bill.affected || []).includes(sym)) byId.set(bill.id, bill);
+  }
+  for (const billId of profile?.linkedBillIds || []) {
+    const bill = POLICY_BILLS.find((row) => row.id === billId);
+    if (bill) byId.set(bill.id, bill);
+  }
+  return [...byId.values()]
+    .sort((a, b) => Number(computeLegislativeMomentum(b) || 0) - Number(computeLegislativeMomentum(a) || 0))
+    .slice(0, 6)
+    .map(formatRelatedBillRef);
+}
+
+function normalizeLobbyEntityName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b(inc|corp|corporation|company|llc|ltd|global|group)\b/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function lobbyNameTokens(name) {
+  return normalizeLobbyEntityName(name)
+    .split(" ")
+    .filter((token) => token.length > 2);
+}
+
+function lobbyNamesOverlap(rowName, filing) {
+  const rowNorm = normalizeLobbyEntityName(rowName);
+  const clientNorm = normalizeLobbyEntityName(filing.client);
+  const registrantNorm = normalizeLobbyEntityName(filing.registrant);
+  if (!rowNorm) return false;
+  if (clientNorm && (clientNorm.includes(rowNorm) || rowNorm.includes(clientNorm))) return true;
+  if (registrantNorm && (registrantNorm.includes(rowNorm) || rowNorm.includes(registrantNorm))) return true;
+  const rowTokens = lobbyNameTokens(rowName);
+  const poolTokens = new Set([
+    ...lobbyNameTokens(filing.client),
+    ...lobbyNameTokens(filing.registrant)
+  ]);
+  let hits = 0;
+  for (const token of rowTokens) if (poolTokens.has(token)) hits += 1;
+  return rowTokens.length <= 2 ? hits >= 1 : hits >= 2;
+}
+
+function lobbyIssueOverlap(rowIssue, filingIssue) {
+  const a = String(rowIssue || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .trim();
+  const b = String(filingIssue || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .trim();
+  if (!a || !b) return false;
+  const tokens = a.split(" ").filter((token) => token.length > 3);
+  let hits = 0;
+  for (const token of tokens) if (b.includes(token)) hits += 1;
+  return hits >= 1;
+}
+
+function getLobbyFilingsPool() {
+  if (cachedLobbyFilingsForShare.length) return cachedLobbyFilingsForShare;
+  return LOBBYING_FALLBACK.map((row) =>
+    decorateLobbyingFiling({ ...row, postedAt: row.postedAt || new Date().toISOString().slice(0, 10) })
+  );
+}
+
+function matchLobbyRowToFiling(row, filingsPool) {
+  let best = null;
+  let bestScore = 0;
+  for (const filing of filingsPool) {
+    if (!lobbyNamesOverlap(row.name, filing)) continue;
+    let score = 2;
+    if (lobbyIssueOverlap(row.issue, filing.issue)) score += 2;
+    if (Number(row.amount || 0) > 0 && Number(filing.amount || 0) > 0) {
+      const ratio = Math.min(Number(row.amount), Number(filing.amount)) / Math.max(Number(row.amount), Number(filing.amount));
+      if (ratio >= 0.5) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = filing;
+    }
+  }
+  return best;
+}
+
+function attachLobbyFilingIds(rows) {
+  const pool = getLobbyFilingsPool();
+  return (rows || []).map((row) => {
+    if (row.filingId) return row;
+    const filing = matchLobbyRowToFiling(row, pool);
+    return filing?.filingId ? { ...row, filingId: filing.filingId } : row;
+  });
 }
 
 function computeGenericContractEventSignal(symbol, awardAmount, agencyName) {
@@ -3774,11 +3991,7 @@ function enhanceGenericContractCausality(causality, symbol, company, awards) {
   const total = awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0);
   const related = findRelatedBillsForSymbol(symbol);
   causality.plainEnglish = `${company} (${symbol}) has ${awards.length} recent federal award(s) on USASpending totaling ${compactMoney(total)}. ${agencies.length ? `Top agencies: ${agencies.join(", ")}.` : ""} ${related.length ? `${related.length} mapped bill(s) may affect this name.` : "No mapped bills yet — check appropriations for primary agencies."}`;
-  causality.relatedBills = related.map((b) => ({
-    id: b.id,
-    title: b.shortTitle || b.title,
-    displayId: b.displayId || b.id
-  }));
+  causality.relatedBills = resolveRelatedBillsForContract(symbol);
   causality.billCount = related.length;
   causality.scores = { dependency: null, changeRisk: 50, confidence: "Low" };
   if (agencies.length) {
@@ -3831,9 +4044,11 @@ async function buildContractSharePayload(symbolRaw) {
   });
   let causality = contractCausalitySnapshot(symbol);
   if (!profile) causality = enhanceGenericContractCausality(causality, symbol, company, awards);
+  const relatedBills = causality.relatedBills || resolveRelatedBillsForContract(symbol);
   return {
     symbol,
     company,
+    relatedBills,
     profiled: Boolean(profile),
     recipientId: ctx.recipientId || awards.find((row) => row.recipientId)?.recipientId || null,
     recipientName: ctx.recipientName || awards.find((row) => row.recipientName)?.recipientName || company,
@@ -4801,10 +5016,15 @@ function enrichPolicyBill(bill, focusSymbol = "") {
     ...merged,
     nextWatch: bill.nextWatch || model.nextWatch || null
   });
-  const lobbyingStakeholders =
+  const lobbyingStakeholders = attachLobbyFilingIds(
     base._ldaRows?.length > 0
       ? base._ldaRows
-      : (model.lobbying || []).map((row) => ({ ...row, amount: null, relationship: `${row.relationship || ""} (narrative — no LDA dollar match)`.trim() }));
+      : (model.lobbying || []).map((row) => ({
+          ...row,
+          amount: row.amount ?? null,
+          relationship: `${row.relationship || ""} (narrative — no LDA dollar match)`.trim()
+        }))
+  );
   const metrics = augmentBillMetrics(base);
   const statusInfo = statusInfoForBill(base);
   const focusImpact = model.tickerImpacts.find((impact) => impact.symbol === focusSymbol) ||
@@ -6399,6 +6619,26 @@ function runPaperWrite(session, mutator) {
   });
 }
 
+function isBasicTickerFormat(symbol) {
+  return /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(symbol);
+}
+
+async function validateTradableSymbol(rawSymbol) {
+  const symbol = normalizeStockSymbol(rawSymbol);
+  if (!isBasicTickerFormat(symbol)) {
+    return { valid: false, symbol, reason: "invalid_format" };
+  }
+  const catalog = getTradableSymbolCatalog();
+  if (catalog.symbols.some((row) => row.symbol === symbol)) {
+    return { valid: true, symbol, source: "catalog" };
+  }
+  const snap = await quoteSnapshot(symbol);
+  if (snap?.quote?.price && Number(snap.quote.price) > 0) {
+    return { valid: true, symbol, source: snap.source || "quote" };
+  }
+  return { valid: false, symbol, reason: "unknown_symbol" };
+}
+
 async function paperOrder(req, res, session) {
   let body;
   try {
@@ -6425,18 +6665,52 @@ async function paperOrder(req, res, session) {
     }
   }
 
+  const validation = await validateTradableSymbol(symbol);
+  if (!validation.valid) {
+    return sendJson(res, 400, {
+      error: validation.reason || "unknown_symbol",
+      message: `Symbol ${symbol} is not in the tradable catalog and could not be validated. Try a ticker from the picker or check spelling.`
+    });
+  }
+
   let result;
   let httpStatus = 200;
+  let alpacaOrder = null;
+
+  if (alpacaPaperEnabled()) {
+    try {
+      alpacaOrder = await submitAlpacaPaperOrder({ symbol: validation.symbol, qty, side, type });
+    } catch (error) {
+      console.error("[alpaca] order failed:", error?.message || String(error));
+      return sendJson(res, 502, {
+        error: "alpaca_order_failed",
+        message: "Alpaca paper order rejected. Local paper account was not changed.",
+        detail: String(error?.message || error).slice(0, 240)
+      });
+    }
+  }
 
   await runPaperWrite(session, async (account) => {
-    const cached = quoteCache.get(symbol);
-    const price = cached?.quote?.price ?? (MARKET_FALLBACK[symbol]?.price ?? null);
-    const source = cached ? (cached.quote?.source || "finnhub") : "fallback_static";
+    const cached = quoteCache.get(validation.symbol);
+    let price = cached?.quote?.price ?? MARKET_FALLBACK[validation.symbol]?.price ?? null;
+    if (!price) {
+      const snap = await quoteSnapshot(validation.symbol);
+      price = snap?.quote?.price ?? null;
+    }
+    if (alpacaOrder?.filled_avg_price) {
+      const filled = Number(alpacaOrder.filled_avg_price);
+      if (Number.isFinite(filled) && filled > 0) price = filled;
+    }
+    const source = alpacaOrder
+      ? "alpaca_paper"
+      : cached
+        ? cached.quote?.source || "finnhub"
+        : "fallback_static";
 
     if (!price) {
       result = {
         error: "unknown_symbol",
-        message: `No price data available for ${symbol}. Check the symbol and try again.`
+        message: `No price data available for ${validation.symbol}. Check the symbol and try again.`
       };
       httpStatus = 400;
       return;
@@ -6451,17 +6725,17 @@ async function paperOrder(req, res, session) {
         return;
       }
       account.cash -= notional;
-      const existing = account.positions[symbol];
+      const existing = account.positions[validation.symbol];
       if (existing) {
         const totalQty = Number(existing.qty) + qty;
         const totalCost = Number(existing.avgCost) * Number(existing.qty) + price * qty;
         existing.qty = totalQty;
         existing.avgCost = totalCost / totalQty;
       } else {
-        account.positions[symbol] = { symbol, qty, avgCost: price };
+        account.positions[validation.symbol] = { symbol: validation.symbol, qty, avgCost: price };
       }
     } else {
-      const pos = account.positions[symbol];
+      const pos = account.positions[validation.symbol];
       if (!pos || Number(pos.qty) < qty) {
         result = {
           error: "insufficient_shares",
@@ -6473,21 +6747,22 @@ async function paperOrder(req, res, session) {
       }
       account.cash += notional;
       pos.qty = Number(pos.qty) - qty;
-      if (pos.qty <= 0) delete account.positions[symbol];
+      if (pos.qty <= 0) delete account.positions[validation.symbol];
     }
 
-    const orderId = `paper_${randomBytes(8).toString("hex")}`;
+    const orderId = alpacaOrder?.id || `paper_${randomBytes(8).toString("hex")}`;
     const order = {
       id: orderId,
-      symbol,
+      symbol: validation.symbol,
       qty,
       side,
       price,
       notional,
-      status: "filled",
+      status: alpacaOrder?.status || "filled",
       type,
-      submittedAt: new Date().toISOString(),
-      source
+      submittedAt: alpacaOrder?.submitted_at || new Date().toISOString(),
+      source,
+      broker: alpacaOrder ? "alpaca_paper" : "local"
     };
     account.orders.unshift(order);
     if (account.orders.length > 200) account.orders = account.orders.slice(0, 200);
@@ -6500,9 +6775,11 @@ async function paperOrder(req, res, session) {
 
     result = {
       source: useSupabasePaper(session) ? "supabase_paper" : "local_paper",
-      mode: "paper-simulated",
+      mode: alpacaOrder ? "alpaca-paper" : "paper-simulated",
+      broker: alpacaOrder ? "alpaca_paper" : "local",
       order,
       thesisId: thesisId || null,
+      contractProfile: Boolean(CONTRACT_PROFILES[validation.symbol]),
       ...(await paperSnapshot(account))
     };
   });
@@ -9901,6 +10178,32 @@ function alpacaFetch(path, init = {}) {
       ...(init.headers || {})
     }
   }, 12000);
+}
+
+function alpacaPaperEnabled() {
+  const config = alpacaConfig();
+  if (!config.configured) return false;
+  if (config.mode === "live") return process.env.ALLOW_LIVE_TRADING === "true";
+  return process.env.ALPACA_PAPER_ENABLED === "true";
+}
+
+async function submitAlpacaPaperOrder({ symbol, qty, side, type = "market" }) {
+  const response = await alpacaFetch("/v2/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol,
+      qty,
+      side,
+      type,
+      time_in_force: "day"
+    })
+  });
+  if (!response.ok) {
+    const detail = await safeText(response);
+    throw new Error(`alpaca_${response.status}:${detail}`);
+  }
+  return response.json();
 }
 
 async function readJson(req) {

@@ -352,9 +352,10 @@
           <div class="analysis-shell">
             <div class="analysis-left">
               <label class="analysis-ticker-label" for="analysis-symbol">You are looking at</label>
-              <select id="analysis-symbol" class="analysis-symbol-select" aria-label="Select analysis ticker">
-                <option value="">Loading tickers…</option>
-              </select>
+              <div class="symbol-combobox symbol-combobox--analysis">
+                <input type="text" class="symbol-combobox-input analysis-symbol-select" id="analysis-symbol" name="symbol" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-label="Select analysis ticker" aria-autocomplete="list" aria-expanded="false" />
+                <ul class="symbol-combobox-list" role="listbox" hidden></ul>
+              </div>
               <div class="reader-mode-control" role="group" aria-label="Reader mode">
                 <button type="button" class="reader-mode-btn" data-reader-mode="citizen">Citizen</button>
                 <button type="button" class="reader-mode-btn active" data-reader-mode="investor">Investor</button>
@@ -839,7 +840,7 @@
               </div>
               <div class="thesis-intake-grid">
                 <label>Ticker
-                  <input class="thesis-ticker-input" id="tc-ticker" placeholder="NVDA" maxlength="6" autocomplete="off" spellcheck="false" />
+                  <input class="thesis-ticker-input" id="tc-ticker" list="thesis-symbol-datalist" placeholder="Search PLTR, LMT…" maxlength="6" autocomplete="off" spellcheck="false" />
                   <span class="thesis-intake-quote-preview muted" id="tc-quote-preview" hidden></span>
                 </label>
                 <label>Direction
@@ -893,9 +894,10 @@
                 <p class="thesis-q">What's the trade?</p>
                 <p class="thesis-hint">Pick a ticker and tell us which way you think it moves.</p>
                 <div class="thesis-ticker-row">
-                  <input class="thesis-ticker-input" id="t-ticker" placeholder="NVDA" maxlength="6" autocomplete="off" spellcheck="false" />
+                  <input class="thesis-ticker-input" id="t-ticker" list="thesis-symbol-datalist" placeholder="Search PLTR, LMT…" maxlength="6" autocomplete="off" spellcheck="false" />
                   <span class="thesis-ticker-label">I think this stock will</span>
                 </div>
+                <datalist id="thesis-symbol-datalist"></datalist>
                 <div class="thesis-dir-row">
                   <div class="thesis-dir-btn" data-dir="bull" id="tdir-bull">
                     <span class="thesis-dir-icon up">↑</span>
@@ -1278,9 +1280,10 @@
               </div>
               <form id="order-form" class="trade-form">
                 <label>Symbol
-                  <select name="symbol" id="order-symbol">
-                    <option value="">Loading tickers…</option>
-                  </select>
+                  <div class="symbol-combobox symbol-combobox--trade">
+                    <input type="text" class="symbol-combobox-input" id="order-symbol" name="symbol" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-autocomplete="list" aria-expanded="false" />
+                    <ul class="symbol-combobox-list" role="listbox" hidden></ul>
+                  </div>
                 </label>
                 <label>Quantity<input name="qty" id="order-qty" type="number" min="0.0001" step="0.0001" value="1" /></label>
                 <label>Side<select name="side" id="order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>

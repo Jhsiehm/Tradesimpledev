@@ -6530,3 +6530,74 @@ html[data-theme="light"] .sk-block {
 .tr-disclaimer { margin-top: 20px; font-size: 11px; color: var(--faint); line-height: 1.5; }
 .tr-empty { padding: 40px 16px; text-align: center; color: var(--muted); font-size: 13px; }
 @media (max-width: 640px) { .tr-log-row { grid-template-columns: 52px 1fr; } .tr-log-outcome { grid-column: 2; text-align: left; margin-top: 6px; } }
+
+.symbol-combobox { position: relative; width: 100%; }
+.symbol-combobox-input,
+.symbol-combobox-input.analysis-symbol-select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+.symbol-combobox-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
+}
+.symbol-combobox-list {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: min(280px, 50vh);
+  overflow: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-elevated, var(--panel));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+.symbol-combobox-option {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.symbol-combobox-option:hover,
+.symbol-combobox-option[aria-selected="true"] {
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+.symbol-combobox-sym { font-family: var(--mono); font-weight: 600; }
+.symbol-combobox-name { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.symbol-combobox-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.symbol-source-badge {
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.symbol-source-contract { color: #93c5fd; border-color: color-mix(in srgb, #93c5fd 35%, var(--line)); }
+.symbol-source-bill { color: #fcd34d; border-color: color-mix(in srgb, #fcd34d 35%, var(--line)); }
+.symbol-source-lobby { color: #e879f9; border-color: color-mix(in srgb, #e879f9 35%, var(--line)); }
+.symbol-source-seed { color: #5eead4; border-color: color-mix(in srgb, #5eead4 35%, var(--line)); }
+.symbol-combobox-empty { padding: 10px; color: var(--muted); font-size: 12px; }
+.order-success-links a { color: var(--green); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 640px) {
+  .symbol-combobox-option { grid-template-columns: 56px 1fr; }
+  .symbol-combobox-badges { grid-column: 1 / -1; justify-content: flex-start; }
+}

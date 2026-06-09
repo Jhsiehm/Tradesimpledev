@@ -105,6 +105,9 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 | `APP_URL` | Auto from `RAILWAY_PUBLIC_DOMAIN` if unset |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth (if re-enabled) |
 | `FINNHUB_API_KEY` | Live quotes on Markets tab and stock briefs |
+| `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` | Optional Alpaca paper broker (set `ALPACA_PAPER_ENABLED=true` to route orders) |
+| `ALPACA_PAPER_ENABLED` | `true` sends paper orders to Alpaca paper API (local account still mirrors fills) |
+| `ALLOW_LIVE_TRADING` | Must stay `false` unless you intentionally enable live Alpaca (`ALPACA_TRADING_BASE_URL=https://api.alpaca.markets`) |
 | `CONGRESS_API_KEY` | **Required for arbitrary `/bill/H.R.xxxx-119` briefs** — without it only curated seed bills load |
 | `SENATE_LDA_API_KEY` | Live lobbying overlays on bill briefs |
 | `ANTHROPIC_API_KEY` | Optional Haiku plain-English synthesis on bill/contract share pages (cached; not used on landing rotation) |
