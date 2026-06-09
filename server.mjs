@@ -3135,17 +3135,31 @@ function landingSignalDateKey(now = new Date()) {
 const ONBOARDING_BILL_FALLBACK = "H.R.3633-119";
 
 function landingSignalBillPool() {
-  const live = POLICY_BILLS.filter(
-    (b) => !b.scenarioOnly && b.affected?.length && b.plainEnglish
-  );
-  return live.length ? live : POLICY_BILLS.filter((b) => b.affected?.length);
+  const byId = new Map();
+  for (const b of POLICY_BILLS) {
+    if (b.scenarioOnly || !b.affected?.length) continue;
+    if (!b.plainEnglish && !b._dynamicCongressBill) continue;
+    byId.set(b.id, b);
+  }
+  for (const [, b] of liveCongressBillRegistry) {
+    if (!byId.has(b.id) && b.affected?.length) byId.set(b.id, b);
+  }
+  const pool = [...byId.values()];
+  return pool.length ? pool : POLICY_BILLS.filter((b) => b.affected?.length);
+}
+
+function landingMomentumScore(bill) {
+  let score = computeLegislativeMomentum(bill);
+  if (billActionWithinDays(bill, 3)) score += 12;
+  else if (billActionWithinDays(bill, 7)) score += 6;
+  return score;
 }
 
 function pickTopMomentumBill(pool = landingSignalBillPool()) {
   if (!pool.length) return null;
   const merged = pool.map((b) => mergeCongressLiveIntoBill(b));
   return merged
-    .map((bill) => ({ bill, momentum: computeLegislativeMomentum(bill) }))
+    .map((bill) => ({ bill, momentum: landingMomentumScore(bill) }))
     .sort((a, b) => b.momentum - a.momentum || String(a.bill.id).localeCompare(String(b.bill.id)))[0]?.bill;
 }
 
@@ -3771,18 +3785,23 @@ function billStageLabelForChain(bill, statusInfo) {
   return `${id} · ${label}`;
 }
 
+function isHomelandEnforcementCorpus(corpus, bill = {}) {
+  const text = String(corpus || "").toLowerCase();
+  return (
+    /\bice\b/.test(text) ||
+    text.includes("border patrol") ||
+    text.includes("homeland") ||
+    text.includes("immigration") ||
+    text.includes("detention") ||
+    text.includes("secure america") ||
+    String(bill?.policyArea || "").toLowerCase().includes("immigration")
+  );
+}
+
 function buildWhyMarketsCareRules(bill, tickers = []) {
   const corpus = billExposureCorpus(bill).toLowerCase();
   const syms = tickers.slice(0, 6);
-  if (
-    corpus.includes("ice") ||
-    corpus.includes("border patrol") ||
-    corpus.includes("homeland") ||
-    corpus.includes("immigration") ||
-    corpus.includes("detention") ||
-    corpus.includes("secure america") ||
-    String(bill?.policyArea || "").toLowerCase().includes("immigration")
-  ) {
+  if (isHomelandEnforcementCorpus(corpus, bill)) {
     const names = syms.map((s) => FUNDAMENTALS[s]?.name || s).join(", ");
     return `Congress is funding ICE and Border Patrol through DHS — that flows to detention operators (${syms.filter((s) => ["GEO", "CXW"].includes(s)).join(", ") || "GEO, CXW"}), surveillance/IT vendors (${syms.filter((s) => ["PLTR", "BAH"].includes(s)).join(", ") || "PLTR, BAH"}), and border infrastructure contractors. Markets reprice ${names || syms.join(", ")} on enforcement budget visibility.`;
   }
@@ -3797,11 +3816,8 @@ function buildCausalChainRules(bill, tickers = [], statusInfo = null) {
   const corpus = billExposureCorpus(bill).toLowerCase();
   const chain = [stage];
   if (
-    corpus.includes("ice") ||
-    corpus.includes("border") ||
-    corpus.includes("homeland") ||
-    corpus.includes("immigration") ||
-    String(bill?.policyArea || "").toLowerCase().includes("immigration")
+    isHomelandEnforcementCorpus(corpus, bill) ||
+    corpus.includes("border")
   ) {
     chain.push("→ DHS / ICE / CBP");
     const contractors = tickers.filter((s) => ["GEO", "CXW", "PLTR", "BAH", "LMT"].includes(s));
@@ -11503,9 +11519,16 @@ function normalizeStatusKey(status, latestAction = "", bill = {}) {
   if (s.includes("incorporated") || s.includes("included in") || s.includes("folded into")) return "incorporated";
   if (s.includes("became public law") || s.includes("signed by president") || s.includes("signed into law") || s.includes("enacted")) return "enacted";
   if (s.includes("conference") || s.includes("resolving differences")) return "resolving";
+  if (s.includes("motion to reconsider") && s.includes("laid on the table")) return "passed_one_chamber";
   if (passedCommittee) return "reported";
   if (s.includes("passed senate") || s.includes("passed house") || s.includes("passed one chamber")) return "passed_one_chamber";
   if (/\bpassed\b/.test(s) && !s.includes("committee")) return "passed_one_chamber";
+  if (
+    s.includes("rules committee") &&
+    (s.includes("consideration") || s.includes("provides for") || /\bs\.\s*\d+\b/.test(s))
+  ) {
+    return "floor";
+  }
   if (bill.floorScheduled || s.includes("floor") || s.includes("calendar")) return "floor";
   if (s.includes("reported") || s.includes("ordered to be reported")) return "reported";
   if (s.includes("markup") || s.includes("hearing held") || s.includes("hearing")) return "markup";
