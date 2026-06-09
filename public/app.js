@@ -1617,6 +1617,7 @@ function topMomentumBill() {
 }
 
 function syncTradeBillsGuidedChrome() {
+  if (typeof BriefShell === "undefined") return;
   const tradeToggle = $("#trade-mode-toggle");
   const billsToggle = $("#bills-mode-toggle");
   if (tradeToggle) {
@@ -1871,6 +1872,11 @@ function renderTradeGuided() {
   const host = $("#trade-guided-root");
   const full = $("#trade-full-root");
   if (!host || !full) return;
+  if (typeof BriefShell === "undefined") {
+    host.hidden = true;
+    full.hidden = false;
+    return;
+  }
   syncTradeBillsGuidedChrome();
   const fundsPanel = $("#hypothetical-funds-panel");
   if (tradeGuidedMode() !== "guided") {
@@ -1923,6 +1929,11 @@ function renderBillsGuided() {
   const host = $("#bills-guided-root");
   const full = $("#bills-full-root");
   if (!host || !full) return;
+  if (typeof BriefShell === "undefined") {
+    host.hidden = true;
+    full.hidden = false;
+    return;
+  }
   syncTradeBillsGuidedChrome();
   if (billsGuidedMode() !== "guided") {
     host.hidden = true;
@@ -2082,6 +2093,7 @@ async function initDashboard() {
 
   await loadDashboardBootstrap();
   await loadDataHealth();
+  thesisSyncIntakeState();
 
   if (initialSymbol) {
     state.activeAnalysisSymbol = initialSymbol;
@@ -2720,6 +2732,7 @@ function renderTerminalData() {
   renderSourceBadges();
   renderTape();
   thesisUpdateQuoteTrustUi();
+  thesisSyncIntakeState({ renderSummary: true });
   renderOverview();
   renderSignalsDesk();
   renderMarkets();
@@ -6310,6 +6323,7 @@ function showView(view, updateUrl = true) {
   if (view === "track-record" && isFeatureEnabled("ADVANCED_ANALYTICS_ENABLED")) void loadTrackRecord();
   if (view === "thesis") {
     ensureThesisLabReady();
+    thesisSyncIntakeState({ renderSummary: true });
     void thesisLoadTracked();
     if (thesisState.built && document.getElementById("tscreen-result")?.classList.contains("active")) {
       void thesisFetchSignals({ silent: true });
@@ -7978,6 +7992,63 @@ function thesisRenderStickyRail(t, payload) {
   }
 }
 
+function thesisDefaultSymbol() {
+  return (
+    state.activeAnalysisSymbol ||
+    state.dashboardBootstrap?.defaultAnalysisSymbol ||
+    marketsDefaultSymbols().find((s) => !["SPY", "QQQ"].includes(s)) ||
+    "NVDA"
+  );
+}
+
+function thesisSyncIntakeState({ renderSummary = false } = {}) {
+  const intakeTicker = document.getElementById("tc-ticker");
+  const fromInput = String(intakeTicker?.value || "")
+    .toUpperCase()
+    .replace(/[^A-Z.]/g, "");
+  const sym = fromInput || thesisState.ticker || thesisDefaultSymbol();
+  if (!sym) return "";
+  if (intakeTicker && !fromInput) intakeTicker.value = sym;
+  thesisState.ticker = sym;
+  thesisUpdateIntakePreview();
+  if (renderSummary) thesisRenderCommandSummary();
+  thesisEnsureResultPanelVisibility();
+  return sym;
+}
+
+function thesisUpdateIntakePreview() {
+  const el = document.getElementById("tc-quote-preview");
+  if (!el) return;
+  const sym = String(thesisState.ticker || "").toUpperCase();
+  if (!sym) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  const q = quoteFor(sym);
+  if (q?.price != null) {
+    const pct = Number(q.pct ?? q.changePercent ?? 0);
+    el.textContent = `Live quote: ${money(q.price)} (${signed(pct)}%)`;
+    return;
+  }
+  if (state.quotes?.length) {
+    el.textContent = `No quote for ${sym} yet — hit Refresh in the top bar.`;
+    return;
+  }
+  el.textContent = `Loading quote for ${sym}…`;
+}
+
+function thesisEnsureResultPanelVisibility() {
+  const result = document.getElementById("tscreen-result");
+  if (!result) return;
+  result.classList.toggle("active", Boolean(thesisState.built));
+  if (!thesisState.built) {
+    for (let i = 0; i < 4; i++) document.getElementById("tscreen-" + i)?.classList.remove("active");
+    document.getElementById("thesisStepBar")?.setAttribute("hidden", "");
+  }
+}
+
 function thesisRenderCommandSummary() {
   const ctx = buildMarketThesisContextClient();
   const q = quoteFor(thesisState.ticker);
@@ -7986,11 +8057,20 @@ function thesisRenderCommandSummary() {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
   };
-  byId("tc-summary-ticker", thesisState.ticker || "—");
-  byId("tc-summary-health", ctx.health?.score != null ? `${ctx.health.score}/100` : "Unscored");
-  byId("tc-summary-trend", ctx.health?.trend || "unknown");
-  byId("tc-summary-price", q?.price != null ? money(q.price) : "—");
+  byId("tc-summary-ticker", thesisState.ticker || "Enter ticker above");
+  byId("tc-summary-health", ctx.health?.score != null ? `${ctx.health.score}/100` : thesisState.built ? "Unscored" : "Build thesis to score");
+  byId("tc-summary-trend", thesisState.built ? (ctx.health?.trend || "unknown") : "—");
+  if (q?.price != null) {
+    byId("tc-summary-price", money(q.price));
+  } else if (!thesisState.ticker) {
+    byId("tc-summary-price", "—");
+  } else if (!state.quotes?.length) {
+    byId("tc-summary-price", "Loading…");
+  } else {
+    byId("tc-summary-price", "Unavailable");
+  }
   byId("tc-summary-pnl", Number.isFinite(Number(pnl)) ? money(pnl) : "Not linked");
+  thesisUpdateIntakePreview();
   const banner = document.getElementById("tc-upgrade-banner");
   if (banner) banner.hidden = !ctx.thesis?.needsUpgrade;
 }
@@ -8171,9 +8251,16 @@ function setupThesisLab() {
   };
   [intakeTicker, intakeDirection, intakeHorizon, intakeThesis, intakeEntry, intakeTarget, intakeStop].forEach((el) => {
     if (!el) return;
-    el.addEventListener("input", applyIntakeToState);
-    el.addEventListener("change", applyIntakeToState);
+    el.addEventListener("input", () => {
+      applyIntakeToState();
+      thesisRenderCommandSummary();
+    });
+    el.addEventListener("change", () => {
+      applyIntakeToState();
+      thesisRenderCommandSummary();
+    });
   });
+  thesisSyncIntakeState({ renderSummary: true });
   const generateBtn = document.getElementById("tc-generate-btn");
   if (generateBtn) {
     generateBtn.addEventListener("click", () => {
@@ -8263,6 +8350,7 @@ function thesisBuild() {
   const result = document.getElementById("tscreen-result");
   if (result) result.classList.add("active");
   thesisState.built = true;
+  thesisEnsureResultPanelVisibility();
   thesisUpdateQuoteTrustUi();
   thesisRenderResult();
   void thesisRefreshSavedOutcome();
@@ -8717,7 +8805,9 @@ function thesisPrimeTicker(symbol) {
   const tickerInput = document.getElementById("t-ticker");
   if (intakeTicker && !intakeTicker.value) intakeTicker.value = sym;
   if (tickerInput && !tickerInput.value) tickerInput.value = sym;
+  thesisUpdateIntakePreview();
   thesisRenderCommandSummary();
+  thesisEnsureResultPanelVisibility();
   return sym;
 }
 

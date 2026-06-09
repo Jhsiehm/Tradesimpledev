@@ -840,6 +840,7 @@
               <div class="thesis-intake-grid">
                 <label>Ticker
                   <input class="thesis-ticker-input" id="tc-ticker" placeholder="NVDA" maxlength="6" autocomplete="off" spellcheck="false" />
+                  <span class="thesis-intake-quote-preview muted" id="tc-quote-preview" hidden></span>
                 </label>
                 <label>Direction
                   <select id="tc-direction">
@@ -881,13 +882,13 @@
               </details>
             </section>
 
-            <div class="thesis-step-bar thesis-legacy-wizard" id="thesisStepBar">
+            <div class="thesis-step-bar thesis-legacy-wizard" id="thesisStepBar" hidden>
               <div class="thesis-pip active" id="tpip-0"><div class="thesis-pip-num">1</div><span>The idea</span></div>
               <div class="thesis-pip" id="tpip-1"><div class="thesis-pip-num">2</div><span>Why it moves</span></div>
               <div class="thesis-pip" id="tpip-2"><div class="thesis-pip-num">3</div><span>What stops you</span></div>
               <div class="thesis-pip" id="tpip-3"><div class="thesis-pip-num">4</div><span>The plan</span></div>
             </div>
-            <div class="thesis-screen thesis-legacy-wizard active" id="tscreen-0">
+            <div class="thesis-screen thesis-legacy-wizard" id="tscreen-0">
               <div class="thesis-step-body">
                 <p class="thesis-q">What's the trade?</p>
                 <p class="thesis-hint">Pick a ticker and tell us which way you think it moves.</p>
@@ -1012,7 +1013,7 @@
                 </div>
               </div>
             </div>
-            <div class="thesis-screen active thesis-command-center" id="tscreen-result">
+            <div class="thesis-screen thesis-command-center" id="tscreen-result">
               <div class="thesis-quote-blocker" id="tr-quote-blocker" hidden>
                 <strong>Live market data required</strong>
                 <p>Your quote feed is using fallback prices. Connect Finnhub or Yahoo live quotes before tracking this plan in paper mode.</p>
@@ -1705,7 +1706,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=guided-dash-1" defer></script>
+    <script src="/assets/app.js?v=guided-dash-2" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
