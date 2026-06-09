@@ -2984,19 +2984,26 @@ async function waitlistSignup(req, res) {
 async function marketQuotes(res, url) {
   const symbolsParam =
     url.searchParams.get("symbols") || "SPY,QQQ,NVDA,AAPL,TSLA,LLY,AMZN,MSFT,AMD,META";
-  const symbols = symbolsParam
-    .split(",")
-    .map((symbol) => symbol.trim().toUpperCase())
-    .filter(Boolean)
-    .slice(0, 40);
-  const quotes = await Promise.all(
-    symbols.map(async (symbol) => {
-      const result = await quoteSnapshot(symbol);
-      return result.quote;
-    })
-  );
-
-  const filteredQuotes = quotes.filter(Boolean);
+  const symbols = [
+    ...new Set(
+      symbolsParam
+        .split(",")
+        .map((symbol) => symbol.trim().toUpperCase())
+        .filter(Boolean)
+    )
+  ].slice(0, 120);
+  const batches = [];
+  for (let i = 0; i < symbols.length; i += 40) batches.push(symbols.slice(i, i + 40));
+  const filteredQuotes = [];
+  for (const batch of batches) {
+    const quotes = await Promise.all(
+      batch.map(async (symbol) => {
+        const result = await quoteSnapshot(symbol);
+        return result.quote;
+      })
+    );
+    filteredQuotes.push(...quotes.filter(Boolean));
+  }
   const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
   const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
   const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance").length;

@@ -321,17 +321,35 @@
               <h2>Equities &amp; ETFs</h2>
               <span id="market-table-meta">Live quotes</span>
             </div>
+            <div class="markets-toolbar" id="markets-filter-bar">
+              <label class="markets-search-wrap">
+                <span class="sr-only">Search symbols</span>
+                <input type="search" id="markets-search" class="markets-search-input" placeholder="Search ticker or name…" autocomplete="off" />
+              </label>
+              <div class="markets-filter-chips" role="group" aria-label="Filter markets by category">
+                <button type="button" class="markets-filter-chip is-active" data-markets-filter="all">All</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="contract">Contract</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="legislation">Legislation</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="lobbying">Lobbying</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="indices">Indices &amp; ETFs</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="market">Mega-cap</button>
+                <button type="button" class="markets-filter-chip" data-markets-filter="watchlist">Watchlist</button>
+                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="defense">Defense</button>
+                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="crypto">Crypto</button>
+                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="tech">Tech</button>
+                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="pharma">Pharma</button>
+              </div>
+            </div>
             <div class="table-wrap">
               <table class="terminal-table terminal-table--markets">
                 <thead>
                   <tr>
                     <th>Ticker</th>
+                    <th>Name</th>
                     <th class="num">Price</th>
                     <th class="num">Change</th>
-                    <th class="num">Open</th>
-                    <th class="num">High</th>
-                    <th class="num">Low</th>
-                    <th>Policy</th>
+                    <th>Sources</th>
+                    <th>Connected</th>
                     <th>Watch</th>
                   </tr>
                 </thead>

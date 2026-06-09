@@ -162,8 +162,195 @@ function symbolSourceBadgeLabel(source) {
   if (source === "contract") return "Contract";
   if (source === "bill") return "Bill";
   if (source === "lobby") return "Lobby";
-  if (source === "seed") return "Market";
+  if (source === "seed" || source === "market" || source === "fundamentals") return "Market";
   return source;
+}
+
+const MARKETS_FILTER_STORAGE_KEY = "ts_markets_filter";
+const MARKETS_INDEX_ETFS = new Set([
+  "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "ARKK", "XLE", "XLF", "XLK", "XLV", "XLI", "XLP", "XLY", "XLU", "XLB", "KBE"
+]);
+const MARKETS_TOPIC_TAGS = {
+  defense: new Set(["LMT", "NOC", "RTX", "GD", "BAH", "PLTR", "LDOS", "HII", "TXT", "LHX", "KTOS", "CACI"]),
+  crypto: new Set(["COIN", "MSTR", "MARA", "RIOT", "HOOD"]),
+  tech: new Set(["NVDA", "AMD", "AAPL", "MSFT", "GOOGL", "META", "AMZN", "INTC", "AVGO", "CRM", "ORCL", "MU", "QCOM"]),
+  pharma: new Set(["LLY", "PFE", "MRNA", "ABBV", "JNJ", "BMY", "GILD", "REGN", "VRTX"])
+};
+
+function getStoredMarketsFilter() {
+  try {
+    const value = sessionStorage.getItem(MARKETS_FILTER_STORAGE_KEY) || localStorage.getItem(MARKETS_FILTER_STORAGE_KEY);
+    const allowed = new Set([
+      "all", "contract", "legislation", "lobbying", "indices", "market", "watchlist",
+      "defense", "crypto", "tech", "pharma"
+    ]);
+    if (value && allowed.has(value)) return value;
+  } catch (_) {}
+  return "all";
+}
+
+function persistMarketsFilter(filter) {
+  try {
+    sessionStorage.setItem(MARKETS_FILTER_STORAGE_KEY, filter);
+    localStorage.setItem(MARKETS_FILTER_STORAGE_KEY, filter);
+  } catch (_) {}
+}
+
+function stockPageUrl(symbol) {
+  const sym = normalizeWatchSymbol(symbol);
+  return sym ? `/stock/${encodeURIComponent(sym)}` : "/dashboard?view=analysis";
+}
+
+function marketsSourceSortKey(row) {
+  const order = { contract: 0, bill: 1, lobby: 2, seed: 3, market: 3, fundamentals: 3 };
+  const sources = row?.sources || [];
+  if (!sources.length) return 4;
+  return Math.min(...sources.map((source) => order[source] ?? 4));
+}
+
+function marketsCatalogRows() {
+  return tradableSymbolRows()
+    .slice()
+    .sort((a, b) => {
+      const diff = marketsSourceSortKey(a) - marketsSourceSortKey(b);
+      if (diff) return diff;
+      return a.symbol.localeCompare(b.symbol);
+    });
+}
+
+function marketsRowIsIndexEtf(row) {
+  const sym = row?.symbol || "";
+  return MARKETS_INDEX_ETFS.has(sym) || /^X[A-Z]{2}$/.test(sym);
+}
+
+function marketsRowIsMarketOnly(row) {
+  const sources = row?.sources || [];
+  return sources.length > 0 && sources.every((source) => source === "seed" || source === "market" || source === "fundamentals");
+}
+
+function marketsFilterMatches(row, filter) {
+  if (!row) return false;
+  if (filter === "all") return true;
+  if (filter === "watchlist") return isOnWatchlist(row.symbol);
+  if (filter === "contract") return symbolHasSource(row, "contract");
+  if (filter === "legislation") return symbolHasSource(row, "bill");
+  if (filter === "lobbying") return symbolHasSource(row, "lobby");
+  if (filter === "indices") return marketsRowIsIndexEtf(row);
+  if (filter === "market") return marketsRowIsMarketOnly(row);
+  if (MARKETS_TOPIC_TAGS[filter]) return MARKETS_TOPIC_TAGS[filter].has(row.symbol);
+  return true;
+}
+
+function marketsFilterLabel(filter) {
+  const labels = {
+    all: "All",
+    contract: "Contract",
+    legislation: "Legislation",
+    lobbying: "Lobbying",
+    indices: "Indices & ETFs",
+    market: "Mega-cap / Market",
+    watchlist: "Watchlist",
+    defense: "Defense",
+    crypto: "Crypto",
+    tech: "Tech",
+    pharma: "Pharma"
+  };
+  return labels[filter] || "All";
+}
+
+function filteredMarketsRows() {
+  const filter = state.marketsFilter || "all";
+  const query = String(state.marketsSearch || "").trim().toUpperCase();
+  return marketsCatalogRows().filter((row) => {
+    if (!marketsFilterMatches(row, filter)) return false;
+    if (!query) return true;
+    return row.symbol.includes(query) || String(row.name || "").toUpperCase().includes(query);
+  });
+}
+
+function marketsVisibleSymbols() {
+  const rows = filteredMarketsRows();
+  const symbols = rows.map((row) => row.symbol);
+  return symbols.length ? symbols : marketsDefaultSymbols();
+}
+
+function mergeQuotesIntoState(newQuotes) {
+  const map = new Map((state.quotes || []).map((quote) => [quote.symbol, quote]));
+  normalizeQuotes(newQuotes || []).forEach((quote) => map.set(quote.symbol, quote));
+  state.quotes = Array.from(map.values());
+}
+
+async function fetchQuotesBatched(symbols) {
+  const unique = [...new Set((symbols || []).map((sym) => normalizeWatchSymbol(sym)).filter(Boolean))];
+  if (!unique.length) return { quotes: [], source: "", fallback: false };
+  const chunks = [];
+  for (let i = 0; i < unique.length; i += 40) chunks.push(unique.slice(i, i + 40));
+  const map = new Map();
+  let source = "";
+  let fallback = false;
+  for (const chunk of chunks) {
+    const data = await fetchJson(`/api/market/quotes?symbols=${chunk.join(",")}`);
+    normalizeQuotes(data.quotes || []).forEach((quote) => map.set(quote.symbol, quote));
+    source = data.source || source;
+    if (data.fallback) fallback = true;
+  }
+  return { quotes: Array.from(map.values()), source, fallback };
+}
+
+function billsForSymbol(symbol) {
+  return policyBills()
+    .filter((bill) => (bill.affected || []).includes(symbol))
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a));
+}
+
+function marketsConnectedLinksHtml(row) {
+  const sym = row.symbol;
+  const parts = [
+    `<a class="markets-link-chip" href="${escapeHtml(stockPageUrl(sym))}" onclick="event.stopPropagation()">Trace</a>`
+  ];
+  if (symbolHasSource(row, "contract")) {
+    parts.push(`<a class="markets-link-chip" href="${escapeHtml(contractPageUrl(sym))}" onclick="event.stopPropagation()">Contract</a>`);
+  }
+  const bills = billsForSymbol(sym);
+  if (bills.length) {
+    const top = bills[0];
+    const label = bills.length === 1 ? "1 bill" : `${bills.length} bills`;
+    parts.push(`<a class="markets-link-chip markets-link-chip--bill" href="${escapeHtml(billPageUrl(top))}" onclick="event.stopPropagation()" title="${escapeHtml(top.shortTitle || top.title || "")}">${escapeHtml(label)}</a>`);
+  }
+  return parts.join("");
+}
+
+function marketsSourceBadgesHtml(row) {
+  const order = ["contract", "bill", "lobby", "seed", "market", "fundamentals"];
+  const seen = new Set();
+  const badges = [];
+  for (const source of order) {
+    if (!symbolHasSource(row, source) || seen.has(source)) continue;
+    seen.add(source);
+    badges.push(`<span class="symbol-source-badge symbol-source-${escapeHtml(source)}">${escapeHtml(symbolSourceBadgeLabel(source))}</span>`);
+  }
+  return badges.join("") || `<span class="symbol-source-badge symbol-source-seed">Market</span>`;
+}
+
+function marketsQuoteCellHtml(symbol) {
+  const quote = quoteFor(symbol);
+  if (quote?.price != null && Number.isFinite(Number(quote.price))) return money(quote.price);
+  if (state.marketsQuotesLoading) return `<span class="markets-quote-pending">…</span>`;
+  if (quote?.source === "fallback_static") {
+    return `<span class="markets-quote-fallback" title="Static reference price">${money(quote.price)}</span>`;
+  }
+  return `<span class="markets-quote-unavailable" title="Live quote unavailable">Unavailable</span>`;
+}
+
+function updateMarketsTableMeta() {
+  const meta = $("#market-table-meta");
+  if (!meta) return;
+  const total = marketsCatalogRows().length;
+  const shown = filteredMarketsRows().length;
+  const filter = state.marketsFilter || "all";
+  const label = marketsFilterLabel(filter);
+  meta.textContent = shown === total ? `Showing ${shown} symbols · ${label}` : `Showing ${shown} of ${total} · ${label}`;
 }
 
 function mergePickerSymbolRows(extra = []) {
@@ -438,14 +625,14 @@ function quoteSymbolUniverse() {
   const catalog = tradableSymbolRows().map((row) => row.symbol);
   return [
     ...new Set([
-      ...catalog.slice(0, 40),
       ...marketsDefaultSymbols(),
       ...tapeDefaultQuoteSymbols(),
-      ...marketSymbols(),
-      ...paperPositionSymbols(),
       ...watchlistRows().map((w) => w.symbol),
+      ...paperPositionSymbols(),
       state.activeAnalysisSymbol,
-      state.tradeSymbol
+      state.tradeSymbol,
+      ...marketSymbols(),
+      ...catalog
     ].filter(Boolean))
   ];
 }
@@ -1055,6 +1242,38 @@ function setupMarketsWatchToggle() {
     toggleWatchlistSymbol(btn.dataset.watchToggle);
     renderMarkets();
   });
+}
+
+let marketsSearchTimer = null;
+
+function setupMarketsFilters() {
+  const bar = $("#markets-filter-bar");
+  if (!bar || bar.dataset.ready === "true") return;
+  bar.dataset.ready = "true";
+  state.marketsFilter = getStoredMarketsFilter();
+  state.marketsSearch = "";
+  bar.querySelectorAll("[data-markets-filter]").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.marketsFilter === state.marketsFilter);
+    chip.addEventListener("click", () => {
+      const next = chip.dataset.marketsFilter || "all";
+      state.marketsFilter = next;
+      persistMarketsFilter(next);
+      bar.querySelectorAll("[data-markets-filter]").forEach((node) => {
+        node.classList.toggle("is-active", node.dataset.marketsFilter === next);
+      });
+      renderMarkets();
+    });
+  });
+  const search = $("#markets-search");
+  if (search) {
+    search.addEventListener("input", () => {
+      if (marketsSearchTimer) clearTimeout(marketsSearchTimer);
+      marketsSearchTimer = setTimeout(() => {
+        state.marketsSearch = search.value;
+        renderMarkets();
+      }, 200);
+    });
+  }
 }
 
 function setupWatchlistStripInteraction() {
@@ -2226,6 +2445,7 @@ async function initDashboard() {
   setupAnalysisLobbyBillJump();
   setupWatchlistStripInteraction();
   setupMarketsWatchToggle();
+  setupMarketsFilters();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -2772,8 +2992,8 @@ async function refreshPortfolioChartLive() {
 }
 
 async function refreshMarketFeed({ render = true } = {}) {
-  const data = await fetchJson(`/api/market/quotes?symbols=${quoteSymbolUniverse().join(",")}`);
-  state.quotes = normalizeQuotes(data.quotes || []);
+  const data = await fetchQuotesBatched(quoteSymbolUniverse());
+  mergeQuotesIntoState(data.quotes);
   state.quoteFeedSource = data.source || "";
   rememberFeedMeta("market", data, data.source || "quotes");
   if (render) {
@@ -2920,12 +3140,13 @@ function syncQuotesFallbackBanner(data) {
 }
 
 async function loadMarketsData() {
+  state.marketsQuotesLoading = true;
+  renderMarkets();
   try {
-    const data = await fetchJson(`/api/market/quotes?symbols=${marketsDefaultSymbols().join(",")}`);
-    const normalized = normalizeQuotes(data.quotes || []);
-    const map = new Map((state.quotes || []).map((q) => [q.symbol, q]));
-    normalized.forEach((q) => map.set(q.symbol, q));
-    state.quotes = Array.from(map.values());
+    const symbols = marketsCatalogRows().map((row) => row.symbol);
+    const data = await fetchQuotesBatched(symbols.length ? symbols : marketsDefaultSymbols());
+    mergeQuotesIntoState(data.quotes);
+    state.marketsCatalogQuotesLoaded = true;
     state.quoteFeedSource = data.source || state.quoteFeedSource;
     rememberFeedMeta("market", data, data.source || "quotes");
     renderSourceBadges();
@@ -2936,6 +3157,9 @@ async function loadMarketsData() {
   } catch (e) {
     console.error("[markets] quotes fetch failed", e);
     syncQuotesFallbackBanner({ fallback: false });
+    renderMarkets();
+  } finally {
+    state.marketsQuotesLoading = false;
     renderMarkets();
   }
 
@@ -3484,26 +3708,37 @@ function renderWatchlistStrip() {
 function renderMarkets() {
   const tbody = $("#market-body");
   if (!tbody) return;
+  updateMarketsTableMeta();
 
-  tbody.innerHTML = marketsDefaultSymbols().map((sym) => {
+  const rows = filteredMarketsRows();
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="markets-empty-row">No symbols match this filter. Try <strong>All</strong> or clear the search box.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((row) => {
+    const sym = row.symbol;
     const quote = quoteFor(sym);
     const pctRaw = quote ? Number(quote.changePercent ?? quote.pct ?? 0) : null;
     const pct = pctRaw != null && Number.isFinite(pctRaw) ? pctRaw : null;
     const chg = quote?.change != null ? Number(quote.change) : null;
     const pctCls = pct == null ? "muted" : pct >= 0 ? "up" : "down";
-    const pctTxt = pct == null ? "N/A" : `${pct >= 0 ? "+" : ""}${fmt(pct)}%`;
-    const chgTxt = chg == null ? "N/A" : signed(chg);
-    const policyHtml = marketsPolicySignalHtml(sym);
+    const pctTxt = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${fmt(pct)}%`;
+    const chgTxt = chg == null ? "—" : signed(chg);
     const watching = isOnWatchlist(sym);
+    const policyHtml = marketsPolicySignalHtml(sym);
     return `
-      <tr class="clickable-row" ${drilldownAttrs("analysis", { symbol: sym }, `Open ${sym} analysis`)}>
-        <td class="mono ticker-link-cell"><span>${escapeHtml(sym)}</span>${shareCardLink(sym, "Share Card")}</td>
-        <td class="mono">${quote?.price != null ? money(quote.price) : "N/A"}</td>
-        <td class="mono ${pctCls}">${chgTxt} (${pctTxt})</td>
-        <td class="mono">${quote?.open != null ? money(quote.open) : "N/A"}</td>
-        <td class="mono">${quote?.high != null ? money(quote.high) : "N/A"}</td>
-        <td class="mono">${quote?.low != null ? money(quote.low) : "N/A"}</td>
-        <td>${policyHtml}</td>
+      <tr class="markets-row clickable-row" data-symbol="${escapeHtml(sym)}">
+        <td class="mono ticker-link-cell markets-ticker-cell">
+          <a class="markets-ticker-link" href="${escapeHtml(stockPageUrl(sym))}" onclick="event.stopPropagation()">${escapeHtml(sym)}</a>
+          <span class="markets-ticker-name">${escapeHtml(row.name || sym)}</span>
+          ${shareCardLink(sym, "Share")}
+        </td>
+        <td class="markets-name-cell">${escapeHtml(row.name || sym)}</td>
+        <td class="mono num">${marketsQuoteCellHtml(sym)}</td>
+        <td class="mono num ${pctCls}">${chgTxt} <span class="markets-pct">(${pctTxt})</span></td>
+        <td class="markets-sources-cell"><div class="markets-source-badges">${marketsSourceBadgesHtml(row)}</div></td>
+        <td class="markets-links-cell"><div class="markets-link-row">${marketsConnectedLinksHtml(row)}</div><div class="markets-policy-signal">${policyHtml}</div></td>
         <td><button type="button" class="button button-secondary compact watch-toggle-btn${watching ? " is-watching" : ""}" data-watch-toggle="${escapeHtml(sym)}" title="${watching ? "Remove from watchlist" : "Add to watchlist"}">${watching ? "★" : "☆"}</button></td>
       </tr>
     `;
@@ -6442,11 +6677,10 @@ function showView(view, updateUrl = true) {
     renderAccount();
   }
   if (view === "markets" && isViewEnabled("markets")) {
-    if (!state.quotes?.length) {
+    renderMarkets();
+    if (!state.marketsCatalogQuotesLoaded) {
       showSkeleton("#market-body", 8, "row");
       void loadMarketsData().finally(() => clearSkeleton("#market-body"));
-    } else {
-      renderMarkets(); // already have quotes, just re-render
     }
   }
   if (view === "signals" && isViewEnabled("signals")) {
