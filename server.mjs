@@ -43,7 +43,8 @@ import {
   enrichSnapshotWithRecentNews,
   runScorecardNarrator,
   runEdgarSimplifier,
-  runCausalityAnalyzer
+  runCausalityAnalyzer,
+  runShareBriefSummary
 } from "./ai-brain.mjs";
 import { getSocialPulse } from "./social-pulse.mjs";
 import {
@@ -61,6 +62,7 @@ import {
   remapLinkedBillIds,
   remapStakeholderKeys,
   parseBillIdToCongressRef,
+  congressRefToBillId,
   resolveBillIdCanonical
 } from "./src/core/policySeedRegistry.mjs";
 import {
@@ -261,6 +263,15 @@ let landingQuotesCachedAt = 0;
 const researchRateLimit = new Map();
 const RESEARCH_RATE_LIMIT_MAX = Number(process.env.RESEARCH_RATE_LIMIT_MAX || 10);
 const RESEARCH_RATE_LIMIT_WINDOW = Number(process.env.RESEARCH_RATE_LIMIT_WINDOW || 60) * 1000;
+const BRIEF_AI_RATE_LIMIT_MAX = Number(process.env.BRIEF_AI_RATE_LIMIT_MAX || 10);
+const BRIEF_AI_RATE_LIMIT_WINDOW = Number(process.env.BRIEF_AI_RATE_LIMIT_WINDOW_MS || 3_600_000);
+const briefAiRateLimit = new Map();
+const AD_HOC_CONGRESS_TTL_MS = Number(process.env.AD_HOC_CONGRESS_TTL_MS || 900_000);
+const adHocCongressFetchedAt = new Map();
+const usaspendingCache = new Map();
+const USASPENDING_CACHE_TTL_MS = Number(process.env.USASPENDING_CACHE_TTL_MS || 900_000);
+const USASPENDING_API_BASE = "https://api.usaspending.gov/api/v2";
+const USASPENDING_FETCH_TIMEOUT_MS = Number(process.env.USASPENDING_FETCH_TIMEOUT_MS || 14_000);
 const CURRENT_CONGRESS = "119";
 
 const QUOTE_PROVIDER_LABELS = {
@@ -1593,6 +1604,8 @@ const POLICY_STAKEHOLDERS = remapStakeholderKeys(RAW_POLICY_STAKEHOLDERS);
 const congressLiveCache = new Map();
 /** Bills discovered from Congress.gov list (not in POLICY_BILLS seeds). */
 const liveCongressBillRegistry = new Map();
+/** In-flight Congress.gov fetches keyed by canonical bill id. */
+const congressBillFetchInflight = new Map();
 /** Live LDA aggregates per bill id (no seed lobbying dollars). */
 const billLobbyingOverlay = new Map();
 let lastSeedValidation = null;
@@ -2331,6 +2344,12 @@ async function route(req, res) {
   if (pathname === "/api/share/contract" && req.method === "GET") {
     if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
     return shareContractSnapshot(req, res, url);
+  }
+  if (pathname.startsWith("/api/usaspending/award/") && req.method === "GET") {
+    return usaspendingAwardRoute(res, pathname);
+  }
+  if (pathname === "/api/usaspending/recipient" && req.method === "GET") {
+    return usaspendingRecipientRoute(res, url);
   }
   if (pathname === "/api/share/lobby" && req.method === "GET") {
     if (!checkFeature("LOBBYING_EXPLORER_ENABLED", res)) return;
@@ -3270,11 +3289,228 @@ function resolvePolicyBill(billIdRaw) {
   return null;
 }
 
-function buildBillSharePayload(billIdRaw) {
-  const bill = resolvePolicyBill(billIdRaw);
+function knownSeedBillIds(limit = 24) {
+  return POLICY_BILLS.filter((b) => !b.scenarioOnly)
+    .map((b) => b.id)
+    .slice(0, limit);
+}
+
+function isAdHocCongressFresh(billId) {
+  const fetchedAt = adHocCongressFetchedAt.get(billId);
+  if (!fetchedAt) return false;
+  return Date.now() - fetchedAt < AD_HOC_CONGRESS_TTL_MS;
+}
+
+function billFromCongressOverlay(billId, overlay) {
+  const ref = parseBillIdToCongressRef(billId);
+  const displayId = ref ? congressRefToBillId(ref) || billId : billId;
+  const tickers = inferTickers(overlay.title || "");
+  const tags = inferTags(overlay.title || "");
+  return {
+    id: billId,
+    displayId,
+    title: overlay.title || billId,
+    shortTitle: overlay.title || billId,
+    chamber: overlay.chamber || "House",
+    status: overlay.status || "introduced",
+    sponsor: overlay.sponsor || { name: "—", party: "U", state: "" },
+    cosponsors: overlay.cosponsors ?? null,
+    bipartisanCosponsors: 0,
+    floorScheduled: false,
+    exactCongressRecord: true,
+    _dynamicCongressBill: true,
+    introducedDate: overlay.introducedDate || null,
+    policyArea: overlay.policyArea || null,
+    committees: overlay.committees || [],
+    _committeeNames: overlay._committeeNames || [],
+    latestAction: overlay.latestAction || "Updated by Congress.gov",
+    latestActionDate: overlay.latestActionDate || null,
+    tags,
+    portfolioTickers: tickers,
+    affected: tickers,
+    lobbyingAgainst: null,
+    lobbyingFor: null,
+    plainEnglish:
+      overlay.plainEnglish ||
+      (tickers.length
+        ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
+        : "Live Congress.gov bill loaded on demand."),
+    signal:
+      tickers.length
+        ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
+        : "Live Congress.gov bill. Monitor committee action and lobbying filings.",
+    impact:
+      tickers.length
+        ? `Potential exposure for ${tickers.join(", ")} — monitor for committee action.`
+        : "No ticker mapping yet. Monitor for sector-level impact.",
+    sourceKind: "congress_exact",
+    sourceNote: "Exact Congress.gov record (on-demand fetch)."
+  };
+}
+
+async function fetchCongressBillOverlay(billId, ref, key) {
+  const baseUrl = `https://api.congress.gov/v3/bill/${ref.congress}/${ref.type}/${ref.number}`;
+  const qs = `format=json&api_key=${encodeURIComponent(key)}`;
+  const [detailResp, commResp] = await Promise.all([
+    fetchWithTimeout(`${baseUrl}?${qs}`, {}, 10_000),
+    fetchWithTimeout(`${baseUrl}/committees?${qs}`, {}, 10_000).catch(() => null)
+  ]);
+  if (!detailResp.ok) return null;
+  const data = await detailResp.json();
+  const b = data.bill;
+  if (!b) return null;
+  let committees = [];
+  if (commResp?.ok) {
+    try {
+      committees = parseCongressCommitteesResponse(await commResp.json());
+    } catch {
+      committees = [];
+    }
+  }
+  const actionText = (b.latestAction?.text || "").toLowerCase();
+  let status = "introduced";
+  if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
+  else if (actionText.includes("passed senate") || actionText.includes("passed house")) status = "floor";
+  else if (actionText.includes("reported") || actionText.includes("ordered to be reported")) status = "markup";
+  else if (actionText.includes("committee")) status = "committee";
+  const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
+  const sp = sponsors[0];
+  const chamberRaw = b.originChamber || b.type || ref.type;
+  const chamber = String(chamberRaw).toLowerCase().includes("senate") ? "Senate" : "House";
+  const policyArea = b.policyArea?.name || b.policyArea || null;
+  return {
+    id: billId,
+    title: b.title || billId,
+    introducedDate: b.introducedDate || null,
+    policyArea: policyArea ? String(policyArea) : null,
+    committees,
+    _committeeNames: committees.map((c) => c.name).filter(Boolean),
+    latestAction: b.latestAction?.text || "Updated by Congress.gov",
+    latestActionDate: b.latestAction?.actionDate || b.updateDate || null,
+    cosponsors: b.cosponsors?.count != null ? Number(b.cosponsors.count) : null,
+    status,
+    chamber,
+    exactCongressRecord: true,
+    sponsor: sp
+      ? { name: sp.fullName || sp.lastName || "", party: sp.party || "U", state: sp.state || "" }
+      : { name: "—", party: "U", state: "" }
+  };
+}
+
+async function fetchCongressBillById(billIdRaw) {
+  const billId = resolveBillIdCanonical(billIdRaw);
+  if (!billId) return null;
+  const existing = resolvePolicyBill(billId);
+  if (existing) return existing;
+
+  if (isAdHocCongressFresh(billId)) {
+    const cached = liveCongressBillRegistry.get(billId);
+    if (cached) return cached;
+    const overlay = congressLiveCache.get(billId);
+    if (overlay) {
+      const rebuilt = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, overlay)));
+      liveCongressBillRegistry.set(billId, rebuilt);
+      return rebuilt;
+    }
+  }
+
+  const ref = parseBillIdToCongressRef(billId);
+  if (!ref) return null;
+
+  const diskOverlay = await readCongressCache(billId);
+  if (diskOverlay) {
+    congressLiveCache.set(billId, diskOverlay);
+    adHocCongressFetchedAt.set(billId, Date.now());
+    const fromDisk = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, diskOverlay)));
+    liveCongressBillRegistry.set(billId, fromDisk);
+    return fromDisk;
+  }
+
+  const key = process.env.CONGRESS_API_KEY;
+  if (!key) return null;
+
+  if (congressBillFetchInflight.has(billId)) {
+    return congressBillFetchInflight.get(billId);
+  }
+
+  const inflight = (async () => {
+    try {
+      const overlay = await fetchCongressBillOverlay(billId, ref, key);
+      if (!overlay) return null;
+      congressLiveCache.set(billId, overlay);
+      adHocCongressFetchedAt.set(billId, Date.now());
+      await writeCongressCache(billId, overlay);
+      const bill = decorateBill(mergeCongressLiveIntoBill(billFromCongressOverlay(billId, overlay)));
+      liveCongressBillRegistry.set(billId, bill);
+      bumpLandingSignalCacheVersion();
+      return bill;
+    } finally {
+      congressBillFetchInflight.delete(billId);
+    }
+  })();
+  congressBillFetchInflight.set(billId, inflight);
+  return inflight;
+}
+
+async function resolvePolicyBillAsync(billIdRaw) {
+  const sync = resolvePolicyBill(billIdRaw);
+  if (sync) return sync;
+  return fetchCongressBillById(billIdRaw);
+}
+
+function checkBriefAiRateLimit(clientKey) {
+  const now = Date.now();
+  const key = String(clientKey || "anon");
+  const entry = briefAiRateLimit.get(key);
+  if (!entry || now - entry.windowStart > BRIEF_AI_RATE_LIMIT_WINDOW) {
+    briefAiRateLimit.set(key, { count: 1, windowStart: now });
+    return { allowed: true, remaining: BRIEF_AI_RATE_LIMIT_MAX - 1 };
+  }
+  if (entry.count >= BRIEF_AI_RATE_LIMIT_MAX) {
+    const retryAfterSeconds = Math.ceil((BRIEF_AI_RATE_LIMIT_WINDOW - (now - entry.windowStart)) / 1000);
+    return { allowed: false, retryAfterSeconds };
+  }
+  entry.count += 1;
+  return { allowed: true, remaining: BRIEF_AI_RATE_LIMIT_MAX - entry.count };
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - BRIEF_AI_RATE_LIMIT_WINDOW * 2;
+  for (const [key, entry] of briefAiRateLimit) {
+    if (entry.windowStart < cutoff) briefAiRateLimit.delete(key);
+  }
+}, 10 * 60 * 1000);
+
+async function attachShareBriefAiSummary(req, payload, kind) {
+  if (!process.env.ANTHROPIC_API_KEY) return payload;
+  try {
+    const aiSummary = await runShareBriefSummary({
+      kind,
+      payload,
+      rateLimitKey: clientIp(req),
+      checkRateLimit: checkBriefAiRateLimit
+    });
+    if (aiSummary?.text) return { ...payload, aiSummary };
+  } catch (err) {
+    console.warn("[ai] share brief summary skipped:", err.message);
+  }
+  return payload;
+}
+
+async function buildBillSharePayload(billIdRaw) {
+  const billId = resolveBillIdCanonical(billIdRaw);
+  if (!billId) {
+    const err = new Error("unknown_bill_id");
+    err.code = "unknown_bill_id";
+    throw err;
+  }
+  const bill = await resolvePolicyBillAsync(billId);
   if (!bill) {
     const err = new Error("unknown_bill_id");
     err.code = "unknown_bill_id";
+    err.userMessage = process.env.CONGRESS_API_KEY
+      ? `Bill ${billId} was not found on Congress.gov. Check the bill number and congress session (e.g. H.R.7668-119).`
+      : `Bill ${billId} is not in TradeSimple's curated set. Set CONGRESS_API_KEY on the server to load any Congress.gov bill, or pick a known bill from the dashboard.`;
     throw err;
   }
   const merged = decorateBill(mergeCongressLiveIntoBill(bill));
@@ -3282,9 +3518,9 @@ function buildBillSharePayload(billIdRaw) {
   const detail = focusSymbol ? enrichPolicyBill(merged, focusSymbol) : merged;
   const breakdown = computeBillMetricBreakdown(merged);
   const statusInfo = statusInfoForBill(merged);
-  const billId = merged.id;
+  const canonicalId = merged.id;
   return {
-    billId,
+    billId: canonicalId,
     bill: detail,
     statusInfo,
     breakdown,
@@ -3296,9 +3532,9 @@ function buildBillSharePayload(billIdRaw) {
     methodologyDisclaimer: METHODOLOGY.disclaimer,
     updatedAt: new Date().toISOString(),
     share: {
-      canonicalPath: `/bill/${encodeURIComponent(billId)}`,
-      canonicalUrl: `${APP_URL}/bill/${encodeURIComponent(billId)}`,
-      title: merged.shortTitle || merged.title || billId,
+      canonicalPath: `/bill/${encodeURIComponent(canonicalId)}`,
+      canonicalUrl: `${APP_URL}/bill/${encodeURIComponent(canonicalId)}`,
+      title: merged.shortTitle || merged.title || canonicalId,
       disclaimer:
         "Legislative status from Congress.gov when linked. Scenario impact ranges are illustrative models, not investment advice."
     }
@@ -3309,13 +3545,17 @@ async function shareBillSnapshot(req, res, url) {
   if (enforceShareRateLimit(req, res)) return;
   const billId = url.searchParams.get("billId") || url.searchParams.get("id") || "";
   try {
-    const payload = buildBillSharePayload(billId);
-    sendJson(res, 200, { ...payload, public: true });
+    const payload = await buildBillSharePayload(billId);
+    const withAi = await attachShareBriefAiSummary(req, payload, "bill");
+    sendJson(res, 200, { ...withAi, public: true });
   } catch (err) {
     const code = err.code === "unknown_bill_id" ? 404 : 502;
     sendJson(res, code, {
       error: err.code || "share_bill_unavailable",
-      message: err.message || "Could not load bill."
+      message: err.userMessage || err.message || "Could not load bill.",
+      knownBillIds: err.code === "unknown_bill_id" ? knownSeedBillIds() : undefined,
+      dashboardUrl: "/dashboard?view=bills",
+      congressKeyRequired: err.code === "unknown_bill_id" ? !process.env.CONGRESS_API_KEY : undefined
     });
   }
 }
@@ -3328,10 +3568,17 @@ function publicBillCard(res, pathname, { head = false } = {}) {
   }
   const bill = resolvePolicyBill(raw);
   const billId = bill?.id || canonical || raw;
-  const title = bill ? `${bill.shortTitle || bill.title || billId} | TradeSimple` : `Bill not found | TradeSimple`;
+  const validFormat = Boolean(parseBillIdToCongressRef(canonical || raw));
+  const title = bill
+    ? `${bill.shortTitle || bill.title || billId} | TradeSimple`
+    : validFormat
+      ? `${canonical || raw} | TradeSimple bill brief`
+      : `Bill not found | TradeSimple`;
   const description = bill
     ? `Legislative status, lobbying, and scenario impacts for ${bill.shortTitle || bill.title}. Research context only.`
-    : "Bill record not found in TradeSimple.";
+    : validFormat
+      ? "Loading live legislative status from Congress.gov when configured."
+      : "Bill record not found in TradeSimple.";
   const html = `<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
@@ -3360,7 +3607,7 @@ function publicBillCard(res, pathname, { head = false } = {}) {
     <script src="/assets/bill-card.js?v=bill-dossier-1" defer></script>
   </body>
 </html>`;
-  sendHtml(res, bill ? 200 : 404, html, { head });
+  sendHtml(res, bill || validFormat ? 200 : 404, html, { head });
 }
 
 function contractCausalitySnapshot(symbol) {
@@ -3462,6 +3709,85 @@ function contractCausalitySnapshot(symbol) {
   };
 }
 
+function resolveContractCompanyName(symbol) {
+  return CONTRACT_COMPANY_NAMES[symbol] || FUNDAMENTALS[symbol]?.name || symbol;
+}
+
+function findRelatedBillsForSymbol(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  return POLICY_BILLS.filter((b) => (b.affected || []).includes(sym)).slice(0, 8);
+}
+
+function computeGenericContractEventSignal(symbol, awardAmount, agencyName) {
+  const agSig = agencySignalScore(agencyName);
+  const novelty = awardNoveltyScore(awardAmount);
+  const score = Math.round(Math.min(100, Math.max(0, 0.45 * agSig + 0.55 * novelty)));
+  const label = score >= 75 ? "High signal" : score >= 45 ? "Monitor" : score >= 15 ? "Watch" : "Low signal";
+  const agSigLabel =
+    agSig >= 70 ? "less analyst coverage — higher surprise value"
+    : agSig >= 50 ? "moderate analyst coverage"
+    : "heavily covered — often pre-priced";
+  return {
+    score,
+    label,
+    pricedInAssessment: novelty < 30 && agSig < 50 ? "Likely already priced in" : "Mixed — depends on timing",
+    plainEnglish: `Live USASpending award for ${symbol} from ${agencyName || "a federal agency"}. ${agSigLabel}. Full CRS calibration applies to profiled defense IT contractors (LMT, BAH, LDOS, SAIC, PLTR).`,
+    components: { dep: null, agSig, novelty, renewal: null },
+    agSigLabel,
+    noveltyLabel: novelty >= 70 ? "smaller award — higher surprise value" : "award size context from USASpending",
+    watchNext: ["Follow-on task orders", "Agency budget request", "Company earnings commentary on government pipeline"],
+    archetype: "Live USASpending recipient",
+    archetypeExplain: "TradeSimple loaded this brief from USASpending.gov without a curated contractor profile.",
+    confidence: "Low — generic scoring without company revenue mix calibration.",
+    dataNote: "Not investment advice. DoD awards may lag USASpending by up to 90 days."
+  };
+}
+
+function buildGenericGovernmentMoneyTrail(symbol, companyName, awardAmount, agencyName, programName) {
+  const sig = computeGenericContractEventSignal(symbol, awardAmount, agencyName);
+  return {
+    headline: `${symbol}: Federal contract award from ${agencyName || "U.S. government"}`,
+    simpleSummary: sig.plainEnglish,
+    chain: [
+      { label: "Government event", value: `Contract award to ${companyName}`, explanation: "Public USASpending.gov data." },
+      { label: "Agency", value: agencyName || "Federal agency", explanation: sig.agSigLabel },
+      { label: "Program", value: programName || "Contract vehicle", explanation: sig.noveltyLabel },
+      { label: "Market read", value: sig.label, explanation: sig.pricedInAssessment }
+    ],
+    limitations: ["Generic profile — no curated government-revenue percentage.", "Not investment advice."]
+  };
+}
+
+function enhanceGenericContractCausality(causality, symbol, company, awards) {
+  const agencies = [...new Set(awards.map((a) => a.awardingAgency).filter(Boolean))].slice(0, 4);
+  const total = awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0);
+  const related = findRelatedBillsForSymbol(symbol);
+  causality.plainEnglish = `${company} (${symbol}) has ${awards.length} recent federal award(s) on USASpending totaling ${compactMoney(total)}. ${agencies.length ? `Top agencies: ${agencies.join(", ")}.` : ""} ${related.length ? `${related.length} mapped bill(s) may affect this name.` : "No mapped bills yet — check appropriations for primary agencies."}`;
+  causality.relatedBills = related.map((b) => ({
+    id: b.id,
+    title: b.shortTitle || b.title,
+    displayId: b.displayId || b.id
+  }));
+  causality.billCount = related.length;
+  causality.scores = { dependency: null, changeRisk: 50, confidence: "Low" };
+  if (agencies.length) {
+    causality.nodes = [
+      { step: "1 · Live awards", title: `${awards.length} USASpending row(s) loaded`, detail: `Total obligated ~${compactMoney(total)} in this pull.`, source: "USASpending" },
+      { step: "2 · Agencies", title: agencies[0], detail: agencies.slice(1).join(" · ") || "Single-agency exposure in this sample.", source: "USASpending" },
+      { step: "3 · Policy link", title: related.length ? `${related.length} related bill(s) mapped` : "No mapped bills", detail: related.length ? "See related bills section for legislative context." : "Heuristic bill mapping not available for this ticker.", source: "TradeSimple" }
+    ];
+  }
+  return causality;
+}
+
+function compactMoney(value) {
+  const n = Number(value || 0);
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
 async function buildContractSharePayload(symbolRaw) {
   const symbol = String(symbolRaw || "")
     .toUpperCase()
@@ -3471,31 +3797,41 @@ async function buildContractSharePayload(symbolRaw) {
     err.code = "missing_symbol";
     throw err;
   }
-  const profile = CONTRACT_PROFILES[symbol];
-  if (!profile) {
-    const err = new Error("unknown_contract_symbol");
-    err.code = "unknown_contract_symbol";
+  const profile = CONTRACT_PROFILES[symbol] || null;
+  const ctx = await resolveContractUsaspendingContext(symbol);
+  const company = ctx.company;
+  const rawResults = ctx.awards;
+  if (!rawResults?.length) {
+    const err = new Error("no_usaspending_awards");
+    err.code = profile ? "usaspending_unavailable" : "no_usaspending_awards";
+    err.userMessage = profile
+      ? `USASpending.gov returned no recent awards for ${company}. The federal API may be down or the company name did not resolve.`
+      : `No federal contract awards found for ${company} (${symbol}) on USASpending.gov. Try a profiled ticker (LMT, PLTR) or verify the company receives federal contracts.`;
     throw err;
   }
-  const company = CONTRACT_COMPANY_NAMES[symbol] || FUNDAMENTALS[symbol]?.name || symbol;
-  const rawResults = await fetchUsaspendingAwards(company);
-  const awards = (rawResults || []).map((row) => {
-    const enriched = {
-      ...row,
-      eventSignal: computeContractEventSignal(symbol, row.obligatedAmount, row.awardingAgency),
-      moneyTrail: buildGovernmentMoneyTrail(symbol, row.obligatedAmount, row.awardingAgency, row.description)
-    };
-    return enriched;
+  const awards = rawResults.map((row) => {
+    const eventSignal = profile
+      ? computeContractEventSignal(symbol, row.obligatedAmount, row.awardingAgency)
+      : computeGenericContractEventSignal(symbol, row.obligatedAmount, row.awardingAgency);
+    const moneyTrail = profile
+      ? buildGovernmentMoneyTrail(symbol, row.obligatedAmount, row.awardingAgency, row.description)
+      : buildGenericGovernmentMoneyTrail(symbol, company, row.obligatedAmount, row.awardingAgency, row.description);
+    return { ...row, eventSignal, moneyTrail };
   });
-  const causality = contractCausalitySnapshot(symbol);
+  let causality = contractCausalitySnapshot(symbol);
+  if (!profile) causality = enhanceGenericContractCausality(causality, symbol, company, awards);
   return {
     symbol,
     company,
+    profiled: Boolean(profile),
+    recipientId: ctx.recipientId || awards.find((row) => row.recipientId)?.recipientId || null,
+    recipientName: ctx.recipientName || awards.find((row) => row.recipientName)?.recipientName || company,
+    usaspendingResolvedVia: ctx.resolvedVia || "company_search",
     awards,
     awardCount: awards.length,
     totalObligated: awards.reduce((sum, row) => sum + Number(row.obligatedAmount || 0), 0),
     causality,
-    source: awards.length ? "usaspending.gov" : "profile_only",
+    source: "usaspending.gov",
     updatedAt: new Date().toISOString(),
     share: {
       canonicalPath: `/contract/${encodeURIComponent(symbol)}`,
@@ -3513,12 +3849,18 @@ async function shareContractSnapshot(req, res, url) {
     .trim();
   try {
     const payload = await buildContractSharePayload(symbol);
-    sendJson(res, 200, { ...payload, public: true });
+    const withAi = await attachShareBriefAiSummary(req, payload, "contract");
+    sendJson(res, 200, { ...withAi, public: true });
   } catch (err) {
-    const code = err.code === "unknown_contract_symbol" || err.code === "missing_symbol" ? 404 : 502;
+    const code =
+      err.code === "missing_symbol" || err.code === "no_usaspending_awards" || err.code === "usaspending_unavailable"
+        ? 404
+        : 502;
     sendJson(res, code, {
       error: err.code || "share_contract_unavailable",
-      message: err.message || "Could not load contract brief."
+      message: err.userMessage || err.message || "Could not load contract brief.",
+      profiledSymbols: Object.keys(CONTRACT_PROFILES),
+      dashboardUrl: "/dashboard?view=contracts"
     });
   }
 }
@@ -3528,12 +3870,15 @@ function publicContractCard(res, pathname, { head = false } = {}) {
   const symbol = String(raw || "")
     .toUpperCase()
     .replace(/[^A-Z]/g, "");
-  const profile = CONTRACT_PROFILES[symbol];
-  const company = profile ? CONTRACT_COMPANY_NAMES[symbol] || symbol : symbol;
-  const title = profile ? `${company} (${symbol}) contracts | TradeSimple` : `Contract brief | TradeSimple`;
-  const description = profile
-    ? `Federal contract exposure, USASpending awards, and policy causality for ${company}.`
-    : "Government contract profile not found.";
+  const validSymbol = symbol.length >= 1 && symbol.length <= 6;
+  const company = resolveContractCompanyName(symbol);
+  const profile = CONTRACT_PROFILES[symbol] || null;
+  const title = validSymbol ? `${company} (${symbol}) contracts | TradeSimple` : `Contract brief | TradeSimple`;
+  const description = validSymbol
+    ? profile
+      ? `Federal contract exposure, USASpending awards, and policy causality for ${company}.`
+      : `Live USASpending federal contract awards for ${company}. Research context only.`
+    : "Invalid contract symbol.";
   const html = `<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
@@ -3558,7 +3903,7 @@ function publicContractCard(res, pathname, { head = false } = {}) {
     <script src="/assets/contract-card.js?v=contract-dossier-1" defer></script>
   </body>
 </html>`;
-  sendHtml(res, profile ? 200 : 404, html, { head });
+  sendHtml(res, validSymbol ? 200 : 404, html, { head });
 }
 
 async function resolveLobbyFilingsForShare() {
@@ -5625,7 +5970,8 @@ function applyLobbyingOverlay(bill) {
 function mergeCongressLiveIntoBill(bill) {
   const cached = congressLiveCache.get(bill.id);
   if (!cached) return applyLobbyingOverlay(bill);
-  if (!seedMetadataMatchesBill(cached, bill)) return applyLobbyingOverlay(bill);
+  const isSeed = POLICY_BILLS.some((b) => b.id === bill.id);
+  if (isSeed && !seedMetadataMatchesBill(cached, bill)) return applyLobbyingOverlay(bill);
   return applyLobbyingOverlay({
     ...bill,
     title: cached.title || bill.title,
@@ -8389,6 +8735,22 @@ const USASPENDING_AWARD_FIELDS = [
   "PSC"
 ];
 
+const USASPENDING_CONTRACT_AWARD_TYPES = ["A", "B", "C", "D"];
+
+function usaspendingCacheGet(key) {
+  const cached = usaspendingCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.fetchedAt >= USASPENDING_CACHE_TTL_MS) {
+    usaspendingCache.delete(key);
+    return null;
+  }
+  return cached.data;
+}
+
+function usaspendingCacheSet(key, data) {
+  usaspendingCache.set(key, { fetchedAt: Date.now(), data });
+}
+
 function usaspendingAwardDirectUrl(row) {
   const genId = row?.["generated_internal_id"] || row?.generated_internal_id || row?.internalId;
   if (genId) return `https://www.usaspending.gov/award/${genId}/`;
@@ -8433,14 +8795,173 @@ function mapUsaspendingAwardRow(row) {
   };
 }
 
-async function fetchUsaspendingAwards(company) {
-  const bodyBase = {
-    fields: USASPENDING_AWARD_FIELDS,
-    sort: "Award Amount",
-    order: "desc",
-    page: 1,
-    limit: 15
+function pickBestUsaspendingRecipient(results, keyword) {
+  if (!Array.isArray(results) || !results.length) return null;
+  const kw = String(keyword || "")
+    .trim()
+    .toUpperCase();
+  const scored = results.map((row) => {
+    const name = String(row.name || row.recipient_name || "").toUpperCase();
+    let score = 0;
+    if (name === kw) score += 100;
+    else if (kw && name.includes(kw)) score += 55;
+    else if (kw.length >= 3 && name.includes(kw.slice(0, 3))) score += 20;
+    const level = row.recipient_level || row.recipientLevel;
+    if (level === "P") score += 12;
+    else if (level === "R") score += 6;
+    const amount = Number(row.amount || 0);
+    if (amount > 0) score += Math.min(12, Math.log10(amount + 1));
+    return { row, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  if (!best || best.score < 18) return null;
+  const r = best.row;
+  return {
+    id: r.id || null,
+    name: r.name || r.recipient_name || null,
+    uei: r.uei || null,
+    duns: r.duns || null,
+    level: r.recipient_level || r.recipientLevel || null,
+    amount: Number(r.amount || 0)
   };
+}
+
+async function fetchUsaspendingRecipientAutocomplete(searchText) {
+  const term = String(searchText || "").trim();
+  if (!term) return null;
+  const cacheKey = `autocomplete:${term.toLowerCase()}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/autocomplete/recipient/`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ search_text: term, limit: 10 })
+      },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const match = pickBestUsaspendingRecipient(
+      (data.results || []).map((row) => ({
+        name: row.recipient_name,
+        recipient_name: row.recipient_name,
+        uei: row.uei,
+        duns: row.duns
+      })),
+      term
+    );
+    if (match?.name) {
+      usaspendingCacheSet(cacheKey, match);
+      return match;
+    }
+  } catch {
+    /* API down or rate-limited */
+  }
+  return null;
+}
+
+async function fetchUsaspendingRecipientList(keyword) {
+  const term = String(keyword || "").trim();
+  if (!term) return null;
+  const cacheKey = `recipient-list:${term.toLowerCase()}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/recipient/`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          keyword: term,
+          award_type: "contracts",
+          limit: 12,
+          page: 1,
+          sort: "amount",
+          order: "desc"
+        })
+      },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const match = pickBestUsaspendingRecipient(data.results || [], term);
+    if (match?.id) {
+      usaspendingCacheSet(cacheKey, match);
+      return match;
+    }
+  } catch {
+    /* API down or rate-limited */
+  }
+  return null;
+}
+
+async function searchUsaspendingRecipient(searchTerms) {
+  const terms = [...new Set(searchTerms.map((t) => String(t || "").trim()).filter(Boolean))];
+  for (const term of terms) {
+    const listed = await fetchUsaspendingRecipientList(term);
+    if (listed?.id) return listed;
+    const auto = await fetchUsaspendingRecipientAutocomplete(term);
+    if (auto?.name) {
+      const resolved = await fetchUsaspendingRecipientList(auto.name);
+      if (resolved?.id) return resolved;
+    }
+  }
+  return null;
+}
+
+async function fetchUsaspendingSpendingByAward(filters, cacheKey) {
+  if (cacheKey) {
+    const cached = usaspendingCacheGet(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/search/spending_by_award/`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filters: { ...filters, award_type_codes: USASPENDING_CONTRACT_AWARD_TYPES },
+          fields: USASPENDING_AWARD_FIELDS,
+          sort: "Award Amount",
+          order: "desc",
+          page: 1,
+          limit: 15
+        })
+      },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const results = (data.results || []).slice(0, 15).map(mapUsaspendingAwardRow);
+    if (results.length && cacheKey) usaspendingCacheSet(cacheKey, results);
+    return results.length ? results : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchUsaspendingAwardsByRecipient(recipientId) {
+  const id = String(recipientId || "").trim();
+  if (!id) return null;
+  return fetchUsaspendingSpendingByAward({ recipient_id: id }, `awards:recipient:${id.toLowerCase()}`);
+}
+
+async function fetchUsaspendingAwards(company) {
+  const key = String(company || "").trim().toLowerCase();
+  if (!key) return null;
+  const cacheKey = `awards:company:${key}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
   const filterSets = [
     { recipient_search_text: [company] },
     { keywords: [company] },
@@ -8449,28 +8970,127 @@ async function fetchUsaspendingAwards(company) {
   ];
 
   for (const extraFilters of filterSets) {
-    try {
-      const response = await fetchWithTimeout(
-        "https://api.usaspending.gov/api/v2/search/spending_by_award/",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            filters: { ...extraFilters, award_type_codes: ["A", "B", "C", "D"] },
-            ...bodyBase
-          })
-        },
-        14000
-      );
-      if (!response.ok) continue;
-      const data = await response.json();
-      const results = (data.results || []).slice(0, 15).map(mapUsaspendingAwardRow);
-      if (results.length) return results;
-    } catch {
-      /* try next filter strategy */
+    const results = await fetchUsaspendingSpendingByAward(extraFilters);
+    if (results?.length) {
+      usaspendingCacheSet(cacheKey, results);
+      return results;
     }
   }
   return null;
+}
+
+async function resolveContractUsaspendingContext(symbol) {
+  const sym = String(symbol || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  const cacheKey = `ctx:${sym}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  const companyHint = resolveContractCompanyName(sym);
+  let awards = await fetchUsaspendingAwards(companyHint);
+  let recipientId = awards?.find((row) => row.recipientId)?.recipientId || null;
+  let recipientName = awards?.find((row) => row.recipientName)?.recipientName || null;
+  let company = companyHint;
+  let resolvedVia = awards?.length ? "company_search" : null;
+
+  if (!awards?.length && sym !== companyHint) {
+    awards = await fetchUsaspendingAwards(sym);
+    if (awards?.length) resolvedVia = "symbol_search";
+  }
+
+  if (!awards?.length) {
+    const recipient = await searchUsaspendingRecipient([companyHint, sym]);
+    if (recipient) {
+      company = recipient.name || companyHint;
+      recipientId = recipient.id;
+      recipientName = recipient.name || company;
+      awards = await fetchUsaspendingAwardsByRecipient(recipient.id);
+      if (!awards?.length) awards = await fetchUsaspendingAwards(company);
+      resolvedVia = "recipient_search";
+    }
+  }
+
+  const data = {
+    symbol: sym,
+    company,
+    recipientId,
+    recipientName,
+    awards: awards || null,
+    resolvedVia
+  };
+  if (awards?.length) usaspendingCacheSet(cacheKey, data);
+  return data;
+}
+
+async function fetchUsaspendingAwardDetail(awardId) {
+  const id = String(awardId || "").trim();
+  if (!id) return null;
+  const cacheKey = `award-detail:${id}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/awards/${encodeURIComponent(id)}/`,
+      { headers: { accept: "application/json" } },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const mapped = {
+      id: data.id ?? null,
+      generatedInternalId: data.generated_unique_award_id || id,
+      directUrl: usaspendingAwardDirectUrl({
+        generated_internal_id: data.generated_unique_award_id,
+        internal_id: data.id
+      }),
+      category: data.category || null,
+      type: data.type || null,
+      typeDescription: data.type_description || null,
+      description: data.description || null,
+      totalObligation: Number(data.total_obligation || 0),
+      dateSigned: data.date_signed || null,
+      awardingAgency: data.awarding_agency?.toptier_agency?.name || data.awarding_agency?.subtier_agency?.name || null,
+      recipientName: data.recipient?.recipient_name || null,
+      recipientId: data.recipient?.recipient_hash || null,
+      periodOfPerformance: data.period_of_performance || null
+    };
+    usaspendingCacheSet(cacheKey, mapped);
+    return mapped;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchUsaspendingAgencyBudget(agencyCode) {
+  const code = String(agencyCode || "").trim();
+  if (!code) return null;
+  const cacheKey = `agency-budget:${code}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/agency/${encodeURIComponent(code)}/budgetary_resources/`,
+      { headers: { accept: "application/json" } },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const byFiscalYear = {};
+    for (const row of data.budgetary_resources || []) {
+      const fy = row.fiscal_year ?? row.year;
+      const amount = Number(row.total_budgetary_resources ?? row.budgetary_resources_amount ?? row.amount ?? 0);
+      if (fy == null) continue;
+      byFiscalYear[String(fy)] = (byFiscalYear[String(fy)] || 0) + amount;
+    }
+    const payload = { agencyCode: code, byFiscalYear };
+    usaspendingCacheSet(cacheKey, payload);
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function contractSymbolForCompany(company) {
@@ -8480,6 +9100,9 @@ function contractSymbolForCompany(company) {
   if (c.includes("leidos")) return "LDOS";
   if (c.includes("saic")) return "SAIC";
   if (c.includes("palantir")) return "PLTR";
+  if (c.includes("rtx") || c.includes("raytheon")) return "RTX";
+  if (c.includes("northrop")) return "NOC";
+  if (c.includes("general dynamics")) return "GD";
   return null;
 }
 
@@ -8489,6 +9112,19 @@ async function contractsByCompany(res, pathname) {
     if (!company) return sendJson(res, 400, { error: "missing_company" });
 
     const rawResults = await fetchUsaspendingAwards(company);
+    let recipientId = rawResults?.find((row) => row.recipientId)?.recipientId || null;
+    let resolvedVia = rawResults?.length ? "company_search" : null;
+    if (!rawResults?.length) {
+      const recipient = await searchUsaspendingRecipient([company]);
+      if (recipient?.id) {
+        recipientId = recipient.id;
+        const byRecipient = await fetchUsaspendingAwardsByRecipient(recipient.id);
+        if (byRecipient?.length) {
+          rawResults = byRecipient;
+          resolvedVia = "recipient_search";
+        }
+      }
+    }
     if (!rawResults?.length) {
       return sendJson(res, 502, { error: "usaspending_unavailable", message: "USASpending.gov returned no awards for this company." });
     }
@@ -8502,33 +9138,48 @@ async function contractsByCompany(res, pathname) {
         }))
       : rawResults;
 
-    const recipientId = results.find((row) => row.recipientId)?.recipientId || null;
-    sendJson(res, 200, { company, symbol, results, recipientId, source: "usaspending.gov" });
+    sendJson(res, 200, {
+      company,
+      symbol,
+      results,
+      recipientId,
+      resolvedVia,
+      source: "usaspending.gov"
+    });
   } catch (e) {
     sendJson(res, 502, { error: e.message || String(e) });
   }
+}
+
+async function usaspendingAwardRoute(res, pathname) {
+  const awardId = decodeURIComponent(pathname.slice("/api/usaspending/award/".length).split(/[/?#]/)[0]).trim();
+  if (!awardId) return sendJson(res, 400, { error: "missing_award_id" });
+  const detail = await fetchUsaspendingAwardDetail(awardId);
+  if (!detail) {
+    return sendJson(res, 502, { error: "usaspending_unavailable", message: "Could not load award from USASpending.gov." });
+  }
+  sendJson(res, 200, { ...detail, source: "usaspending.gov" });
+}
+
+async function usaspendingRecipientRoute(res, url) {
+  const symbol = String(url.searchParams.get("symbol") || "").toUpperCase().replace(/[^A-Z]/g, "");
+  const query = String(url.searchParams.get("q") || url.searchParams.get("keyword") || "").trim();
+  const terms = symbol ? [resolveContractCompanyName(symbol), symbol] : query ? [query] : [];
+  if (!terms.length) return sendJson(res, 400, { error: "missing_query", message: "Provide symbol= or q=." });
+  const recipient = await searchUsaspendingRecipient(terms);
+  if (!recipient) {
+    return sendJson(res, 404, { error: "recipient_not_found", message: "No USASpending recipient matched that query." });
+  }
+  sendJson(res, 200, { ...recipient, source: "usaspending.gov" });
 }
 
 async function agencyBudget(res, pathname) {
   try {
     const agencyCode = decodeURIComponent(pathname.slice("/api/agency-budget/".length)).trim();
     if (!agencyCode) return sendJson(res, 400, { error: "missing_agency_code" });
-    const response = await fetchWithTimeout(
-      `https://api.usaspending.gov/api/v2/agency/${encodeURIComponent(agencyCode)}/budgetary_resources/`,
-      {},
-      12000
-    );
-    if (!response.ok) throw new Error(`usaspending_agency_budget_${response.status}`);
-    const data = await response.json();
-    const byFiscalYear = {};
-    for (const row of data.budgetary_resources || []) {
-      const fy = row.fiscal_year ?? row.year;
-      const amount =
-        Number(row.total_budgetary_resources ?? row.budgetary_resources_amount ?? row.amount ?? 0);
-      if (fy == null) continue;
-      byFiscalYear[String(fy)] = (byFiscalYear[String(fy)] || 0) + amount;
-    }
-    sendJson(res, 200, { agencyCode, byFiscalYear });
+    const payload = await fetchUsaspendingAgencyBudget(agencyCode);
+    if (!payload) throw new Error(`usaspending_agency_budget_unavailable`);
+    sendJson(res, 200, payload);
   } catch (e) {
     sendJson(res, 502, { error: e.message || String(e) });
   }
@@ -10032,6 +10683,12 @@ function decorateBill(bill) {
 }
 
 function normalizeLiveCongressBill(bill) {
+  const ref = {
+    congress: String(bill.congress),
+    type: String(bill.type || "hr").toLowerCase(),
+    number: String(bill.number)
+  };
+  const canonicalId = congressRefToBillId(ref) || `${bill.type}.${bill.number}-${bill.congress}`;
   const actionText = `${bill.latestAction?.text || ""} ${bill.title || ""}`.toLowerCase();
   let status = "introduced";
   if (actionText.includes("became public law") || actionText.includes("signed by president")) status = "passed";
@@ -10047,7 +10704,7 @@ function normalizeLiveCongressBill(bill) {
   const tickers = inferTickers(bill.title);
   const tags = inferTags(bill.title);
   return {
-    id: `${bill.type}.${bill.number}-${bill.congress}`,
+    id: canonicalId,
     title: bill.title,
     shortTitle: bill.title,
     chamber,

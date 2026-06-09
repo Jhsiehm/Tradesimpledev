@@ -952,3 +952,105 @@ export async function aiThesisHandler(req, res) {
     return jsonResp(res, 400, { error: err.message || "thesis_analysis_failed" });
   }
 }
+
+const BRIEF_SUMMARY_CACHE_DIR = join(DATA_DIR, "cache", "brief-summaries");
+const briefSummaryMem = new Map();
+const BRIEF_SUMMARY_TTL_MS = Number(process.env.BRIEF_SUMMARY_TTL_MS || 86_400_000);
+
+function briefSummaryCacheKey(kind, payload) {
+  if (kind === "bill") {
+    const bill = payload.bill || {};
+    return `bill:${payload.billId || bill.id}:${bill.latestActionDate || "none"}`;
+  }
+  const awards = payload.awards || [];
+  const hashParts = awards
+    .slice(0, 5)
+    .map((a) => `${a.awardId || a.internalId || ""}:${a.obligatedAmount || 0}`)
+    .join("|");
+  return `contract:${payload.symbol}:${payload.awardCount || 0}:${hashParts}`;
+}
+
+async function readBriefSummaryCache(cacheKey) {
+  const mem = briefSummaryMem.get(cacheKey);
+  if (mem && Date.now() - mem.fetchedAt < BRIEF_SUMMARY_TTL_MS) return mem.text;
+  try {
+    const raw = await readFile(join(BRIEF_SUMMARY_CACHE_DIR, `${safeBriefCacheName(cacheKey)}.json`), "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed?.text || !parsed.fetchedAt) return null;
+    if (Date.now() - new Date(parsed.fetchedAt).getTime() > BRIEF_SUMMARY_TTL_MS) return null;
+    briefSummaryMem.set(cacheKey, { text: parsed.text, fetchedAt: Date.now() });
+    return parsed.text;
+  } catch {
+    return null;
+  }
+}
+
+async function writeBriefSummaryCache(cacheKey, text) {
+  briefSummaryMem.set(cacheKey, { text, fetchedAt: Date.now() });
+  try {
+    await mkdir(BRIEF_SUMMARY_CACHE_DIR, { recursive: true });
+    await writeFile(
+      join(BRIEF_SUMMARY_CACHE_DIR, `${safeBriefCacheName(cacheKey)}.json`),
+      JSON.stringify({ fetchedAt: new Date().toISOString(), text }),
+      "utf8"
+    );
+  } catch {
+    /* disk cache optional */
+  }
+}
+
+function safeBriefCacheName(key) {
+  return String(key).replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 180);
+}
+
+/** Cached plain-English share-page summary — Haiku only, no call unless cache miss. */
+export async function runShareBriefSummary({ kind, payload, rateLimitKey, checkRateLimit }) {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  const cacheKey = briefSummaryCacheKey(kind, payload);
+  const cached = await readBriefSummaryCache(cacheKey);
+  if (cached) return { text: cached, cached: true, cacheKey };
+
+  if (typeof checkRateLimit === "function" && rateLimitKey) {
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) return null;
+  }
+
+  let user = "";
+  if (kind === "bill") {
+    const bill = payload.bill || {};
+    user = [
+      `Bill: ${bill.displayId || payload.billId}`,
+      `Title: ${bill.title || bill.shortTitle || ""}`,
+      `Status: ${bill.status || ""}`,
+      `Latest action (${bill.latestActionDate || "n/a"}): ${bill.latestAction || ""}`,
+      `Sponsor: ${bill.sponsor?.name || ""} (${bill.sponsor?.party || ""}-${bill.sponsor?.state || ""})`,
+      `Affected tickers: ${(bill.affected || []).join(", ") || "none mapped"}`,
+      `Momentum: ${payload.breakdown?.legislativeMomentum?.score ?? "n/a"}/100`,
+      `Signal: ${bill.signal || bill.plainEnglish || ""}`
+    ].join("\n");
+  } else {
+    const c = payload.causality || {};
+    user = [
+      `Symbol: ${payload.symbol}`,
+      `Company: ${payload.company}`,
+      `Awards loaded: ${payload.awardCount || 0}`,
+      `Total obligated: ${payload.totalObligated || 0}`,
+      `Archetype: ${c.archetype || "generic USASpending"}`,
+      `Plain English: ${c.plainEnglish || ""}`,
+      `Top award agencies: ${(payload.awards || []).slice(0, 3).map((a) => a.awardingAgency).filter(Boolean).join(", ")}`
+    ].join("\n");
+  }
+
+  const system = `You write 2-3 sentence plain-English brief summaries for TradeSimple share pages.
+Use only the facts provided. No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
+  const text = await fetchAnthropic({
+    system,
+    user: `Summarize this ${kind} brief for a curious retail investor:\n\n${user}`,
+    maxTokens: 220,
+    model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"
+  });
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+  await writeBriefSummaryCache(cacheKey, trimmed);
+  return { text: trimmed, cached: false, cacheKey };
+}

@@ -67,7 +67,8 @@ async function loadBillCard() {
     document.title = `${title} | TradeSimple bill brief`;
     renderApp();
   } catch (err) {
-    root.innerHTML = errorSection(state.billId, err.message || "Could not load this bill.");
+    const body = err.body || {};
+    root.innerHTML = errorSection(state.billId, err.message || "Could not load this bill.", body);
   }
 }
 
@@ -216,10 +217,13 @@ function stepBillHtml(bill, data) {
   const prov = provenanceLabel(bill);
   const status = data.statusInfo || {};
   const oneLiner = bill.plainEnglish || bill.signal || (bill.title !== bill.shortTitle ? bill.title : "") || "";
+  const ai = data.aiSummary?.text
+    ? `<p class="bill-guided-lede bill-ai-lede">${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI summary · from live bill data</p>`
+    : "";
   return `
     <p class="bill-card-id mono">${escapeHtml(bill.displayId || bill.id || state.billId)}</p>
     <h1 class="bill-guided-title">${escapeHtml(bill.shortTitle || bill.title || state.billId)}</h1>
-    ${oneLiner ? `<p class="bill-guided-lede">${escapeHtml(oneLiner)}</p>` : ""}
+    ${ai || (oneLiner ? `<p class="bill-guided-lede">${escapeHtml(oneLiner)}</p>` : "")}
     <div class="bill-card-badges">
       <span class="dossier-stamp ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
       <span class="dossier-chip mono">${escapeHtml(status.label || bill.status || "Status")}</span>
@@ -549,6 +553,7 @@ function renderFullBrief(data) {
         </div>
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || data.methodologyDisclaimer || "")}</p>
       </header>
+      ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2><p>${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI synthesis from live bill data</p></section>` : ""}
 
       ${legislativeTimelineSection(leg, bill, status)}
       <section class="bill-card-grid">
@@ -774,27 +779,39 @@ function formatShortDate(value) {
   return new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function errorSection(id, message) {
+function errorSection(id, message, body = {}) {
+  const known =
+    Array.isArray(body.knownBillIds) && body.knownBillIds.length
+      ? `<p class="muted">Curated bills on this server:</p><ul class="bill-known-list">${body.knownBillIds
+          .map((bid) => `<li><a href="/bill/${encodeURIComponent(bid)}">${escapeHtml(bid)}</a></li>`)
+          .join("")}</ul>`
+      : "";
+  const congressNote = body.congressKeyRequired
+    ? `<p class="muted">Arbitrary bill IDs require <code>CONGRESS_API_KEY</code> on the server (Railway Variables).</p>`
+    : "";
   return `
     <section class="stock-card-error">
       <span class="mini-label">Bill unavailable</span>
       <h1>${escapeHtml(id)}</h1>
       <p>${escapeHtml(message)}</p>
+      ${congressNote}
+      ${known}
       <a class="card-button" href="/dashboard?view=bills">Open bills dashboard</a>
     </section>`;
 }
 
 async function fetchJson(url) {
   const res = await fetch(url);
+  let body = {};
+  try {
+    body = await res.json();
+  } catch (_) {}
   if (!res.ok) {
-    let msg = `${res.status}`;
-    try {
-      const body = await res.json();
-      msg = body.message || body.error || msg;
-    } catch (_) {}
-    throw new Error(msg);
+    const err = new Error(body.message || body.error || `${res.status}`);
+    err.body = body;
+    throw err;
   }
-  return res.json();
+  return body;
 }
 
 function freshnessText(value) {

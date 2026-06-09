@@ -104,8 +104,10 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 |----------|-------|
 | `APP_URL` | Auto from `RAILWAY_PUBLIC_DOMAIN` if unset |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth (if re-enabled) |
-| `FINNHUB_API_KEY` | Live quotes |
-| `ANTHROPIC_API_KEY` | Server-side AI |
+| `FINNHUB_API_KEY` | Live quotes on Markets tab and stock briefs |
+| `CONGRESS_API_KEY` | **Required for arbitrary `/bill/H.R.xxxx-119` briefs** — without it only curated seed bills load |
+| `SENATE_LDA_API_KEY` | Live lobbying overlays on bill briefs |
+| `ANTHROPIC_API_KEY` | Optional Haiku plain-English synthesis on bill/contract share pages (cached; not used on landing rotation) |
 | `ADMIN_SECRET` | Protects `/api/admin/waitlist` via `x-admin-secret` header |
 
 Demo sessions (`demo-*` user IDs) always use local JSON files — they never write to Supabase.
