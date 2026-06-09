@@ -630,6 +630,16 @@ const CONTRACT_COMPANY_NAMES = {
   PLTR: "Palantir Technologies"
 };
 
+/** Extra USASpending search names for tickers that do not match a federal recipient keyword. */
+const CONTRACT_SEARCH_HINTS = {
+  NOC: "Northrop Grumman",
+  GD: "General Dynamics",
+  HII: "Huntington Ingalls",
+  LHX: "L3Harris Technologies",
+  BA: "Boeing",
+  RTX: "RTX Corporation"
+};
+
 function buildContractWatchlist() {
   return Object.keys(CONTRACT_PROFILES).map((symbol) => ({
     symbol,
@@ -3519,8 +3529,10 @@ async function buildBillSharePayload(billIdRaw) {
   const breakdown = computeBillMetricBreakdown(merged);
   const statusInfo = statusInfoForBill(merged);
   const canonicalId = merged.id;
+  const live = Boolean(merged.exactCongressRecord || merged._dynamicCongressBill);
   return {
     billId: canonicalId,
+    live,
     bill: detail,
     statusInfo,
     breakdown,
@@ -3710,7 +3722,12 @@ function contractCausalitySnapshot(symbol) {
 }
 
 function resolveContractCompanyName(symbol) {
-  return CONTRACT_COMPANY_NAMES[symbol] || FUNDAMENTALS[symbol]?.name || symbol;
+  return (
+    CONTRACT_COMPANY_NAMES[symbol] ||
+    CONTRACT_SEARCH_HINTS[symbol] ||
+    FUNDAMENTALS[symbol]?.name ||
+    symbol
+  );
 }
 
 function findRelatedBillsForSymbol(symbol) {
