@@ -214,6 +214,7 @@
     var signalLabel = qs("#terminal-signal-label");
     var signalHeadline = qs("#terminal-signal-headline");
     var tagDetailEl = qs("#terminal-tag-detail");
+    var signalFreshness = qs("#terminal-signal-freshness");
     var confidenceText = qs("#terminal-confidence-text");
     var confidenceFill = qs("#terminal-confidence-fill");
     var cinematicVideoToggle = qs("#cinematic-video-toggle");
@@ -276,7 +277,7 @@
 
     /* ── Hero video ── */
     if (video) {
-      if (prefersReducedMotion || isMobile) {
+      if (prefersReducedMotion) {
         video.pause();
         video.removeAttribute("autoplay");
       } else {
@@ -293,6 +294,26 @@
           else video.play().catch(function () {});
         });
       }
+    }
+
+    /* ── Autoplay nudge: iOS/Safari can ignore the autoplay attribute, so
+       force muted playback via JS and retry once on first user interaction ── */
+    if (!prefersReducedMotion) {
+      var nudgeAutoplayVideos = function () {
+        if (document.body.classList.contains("ts-video-paused")) return;
+        qsa(".ts-hero-video, .cinema-frame video").forEach(function (clip) {
+          clip.muted = true;
+          if (clip.paused) clip.play().catch(function () {});
+        });
+      };
+      nudgeAutoplayVideos();
+      var retryAutoplayOnce = function () {
+        document.removeEventListener("touchstart", retryAutoplayOnce);
+        document.removeEventListener("click", retryAutoplayOnce);
+        nudgeAutoplayVideos();
+      };
+      document.addEventListener("touchstart", retryAutoplayOnce, { once: true, passive: true });
+      document.addEventListener("click", retryAutoplayOnce, { once: true });
     }
 
     /* ── Cinematic media controls ── */
@@ -707,6 +728,7 @@
       }
       if (signalHeadline) signalHeadline.textContent = preset.signal;
       if (tagDetailEl) tagDetailEl.textContent = preset.tagDetail;
+      if (signalFreshness) signalFreshness.textContent = "Illustrative example · demo briefing";
       if (confidenceText) confidenceText.textContent = preset.confidence + "/100";
       animateConfidence(preset.confidence);
       setChainText(preset.chain, animate !== false);

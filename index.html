@@ -28,7 +28,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=signup-flow-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=signal-freshness-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -471,7 +471,7 @@ footer nav a:hover{color:var(--text)}
 
 <section class="ts-hero" id="top">
   <div class="ts-hero-media" aria-hidden="true">
-    <video class="ts-hero-video" muted loop playsinline poster="assets/media/hero/tradesimple-hero-poster.svg"></video>
+    <video class="ts-hero-video" autoplay muted loop playsinline webkit-playsinline poster="assets/media/hero/tradesimple-hero-poster.svg"></video>
     <div class="ts-hero-poster"></div>
     <div class="ts-hero-dark-overlay"></div>
     <div class="ts-hero-gradient-overlay"></div>
@@ -610,19 +610,19 @@ footer nav a:hover{color:var(--text)}
     <div class="ts-hero-visual">
       <div class="ts-cinematic-wall" aria-label="Cinematic intelligence wall">
         <figure class="cinema-frame frame-bridge">
-          <video autoplay loop muted playsinline>
+          <video autoplay loop muted playsinline webkit-playsinline>
             <source src="https://assets.mixkit.co/videos/22953/22953-720.mp4" type="video/mp4"/>
           </video>
           <figcaption>CAM-01_NYC_TRANSIT</figcaption>
         </figure>
         <figure class="cinema-frame frame-city">
-          <video autoplay loop muted playsinline>
+          <video autoplay loop muted playsinline webkit-playsinline>
             <source src="https://assets.mixkit.co/videos/11712/11712-720.mp4" type="video/mp4"/>
           </video>
           <figcaption>CAM-02_NYC_SKYLINE</figcaption>
         </figure>
         <figure class="cinema-frame frame-street">
-          <video autoplay loop muted playsinline>
+          <video autoplay loop muted playsinline webkit-playsinline>
             <source src="https://assets.mixkit.co/videos/4194/4194-720.mp4" type="video/mp4"/>
           </video>
           <figcaption>CAM-03_NYC_STREET</figcaption>
@@ -677,6 +677,7 @@ footer nav a:hover{color:var(--text)}
               </div>
               <div class="terminal-signal" id="terminal-signal-panel">
                 <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
+                <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
                 <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
                 <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
                 <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
@@ -1126,6 +1127,24 @@ function hydrateLandingTicker(){
 }
 
 function hydrateLandingSignal(){
+  function relativeAge(ts,verb){
+    var t=Date.parse(ts||'');
+    if(!isFinite(t))return '';
+    var hrs=Math.floor((Date.now()-t)/36e5);
+    if(hrs<1) return verb+' just now';
+    if(hrs<24) return verb+' '+hrs+'h ago';
+    return verb+' '+Math.floor(hrs/24)+'d ago';
+  }
+  function freshnessText(d){
+    if(d.mode==='daily'){
+      var dt=d.date?new Date(d.date+'T12:00:00Z'):new Date();
+      var txt='Signal of the day · '+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var age=d.latestActionDate?relativeAge(d.latestActionDate,'latest action'):relativeAge(d.pickedAt,'updated');
+      if(age)txt+=' · '+age;
+      return txt;
+    }
+    return 'Illustrative example · rotates every 30s';
+  }
   function updateSignal(d){
     if(!d)return;
     var label=document.getElementById('terminal-signal-label');
@@ -1133,7 +1152,9 @@ function hydrateLandingSignal(){
     var chain=document.getElementById('terminal-signal-chain');
     var confText=document.getElementById('terminal-confidence-text');
     var confFill=document.getElementById('terminal-confidence-fill');
+    var fresh=document.getElementById('terminal-signal-freshness');
     if(label) label.textContent=d.label||label.textContent;
+    if(fresh) fresh.textContent=freshnessText(d);
     if(headline) headline.textContent=d.headline||headline.textContent;
     if(chain){ chain.textContent=''; chain.setAttribute('data-full-text',d.chain||'');
       // Restart the typewriter if the cinematic script has that function
@@ -1167,6 +1188,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=soundtrack-wall-1" defer></script>
+<script src="assets/landing-cinematic.js?v=signal-freshness-1" defer></script>
 </body>
 </html>
