@@ -56,6 +56,7 @@
         <nav class="side-nav" aria-label="Terminal sections">
           <button class="nav-item active" data-view="overview">Home</button>
           <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
+          <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
           <button class="nav-item" data-view="lobbying">Lobbying</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
@@ -111,13 +112,11 @@
       </section>
       <section class="terminal-start-note" aria-label="Terminal start instructions">
         <strong>Start here:</strong>
-        <span>Build a one-sentence thesis in Thesis Lab, then use Bills, Markets, and Contracts to collect evidence before placing a paper trade.</span>
+        <span>Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.</span>
       </section>
 
       <main class="workspace">
         <section class="view active dashboard-overview-view" id="view-overview">
-          <!-- Today's Top Signal — injected by app.js renderTopSignal() -->
-          <div id="overview-top-signal" class="overview-top-signal" hidden></div>
           <section class="portfolio-command portfolio-command-hero">
             <div class="portfolio-command-copy">
               <h1>Know what can move your money before the move.</h1>
@@ -129,7 +128,7 @@
               <section class="research-journey-strip" id="research-journey-strip" aria-label="Recommended research path"></section>
               <div class="portfolio-command-actions">
                 <button class="button button-secondary" data-view-jump="analysis">Analyze holdings</button>
-                <button class="button button-ghost" data-view-jump="bills">LegisAlert</button>
+                <button class="button button-ghost" data-view-jump="signals">Signals desk</button>
                 <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
               </div>
             </div>
@@ -147,12 +146,12 @@
           </section>
 
           <div class="overview-metrics-strip" role="list" aria-label="Portfolio metrics">
-            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open portfolio policy exposure">
+            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
               <span class="overview-metric-label">Policy heat</span>
               <strong class="overview-metric-value amber" id="stat-policy-exposure">—</strong>
               <small class="overview-metric-sub" id="stat-policy-exposure-sub">Legislative momentum vs holdings</small>
             </article>
-            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open mapped bills">
+            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
               <span class="overview-metric-label">Mapped bills</span>
               <strong class="overview-metric-value" id="stat-bill-count">—</strong>
               <small class="overview-metric-sub" id="stat-bill-momentum">Legislative momentum (max /100)</small>
@@ -169,37 +168,13 @@
             </article>
           </div>
 
-          <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
-            <div class="panel-head panel-head-quiet">
-              <h2>Signal chain</h2>
-              <span>Featured policy path · bills and contracts</span>
-            </div>
-            <div id="signal-chain-feed" class="signal-chain-feed"></div>
-            <div class="signal-chain-footer" id="signal-chain-footer" hidden>
-              <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
-            </div>
-          </section>
-
-          <details class="panel-fold overview-feeds-fold">
-            <summary class="panel-fold-summary">Live feeds &amp; catalyst queue</summary>
-            <div class="panel-fold-body">
-          <section class="panel panel-compact live-alert-panel" aria-live="polite">
+          <section class="panel panel-compact signals-desk-cta" id="overview-signals-cta">
             <div class="panel-head">
-              <h2>Live signal tape</h2>
-              <span id="live-alert-updated">Waiting for feeds</span>
+              <h2>Signals desk</h2>
+              <button type="button" class="link-button" data-view-jump="signals">Open signals →</button>
             </div>
-            <div id="live-alerts" class="live-alerts"></div>
+            <p class="help-copy muted">Policy catalysts, conviction scans, and the live alert tape live on a dedicated page — separate from portfolio Home.</p>
           </section>
-
-          <section class="panel panel-compact policy-catalyst-panel">
-            <div class="panel-head">
-              <h2>Congress catalyst queue</h2>
-              <span id="policy-catalyst-source">Waiting</span>
-            </div>
-            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
-          </section>
-            </div>
-          </details>
 
           <details class="panel-fold overview-mood-fold">
             <summary class="panel-fold-summary">Market mood readout</summary>
@@ -263,37 +238,69 @@
             </section>
           </div>
 
-          <div class="two-column">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Holdings and policy exposure</h2>
-                <span id="holdings-updated">Waiting</span>
-              </div>
-              <div class="table-wrap">
-                <table class="terminal-table">
-                  <thead>
-                    <tr>
-                      <th>Asset</th>
-                      <th class="num">Shares</th>
-                      <th class="num">Price</th>
-                      <th class="num">Value</th>
-                      <th class="num">Today</th>
-                      <th>Policy signal</th>
-                    </tr>
-                  </thead>
-                  <tbody id="holdings-body"></tbody>
-                </table>
-              </div>
-            </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Holdings and policy exposure</h2>
+              <span id="holdings-updated">Waiting</span>
+            </div>
+            <div class="table-wrap">
+              <table class="terminal-table">
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th class="num">Shares</th>
+                    <th class="num">Price</th>
+                    <th class="num">Value</th>
+                    <th class="num">Today</th>
+                    <th>Policy signal</th>
+                  </tr>
+                </thead>
+                <tbody id="holdings-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
 
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Highest-conviction signals</h2>
-                <button class="link-button" data-view-jump="bills">All bills</button>
-              </div>
-              <div id="signal-list" class="stack-list"></div>
-            </section>
+        <section class="view terminal-view" id="view-signals">
+          <div class="page-header">
+            <div>
+              <h1>Signals</h1>
+              <p>Congressional catalysts, conviction-ranked policy chains, and the live alert tape — separate from portfolio Home.</p>
+            </div>
+            <span class="status-pill" id="signals-source">Connecting</span>
           </div>
+          <div id="signals-top-signal" class="overview-top-signal" hidden></div>
+          <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
+            <div class="panel-head panel-head-quiet">
+              <h2>Signal chain</h2>
+              <span>Featured policy path · bills and contracts</span>
+            </div>
+            <div id="signal-chain-feed" class="signal-chain-feed"></div>
+            <div class="signal-chain-footer" id="signal-chain-footer" hidden>
+              <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
+            </div>
+          </section>
+          <section class="panel panel-compact live-alert-panel" aria-live="polite">
+            <div class="panel-head">
+              <h2>Live signal tape</h2>
+              <span id="live-alert-updated">Waiting for feeds</span>
+            </div>
+            <div id="live-alerts" class="live-alerts"></div>
+          </section>
+          <section class="panel panel-compact policy-catalyst-panel">
+            <div class="panel-head">
+              <h2>Congress catalyst queue</h2>
+              <span id="policy-catalyst-source">Waiting</span>
+            </div>
+            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Highest-conviction signals</h2>
+              <button type="button" class="link-button" data-view-jump="bills">Browse all bills</button>
+            </div>
+            <div id="signal-list" class="stack-list"></div>
+          </section>
         </section>
 
         <section class="view terminal-view" id="view-markets">
@@ -591,6 +598,13 @@
           </div>
           <div class="filter-row">
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
+            <label class="filter-select-wrap">
+              <span class="sr-only">Sort bills</span>
+              <select id="bill-sort" aria-label="Sort bills">
+                <option value="recent" selected>Most recent first</option>
+                <option value="momentum">Highest momentum</option>
+              </select>
+            </label>
             <button class="button button-secondary compact" id="clear-bill-filter">Clear</button>
           </div>
           <section class="panel panel-emphasis bill-catalyst-panel">

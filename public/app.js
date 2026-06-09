@@ -21,6 +21,7 @@ const FEATURE_GATES = {
 const VIEW_FEATURE_GATES = {
   overview: "THESIS_ENABLED",
   thesis: "THESIS_ENABLED",
+  signals: "BILLS_EXPLORER_ENABLED",
   trade: "PAPER_TRADING_ENABLED",
   bills: "BILLS_EXPLORER_ENABLED",
   contracts: "CONTRACTS_ANALYZER_ENABLED",
@@ -351,6 +352,20 @@ function formatBillAnalogText(bill) {
 
 function billMomentum(bill) {
   return Number(bill?.legislativeMomentum ?? bill?.passageOdds ?? 0);
+}
+
+function billActionTimestamp(bill) {
+  const raw = bill?.latestActionDate || bill?.introduced || bill?.updatedAt || "";
+  const t = Date.parse(String(raw));
+  return Number.isFinite(t) ? t : 0;
+}
+
+function sortBillsForTable(bills, mode = state.billSort || "recent") {
+  const list = [...(bills || [])];
+  if (mode === "momentum") {
+    return list.sort((a, b) => billMomentum(b) - billMomentum(a));
+  }
+  return list.sort((a, b) => billActionTimestamp(b) - billActionTimestamp(a));
 }
 
 function billConfidenceLabel(bill) {
@@ -856,6 +871,7 @@ function activateDrilldown(data) {
   if (action === "analysis") return openTickerAnalysis(data.symbol);
   if (action === "trade") return openTradeForSymbol(data.symbol || state.tradeSymbol);
   if (action === "bills") return openBillsDrilldown(data.billId || data.filter || "");
+  if (action === "signals") return showView("signals");
   if (action === "contracts") return openContractsDrilldown(data.company || data.symbol || "");
   if (action === "source" && data.url) return window.open(data.url, "_blank", "noopener,noreferrer");
   if (action === "view" && data.viewName) return showView(data.viewName);
@@ -1437,7 +1453,8 @@ const state = {
   dashboardBootstrap: null,
   watchlistSymbols: [],
   dataHealth: null,
-  _symbolFromUrl: false
+  _symbolFromUrl: false,
+  billSort: "recent"
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1775,6 +1792,7 @@ function renderSourceBadges() {
   updateSourceBadge("#market-source", "market");
   updateSourceBadge("#crypto-source", "crypto");
   updateSourceBadge("#bill-source", "bills");
+  updateSourceBadge("#signals-source", "bills");
   updateSourceBadge("#lobby-source", "lobbying");
   updateSourceBadge("#account-source", "account");
   updateSourceBadge("#contracts-source", "contracts");
@@ -2147,13 +2165,11 @@ async function refreshPolicyFeed({ render = true } = {}) {
   if (render) {
     renderSourceBadges();
     renderOverview();
-    renderTopSignal();
-    renderPolicyCatalysts();
+    renderSignalsDesk();
     if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
     populateFundBillPicker();
     if (isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) renderLobbying();
     if (state.analysis) renderAnalysis();
-    renderLiveAlerts();
   }
   return { bills, lobbying };
 }
@@ -2194,7 +2210,7 @@ function renderTerminalData() {
   renderTape();
   thesisUpdateQuoteTrustUi();
   renderOverview();
-  renderTopSignal();
+  renderSignalsDesk();
   renderMarkets();
   renderCrypto();
   renderBills();
@@ -2433,18 +2449,29 @@ function renderOverview() {
       : "No filings loaded yet";
   }
 
-  $("#signal-list").innerHTML = policyBills()
-    .slice()
-    .sort((a, b) => billMomentum(b) - billMomentum(a))
-    .slice(0, 4)
-    .map(signalCard)
-    .join("");
   renderPortfolioDashboard(positions, equity, returnPct, dayChange);
   renderWatchlistStrip();
   renderMarketMood();
-  renderPolicyCatalysts();
-  renderSignalFeed();
   renderResearchJourney();
+}
+
+function renderSignalsConvictionList() {
+  const el = $("#signal-list");
+  if (!el) return;
+  el.innerHTML = policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a))
+    .slice(0, 8)
+    .map(signalCard)
+    .join("");
+}
+
+function renderSignalsDesk() {
+  renderTopSignal();
+  renderSignalFeed();
+  renderPolicyCatalysts();
+  renderSignalsConvictionList();
+  renderLiveAlerts();
 }
 
 function renderResearchJourney() {
@@ -2453,7 +2480,7 @@ function renderResearchJourney() {
   const sym = state.activeAnalysisSymbol || "NVDA";
   const steps = [
     { n: 1, title: "Thesis", desc: "Write your view & map signals", view: "thesis", cta: "Thesis Lab" },
-    { n: 2, title: "Bills", desc: "Legislative momentum & stages", view: "bills", cta: "Bills" },
+    { n: 2, title: "Signals", desc: "Conviction scans & catalyst queue", view: "signals", cta: "Signals" },
     { n: 3, title: "Lobbying", desc: "Who is spending on which issues", view: "lobbying", cta: "Lobbying" },
     { n: 4, title: "Contracts", desc: "Federal award exposure", view: "contracts", cta: "Contracts" },
     { n: 5, title: "Analysis", desc: `Deep dive · ${sym}`, view: "analysis", cta: sym }
@@ -3090,7 +3117,7 @@ function renderBills() {
     feed.innerHTML = `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`;
     return;
   }
-  feed.innerHTML = bills.map((bill) => {
+  feed.innerHTML = sortBillsForTable(bills).map((bill) => {
     const tickerLinks = (bill.affected || [])
       .map((ticker) => `<span class="ticker-inline-chip">${escapeHtml(ticker)}${shareCardLink(ticker, "Card")}</span>`)
       .join("");
@@ -4263,7 +4290,7 @@ function topSignalTrustMarkup(top, bills) {
 }
 
 function renderTopSignal() {
-  const el = $("#overview-top-signal");
+  const el = $("#signals-top-signal");
   if (!el) return;
   const bills = policyBills().filter((b) => !b.scenarioOnly && b.affected?.length);
   if (!bills.length) return;
@@ -4295,7 +4322,7 @@ function renderTopSignal() {
         </div>
         <div class="top-signal-actions">
           <button type="button" class="button button-secondary" data-ask-why="${escapeHtml(top.id)}">Ask AI why →</button>
-          <button type="button" class="button button-ghost" data-show-view="bills">All signals</button>
+          <button type="button" class="button button-ghost" data-show-view="signals">All signals</button>
         </div>
       </div>
       ${topSignalTrustMarkup(top, bills)}
@@ -5572,6 +5599,7 @@ function buildNavigation() {
   const navItems = [
     { id: "overview", label: "Home", enabled: isViewEnabled("overview") },
     { id: "thesis", label: "Thesis Lab", enabled: isViewEnabled("thesis") },
+    { id: "signals", label: "Signals", enabled: isViewEnabled("signals") },
     { id: "trade", label: "Account", enabled: isViewEnabled("trade") },
     { id: "bills", label: "Bills", enabled: isViewEnabled("bills") },
     { id: "lobbying", label: "Lobbying", enabled: isViewEnabled("lobbying") },
@@ -5717,6 +5745,9 @@ function showView(view, updateUrl = true) {
       renderMarkets(); // already have quotes, just re-render
     }
   }
+  if (view === "signals" && isViewEnabled("signals")) {
+    renderSignalsDesk();
+  }
   if (view === "bills" && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) {
     if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
   }
@@ -5803,6 +5834,14 @@ function setupFilters() {
     $("#bill-filter").value = "";
     renderBills();
   });
+  const billSort = $("#bill-sort");
+  if (billSort) {
+    billSort.value = state.billSort || "recent";
+    billSort.addEventListener("change", () => {
+      state.billSort = billSort.value || "recent";
+      renderBills();
+    });
+  }
   $("#terminal-search").addEventListener("input", (event) => {
     const query = event.target.value.trim().toUpperCase();
     if (!query) return;

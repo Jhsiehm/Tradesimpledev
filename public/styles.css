@@ -1316,7 +1316,17 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
   }
 }
 
-.filter-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.filter-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: stretch; flex-wrap: wrap; }
+.filter-row select {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+.filter-select-wrap { display: flex; align-items: center; }
 .bill-feed { display: grid; gap: 12px; }
 .bill-card { border-left: 3px solid var(--amber); }
 .bill-card.high { border-left-color: var(--green); }
