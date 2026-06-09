@@ -2186,6 +2186,8 @@ function featureComingSoonPage(featureName) {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="icon" type="image/png" href="/favicon.png"/>
+  <link rel="apple-touch-icon" href="/favicon.png"/>
   <title>Coming Soon | TradeSimple</title>
   <style>
     body {
@@ -2243,10 +2245,7 @@ async function route(req, res) {
   const pathname = url.pathname;
 
   if (pathname === "/") return sendLandingIndex(res);
-  if (pathname === "/favicon.ico") {
-    res.writeHead(204, responseHeaders({ "cache-control": "public, max-age=86400" }));
-    return res.end();
-  }
+  if (pathname === "/favicon.ico") return sendStatic(res, "favicon.png");
   if (pathname === "/dashboard") {
     const session = getSession(req);
     if (!session) {
@@ -2494,6 +2493,7 @@ async function route(req, res) {
 function sendDetailRouteHelp(res, pathname) {
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="icon" type="image/png" href="/favicon.png"/><link rel="apple-touch-icon" href="/favicon.png"/>
 <title>Restart required | TradeSimple</title>
 <style>body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e8e6e0;padding:2rem;max-width:40rem;margin:auto}code{background:#1a1a1a;padding:.15rem .35rem;border-radius:4px}a{color:#5bbf82}</style>
 </head><body>
@@ -3185,6 +3185,8 @@ function publicStockCard(res, pathname, { head = false } = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <title>${escapeHtmlText(title)}</title>
     <meta name="description" content="${escapeHtmlText(description)}" />
     <meta property="og:type" content="website" />
@@ -3290,6 +3292,8 @@ function publicBillCard(res, pathname, { head = false } = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <title>${escapeHtmlText(title)}</title>
     <meta name="description" content="${escapeHtmlText(description)}" />
     <meta property="og:title" content="${escapeHtmlText(title)}" />
@@ -3490,6 +3494,8 @@ function publicContractCard(res, pathname, { head = false } = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <title>${escapeHtmlText(title)}</title>
     <meta name="description" content="${escapeHtmlText(description)}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -3618,6 +3624,8 @@ function publicLobbyCard(res, pathname, { head = false } = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <title>${escapeHtmlText(title)}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
