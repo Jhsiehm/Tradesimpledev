@@ -868,7 +868,7 @@ footer nav a:hover{color:var(--text)}
       <label for="access-email">Join the signal list</label>
       <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
       <button class="ts-primary-cta" type="submit" id="wl-submit">Request dispatch</button>
-      <p class="wl-status" id="wl-status">The signal will reach you before it reaches the market.</p>
+      <p class="wl-status" id="wl-status">Join the dispatch list — we'll reach you before the headline.</p>
       <div class="access-checklist" aria-label="Access path">
         <span>1. Open demo terminal</span>
         <span>2. Review a source chain</span>
@@ -1077,20 +1077,30 @@ function initScrollReveal(){
 /* ── WAITLIST ── */
 function handleWL(e){
   e.preventDefault();
+  var form=e.target;
   var btn=document.getElementById('wl-submit');
   var st=document.getElementById('wl-status');
-  var email=e.target.querySelector('input').value;
+  var input=form.querySelector('input[type="email"]');
+  var email=(input&&input.value||'').trim();
+  if(!email||btn.disabled)return;
   btn.style.opacity='.6';
   btn.disabled=true;
-  fetch(tsApiUrl('/api/waitlist'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
-    .then(function(r){return r.json()})
-    .catch(function(){return{}})
-    .then(function(){
-      st.textContent='Signal confirmed. You are on the list.';
-      st.style.color='var(--green)';
+  st.style.color='var(--muted)';
+  st.textContent='Sending…';
+  fetch(tsApiUrl('/api/waitlist'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,source:'landing_dispatch'})})
+    .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
+    .catch(function(){return{ok:false,data:{}};})
+    .then(function(result){
+      if(result.ok&&result.data.ok!==false){
+        st.textContent=result.data.message||"You're on the dispatch list. We'll reach you before the headline.";
+        st.style.color='var(--green)';
+        form.reset();
+      }else{
+        st.textContent=result.data.message||'Could not join the dispatch list. Try again in a moment.';
+        st.style.color='var(--red)';
+      }
       btn.style.opacity='1';
       btn.disabled=false;
-      e.target.reset();
     });
 }
 

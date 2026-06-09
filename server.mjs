@@ -3021,12 +3021,52 @@ async function waitlistAdmin(req, res) {
   if (!secret || req.headers["x-admin-secret"] !== secret) {
     return sendJson(res, 401, { error: "unauthorized" });
   }
+  if (dbReady) {
+    const rows = await dbSelect("waitlist", "select=email,source,user_agent,created_at&order=created_at.desc");
+    return sendJson(res, 200, { count: rows?.length || 0, entries: rows || [], source: "supabase" });
+  }
   try {
     const raw = await readFile(WAITLIST_FILE, "utf8").catch(() => "");
     const entries = raw.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-    return sendJson(res, 200, { count: entries.length, entries });
+    return sendJson(res, 200, { count: entries.length, entries, source: "file" });
   } catch {
-    return sendJson(res, 200, { count: 0, entries: [] });
+    return sendJson(res, 200, { count: 0, entries: [], source: "file" });
+  }
+}
+
+async function notifyDispatchSignup(email, source) {
+  const apiKey = String(process.env.RESEND_API_KEY || "").trim();
+  const notifyEmail = String(process.env.DISPATCH_NOTIFY_EMAIL || "").trim();
+  if (!apiKey || !notifyEmail) return;
+
+  const fromEmail = String(process.env.DISPATCH_FROM_EMAIL || "").trim()
+    || "TradeSimple Dispatch <onboarding@resend.dev>";
+
+  try {
+    const response = await fetchWithTimeout("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [notifyEmail],
+        subject: `Dispatch signup: ${email}`,
+        text: [
+          "New TradeSimple dispatch signup",
+          "",
+          `Email: ${email}`,
+          `Source: ${source}`,
+          `Time: ${new Date().toISOString()}`
+        ].join("\n")
+      })
+    }, 8000);
+    if (!response.ok) {
+      console.error("[dispatch-notify] Resend error", response.status, await response.text());
+    }
+  } catch (err) {
+    console.error("[dispatch-notify]", err.message);
   }
 }
 
@@ -3050,18 +3090,21 @@ async function waitlistSignup(req, res) {
     });
   }
 
-  const alreadyMsg = "You're already on the waitlist. We'll send early access details when the private beta opens.";
-  const successMsg = "You're on the waitlist. We'll send early access details when the private beta opens.";
+  const alreadyMsg = "You're already on the dispatch list. We'll reach you before early access opens.";
+  const successMsg = "You're on the dispatch list. We'll reach you before the headline.";
+  const failMsg = "Could not save your email right now. Try again in a moment.";
 
   // ── Supabase path ──────────────────────────────────────────────────────────
   if (dbReady) {
     const existing = await dbSelect("waitlist", `email=eq.${encodeURIComponent(email)}&select=id`);
     if (existing && existing.length > 0) return sendJson(res, 200, { ok: true, message: alreadyMsg });
-    await dbInsert("waitlist", {
+    const inserted = await dbInsert("waitlist", {
       email,
       source,
       user_agent: req.headers["user-agent"] || ""
     });
+    if (!inserted) return sendJson(res, 502, { error: "persist_failed", message: failMsg });
+    notifyDispatchSignup(email, source).catch(() => {});
     return sendJson(res, 200, { ok: true, message: successMsg });
   }
 
@@ -3082,6 +3125,7 @@ async function waitlistSignup(req, res) {
       "utf8"
     )
   );
+  notifyDispatchSignup(email, source).catch(() => {});
   sendJson(res, 200, { ok: true, message: successMsg });
 }
 
