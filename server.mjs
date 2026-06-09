@@ -177,11 +177,40 @@ function authSecretIsInsecure() {
   return INSECURE_AUTH_SECRETS.has(AUTH_SECRET);
 }
 const SESSION_COOKIE = "ts_session";
+const CSRF_COOKIE = "ts_csrf";
 const OAUTH_COOKIE = "ts_oauth";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 65_536);
+const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 10);
+const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+
 function requestIsHttps(req) {
   const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
   return proto === "https" || APP_URL.startsWith("https://");
+}
+
+function clientIp(req) {
+  const trustProxy =
+    process.env.TRUST_PROXY === "true" ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN);
+  if (trustProxy) {
+    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (forwarded) return forwarded;
+  }
+  return req.socket?.remoteAddress || "anon";
+}
+
+function sanitizeRelativePath(raw, fallback = "/dashboard?view=thesis&welcome=1") {
+  const next = String(raw || "").trim();
+  if (!next.startsWith("/") || next.startsWith("//")) return fallback;
+  if (next.includes("\\") || next.includes("\0") || /^\/\\/.test(next)) return fallback;
+  try {
+    const decoded = decodeURIComponent(next);
+    if (decoded.startsWith("//") || /^https?:/i.test(decoded)) return fallback;
+  } catch {
+    return fallback;
+  }
+  return next;
 }
 const BASE_SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
@@ -2007,7 +2036,13 @@ const server = createServer(async (req, res) => {
     await route(req, res);
   } catch (error) {
     console.error(error);
-    sendJson(res, 500, { error: "internal_error", message: "Something broke on the server." });
+    if (error?.message === "body_too_large") {
+      return sendJson(res, 413, { error: "body_too_large", message: "Request body is too large." });
+    }
+    if (error?.message === "invalid_json") {
+      return sendJson(res, 400, { error: "invalid_json", message: "Invalid JSON body." });
+    }
+    sendJson(res, 500, { error: "internal_error", message: "Something went wrong. Please try again." });
   }
 });
 
@@ -2340,7 +2375,12 @@ async function route(req, res) {
     return shareEdgarRiskFactors(res, pathname);
   }
   if (pathname === "/api/session") {
-    return sendJson(res, 200, { user: getSession(req)?.user || null });
+    const session = getSession(req);
+    const cookies = parseCookies(req);
+    if (session && !cookies[CSRF_COOKIE]) {
+      ensureCsrfCookie(res, req);
+    }
+    return sendJson(res, 200, { user: session?.user || null });
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
@@ -2355,6 +2395,7 @@ async function route(req, res) {
   if (pathname === "/auth/callback/apple") return finishOAuth(req, res, "apple", url);
 
   if (pathname === "/robots.txt") return sendStatic(res, "robots.txt");
+  if (pathname === "/.well-known/security.txt") return sendStatic(res, ".well-known/security.txt");
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
 
@@ -2372,6 +2413,10 @@ async function route(req, res) {
   if (pathname.startsWith("/api/")) {
     const session = getSession(req);
     if (!session) return sendJson(res, 401, { error: "unauthorized" });
+
+    if (requiresCsrf(req, pathname) && !validateCsrf(req)) {
+      return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
+    }
 
     if (pathname === "/api/market/quotes") return marketQuotes(res, url);
     if (pathname === "/api/market/history") return marketHistory(res, url);
@@ -8808,8 +8853,7 @@ function localPolicyAnswer(question, name) {
 async function startDemoSession(req, res) {
   if (process.env.DEMO_AUTH === "false") return sendText(res, 403, "Demo auth disabled");
   const url = new URL(req.url || "/", APP_URL);
-  let next = String(url.searchParams.get("next") || "/dashboard?view=thesis&welcome=1").trim();
-  if (!next.startsWith("/")) next = "/dashboard?view=thesis&welcome=1";
+  const next = sanitizeRelativePath(url.searchParams.get("next"));
   // Each visitor gets an isolated demo account — no shared state between concurrent users.
   const demoId = `demo-${randomBytes(8).toString("hex")}`;
   const user = {
@@ -8824,7 +8868,7 @@ async function startDemoSession(req, res) {
 }
 
 function logout(res, req) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`);
+  clearAuthCookies(res, req);
   redirect(res, "/");
 }
 
@@ -8835,15 +8879,24 @@ const ACCOUNTS_FILE = join(DATA_DIR, "accounts.json");
 const authAttempts = new Map();
 
 function authRateLimitOk(req) {
-  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()
-    || req.socket?.remoteAddress || "anon";
-  const now = Date.now(), WIN = 60_000, MAX = 12;
-  const e = authAttempts.get(ip);
-  if (!e || now - e.start > WIN) { authAttempts.set(ip, { start: now, n: 1 }); return true; }
-  if (e.n >= MAX) return false;
-  e.n += 1;
+  const ip = clientIp(req);
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+  if (!entry || now - entry.start > AUTH_RATE_LIMIT_WINDOW_MS) {
+    authAttempts.set(ip, { start: now, n: 1 });
+    return true;
+  }
+  if (entry.n >= AUTH_RATE_LIMIT_MAX) return false;
+  entry.n += 1;
   return true;
 }
+
+setInterval(() => {
+  const cutoff = Date.now() - AUTH_RATE_LIMIT_WINDOW_MS * 2;
+  for (const [ip, entry] of authAttempts) {
+    if (entry.start < cutoff) authAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000);
 
 function hashPassword(password) {
   const saltBuf = randomBytes(16);
@@ -8897,13 +8950,20 @@ async function createAccountRecord(acct) {
 }
 
 async function authSignup(req, res) {
-  if (!authRateLimitOk(req)) return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Wait a minute and try again." });
+  if (!authRateLimitOk(req)) {
+    return sendJson(res, 429, {
+      error: "rate_limited",
+      message: "Too many attempts. Wait 15 minutes and try again."
+    });
+  }
   const body = await readJson(req);
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
-  const name = String(body.name || "").trim() || email.split("@")[0];
+  const name = String(body.name || "").trim().slice(0, 120) || email.split("@")[0];
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return sendJson(res, 400, { error: "invalid_email", message: "Enter a valid email address." });
-  if (password.length < 8) return sendJson(res, 400, { error: "weak_password", message: "Password must be at least 8 characters." });
+  if (password.length < 8 || password.length > 128) {
+    return sendJson(res, 400, { error: "weak_password", message: "Password must be 8–128 characters." });
+  }
   if (await findAccountByEmail(email)) return sendJson(res, 409, { error: "email_taken", message: "An account with this email already exists — try logging in." });
   const user = { id: `usr_${randomBytes(8).toString("hex")}`, name, email, picture: "", provider: "email" };
   try {
@@ -8916,12 +8976,19 @@ async function authSignup(req, res) {
 }
 
 async function authLogin(req, res) {
-  if (!authRateLimitOk(req)) return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Wait a minute and try again." });
+  if (!authRateLimitOk(req)) {
+    return sendJson(res, 429, {
+      error: "rate_limited",
+      message: "Too many attempts. Wait 15 minutes and try again."
+    });
+  }
   const body = await readJson(req);
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
   const acct = await findAccountByEmail(email);
-  if (!acct || !acct.password_hash || !verifyPassword(password, acct.password_hash)) {
+  const hash = acct?.password_hash || "";
+  const ok = hash && verifyPassword(password, hash);
+  if (!acct || !ok) {
     return sendJson(res, 401, { error: "invalid_credentials", message: "Invalid email or password." });
   }
   const user = { id: acct.id, name: acct.name || email.split("@")[0], email, picture: "", provider: "email" };
@@ -8931,7 +8998,7 @@ async function authLogin(req, res) {
 }
 
 function authLogoutApi(res, req) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`);
+  clearAuthCookies(res, req);
   return sendJson(res, 200, { ok: true });
 }
 
@@ -8990,6 +9057,7 @@ async function finishOAuth(req, res, providerName, url) {
   upsertUserProfile(user).catch(() => {});
   res.setHeader("set-cookie", [
     `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`,
+    `${CSRF_COOKIE}=${newCsrfToken()}; ${csrfCookieAttrs(SESSION_TTL_SECONDS, req)}`,
     `${OAUTH_COOKIE}=; ${cookieAttrs(0, req)}`
   ]);
   redirect(res, "/dashboard?view=trade");
@@ -9053,7 +9121,47 @@ function getSession(req) {
 }
 
 function setSessionCookie(res, user, req) {
-  res.setHeader("set-cookie", `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`);
+  res.setHeader("set-cookie", [
+    `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`,
+    `${CSRF_COOKIE}=${newCsrfToken()}; ${csrfCookieAttrs(SESSION_TTL_SECONDS, req)}`
+  ]);
+}
+
+function newCsrfToken() {
+  return b64url(randomBytes(24));
+}
+
+function csrfCookieAttrs(maxAge, req) {
+  const secure = requestIsHttps(req) ? "; Secure" : "";
+  return `Path=/; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+
+function ensureCsrfCookie(res, req, maxAge = SESSION_TTL_SECONDS) {
+  const token = newCsrfToken();
+  res.setHeader("set-cookie", `${CSRF_COOKIE}=${token}; ${csrfCookieAttrs(maxAge, req)}`);
+  return token;
+}
+
+function clearAuthCookies(res, req) {
+  res.setHeader("set-cookie", [
+    `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`,
+    `${CSRF_COOKIE}=; ${csrfCookieAttrs(0, req)}`
+  ]);
+}
+
+function requiresCsrf(req, pathname) {
+  const method = String(req.method || "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+  if (pathname.startsWith("/api/ai/")) return false;
+  return true;
+}
+
+function validateCsrf(req) {
+  const cookies = parseCookies(req);
+  const cookieToken = String(cookies[CSRF_COOKIE] || "");
+  const headerToken = String(req.headers["x-csrf-token"] || "");
+  if (!cookieToken || !headerToken) return false;
+  return safeEqual(cookieToken, headerToken);
 }
 
 function cookieAttrs(maxAge, req) {
@@ -9133,9 +9241,20 @@ function alpacaFetch(path, init = {}) {
 
 async function readJson(req) {
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > MAX_JSON_BODY_BYTES) {
+      throw new Error("body_too_large");
+    }
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new Error("invalid_json");
+  }
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 8000) {
@@ -9988,7 +10107,11 @@ function redirect(res, location) {
 
 function responseHeaders(headers = {}) {
   const merged = { ...BASE_SECURITY_HEADERS, ...headers };
-  if (APP_URL.startsWith("https://")) {
+  if (
+    APP_URL.startsWith("https://") ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PUBLIC_DOMAIN
+  ) {
     merged["strict-transport-security"] = "max-age=31536000; includeSubDomains";
   }
   return merged;

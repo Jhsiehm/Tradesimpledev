@@ -1,0 +1,4 @@
+Contact: mailto:security@tradesimple.app
+Preferred-Languages: en
+Canonical: https://tradesimple.app/.well-known/security.txt
+Policy: Report vulnerabilities responsibly. Do not access user data or disrupt service.

@@ -6443,7 +6443,11 @@ async function askWhyForBill(billId) {
   try {
     const response = await fetch("/api/research/ask", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        ...(csrfTokenFromCookie() ? { "X-CSRF-Token": csrfTokenFromCookie() } : {})
+      },
       body: JSON.stringify({ billId: id, question: "" })
     });
     document.querySelector("[data-pending-message]")?.remove();
@@ -6489,12 +6493,24 @@ function quoteFor(symbol) {
 }
 
 async function fetchJson(url, init) {
-  const response = await fetch(url, init);
+  init = init || {};
+  const method = String(init.method || "GET").toUpperCase();
+  const headers = { ...(init.headers || {}) };
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = csrfTokenFromCookie();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
+  const response = await fetch(url, { ...init, headers, credentials: init.credentials || "same-origin" });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`${response.status}: ${text}`);
   }
   return response.json();
+}
+
+function csrfTokenFromCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)ts_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
 }
 
 function setDisabled(link, title) {
