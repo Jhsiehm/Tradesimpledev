@@ -1194,7 +1194,9 @@ export async function runShareBriefSummary({ kind, payload, rateLimitKey, checkR
 
   const system = `You write plain-English brief summaries for TradeSimple share pages as 3-5 bullet points.
 Put each bullet on its own line starting with "- ". No paragraphs or markdown headers.
-Use only the facts provided. No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
+Use only the facts provided. No buy/sell language.
+Do not restate bill stage or ticker list already shown in the UI — focus on mechanism, timing, and why it matters now.
+${AI_RESEARCH_DISCLAIMER}`;
   const text = await fetchAnthropic({
     system,
     user: `Summarize this ${kind} brief for a curious retail investor:\n\n${user}`,

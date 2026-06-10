@@ -2514,7 +2514,7 @@ async function route(req, res) {
   }
   if (pathname.startsWith("/bill/") && (req.method === "GET" || req.method === "HEAD")) {
     if (!checkFeaturePage("BILLS_EXPLORER_ENABLED", res, "Bills Explorer", { head: req.method === "HEAD" })) return;
-    return publicBillCard(res, pathname, { head: req.method === "HEAD" });
+    return publicBillCard(req, res, pathname, { head: req.method === "HEAD" });
   }
   if (pathname === "/contract" || pathname === "/contract/") {
     if (!checkFeaturePage("CONTRACTS_ANALYZER_ENABLED", res, "Contracts Analyzer", { head: req.method === "HEAD" })) return;
@@ -2784,12 +2784,39 @@ function sendDetailRouteHelp(res, pathname) {
 async function sendLandingIndex(res) {
   const filePath = join(ROOT, "index.html");
   if (!existsSync(filePath)) return sendStatic(res, "index.html");
-  const body = await readFile(filePath);
+  let body = await readFile(filePath, "utf8");
+  body = injectLandingCanonicalMeta(body);
   res.writeHead(200, responseHeaders({
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store"
   }));
   res.end(body);
+}
+
+function injectLandingCanonicalMeta(html) {
+  const base = APP_URL.replace(/\/$/, "");
+  const ogImage = `${base}/media/og-image.png`;
+  return String(html)
+    .replace(
+      /<meta property="og:url" content="[^"]*"\/>/,
+      `<meta property="og:url" content="${escapeHtmlText(`${base}/`)}" />`
+    )
+    .replace(
+      /<meta property="og:image" content="[^"]*"\/>/,
+      `<meta property="og:image" content="${escapeHtmlText(ogImage)}" />`
+    )
+    .replace(
+      /<meta name="twitter:image" content="[^"]*"\/>/,
+      `<meta name="twitter:image" content="${escapeHtmlText(ogImage)}" />`
+    )
+    .replace(
+      /<link rel="canonical" href="[^"]*"\/>/,
+      `<link rel="canonical" href="${escapeHtmlText(`${base}/`)}" />`
+    )
+    .replace(
+      /<meta name="ts-app-origin" content="[^"]*"\/>/,
+      `<meta name="ts-app-origin" content="${escapeHtmlText(base)}" />`
+    );
 }
 
 async function sendStatic(res, relativePath) {
@@ -3070,6 +3097,45 @@ async function notifyDispatchSignup(email, source) {
   }
 }
 
+async function sendDispatchWelcomeEmail(email) {
+  const apiKey = String(process.env.RESEND_API_KEY || "").trim();
+  if (!apiKey) return;
+
+  const fromEmail = String(process.env.DISPATCH_FROM_EMAIL || "").trim()
+    || "TradeSimple Dispatch <onboarding@resend.dev>";
+  const leadId = EDITORIAL_LEAD_BILL_ID || "S.2-119";
+  const briefUrl = `${APP_URL}/bill/${encodeURIComponent(leadId)}`;
+
+  try {
+    const response = await fetchWithTimeout("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [email],
+        subject: "You're on the TradeSimple dispatch list",
+        text: [
+          "Thanks for subscribing to TradeSimple dispatch.",
+          "",
+          "We'll reach you before the headline breaks wide.",
+          "",
+          `Read today's editorial brief: ${briefUrl}`,
+          "",
+          "— TradeSimple"
+        ].join("\n")
+      })
+    }, 8000);
+    if (!response.ok) {
+      console.error("[dispatch-welcome] Resend error", response.status, await response.text());
+    }
+  } catch (err) {
+    console.error("[dispatch-welcome]", err.message);
+  }
+}
+
 function validateBillsAdmin(req, res) {
   const secret = process.env.ADMIN_SECRET;
   if (!secret || req.headers["x-admin-secret"] !== secret) {
@@ -3105,6 +3171,7 @@ async function waitlistSignup(req, res) {
     });
     if (!inserted) return sendJson(res, 502, { error: "persist_failed", message: failMsg });
     notifyDispatchSignup(email, source).catch(() => {});
+    sendDispatchWelcomeEmail(email).catch(() => {});
     return sendJson(res, 200, { ok: true, message: successMsg });
   }
 
@@ -3126,6 +3193,7 @@ async function waitlistSignup(req, res) {
     )
   );
   notifyDispatchSignup(email, source).catch(() => {});
+  sendDispatchWelcomeEmail(email).catch(() => {});
   sendJson(res, 200, { ok: true, message: successMsg });
 }
 
@@ -4607,7 +4675,7 @@ async function buildBillSharePayload(billIdRaw, req = null) {
   let merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
   merged = await enrichBillShareExposure(merged, req);
   const focusSymbol = (merged.affected || merged.portfolioTickers || [])[0] || "";
-  const detail = focusSymbol ? enrichPolicyBill(merged, focusSymbol) : merged;
+  const detail = enrichPolicyBill(merged, focusSymbol);
   const breakdown = computeBillMetricBreakdown(merged);
   const statusInfo = statusInfoForBill(merged);
   const canonicalId = merged.id;
@@ -4675,25 +4743,79 @@ async function shareBillSnapshot(req, res, url) {
   }
 }
 
-function publicBillCard(res, pathname, { head = false } = {}) {
+function truncateOgDescription(text, max = 200) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1).trimEnd()}…`;
+}
+
+function buildBillOgDescription(bill) {
+  if (!bill) return "Legislative status, lobbying, and scenario impacts. Research context only.";
+  const why =
+    bill.whyMarketsCare ||
+    bill.plainEnglish ||
+    bill.signal ||
+    (bill.liveAnalysis?.explanation?.whyMarketsCare) ||
+    "";
+  if (why) {
+    return truncateOgDescription(why);
+  }
+  const title = bill.shortTitle || bill.title || bill.id || "this bill";
+  return truncateOgDescription(
+    `Legislative status, lobbying, and scenario impacts for ${title}. Research context only.`
+  );
+}
+
+function billOgHeadHtml({ title, description, canonicalUrl, ogImage }) {
+  const safeTitle = escapeHtmlText(title);
+  const safeDesc = escapeHtmlText(description);
+  const safeUrl = escapeHtmlText(canonicalUrl);
+  const safeImage = escapeHtmlText(ogImage);
+  return `
+    <title>${safeTitle}</title>
+    <meta name="description" content="${safeDesc}" />
+    <link rel="canonical" href="${safeUrl}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${safeTitle}" />
+    <meta property="og:description" content="${safeDesc}" />
+    <meta property="og:url" content="${safeUrl}" />
+    <meta property="og:image" content="${safeImage}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${safeTitle}" />
+    <meta name="twitter:description" content="${safeDesc}" />
+    <meta name="twitter:image" content="${safeImage}" />`;
+}
+
+async function publicBillCard(req, res, pathname, { head = false } = {}) {
   const raw = decodeURIComponent(pathname.slice("/bill/".length).split(/[/?#]/)[0]);
   const canonical = resolveBillIdCanonical(raw);
   if (canonical && canonical !== raw && resolvePolicyBill(canonical)) {
     return redirect(res, `/bill/${encodeURIComponent(canonical)}`);
   }
-  const bill = resolvePolicyBill(raw);
+  let bill = resolvePolicyBill(raw);
   const billId = bill?.id || canonical || raw;
   const validFormat = Boolean(parseBillIdToCongressRef(canonical || raw));
-  const title = bill
-    ? `${bill.shortTitle || bill.title || billId} | TradeSimple`
+  if (!bill && validFormat && process.env.CONGRESS_API_KEY) {
+    try {
+      bill = await resolvePolicyBillAsync(canonical || raw);
+    } catch {
+      bill = null;
+    }
+  }
+  const decorated = bill
+    ? decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)))
+    : null;
+  const pageTitle = decorated
+    ? `${decorated.shortTitle || decorated.title || billId} | TradeSimple`
     : validFormat
       ? `${canonical || raw} | TradeSimple bill brief`
       : `Bill not found | TradeSimple`;
-  const description = bill
-    ? `Legislative status, lobbying, and scenario impacts for ${bill.shortTitle || bill.title}. Research context only.`
-    : validFormat
-      ? "Loading live legislative status from Congress.gov when configured."
-      : "Bill record not found in TradeSimple.";
+  const description = buildBillOgDescription(decorated || bill);
+  const canonicalUrl = `${APP_URL}/bill/${encodeURIComponent(decorated?.id || billId)}`;
+  const ogImage = `${APP_URL}/media/og-image.png`;
   const html = `<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
@@ -4701,10 +4823,7 @@ function publicBillCard(res, pathname, { head = false } = {}) {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <title>${escapeHtmlText(title)}</title>
-    <meta name="description" content="${escapeHtmlText(description)}" />
-    <meta property="og:title" content="${escapeHtmlText(title)}" />
-    <meta property="og:description" content="${escapeHtmlText(description)}" />
+    ${billOgHeadHtml({ title: pageTitle, description, canonicalUrl, ogImage })}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -7816,6 +7935,7 @@ function applyLobbyingOverlay(bill) {
     lobbyingFor: overlay.lobbyingFor,
     lobbyingSource: overlay.lobbyingSource,
     lobbyingFilingsCount: overlay.lobbyingFilingsCount,
+    lobbyingPostedAt: overlay.lobbyingPostedAt || bill.lobbyingPostedAt || null,
     lobbyingNote: overlay.lobbyingNote || bill.lobbyingNote,
     _ldaRows: overlay.lobbyingRows || []
   };
