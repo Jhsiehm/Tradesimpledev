@@ -5666,6 +5666,7 @@ async function shareStockSnapshot(req, res, url) {
       }
     });
   } catch (err) {
+    console.error(`[share/stock] ${symbol} snapshot failed:`, err?.stack || err?.message || String(err));
     sendJson(res, 502, { error: "share_snapshot_unavailable", message: err.message || String(err) });
   }
 }
