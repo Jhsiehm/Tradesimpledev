@@ -123,6 +123,7 @@ body {
 @keyframes marquee { to { transform:translateX(-50%); } }
 .tape-item { font-family:var(--mono); font-size:12px; color:var(--muted); display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
 .tape-item:hover{ color:var(--text); }
+.tape-item.mkt{ opacity:.5; }
 .tape-item .t{ color:var(--faint); }
 .tape-item .up{ color:var(--up); } .tape-item .down{ color:var(--down); }
 .tape-item .pdot{ width:6px;height:6px;border-radius:50%; }
@@ -131,36 +132,40 @@ body {
 /* ── Workspace ──────────────────────────────────────────── */
 .workspace { padding:22px; display:flex; flex-direction:column; gap:18px; }
 
-.view-head h1 { font-family:var(--serif); font-size:30px; font-weight:600; margin:0 0 4px; line-height:1.05; }
+.view-head h1 { font-family:var(--serif); font-size:26px; font-weight:600; margin:0 0 4px; line-height:1.05; }
 .view-head p { color:var(--muted); margin:0; font-size:13px; }
 
 /* KPI strip */
-.kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-.kpi {
-  background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius);
-  padding:13px 15px; cursor:pointer; transition:border-color 150ms;
-}
-.kpi:hover{ border-color:var(--line-hot); }
+.kpi-strip { display:flex; border:1px solid var(--line); border-radius:var(--radius); background:var(--bg-2); overflow:hidden; }
+.kpi { flex:1; display:flex; align-items:baseline; gap:10px; padding:9px 16px; border-right:1px solid var(--line); cursor:pointer; white-space:nowrap; min-width:0; }
+.kpi:last-child{ border-right:0; }
+.kpi:hover{ background:var(--bg-3); }
 .kpi .k-lbl { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); display:flex; justify-content:space-between; }
-.kpi .k-val { font-family:var(--mono); font-size:26px; font-weight:700; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
+.kpi .k-val { font-family:var(--mono); font-size:15px; font-weight:700; margin:0; font-variant-numeric:tabular-nums; }
 .kpi .k-val.amber{color:var(--amber);} .kpi .k-val.green{color:var(--green);} .kpi .k-val.down{color:var(--down);}
-.kpi .k-sub { font-size:11px; color:var(--muted); }
+.kpi .k-sub { font-size:10px; color:var(--faint); overflow:hidden; text-overflow:ellipsis; }
 .kpi .spark { display:inline-flex; gap:2px; align-items:flex-end; height:14px; }
 .kpi .spark i { width:3px; background:var(--green-dim); border-radius:1px; }
 
 /* Hero grid: graph + brief */
-.hero-grid { display:grid; grid-template-columns: 1.55fr 1fr; gap:18px; }
-@media (max-width:1100px){ .hero-grid{ grid-template-columns:1fr; } .kpi-strip{ grid-template-columns:repeat(2,1fr);} }
+.hero-grid { display:grid; grid-template-columns: 2fr 1fr; gap:18px; align-items:start; }
+@media (max-width:1100px){ .hero-grid{ grid-template-columns:1fr; } .kpi-strip{ flex-wrap:wrap; } .kpi{ flex:1 1 45%; } }
 
 .panel { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
 .panel-head { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--line); }
-.panel-head h2 { font-family:var(--serif); font-size:18px; font-weight:600; margin:0; }
+.panel-head h2 { font-family:var(--mono); font-size:11px; font-weight:400; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0; }
 .panel-head .ph-meta { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--faint); }
 .panel-head .link { font-family:var(--mono); font-size:11px; color:var(--green-dim); cursor:pointer; background:none; border:0; }
 .panel-head .link:hover{ color:var(--green); }
 
+/* Segmented toggle (graph ⇄ portfolio, line ⇄ candles) */
+.seg { display:inline-flex; border:1px solid var(--line-2); border-radius:var(--radius); overflow:hidden; }
+.seg-btn { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.07em; padding:6px 12px; background:transparent; color:var(--faint); border:0; cursor:pointer; }
+.seg-btn.active { background:var(--green); color:#0a0a0a; font-weight:700; }
+.seg-btn:not(.active):hover { color:var(--text); background:var(--bg-3); }
+
 /* Graph panel */
-.graph-wrap { position:relative; height:380px; background:
+.graph-wrap { position:relative; height:560px; background:
   radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); }
 .graph-wrap svg { width:100%; height:100%; cursor:grab; display:block; }
 .graph-wrap svg.panning{ cursor:grabbing; }
@@ -173,19 +178,37 @@ body {
 .g-claim .c { font-family:var(--serif); font-style:italic; font-size:16px; color:var(--text); line-height:1.15; }
 .g-claim .m { font-family:var(--mono); font-size:9px; color:var(--faint); text-transform:uppercase; letter-spacing:.07em; margin-top:3px; }
 
-.edge { stroke:var(--line-hot); fill:none; transition:opacity 200ms; }
+.edge { stroke:#4A5438; fill:none; transition:opacity 200ms; }
 .edge.exposes { stroke:var(--green); }
 .edge.exposes.crawl { stroke-dasharray:5 7; animation:crawl 6s linear infinite; }
 @keyframes crawl { to { stroke-dashoffset:-120; } }
 .edge.dim { opacity:.16; }
 .node { cursor:pointer; }
 .node .ring { fill:none; stroke-width:2; transition:all 120ms; }
-.node .core { transition:transform 120ms; }
-.node .glyph { font-family:var(--mono); font-size:9px; font-weight:700; fill:#0a0a0a; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
-.node .label { font-family:var(--mono); font-size:9px; fill:var(--muted); text-anchor:middle; text-transform:uppercase; pointer-events:none; }
+.node .core { transition:transform 120ms; stroke-width:1.5; }
+.node .glyph { font-family:var(--mono); font-size:9px; font-weight:700; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+.node .label { font-family:var(--mono); font-size:10px; letter-spacing:.04em; fill:var(--muted); text-anchor:middle; text-transform:uppercase; pointer-events:none; }
 .node.dim { opacity:.28; }
 .node.selected .ring { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 5px var(--green)); }
 .node:hover .core { transform-box:fill-box; transform-origin:center; transform:scale(1.15); }
+
+/* Portfolio chart panel */
+.chart-wrap { position:relative; height:560px; background:
+  radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); }
+.chart-wrap svg { width:100%; height:100%; display:block; }
+.chart-controls { position:absolute; top:10px; right:14px; display:flex; gap:8px; align-items:center; z-index:4; }
+.chart-period { display:inline-flex; gap:4px; }
+.cp-btn { font-family:var(--mono); font-size:9px; padding:5px 8px; border:1px solid var(--line-2); border-radius:var(--radius); background:var(--bg-2); color:var(--muted); cursor:pointer; }
+.cp-btn.active { border-color:var(--green-dim); color:var(--green); }
+.chart-overlay { position:absolute; top:12px; left:14px; z-index:4; pointer-events:none; }
+.chart-overlay .ov-lbl { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); }
+.chart-overlay .cv { font-family:var(--mono); font-size:24px; font-weight:700; line-height:1.1; }
+.chart-overlay .cc { font-family:var(--mono); font-size:12px; }
+.chart-overlay .cc.up{ color:var(--up); } .chart-overlay .cc.down{ color:var(--down); }
+.ctip { position:fixed; background:var(--bg-overlay); border:1px solid var(--line-hot); border-radius:var(--radius); padding:7px 9px; z-index:80; pointer-events:none; opacity:0; transition:opacity 100ms; font-family:var(--mono); }
+.ctip.show{ opacity:1; }
+.ctip .ct-d{ color:var(--faint); font-size:10px; margin-bottom:3px; }
+.ctip .ct-v{ color:var(--text); font-size:11px; line-height:1.4; }
 
 .chip-tip { position:fixed; background:var(--bg-overlay); border:1px solid var(--line-hot); border-radius:var(--radius); padding:8px 10px; max-width:230px; z-index:80; pointer-events:none; opacity:0; transition:opacity 120ms; }
 .chip-tip.show{ opacity:1; }
@@ -223,18 +246,6 @@ body {
 .htable td .ebar i { display:block; height:100%; background:var(--green); }
 .htable td.up{ color:var(--up); } .htable td.down{ color:var(--down); }
 
-/* Inspector drawer (slide-in) */
-.scrim { position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity 200ms; z-index:60; }
-.scrim.open{ opacity:1; pointer-events:auto; }
-.drawer {
-  position:fixed; top:0; right:0; height:100vh; width:380px; max-width:92vw;
-  background:var(--bg-2); border-left:1px solid var(--line-2);
-  transform:translateX(100%); transition:transform 240ms var(--ease); z-index:70;
-  overflow-y:auto; padding:18px;
-}
-.drawer.open{ transform:translateX(0); }
-.drawer-x { position:absolute; top:14px; right:16px; background:none; border:0; color:var(--faint); font-family:var(--mono); font-size:16px; cursor:pointer; }
-.drawer-x:hover{ color:var(--text); }
 .ins-id { display:flex; gap:12px; align-items:flex-start; margin-bottom:6px; }
 .ins-glyph { width:30px;height:30px;border-radius:var(--radius);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:13px;color:#0a0a0a;flex:none; }
 .ins-name { font-size:19px; font-weight:600; line-height:1.1; }
@@ -341,24 +352,50 @@ body {
         </div>
       </div>
 
-      <!-- Hero: Policy Graph + Daily Intel Brief -->
+      <!-- Hero: Policy Graph / Portfolio chart (toggle) + Daily Intel Brief -->
       <div class="hero-grid">
         <section class="panel">
           <div class="panel-head">
-            <h2>Policy graph</h2>
-            <span class="ph-meta">Default investigation · drag · scroll to zoom</span>
+            <div class="seg" id="heroSeg">
+              <button class="seg-btn active" data-hero="graph">Policy graph</button>
+              <button class="seg-btn" data-hero="chart">Portfolio</button>
+            </div>
+            <span class="ph-meta" id="heroMeta">Default investigation · drag · scroll to zoom</span>
           </div>
+
+          <!-- Graph view -->
           <div class="graph-wrap" id="gw">
             <div class="g-chips" id="gchips"></div>
             <div class="g-claim"><div class="c">Drug-pricing reform routes through HHS to Eli&nbsp;Lilly.</div><div class="m">Your largest exposure</div></div>
             <svg id="graph"><g id="vp"><g id="L-edges"></g><g id="L-nodes"></g></g></svg>
             <div class="g-hint">Hover a node for plain English · click to open dossier →</div>
           </div>
+
+          <!-- Portfolio chart view -->
+          <div class="chart-wrap" id="cw" style="display:none">
+            <div class="chart-overlay">
+              <div class="ov-lbl">Paper portfolio value</div>
+              <div class="cv" id="cvVal">$100,000</div>
+              <div class="cc up" id="cvChg">+0.00%</div>
+            </div>
+            <div class="chart-controls">
+              <div class="chart-period" id="cPeriod">
+                <button class="cp-btn" data-p="1M">1M</button>
+                <button class="cp-btn active" data-p="3M">3M</button>
+                <button class="cp-btn" data-p="6M">6M</button>
+              </div>
+              <div class="seg" id="cTypeSeg">
+                <button class="seg-btn active" data-ctype="line">Line</button>
+                <button class="seg-btn" data-ctype="candle">Candles</button>
+              </div>
+            </div>
+            <svg id="pchart"></svg>
+          </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-head"><h2>Daily intel brief</h2><button class="link" id="copyBrief">Copy</button></div>
-          <div class="brief">
+        <section class="panel" id="rightPanel">
+          <div class="panel-head"><h2 id="rpTitle">Daily intel brief</h2><button class="link" id="rpAction">Copy</button></div>
+          <div class="brief" id="briefView">
             <div class="brief-h">TS//BRIEF · 10 JUN 2026 · REF: COLLECTION_2026</div>
             <div class="brief-b">
               <span class="badge today">TODAY</span>
@@ -377,10 +414,11 @@ body {
             <div class="brief-foot">Informational scenarios only · not financial advice</div>
             <button class="copy-btn" id="copyBrief2">Copy brief to clipboard</button>
           </div>
+          <div class="brief" id="dossierView" style="display:none"></div>
         </section>
       </div>
 
-      <!-- Holdings table (your data, click → drawer) -->
+      <!-- Holdings table (your data, click → dossier) -->
       <section class="panel">
         <div class="panel-head"><h2>Holdings &amp; policy exposure</h2><span class="ph-meta">Paper account · click a row for the dossier</span></div>
         <table class="htable">
@@ -392,10 +430,8 @@ body {
   </div>
 </div>
 
-<!-- Inspector drawer -->
-<div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer"><button class="drawer-x" id="drawerX">✕</button><div id="drawerBody"></div></aside>
 <div class="chip-tip" id="tip"></div>
+<div class="ctip" id="ctip"></div>
 
 <script>
 const ENT_HUE={bill:'#C8FF00',agency:'#7DD3FC',company:'#E8EBE0',contract:'#FBBF24',lobbying:'#C084FC',position:'#4ADE80'};
@@ -435,7 +471,7 @@ const holdings=[
 // force layout
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const rand=mulberry32(7);
-const W=620,H=380;
+const W=720,H=520;
 const nodes=entities.map(e=>({id:e.id,ent:e,x:W/2+(rand()-.5)*240,y:H/2+(rand()-.5)*200,vx:0,vy:0}));
 const nById=Object.fromEntries(nodes.map(n=>[n.id,n]));
 function tick(){
@@ -445,9 +481,9 @@ function tick(){
 }
 for(let i=0;i<280;i++)tick();
 
+const NS='http://www.w3.org/2000/svg';
 const svg=document.getElementById('graph'),vp=document.getElementById('vp');
 const LE=document.getElementById('L-edges'),LN=document.getElementById('L-nodes');
-const NS='http://www.w3.org/2000/svg';
 let selected=null;
 const ringColor=e=>e.ring==='acid'?'var(--green)':e.ring==='warn'?'var(--amber)':'var(--faint)';
 const coreR=e=>7+Math.sqrt(e.importance)*8;
@@ -468,8 +504,11 @@ function render(){
   g.setAttribute('class',c);g.setAttribute('transform',`translate(${n.x},${n.y})`);
   const r=coreR(n.ent);
   const ring=document.createElementNS(NS,'circle');ring.setAttribute('class','ring');ring.setAttribute('r',r+4);ring.setAttribute('stroke',ringColor(n.ent));
-  const core=document.createElementNS(NS,'circle');core.setAttribute('class','core');core.setAttribute('r',r);core.setAttribute('fill',ENT_HUE[n.ent.type]);
-  const gl=document.createElementNS(NS,'text');gl.setAttribute('class','glyph');gl.textContent=GLYPH[n.ent.type];
+  const core=document.createElementNS(NS,'circle');core.setAttribute('class','core');core.setAttribute('r',r);
+  const isBill=n.ent.type==='bill';
+  core.setAttribute('fill',isBill?ENT_HUE.bill:'var(--bg-overlay)');
+  core.setAttribute('stroke',ENT_HUE[n.ent.type]);
+  const gl=document.createElementNS(NS,'text');gl.setAttribute('class','glyph');gl.setAttribute('fill',isBill?'#0a0a0a':ENT_HUE[n.ent.type]);gl.textContent=GLYPH[n.ent.type];
   const lb=document.createElementNS(NS,'text');lb.setAttribute('class','label');lb.setAttribute('y',r+14);lb.textContent=n.ent.label;
   g.append(ring,core,gl,lb);
   g.addEventListener('mouseenter',ev=>tip(ev,n.ent.name,n.ent.caption));
@@ -486,23 +525,25 @@ document.getElementById('gw').addEventListener('mousemove',e=>{if(tipEl.classLis
 // pan/zoom
 let tx=0,ty=0,k=1,drag=false,sx,sy;
 function applyVp(){vp.setAttribute('transform',`translate(${tx},${ty}) scale(${k})`);}
-function fit(){const xs=nodes.map(n=>n.x),ys=nodes.map(n=>n.y);const minX=Math.min(...xs)-50,maxX=Math.max(...xs)+50,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const cw=svg.clientWidth,ch=svg.clientHeight;k=Math.min(cw/(maxX-minX),ch/(maxY-minY),1.3);tx=(cw-(minX+maxX)*k)/2;ty=(ch-(minY+maxY)*k)/2;applyVp();}
+function fit(){const xs=nodes.map(n=>n.x),ys=nodes.map(n=>n.y);const minX=Math.min(...xs)-50,maxX=Math.max(...xs)+50,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const cw=svg.clientWidth,ch=svg.clientHeight;if(!cw||!ch)return;k=Math.min(cw/(maxX-minX),ch/(maxY-minY),1.3);tx=(cw-(minX+maxX)*k)/2;ty=(ch-(minY+maxY)*k)/2;applyVp();}
 svg.addEventListener('mousedown',e=>{drag=true;sx=e.clientX-tx;sy=e.clientY-ty;svg.classList.add('panning');});
 addEventListener('mousemove',e=>{if(!drag)return;tx=e.clientX-sx;ty=e.clientY-sy;applyVp();});
 addEventListener('mouseup',()=>{drag=false;svg.classList.remove('panning');});
 svg.addEventListener('wheel',e=>{e.preventDefault();const rc=svg.getBoundingClientRect(),mx=e.clientX-rc.left,my=e.clientY-rc.top,wx=(mx-tx)/k,wy=(my-ty)/k;k=Math.max(0.4,Math.min(2.5,k*(e.deltaY<0?1.1:0.9)));tx=mx-wx*k;ty=my-wy*k;applyVp();},{passive:false});
-svg.addEventListener('click',()=>{selected=null;render();});
+svg.addEventListener('click',()=>{closeDossier();});
 
 // chips
 const gc=document.getElementById('gchips');
 types.forEach(t=>{const n=entities.filter(e=>e.type===t).length;const el=document.createElement('div');el.className='g-chip';el.innerHTML=`<span class="sw" style="background:${ENT_HUE[t]}"></span>${t} ${n}`;el.onclick=()=>{if(visible.has(t)){visible.delete(t);el.classList.add('off');}else{visible.add(t);el.classList.remove('off');}render();};gc.appendChild(el);});
 
-// dossier drawer
+// dossier (in-place, right panel)
 function chainFor(id){const p={'B:S.2-119':['B:S.2-119','A:HHS','K:75N980','C:LLY','P:LLY'],'C:LLY':['B:S.2-119','A:HHS','C:LLY','P:LLY'],'A:HHS':['B:S.2-119','A:HHS','K:75N980','C:LLY'],'K:75N980':['A:HHS','K:75N980','C:LLY'],'L:LLY-Q1':['L:LLY-Q1','B:S.2-119','C:LLY'],'P:LLY':['C:LLY','P:LLY'],'B:HR-3':['B:HR-3','A:DHS','C:GEO'],'A:DHS':['B:HR-3','A:DHS','C:GEO'],'C:GEO':['B:HR-3','A:DHS','C:GEO']};return p[id]||[id];}
 function expRows(id){return edges.filter(e=>e.kind==='exposes'&&(e.from===id||e.to===id)).map(e=>{const bId=byId[e.from].type==='bill'?e.from:e.to;const oId=bId===e.from?e.to:e.from;return{bill:byId[bId],other:byId[oId],w:e.weight,cap:e.caption};});}
 function vitals(e){if(e.type==='bill')return[['Status',e.ring==='acid'?'Floor vote':'Committee'],['Chamber','Senate'],['Momentum',`<span class="minibar"><i style="width:${Math.round(e.importance*70)}%"></i></span>${Math.round(e.importance*70)}`],['Last action','2026-06-05']];if(e.type==='company')return[['Price','$842.10'],['Day','<span style="color:var(--up)">+1.4%</span>'],['CRS top','0.78'],['Lobby 12mo','$6.2M']];if(e.type==='contract')return[['Agency','HHS / CMS'],['Value','$48.0M'],['Awarded','2024-09-30'],['Renewal','~120 days']];if(e.type==='agency')return[['Type','Federal agency'],['Budget','$1.7T'],['Active bills','3']];if(e.type==='lobbying')return[['Quarter','2026 Q1'],['Spend','$1.4M'],['Target','S.2-119']];if(e.type==='position')return[['Shares','12'],['Cost','$10,105'],['P/L','<span style="color:var(--up)">+$98</span>']];return[];}
 
-const scrim=document.getElementById('scrim'),drawer=document.getElementById('drawer'),body=document.getElementById('drawerBody');
+const briefView=document.getElementById('briefView'),dossierView=document.getElementById('dossierView');
+const rpTitle=document.getElementById('rpTitle'),rpAction=document.getElementById('rpAction');
+const body=dossierView;
 function openDossier(id){
  selected=id;render();
  const e=byId[id],chain=chainFor(id),vit=vitals(e),exp=expRows(id);
@@ -517,10 +558,15 @@ function openDossier(id){
   <div class="ins-sec"><div class="ins-lbl">Evidence</div>${ev.map(x=>`<div class="ev-row"><a href="#">${x.kind==='exposes'?'CRS v2 score':'Congress.gov action'} ↗</a></div>`).join('')}</div>
   <div class="ins-sec ins-act"><button class="btn primary">Pin to investigation</button>${e.type==='company'?'<button class="btn">Paper trade</button>':''}</div>`;
  body.querySelectorAll('.cchip').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
- scrim.classList.add('open');drawer.classList.add('open');
+ briefView.style.display='none';dossierView.style.display='block';
+ rpTitle.textContent='Dossier';rpAction.textContent='← Brief';rpAction.onclick=closeDossier;
 }
-function closeDossier(){scrim.classList.remove('open');drawer.classList.remove('open');selected=null;render();}
-scrim.onclick=closeDossier;document.getElementById('drawerX').onclick=closeDossier;
+function closeDossier(){
+ dossierView.style.display='none';briefView.style.display='block';
+ rpTitle.textContent='Daily intel brief';rpAction.textContent='Copy';rpAction.onclick=copyBrief;
+ selected=null;render();
+}
+addEventListener('keydown',e=>{if(e.key==='Escape')closeDossier();});
 document.querySelectorAll('.cchip[data-id]').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
 
 // holdings rows
@@ -538,7 +584,7 @@ const tapeData=[
  {sev:'low',t:'20:55',txt:'Lilly files Q1 lobbying disclosure'},
  {sym:'NVDA',px:'131.20',chg:'+2.1%',dir:'up'},
 ];
-function tapeHtml(){return tapeData.map(d=>d.sym?`<span class="tape-item"><b>${d.sym}</b> ${d.px} <span class="${d.dir}">${d.chg}</span></span>`:`<span class="tape-item"><span class="t">${d.t}</span><span class="pdot ${d.sev}"></span>${d.txt}</span>`).join('');}
+function tapeHtml(){return tapeData.map(d=>d.sym?`<span class="tape-item mkt"><b>${d.sym}</b> ${d.px} <span class="${d.dir}">${d.chg}</span></span>`:`<span class="tape-item"><span class="t">${d.t}</span><span class="pdot ${d.sev}"></span>${d.txt}</span>`).join('');}
 const tp=document.getElementById('tape');tp.innerHTML=tapeHtml()+tapeHtml();
 
 // sparkline
@@ -546,11 +592,139 @@ const tp=document.getElementById('tape');tp.innerHTML=tapeHtml()+tapeHtml();
 
 // copy brief
 function copyBrief(){const t=`TS//BRIEF · 10 JUN 2026\nTODAY: One drug-pricing vote is moving toward your largest paper position.\nMOVEMENT: S.2-119 advanced to a Senate floor vote (S.2-119 -> LLY).\nEXPOSURE: S.2-119 -> LLY at 0.78.\nInformational scenarios only · not financial advice`;navigator.clipboard&&navigator.clipboard.writeText(t);}
-document.getElementById('copyBrief').onclick=copyBrief;document.getElementById('copyBrief2').onclick=copyBrief;
+rpAction.onclick=copyBrief;document.getElementById('copyBrief2').onclick=copyBrief;
+
+/* ───────────────────────────────────────────────────────────
+   Portfolio chart (vanilla SVG — line + candles, zero deps)
+─────────────────────────────────────────────────────────── */
+function money(v){return '$'+Math.round(v).toLocaleString();}
+function svgEl(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function genPortfolio(n,seed,start){
+  const r=mulberry32(seed); let price=start; const out=[];
+  const today=new Date(2026,5,10);
+  for(let i=n-1;i>=0;i--){
+    const drift=(r()-0.45)*0.018;          // slight upward bias
+    const o=price, c=o*(1+drift);
+    const h=Math.max(o,c)*(1+r()*0.010), l=Math.min(o,c)*(1-r()*0.010);
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    out.push({t:d,o,h,l,c}); price=c;
+  }
+  return out;
+}
+const PSERIES=genPortfolio(130, 91, 92000);
+const PERIOD_N={'1M':22,'3M':66,'6M':130};
+const PCHART={type:'line',period:'3M',slice:[],xOf:null,yOf:null};
+const pchart=document.getElementById('pchart');
+const cw=document.getElementById('cw');
+
+function renderChart(){
+  const w=pchart.clientWidth, h=pchart.clientHeight;
+  if(!w||!h){requestAnimationFrame(renderChart);return;}   // panel hidden / not laid out yet
+  pchart.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  pchart.innerHTML='';
+  const data=PSERIES.slice(-PERIOD_N[PCHART.period]); PCHART.slice=data;
+  const padL=12,padR=62,padT=18,padB=26;
+  let min=Math.min(...data.map(d=>d.l)), max=Math.max(...data.map(d=>d.h));
+  const gpad=(max-min)*0.08; min-=gpad; max+=gpad;
+  const xOf=i=>padL+i/(data.length-1)*(w-padL-padR);
+  const yOf=p=>padT+(1-(p-min)/(max-min))*(h-padT-padB);
+  PCHART.xOf=xOf; PCHART.yOf=yOf;
+
+  // horizontal gridlines + price labels (right)
+  for(let g=0;g<=4;g++){
+    const p=min+(max-min)*g/4, y=yOf(p);
+    pchart.appendChild(svgEl('line',{x1:padL,y1:y,x2:w-padR,y2:y,stroke:'var(--line)','stroke-width':1}));
+    const tx=svgEl('text',{x:w-padR+6,y:y+3,fill:'var(--faint)','font-family':'Space Mono, monospace','font-size':10});
+    tx.textContent=money(p); pchart.appendChild(tx);
+  }
+  // x date labels
+  [0,Math.floor((data.length-1)/2),data.length-1].forEach(i=>{
+    const anchor=i===0?'start':(i===data.length-1?'end':'middle');
+    const tx=svgEl('text',{x:xOf(i),y:h-8,fill:'var(--faint)','font-family':'Space Mono, monospace','font-size':10,'text-anchor':anchor});
+    tx.textContent=data[i].t.toLocaleDateString('en-US',{month:'short',day:'numeric'}); pchart.appendChild(tx);
+  });
+
+  if(PCHART.type==='line'){
+    const linePts=data.map((d,i)=>`${xOf(i)},${yOf(d.c)}`);
+    const linePath='M'+linePts.join(' L');
+    const area=linePath+` L${xOf(data.length-1)},${yOf(min)} L${xOf(0)},${yOf(min)} Z`;
+    const defs=svgEl('defs',{}); const lg=svgEl('linearGradient',{id:'pgrad',x1:0,y1:0,x2:0,y2:1});
+    lg.appendChild(svgEl('stop',{offset:'0%','stop-color':'#C8FF00','stop-opacity':0.22}));
+    lg.appendChild(svgEl('stop',{offset:'100%','stop-color':'#C8FF00','stop-opacity':0}));
+    defs.appendChild(lg); pchart.appendChild(defs);
+    pchart.appendChild(svgEl('path',{d:area,fill:'url(#pgrad)'}));
+    pchart.appendChild(svgEl('path',{d:linePath,fill:'none',stroke:'var(--green)','stroke-width':2,'stroke-linejoin':'round'}));
+    pchart.appendChild(svgEl('circle',{cx:xOf(data.length-1),cy:yOf(data[data.length-1].c),r:3.5,fill:'var(--green)'}));
+  } else {
+    const bw=Math.max(2,(w-padL-padR)/data.length*0.6);
+    data.forEach((d,i)=>{
+      const x=xOf(i), col=d.c>=d.o?'var(--up)':'var(--down)';
+      pchart.appendChild(svgEl('line',{x1:x,y1:yOf(d.h),x2:x,y2:yOf(d.l),stroke:col,'stroke-width':1}));
+      const y1=yOf(Math.max(d.o,d.c)), y2=yOf(Math.min(d.o,d.c));
+      pchart.appendChild(svgEl('rect',{x:x-bw/2,y:y1,width:bw,height:Math.max(1,y2-y1),fill:col}));
+    });
+  }
+  pchart.appendChild(svgEl('g',{id:'cxg'}));   // crosshair layer
+
+  // overlay value + change
+  const last=data[data.length-1].c, first=data[0].c, chg=(last-first)/first*100;
+  document.getElementById('cvVal').textContent=money(last);
+  const chgEl=document.getElementById('cvChg');
+  chgEl.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'% · '+PCHART.period;
+  chgEl.className='cc '+(chg>=0?'up':'down');
+}
+
+// crosshair
+const ctip=document.getElementById('ctip');
+pchart.addEventListener('mousemove',e=>{
+  const data=PCHART.slice; if(!data.length||!PCHART.xOf)return;
+  const rc=pchart.getBoundingClientRect(), w=pchart.clientWidth, h=pchart.clientHeight;
+  const padL=12,padR=62;
+  let i=Math.round((e.clientX-rc.left-padL)/(w-padL-padR)*(data.length-1));
+  i=Math.max(0,Math.min(data.length-1,i));
+  const d=data[i], x=PCHART.xOf(i), y=PCHART.yOf(d.c);
+  const cx=document.getElementById('cxg'); if(!cx)return; cx.innerHTML='';
+  cx.appendChild(svgEl('line',{x1:x,y1:18,x2:x,y2:h-26,stroke:'var(--line-hot)','stroke-width':1}));
+  cx.appendChild(svgEl('circle',{cx:x,cy:y,r:3,fill:'var(--green)',stroke:'#0a0a0a','stroke-width':1}));
+  const dd=d.t.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  ctip.innerHTML = PCHART.type==='candle'
+    ? `<div class="ct-d">${dd}</div><div class="ct-v">O ${money(d.o)} · H ${money(d.h)}<br>L ${money(d.l)} · C ${money(d.c)}</div>`
+    : `<div class="ct-d">${dd}</div><div class="ct-v">${money(d.c)}</div>`;
+  ctip.classList.add('show');
+  ctip.style.left=Math.min(e.clientX+14,innerWidth-160)+'px';
+  ctip.style.top=Math.min(e.clientY+14,innerHeight-70)+'px';
+});
+pchart.addEventListener('mouseleave',()=>{ctip.classList.remove('show');const cx=document.getElementById('cxg');if(cx)cx.innerHTML='';});
+
+// chart type + period controls
+document.querySelectorAll('#cTypeSeg [data-ctype]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#cTypeSeg [data-ctype]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); PCHART.type=b.dataset.ctype; renderChart();
+});
+document.querySelectorAll('#cPeriod [data-p]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#cPeriod [data-p]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); PCHART.period=b.dataset.p; renderChart();
+});
+
+// hero view toggle: graph ⇄ portfolio
+const gw=document.getElementById('gw'), heroMeta=document.getElementById('heroMeta');
+document.querySelectorAll('#heroSeg .seg-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#heroSeg .seg-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  if(b.dataset.hero==='graph'){
+    gw.style.display=''; cw.style.display='none';
+    heroMeta.textContent='Default investigation · drag · scroll to zoom';
+    fit();
+  } else {
+    gw.style.display='none'; cw.style.display='';
+    heroMeta.textContent='Paper portfolio · hover for detail';
+    renderChart();
+  }
+});
 
 render();fit();
 let warm=36;(function cool(){if(warm-->0){tick();render();requestAnimationFrame(cool);}else applyVp();})();
-addEventListener('resize',fit);
+addEventListener('resize',()=>{ if(cw.style.display!=='none') renderChart(); else fit(); });
 </script>
 </body>
 </html>
