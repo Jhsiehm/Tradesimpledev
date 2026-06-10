@@ -236,6 +236,13 @@ const BASE_SECURITY_HEADERS = {
 };
 const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 15_000);
 const quoteCache = new Map();
+// Finnhub's free tier is ~60 req/min with a per-second cap. A burst of parallel
+// quote calls trips HTTP 429, so we (a) cap fetch concurrency and (b) trip a
+// short circuit-breaker when Finnhub rate-limits us — serving cache/fallback
+// until it recovers instead of hammering it on every subsequent request.
+const QUOTE_FETCH_CONCURRENCY = Number(process.env.QUOTE_FETCH_CONCURRENCY || 4);
+const FINNHUB_COOLDOWN_MS = Number(process.env.FINNHUB_COOLDOWN_MS || 60_000);
+let finnhubCooldownUntil = 0;
 const stockSnapshotHistory = new Map();
 const shareRateLimit = new Map();
 const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
@@ -3155,18 +3162,18 @@ async function marketQuotes(res, url) {
         .filter(Boolean)
     )
   ].slice(0, 120);
-  const batches = [];
-  for (let i = 0; i < symbols.length; i += 40) batches.push(symbols.slice(i, i + 40));
+  // Fetch with bounded concurrency so we never burst the provider rate limit.
   const filteredQuotes = [];
-  for (const batch of batches) {
-    const quotes = await Promise.all(
-      batch.map(async (symbol) => {
-        const result = await quoteSnapshot(symbol);
-        return result.quote;
-      })
-    );
-    filteredQuotes.push(...quotes.filter(Boolean));
+  let nextIndex = 0;
+  async function quoteWorker() {
+    while (nextIndex < symbols.length) {
+      const symbol = symbols[nextIndex++];
+      const result = await quoteSnapshot(symbol);
+      if (result.quote) filteredQuotes.push(result.quote);
+    }
   }
+  const workerCount = Math.min(QUOTE_FETCH_CONCURRENCY, symbols.length) || 1;
+  await Promise.all(Array.from({ length: workerCount }, quoteWorker));
   const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
   const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
   const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance").length;
@@ -6942,12 +6949,19 @@ async function quoteSnapshot(symbol) {
   }
 
   const token = process.env.FINNHUB_API_KEY;
+  const finnhubReady = token && Date.now() >= finnhubCooldownUntil;
 
-  if (token) {
+  if (finnhubReady) {
     try {
       const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
       const response = await fetchWithTimeout(quoteUrl, {}, 7000);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 429) {
+          finnhubCooldownUntil = Date.now() + FINNHUB_COOLDOWN_MS;
+          console.warn(`[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       const mapped = mapFinnhubQuoteResponse(symbol, data);
       const quote = withQuoteFreshness(mapped, "finnhub", mapped.timestamp);
