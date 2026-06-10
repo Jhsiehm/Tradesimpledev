@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TradeSimple — Hybrid Dashboard Concept</title>
+<link rel="icon" type="image/png" href="/favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  /* Your current dashboard palette (native), tightened with terminal discipline */
+  --green:      #C8FF00;
+  --green-dim:  #6F8500;
+  --green-2:    #2A3800;
+  --bg:         #0a0b09;
+  --bg-2:       #10110f;
+  --bg-3:       #141513;
+  --bg-raised:  #181a14;
+  --bg-overlay: #1d2017;
+  --line:       #1E211A;
+  --line-2:     #2A2F22;
+  --line-hot:   #3D4430;
+  --text:       #E8E4DC;
+  --muted:      #8C8C82;
+  --faint:      #5C6150;
+  --amber:      #FBBF24;
+  --red:        #F87171;
+  --up:         #4ADE80;
+  --down:       #F87171;
+  --blue:       #7DD3FC;
+  --intel:      #7DD3FC;
+
+  /* Entity hues for the graph */
+  --ent-bill:#C8FF00; --ent-agency:#7DD3FC; --ent-company:#E8EBE0;
+  --ent-contract:#FBBF24; --ent-lobby:#C084FC; --ent-position:#4ADE80;
+
+  --mono:  "Space Mono", ui-monospace, monospace;
+  --sans:  "Outfit", system-ui, sans-serif;
+  --serif: "Cormorant Garamond", Georgia, serif;
+
+  --radius: 4px;
+  --ease: cubic-bezier(0.2,0,0,1);
+}
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; }
+body {
+  background:
+    radial-gradient(circle at 78% -5%, rgba(200,255,0,0.05), transparent 42%),
+    radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+/* ── Classification bar (from terminal) ─────────────────── */
+.classbar {
+  height: 24px; background: var(--green); color:#0a0a0a;
+  font-family: var(--mono); font-size:10px; font-weight:700;
+  letter-spacing:0.16em; text-transform:uppercase;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 16px; position:sticky; top:0; z-index:50; user-select:none;
+}
+.classbar .left { display:flex; gap:16px; align-items:center; }
+.classbar .blink { animation:blink 2s steps(1) infinite; }
+@keyframes blink { 50% { opacity:.35; } }
+
+/* ── Shell: sidebar + main (from current dashboard) ─────── */
+.shell { display:grid; grid-template-columns: 212px 1fr; min-height: calc(100vh - 24px); }
+
+.sidebar {
+  background: var(--bg-2); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; padding:18px 0; gap:2px;
+  position:sticky; top:24px; height:calc(100vh - 24px);
+}
+.brand { display:flex; align-items:center; gap:10px; padding:0 18px 18px; }
+.brand .mono-mark { width:26px;height:26px;border:1px solid var(--green-dim);border-radius:50%;display:grid;place-items:center;font-family:var(--serif);font-weight:700;color:var(--text);font-size:14px;position:relative;}
+.brand .mono-mark::after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:var(--green);top:1px;right:1px;box-shadow:0 0 6px var(--green);}
+.brand .bname { font-weight:600; line-height:1; }
+.brand .btag { font-family:var(--mono); font-size:8px; letter-spacing:.12em; color:var(--green-dim); text-transform:uppercase; margin-top:2px; }
+
+.side-nav { display:flex; flex-direction:column; padding:8px 0; }
+.nav-item {
+  text-align:left; background:none; border:0; border-left:2px solid transparent;
+  color:var(--muted); font-family:var(--mono); font-size:11.5px; letter-spacing:.04em;
+  text-transform:uppercase; padding:9px 18px; cursor:pointer;
+}
+.nav-item:hover { color:var(--text); background:var(--bg-3); }
+.nav-item.active { color:var(--green); border-left-color:var(--green); }
+.nav-spacer { flex:1; }
+.side-foot { padding:14px 18px 0; border-top:1px solid var(--line); margin-top:8px; }
+.user-box { display:flex; gap:10px; align-items:center; padding:14px 18px 0; }
+.avatar { width:32px;height:32px;border-radius:50%;background:var(--green-2);color:var(--green);display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:700;}
+.user-box strong { display:block; font-size:13px; }
+.user-box span { font-family:var(--mono); font-size:10px; color:var(--faint); }
+
+/* ── Main column ────────────────────────────────────────── */
+.main { display:flex; flex-direction:column; min-width:0; }
+
+.topbar {
+  display:flex; align-items:center; gap:14px; padding:12px 22px;
+  border-bottom:1px solid var(--line); background:rgba(16,17,15,.6); backdrop-filter:blur(6px);
+}
+.search { flex:1; max-width:380px; position:relative; }
+.search input {
+  width:100%; background:var(--bg-3); border:1px solid var(--line-2); border-radius:var(--radius);
+  color:var(--text); font-family:var(--mono); font-size:12px; padding:8px 12px 8px 70px;
+}
+.search input::placeholder{color:var(--faint);}
+.search .lbl { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--faint); letter-spacing:.08em; }
+.topbar-end { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.status-chip { font-family:var(--mono); font-size:10px; color:var(--up); display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:.06em; }
+.status-chip .dot { width:6px;height:6px;border-radius:50%;background:var(--up);box-shadow:0 0 6px var(--up); }
+.tb-btn { font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:7px 12px; border:1px solid var(--line-2); border-radius:var(--radius); background:transparent; color:var(--muted); cursor:pointer; }
+.tb-btn:hover{ border-color:var(--green-dim); color:var(--text); }
+
+/* market tape (your ticker tape, blended with policy events) */
+.tape { height:34px; border-bottom:1px solid var(--line); overflow:hidden; display:flex; align-items:center; background:var(--bg-2); }
+.tape-track { display:flex; gap:30px; white-space:nowrap; animation:marquee 55s linear infinite; padding-left:16px; }
+.tape:hover .tape-track{ animation-play-state:paused; }
+@keyframes marquee { to { transform:translateX(-50%); } }
+.tape-item { font-family:var(--mono); font-size:12px; color:var(--muted); display:inline-flex; gap:8px; align-items:center; cursor:pointer; }
+.tape-item:hover{ color:var(--text); }
+.tape-item.mkt{ opacity:.5; }
+.tape-item .t{ color:var(--faint); }
+.tape-item .up{ color:var(--up); } .tape-item .down{ color:var(--down); }
+.tape-item .pdot{ width:6px;height:6px;border-radius:50%; }
+.pdot.acid{background:var(--green);box-shadow:0 0 6px var(--green);} .pdot.warn{background:var(--amber);} .pdot.low{background:var(--faint);}
+
+/* ── Workspace ──────────────────────────────────────────── */
+.workspace { padding:22px; display:flex; flex-direction:column; gap:18px; }
+
+.view-head h1 { font-family:var(--serif); font-size:26px; font-weight:600; margin:0 0 4px; line-height:1.05; }
+.view-head p { color:var(--muted); margin:0; font-size:13px; }
+
+/* KPI strip */
+.kpi-strip { display:flex; border:1px solid var(--line); border-radius:var(--radius); background:var(--bg-2); overflow:hidden; }
+.kpi { flex:1; display:flex; align-items:baseline; gap:10px; padding:9px 16px; border-right:1px solid var(--line); cursor:pointer; white-space:nowrap; min-width:0; }
+.kpi:last-child{ border-right:0; }
+.kpi:hover{ background:var(--bg-3); }
+.kpi .k-lbl { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); display:flex; justify-content:space-between; }
+.kpi .k-val { font-family:var(--mono); font-size:15px; font-weight:700; margin:0; font-variant-numeric:tabular-nums; }
+.kpi .k-val.amber{color:var(--amber);} .kpi .k-val.green{color:var(--green);} .kpi .k-val.down{color:var(--down);}
+.kpi .k-sub { font-size:10px; color:var(--faint); overflow:hidden; text-overflow:ellipsis; }
+.kpi .spark { display:inline-flex; gap:2px; align-items:flex-end; height:14px; }
+.kpi .spark i { width:3px; background:var(--green-dim); border-radius:1px; }
+
+/* Hero grid: graph + brief */
+.hero-grid { display:grid; grid-template-columns: 2fr 1fr; gap:18px; align-items:start; }
+@media (max-width:1100px){ .hero-grid{ grid-template-columns:1fr; } .kpi-strip{ flex-wrap:wrap; } .kpi{ flex:1 1 45%; } }
+
+.panel { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--line); }
+.panel-head h2 { font-family:var(--mono); font-size:11px; font-weight:400; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0; }
+.panel-head .ph-meta { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--faint); }
+.panel-head .link { font-family:var(--mono); font-size:11px; color:var(--green-dim); cursor:pointer; background:none; border:0; }
+.panel-head .link:hover{ color:var(--green); }
+
+/* Segmented toggle (graph ⇄ portfolio, line ⇄ candles) */
+.seg { display:inline-flex; border:1px solid var(--line-2); border-radius:var(--radius); overflow:hidden; }
+.seg-btn { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.07em; padding:6px 12px; background:transparent; color:var(--faint); border:0; cursor:pointer; }
+.seg-btn.active { background:var(--green); color:#0a0a0a; font-weight:700; }
+.seg-btn:not(.active):hover { color:var(--text); background:var(--bg-3); }
+
+/* Graph panel */
+.graph-wrap { position:relative; height:560px; background:
+  radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); }
+.graph-wrap svg { width:100%; height:100%; cursor:grab; display:block; }
+.graph-wrap svg.panning{ cursor:grabbing; }
+.g-chips { position:absolute; top:10px; left:12px; display:flex; gap:6px; flex-wrap:wrap; z-index:4; }
+.g-chip { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:.05em; padding:3px 7px; border:1px solid var(--line-2); border-radius:var(--radius); background:var(--bg-2); color:var(--muted); cursor:pointer; display:flex; gap:5px; align-items:center; }
+.g-chip .sw{ width:6px;height:6px;border-radius:50%; }
+.g-chip.off{ opacity:.32; }
+.g-hint { position:absolute; bottom:10px; left:12px; font-family:var(--mono); font-size:9px; color:var(--faint); z-index:4; }
+.g-claim { position:absolute; top:10px; right:14px; max-width:230px; text-align:right; z-index:4; pointer-events:none; }
+.g-claim .c { font-family:var(--serif); font-style:italic; font-size:16px; color:var(--text); line-height:1.15; }
+.g-claim .m { font-family:var(--mono); font-size:9px; color:var(--faint); text-transform:uppercase; letter-spacing:.07em; margin-top:3px; }
+
+.edge { stroke:#4A5438; fill:none; transition:opacity 200ms; }
+.edge.exposes { stroke:var(--green); }
+.edge.exposes.crawl { stroke-dasharray:5 7; animation:crawl 6s linear infinite; }
+@keyframes crawl { to { stroke-dashoffset:-120; } }
+.edge.dim { opacity:.16; }
+.node { cursor:pointer; }
+.node .ring { fill:none; stroke-width:2; transition:all 120ms; }
+.node .core { transition:transform 120ms; stroke-width:1.5; }
+.node .glyph { font-family:var(--mono); font-size:9px; font-weight:700; text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+.node .label { font-family:var(--mono); font-size:10px; letter-spacing:.04em; fill:var(--muted); text-anchor:middle; text-transform:uppercase; pointer-events:none; }
+.node.dim { opacity:.28; }
+.node.selected .ring { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 5px var(--green)); }
+.node:hover .core { transform-box:fill-box; transform-origin:center; transform:scale(1.15); }
+
+/* Portfolio chart panel */
+.chart-wrap { position:relative; height:560px; background:
+  radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); }
+.chart-wrap svg { width:100%; height:100%; display:block; }
+.chart-controls { position:absolute; top:10px; right:14px; display:flex; gap:8px; align-items:center; z-index:4; }
+.chart-period { display:inline-flex; gap:4px; }
+.cp-btn { font-family:var(--mono); font-size:9px; padding:5px 8px; border:1px solid var(--line-2); border-radius:var(--radius); background:var(--bg-2); color:var(--muted); cursor:pointer; }
+.cp-btn.active { border-color:var(--green-dim); color:var(--green); }
+.chart-overlay { position:absolute; top:12px; left:14px; z-index:4; pointer-events:none; }
+.chart-overlay .ov-lbl { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); }
+.chart-overlay .cv { font-family:var(--mono); font-size:24px; font-weight:700; line-height:1.1; }
+.chart-overlay .cc { font-family:var(--mono); font-size:12px; }
+.chart-overlay .cc.up{ color:var(--up); } .chart-overlay .cc.down{ color:var(--down); }
+.ctip { position:fixed; background:var(--bg-overlay); border:1px solid var(--line-hot); border-radius:var(--radius); padding:7px 9px; z-index:80; pointer-events:none; opacity:0; transition:opacity 100ms; font-family:var(--mono); }
+.ctip.show{ opacity:1; }
+.ctip .ct-d{ color:var(--faint); font-size:10px; margin-bottom:3px; }
+.ctip .ct-v{ color:var(--text); font-size:11px; line-height:1.4; }
+
+.chip-tip { position:fixed; background:var(--bg-overlay); border:1px solid var(--line-hot); border-radius:var(--radius); padding:8px 10px; max-width:230px; z-index:80; pointer-events:none; opacity:0; transition:opacity 120ms; }
+.chip-tip.show{ opacity:1; }
+.chip-tip .cn{ font-family:var(--mono); font-size:11px; color:var(--text); margin-bottom:3px; }
+.chip-tip .cc{ font-size:12px; color:var(--muted); line-height:1.3; }
+
+/* Brief panel */
+.brief { padding:16px; }
+.brief-h { font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.08em; border-bottom:1px solid var(--line-2); padding-bottom:8px; margin-bottom:14px; }
+.brief-b { margin-bottom:15px; }
+.badge { display:inline-block; font-family:var(--mono); font-size:9px; letter-spacing:.1em; padding:2px 6px; border-radius:var(--radius); margin-bottom:7px; }
+.badge.today{ background:var(--green-2); color:var(--green); border:1px solid var(--green-dim); }
+.badge.move{ background:rgba(125,211,252,.1); color:var(--intel); border:1px solid var(--intel); }
+.badge.exp{ background:rgba(200,255,0,.08); color:var(--green); border:1px solid var(--green-dim); }
+.brief-s { font-family:var(--serif); font-size:16px; line-height:1.3; }
+.expbar { height:5px; background:var(--line-2); border-radius:3px; overflow:hidden; margin-top:7px; }
+.expbar i { display:block; height:100%; background:var(--green); }
+.chain { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:9px; }
+.cchip { font-family:var(--mono); font-size:10px; padding:3px 7px; border:1px solid var(--line-2); border-radius:var(--radius); color:var(--muted); cursor:pointer; }
+.cchip:hover{ border-color:var(--green); color:var(--green); }
+.carrow{ color:var(--faint); }
+.brief-foot{ font-family:var(--mono); font-size:10px; color:var(--faint); border-top:1px solid var(--line); padding-top:12px; margin-top:8px; }
+.copy-btn{ width:100%; margin-top:12px; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:9px; border:1px solid var(--line-hot); border-radius:var(--radius); background:transparent; color:var(--muted); cursor:pointer; }
+.copy-btn:hover{ border-color:var(--green); color:var(--text); }
+
+/* Holdings table */
+.htable { width:100%; border-collapse:collapse; }
+.htable th { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); text-align:right; padding:10px 16px; border-bottom:1px solid var(--line); }
+.htable th:first-child, .htable td:first-child { text-align:left; }
+.htable td { padding:11px 16px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:13px; text-align:right; cursor:pointer; }
+.htable tr:hover td { background:var(--bg-3); }
+.htable td.sym { color:var(--text); font-weight:700; }
+.htable td .exposure { display:inline-flex; align-items:center; gap:6px; }
+.htable td .ebar { width:48px; height:5px; background:var(--line-2); border-radius:3px; overflow:hidden; }
+.htable td .ebar i { display:block; height:100%; background:var(--green); }
+.htable td.up{ color:var(--up); } .htable td.down{ color:var(--down); }
+
+.ins-id { display:flex; gap:12px; align-items:flex-start; margin-bottom:6px; }
+.ins-glyph { width:30px;height:30px;border-radius:var(--radius);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:13px;color:#0a0a0a;flex:none; }
+.ins-name { font-size:19px; font-weight:600; line-height:1.1; }
+.ins-sub { font-family:var(--mono); font-size:11px; color:var(--faint); margin-top:2px; }
+.ins-cap { font-family:var(--serif); font-size:16px; font-style:italic; line-height:1.35; margin:12px 0 22px; }
+.ins-sec { margin-bottom:20px; }
+.ins-lbl { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--faint); margin-bottom:11px; }
+.vitals { display:grid; grid-template-columns:auto 1fr; gap:7px 16px; font-family:var(--mono); font-size:12px; }
+.vitals dt { color:var(--faint); text-transform:uppercase; font-size:10px; align-self:center; }
+.vitals dd { margin:0; text-align:right; color:var(--text); }
+.minibar{ display:inline-block; width:54px; height:6px; background:var(--line-2); border-radius:3px; overflow:hidden; vertical-align:middle; margin-right:6px; }
+.minibar i{ display:block; height:100%; background:var(--green); }
+.exp-row{ display:flex; align-items:center; gap:9px; padding:7px 0; border-bottom:1px solid var(--line); }
+.exp-row:last-child{ border:0; }
+.exp-c{ font-family:var(--mono); font-size:10px; color:var(--green); width:58px; flex:none; }
+.exp-bar{ flex:1; height:5px; background:var(--line-2); border-radius:3px; overflow:hidden; }
+.exp-bar i{ display:block;height:100%;background:var(--green); }
+.exp-cap{ font-size:11px; color:var(--muted); flex:1.4; line-height:1.25; }
+.ev-row{ padding:5px 0; font-size:11px; }
+.ev-row a{ color:var(--intel); font-family:var(--mono); text-decoration:none; }
+.ev-row a:hover{ text-decoration:underline; }
+.ins-act{ display:flex; gap:8px; }
+.btn{ flex:1; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:9px; border-radius:var(--radius); cursor:pointer; border:1px solid var(--line-hot); background:transparent; color:var(--muted); }
+.btn.primary{ background:var(--green); color:#0a0a0a; border-color:var(--green); font-weight:700; }
+.btn:hover{ border-color:var(--green); color:var(--text); } .btn.primary:hover{ color:#0a0a0a; }
+
+/* ── Full-page brief overlay (drill from any node / holding) ── */
+.fullbrief{ position:fixed; inset:0; z-index:200; overflow-y:auto;
+  background:
+    radial-gradient(circle at 72% -10%, rgba(200,255,0,0.06), transparent 45%),
+    radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--bg);
+  opacity:0; pointer-events:none; transform:translateY(14px);
+  transition:opacity 220ms var(--ease), transform 220ms var(--ease); }
+.fullbrief.open{ opacity:1; pointer-events:auto; transform:none; }
+.fb-bar{ position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:14px;
+  padding:12px 26px; background:rgba(10,11,9,.82); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+.fb-bar .right{ display:flex; gap:10px; align-items:center; }
+.fb-back{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+  background:none; border:1px solid var(--line-2); border-radius:var(--radius); padding:7px 12px; cursor:pointer; }
+.fb-back:hover{ color:var(--text); border-color:var(--green-dim); }
+.fb-live{ font-family:var(--mono); font-size:11px; color:var(--green); text-decoration:none;
+  border:1px solid var(--green-dim); border-radius:var(--radius); padding:7px 12px; }
+.fb-live:hover{ background:var(--green); color:#0a0a0a; }
+.fb-inner{ max-width:880px; margin:0 auto; padding:34px 26px 90px; }
+.fb-kicker{ font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--green-dim); }
+.fb-h1{ font-family:var(--serif); font-size:46px; line-height:1.02; font-weight:600; margin:6px 0 4px; }
+.fb-sub{ font-family:var(--mono); font-size:12px; color:var(--faint); margin-bottom:18px; }
+.fb-lede{ font-family:var(--serif); font-style:italic; font-size:21px; line-height:1.4; color:var(--text);
+  border-left:2px solid var(--green-dim); padding-left:16px; margin:18px 0 30px; }
+.fb-sec{ margin:28px 0; }
+.fb-sec h3{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+  margin:0 0 14px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+.fb-p{ font-size:15px; line-height:1.6; color:var(--muted); max-width:64ch; }
+.fb-chain{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fb-cchip{ font-family:var(--mono); font-size:12px; padding:6px 11px; border:1px solid var(--line-2); border-radius:var(--radius);
+  color:var(--text); cursor:pointer; background:var(--bg-2); }
+.fb-cchip:hover{ border-color:var(--green); color:var(--green); }
+.fb-carrow{ color:var(--faint); }
+.fb-vitals{ display:grid; grid-template-columns:repeat(2,1fr); gap:0 30px; }
+.fb-v{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line);
+  padding:10px 0; margin:0; font-family:var(--mono); font-size:13px; }
+.fb-v dt{ color:var(--faint); text-transform:uppercase; font-size:10px; }
+.fb-v dd{ margin:0; color:var(--text); }
+.fb-exp{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.fb-exp .lab{ font-family:var(--mono); font-size:12px; color:var(--green); width:80px; flex:none; }
+.fb-exp .bar{ flex:1; height:6px; background:var(--line-2); border-radius:3px; overflow:hidden; }
+.fb-exp .bar i{ display:block; height:100%; background:var(--green); }
+.fb-exp .cap{ flex:1.6; font-size:13px; color:var(--muted); }
+.fb-ev a{ display:block; font-family:var(--mono); font-size:13px; color:var(--intel); text-decoration:none;
+  padding:8px 0; border-bottom:1px solid var(--line); }
+.fb-ev a:hover{ text-decoration:underline; }
+.fb-act{ display:flex; gap:10px; margin-top:30px; flex-wrap:wrap; }
+.fb-act .btn{ flex:0 0 auto; padding:11px 18px; text-decoration:none; display:inline-block; }
+.fb-foot{ font-family:var(--mono); font-size:11px; color:var(--faint); border-top:1px solid var(--line); padding-top:16px; margin-top:38px; }
+</style>
+</head>
+<body>
+
+<!-- Classification bar -->
+<div class="classbar">
+  <div class="left"><span>TS//TRADESIMPLE</span><span class="blink">●</span><span>PAPER MODE // SIMULATED CAPITAL</span></div>
+  <span>EXPERIMENTAL PREVIEW · REF: COLLECTION_2026</span>
+</div>
+
+<div class="shell">
+  <!-- Sidebar (your current nav) -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mono-mark">T</div>
+      <div><div class="bname">TradeSimple</div><div class="btag">Policy Signals</div></div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-item active">Home</button>
+      <button class="nav-item">Thesis Lab</button>
+      <button class="nav-item">Signals</button>
+      <button class="nav-item">Bills</button>
+      <button class="nav-item">Lobbying</button>
+      <button class="nav-item">Contracts</button>
+      <button class="nav-item">Analysis</button>
+      <button class="nav-item">Markets</button>
+      <button class="nav-item">Track Record</button>
+      <button class="nav-item">Account</button>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="side-foot"><button class="nav-item" style="padding-left:0">Settings</button></div>
+    <div class="user-box">
+      <div class="avatar">AJ</div>
+      <div><strong>Ada Jmeter</strong><span>paper · demo</span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <label class="search"><span class="lbl">Search</span><input placeholder="Ticker, bill, issue area" /></label>
+      <div class="topbar-end">
+        <span class="status-chip"><span class="dot"></span>Feeds live</span>
+        <button class="tb-btn">Dark</button>
+        <button class="tb-btn">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Tape: market + policy blended -->
+    <div class="tape"><div class="tape-track" id="tape"></div></div>
+
+    <div class="workspace">
+      <div class="view-head">
+        <h1>Know what can move your money before the move.</h1>
+        <p>One drug-pricing vote is advancing toward your largest paper position. Click any node or holding to open its dossier.</p>
+      </div>
+
+      <!-- KPI strip (your cards, terminal-styled) -->
+      <div class="kpi-strip">
+        <div class="kpi">
+          <div class="k-lbl"><span>Portfolio</span><span class="spark" id="pspark"></span></div>
+          <div class="k-val">$100,000</div>
+          <div class="k-sub up">+0.00% · paper</div>
+        </div>
+        <div class="kpi">
+          <div class="k-lbl"><span>Policy heat</span></div>
+          <div class="k-val amber">29</div>
+          <div class="k-sub">Momentum vs holdings</div>
+        </div>
+        <div class="kpi">
+          <div class="k-lbl"><span>Mapped bills</span></div>
+          <div class="k-val">13</div>
+          <div class="k-sub">Live legislative links</div>
+        </div>
+        <div class="kpi">
+          <div class="k-lbl"><span>Top lobby</span></div>
+          <div class="k-val down">60<span style="font-size:14px;color:var(--faint)">/100</span></div>
+          <div class="k-sub">Filing pressure · high conf.</div>
+        </div>
+      </div>
+
+      <!-- Hero: Policy Graph / Portfolio chart (toggle) + Daily Intel Brief -->
+      <div class="hero-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div class="seg" id="heroSeg">
+              <button class="seg-btn active" data-hero="graph">Policy graph</button>
+              <button class="seg-btn" data-hero="chart">Portfolio</button>
+            </div>
+            <span class="ph-meta" id="heroMeta">Default investigation · drag · scroll to zoom</span>
+          </div>
+
+          <!-- Graph view -->
+          <div class="graph-wrap" id="gw">
+            <div class="g-chips" id="gchips"></div>
+            <div class="g-claim"><div class="c">Drug-pricing reform routes through HHS to Eli&nbsp;Lilly.</div><div class="m">Your largest exposure</div></div>
+            <svg id="graph"><g id="vp"><g id="L-edges"></g><g id="L-nodes"></g></g></svg>
+            <div class="g-hint">Hover a node for plain English · click to open dossier →</div>
+          </div>
+
+          <!-- Portfolio chart view -->
+          <div class="chart-wrap" id="cw" style="display:none">
+            <div class="chart-overlay">
+              <div class="ov-lbl">Paper portfolio value</div>
+              <div class="cv" id="cvVal">$100,000</div>
+              <div class="cc up" id="cvChg">+0.00%</div>
+            </div>
+            <div class="chart-controls">
+              <div class="chart-period" id="cPeriod">
+                <button class="cp-btn" data-p="1M">1M</button>
+                <button class="cp-btn active" data-p="3M">3M</button>
+                <button class="cp-btn" data-p="6M">6M</button>
+              </div>
+              <div class="seg" id="cTypeSeg">
+                <button class="seg-btn active" data-ctype="line">Line</button>
+                <button class="seg-btn" data-ctype="candle">Candles</button>
+              </div>
+            </div>
+            <svg id="pchart"></svg>
+          </div>
+        </section>
+
+        <section class="panel" id="rightPanel">
+          <div class="panel-head"><h2 id="rpTitle">Daily intel brief</h2><button class="link" id="rpAction">Copy</button></div>
+          <div class="brief" id="briefView">
+            <div class="brief-h">TS//BRIEF · 10 JUN 2026 · REF: COLLECTION_2026</div>
+            <div class="brief-b">
+              <span class="badge today">TODAY</span>
+              <div class="brief-s">Your map is quiet, but one drug-pricing vote is moving toward your largest paper position.</div>
+            </div>
+            <div class="brief-b">
+              <span class="badge move">MOVEMENT</span>
+              <div class="brief-s">S.2-119 advanced to a Senate floor vote — the rule that squeezes Eli&nbsp;Lilly’s pricing power is one step closer.</div>
+              <div class="chain"><span class="cchip" data-id="B:S.2-119">S.2-119</span><span class="carrow">→</span><span class="cchip" data-id="C:LLY">LLY</span></div>
+            </div>
+            <div class="brief-b">
+              <span class="badge exp">EXPOSURE</span>
+              <div class="brief-s">Strongest live link: S.2-119 → LLY at <b>0.78</b>.</div>
+              <div class="expbar"><i style="width:78%"></i></div>
+            </div>
+            <div class="brief-foot">Informational scenarios only · not financial advice</div>
+            <button class="copy-btn" id="copyBrief2">Copy brief to clipboard</button>
+          </div>
+          <div class="brief" id="dossierView" style="display:none"></div>
+        </section>
+      </div>
+
+      <!-- Holdings table (your data, click → dossier) -->
+      <section class="panel">
+        <div class="panel-head"><h2>Holdings &amp; policy exposure</h2><span class="ph-meta">Paper account · click a row for the dossier</span></div>
+        <table class="htable">
+          <thead><tr><th>Symbol</th><th>Shares</th><th>Price</th><th>Day</th><th>Value</th><th>Top policy exposure</th></tr></thead>
+          <tbody id="holdings"></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Full-page brief overlay -->
+<div class="fullbrief" id="fullbrief">
+  <div class="fb-bar">
+    <button class="fb-back" id="fbBack">← Back to dashboard</button>
+    <div class="right"><a class="fb-live" id="fbLive" target="_blank" rel="noopener" href="#">Open live page ↗</a></div>
+  </div>
+  <div class="fb-inner" id="fbInner"></div>
+</div>
+
+<div class="chip-tip" id="tip"></div>
+<div class="ctip" id="ctip"></div>
+
+<script>
+const ENT_HUE={bill:'#C8FF00',agency:'#7DD3FC',company:'#E8EBE0',contract:'#FBBF24',lobbying:'#C084FC',position:'#4ADE80'};
+const GLYPH={bill:'B',agency:'A',company:'C',contract:'K',lobbying:'L',position:'P'};
+
+const entities=[
+ {id:'B:S.2-119',type:'bill',label:'S.2-119',name:'SMART Prices Act',caption:'Lets Medicare negotiate prices on more drugs. Pharma pricing power weakens if it passes.',importance:1.0,ring:'acid'},
+ {id:'A:HHS',type:'agency',label:'HHS',name:'Health & Human Services',caption:'The agency that would write the drug-negotiation rules and run Medicare.',importance:0.7},
+ {id:'K:75N980',type:'contract',label:'75N980',name:'CMS negotiation support',caption:'A federal contract paying a vendor to help run the price-negotiation program.',importance:0.55,ring:'warn'},
+ {id:'C:LLY',type:'company',label:'LLY',name:'Eli Lilly',caption:'Sells brand-name drugs. Loses pricing power if Medicare negotiation expands.',importance:0.9},
+ {id:'L:LLY-Q1',type:'lobbying',label:'LLY-Q1',name:'Lilly lobbying 2026 Q1',caption:'Eli Lilly hired lobbyists this quarter to push back on drug-price negotiation.',importance:0.5},
+ {id:'P:LLY',type:'position',label:'LLY·12sh',name:'Your paper position',caption:'You hold 12 simulated shares of Eli Lilly in your paper account.',importance:0.5},
+ {id:'B:HR-3',type:'bill',label:'HR-3',name:'Border Capacity Act',caption:'Funds more detention and enforcement capacity at the southern border.',importance:0.78,ring:'warn'},
+ {id:'A:DHS',type:'agency',label:'DHS',name:'Homeland Security',caption:'The agency that buys detention capacity and border-enforcement services.',importance:0.62},
+ {id:'C:GEO',type:'company',label:'GEO',name:'GEO Group',caption:'Runs private detention facilities. Wins or loses on border-funding decisions.',importance:0.66},
+];
+const edges=[
+ {from:'B:S.2-119',to:'A:HHS',kind:'regulates',weight:0.71,caption:'If this bill passes, HHS writes the negotiation rules.'},
+ {from:'A:HHS',to:'K:75N980',kind:'funds',weight:0.5,caption:'HHS funds the contract that operates the negotiation program.'},
+ {from:'K:75N980',to:'C:LLY',kind:'awarded_to',weight:0.4,caption:'The program negotiates directly against Lilly’s drug prices.'},
+ {from:'L:LLY-Q1',to:'B:S.2-119',kind:'lobbied_on',weight:0.5,caption:'Q1 filing names this bill as a lobbying target.'},
+ {from:'P:LLY',to:'C:LLY',kind:'holds',weight:0.6,caption:'Your paper position holds Eli Lilly.'},
+ {from:'B:S.2-119',to:'C:LLY',kind:'exposes',weight:0.78,caption:'CRS: strong negative exposure — passage weakens Lilly pricing power.'},
+ {from:'B:HR-3',to:'A:DHS',kind:'funds',weight:0.66,caption:'The bill funds DHS border and detention operations.'},
+ {from:'A:DHS',to:'C:GEO',kind:'funds',weight:0.5,caption:'DHS funds detention services GEO runs.'},
+ {from:'B:HR-3',to:'C:GEO',kind:'exposes',weight:0.64,caption:'CRS: positive exposure — more border funding favors GEO revenue.'},
+];
+const byId=Object.fromEntries(entities.map(e=>[e.id,e]));
+const types=[...new Set(entities.map(e=>e.type))];
+const visible=new Set(types);
+
+const holdings=[
+ {id:'C:LLY',sym:'LLY',sh:12,px:842.10,day:1.4,val:10105,exp:'S.2-119',ew:78,dir:'down'},
+ {id:'C:GEO',sym:'GEO',sh:60,px:28.40,day:-0.8,val:1704,exp:'HR-3',ew:64,dir:'up'},
+];
+
+// force layout
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rand=mulberry32(7);
+const W=720,H=520;
+const nodes=entities.map(e=>({id:e.id,ent:e,x:W/2+(rand()-.5)*240,y:H/2+(rand()-.5)*200,vx:0,vy:0}));
+const nById=Object.fromEntries(nodes.map(n=>[n.id,n]));
+function tick(){
+ for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.max(Math.hypot(dx,dy),20);const f=12000/(d*d),nx=dx/d,ny=dy/d;a.vx-=nx*f;a.vy-=ny*f;b.vx+=nx*f;b.vy+=ny*f;}
+ for(const e of edges){const a=nById[e.from],b=nById[e.to];if(!a||!b)continue;let dx=b.x-a.x,dy=b.y-a.y,d=Math.max(Math.hypot(dx,dy),1);const rest=80+55*(1-e.weight),f=(d-rest)*0.04,nx=dx/d,ny=dy/d;a.vx+=nx*f;a.vy+=ny*f;b.vx-=nx*f;b.vy-=ny*f;}
+ for(const n of nodes){n.vx+=(W/2-n.x)*0.006;n.vy+=(H/2-n.y)*0.006;n.vx*=0.85;n.vy*=0.85;n.x+=n.vx;n.y+=n.vy;}
+}
+for(let i=0;i<280;i++)tick();
+
+const NS='http://www.w3.org/2000/svg';
+const svg=document.getElementById('graph'),vp=document.getElementById('vp');
+const LE=document.getElementById('L-edges'),LN=document.getElementById('L-nodes');
+let selected=null;
+const ringColor=e=>e.ring==='acid'?'var(--green)':e.ring==='warn'?'var(--amber)':'var(--faint)';
+const coreR=e=>7+Math.sqrt(e.importance)*8;
+
+function render(){
+ LE.innerHTML='';LN.innerHTML='';
+ const conn=new Set();
+ if(selected)edges.forEach(e=>{if(e.from===selected||e.to===selected){conn.add(e.from);conn.add(e.to);}});
+ for(const e of edges){const a=nById[e.from],b=nById[e.to];if(!a||!b)continue;
+  if(!visible.has(a.ent.type)||!visible.has(b.ent.type))continue;
+  const l=document.createElementNS(NS,'line');l.setAttribute('x1',a.x);l.setAttribute('y1',a.y);l.setAttribute('x2',b.x);l.setAttribute('y2',b.y);
+  let c='edge';if(e.kind==='exposes'){c+=' exposes';if(e.weight>=0.6)c+=' crawl';l.setAttribute('stroke-width',1+3*e.weight);}else l.setAttribute('stroke-width',1);
+  if(selected&&!(e.from===selected||e.to===selected))c+=' dim';l.setAttribute('class',c);
+  l.addEventListener('mouseenter',ev=>tip(ev,e.kind==='exposes'?'EXPOSURE':e.kind.toUpperCase(),e.caption));
+  l.addEventListener('mouseleave',hideTip);LE.appendChild(l);}
+ for(const n of nodes){if(!visible.has(n.ent.type))continue;
+  const g=document.createElementNS(NS,'g');let c='node';if(selected===n.id)c+=' selected';else if(selected&&!conn.has(n.id))c+=' dim';
+  g.setAttribute('class',c);g.setAttribute('transform',`translate(${n.x},${n.y})`);
+  const r=coreR(n.ent);
+  const ring=document.createElementNS(NS,'circle');ring.setAttribute('class','ring');ring.setAttribute('r',r+4);ring.setAttribute('stroke',ringColor(n.ent));
+  const core=document.createElementNS(NS,'circle');core.setAttribute('class','core');core.setAttribute('r',r);
+  const isBill=n.ent.type==='bill';
+  core.setAttribute('fill',isBill?ENT_HUE.bill:'var(--bg-overlay)');
+  core.setAttribute('stroke',ENT_HUE[n.ent.type]);
+  const gl=document.createElementNS(NS,'text');gl.setAttribute('class','glyph');gl.setAttribute('fill',isBill?'#0a0a0a':ENT_HUE[n.ent.type]);gl.textContent=GLYPH[n.ent.type];
+  const lb=document.createElementNS(NS,'text');lb.setAttribute('class','label');lb.setAttribute('y',r+14);lb.textContent=n.ent.label;
+  g.append(ring,core,gl,lb);
+  g.addEventListener('mouseenter',ev=>tip(ev,n.ent.name,n.ent.caption));
+  g.addEventListener('mouseleave',hideTip);
+  g.addEventListener('click',ev=>{ev.stopPropagation();openDossier(n.id);});
+  g.addEventListener('dblclick',ev=>{ev.stopPropagation();openFullBrief(n.id);});
+  LN.appendChild(g);}
+}
+const tipEl=document.getElementById('tip');
+function tip(ev,n,c){tipEl.innerHTML=`<div class="cn">${n}</div><div class="cc">${c}</div>`;tipEl.classList.add('show');moveTip(ev);}
+function moveTip(ev){tipEl.style.left=Math.min(ev.clientX+14,innerWidth-250)+'px';tipEl.style.top=Math.min(ev.clientY+14,innerHeight-80)+'px';}
+function hideTip(){tipEl.classList.remove('show');}
+document.getElementById('gw').addEventListener('mousemove',e=>{if(tipEl.classList.contains('show'))moveTip(e);});
+
+// pan/zoom
+let tx=0,ty=0,k=1,drag=false,sx,sy;
+function applyVp(){vp.setAttribute('transform',`translate(${tx},${ty}) scale(${k})`);}
+function fit(){const xs=nodes.map(n=>n.x),ys=nodes.map(n=>n.y);const minX=Math.min(...xs)-50,maxX=Math.max(...xs)+50,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const cw=svg.clientWidth,ch=svg.clientHeight;if(!cw||!ch)return;k=Math.min(cw/(maxX-minX),ch/(maxY-minY),1.3);tx=(cw-(minX+maxX)*k)/2;ty=(ch-(minY+maxY)*k)/2;applyVp();}
+svg.addEventListener('mousedown',e=>{drag=true;sx=e.clientX-tx;sy=e.clientY-ty;svg.classList.add('panning');});
+addEventListener('mousemove',e=>{if(!drag)return;tx=e.clientX-sx;ty=e.clientY-sy;applyVp();});
+addEventListener('mouseup',()=>{drag=false;svg.classList.remove('panning');});
+svg.addEventListener('wheel',e=>{e.preventDefault();const rc=svg.getBoundingClientRect(),mx=e.clientX-rc.left,my=e.clientY-rc.top,wx=(mx-tx)/k,wy=(my-ty)/k;k=Math.max(0.4,Math.min(2.5,k*(e.deltaY<0?1.1:0.9)));tx=mx-wx*k;ty=my-wy*k;applyVp();},{passive:false});
+svg.addEventListener('click',()=>{closeDossier();});
+
+// chips
+const gc=document.getElementById('gchips');
+types.forEach(t=>{const n=entities.filter(e=>e.type===t).length;const el=document.createElement('div');el.className='g-chip';el.innerHTML=`<span class="sw" style="background:${ENT_HUE[t]}"></span>${t} ${n}`;el.onclick=()=>{if(visible.has(t)){visible.delete(t);el.classList.add('off');}else{visible.add(t);el.classList.remove('off');}render();};gc.appendChild(el);});
+
+// dossier (in-place, right panel)
+function chainFor(id){const p={'B:S.2-119':['B:S.2-119','A:HHS','K:75N980','C:LLY','P:LLY'],'C:LLY':['B:S.2-119','A:HHS','C:LLY','P:LLY'],'A:HHS':['B:S.2-119','A:HHS','K:75N980','C:LLY'],'K:75N980':['A:HHS','K:75N980','C:LLY'],'L:LLY-Q1':['L:LLY-Q1','B:S.2-119','C:LLY'],'P:LLY':['C:LLY','P:LLY'],'B:HR-3':['B:HR-3','A:DHS','C:GEO'],'A:DHS':['B:HR-3','A:DHS','C:GEO'],'C:GEO':['B:HR-3','A:DHS','C:GEO']};return p[id]||[id];}
+function expRows(id){return edges.filter(e=>e.kind==='exposes'&&(e.from===id||e.to===id)).map(e=>{const bId=byId[e.from].type==='bill'?e.from:e.to;const oId=bId===e.from?e.to:e.from;return{bill:byId[bId],other:byId[oId],w:e.weight,cap:e.caption};});}
+function vitals(e){if(e.type==='bill')return[['Status',e.ring==='acid'?'Floor vote':'Committee'],['Chamber','Senate'],['Momentum',`<span class="minibar"><i style="width:${Math.round(e.importance*70)}%"></i></span>${Math.round(e.importance*70)}`],['Last action','2026-06-05']];if(e.type==='company')return[['Price','$842.10'],['Day','<span style="color:var(--up)">+1.4%</span>'],['CRS top','0.78'],['Lobby 12mo','$6.2M']];if(e.type==='contract')return[['Agency','HHS / CMS'],['Value','$48.0M'],['Awarded','2024-09-30'],['Renewal','~120 days']];if(e.type==='agency')return[['Type','Federal agency'],['Budget','$1.7T'],['Active bills','3']];if(e.type==='lobbying')return[['Quarter','2026 Q1'],['Spend','$1.4M'],['Target','S.2-119']];if(e.type==='position')return[['Shares','12'],['Cost','$10,105'],['P/L','<span style="color:var(--up)">+$98</span>']];return[];}
+
+const briefView=document.getElementById('briefView'),dossierView=document.getElementById('dossierView');
+const rpTitle=document.getElementById('rpTitle'),rpAction=document.getElementById('rpAction');
+const body=dossierView;
+function openDossier(id){
+ selected=id;render();
+ const e=byId[id],chain=chainFor(id),vit=vitals(e),exp=expRows(id);
+ const ev=edges.filter(x=>(x.from===id||x.to===id)&&x.kind!=='holds').slice(0,3);
+ body.innerHTML=`
+  <div class="ins-id"><div class="ins-glyph" style="background:${ENT_HUE[e.type]}">${GLYPH[e.type]}</div>
+   <div><div class="ins-name">${e.name}</div><div class="ins-sub">${e.id} · ${e.type.toUpperCase()}</div></div></div>
+  <div class="ins-cap">${e.caption}</div>
+  <div class="ins-sec"><div class="ins-lbl">The chain</div><div class="chain">${chain.map((c,i)=>`${i?'<span class="carrow">→</span>':''}<span class="cchip" data-id="${c}">${byId[c].label}</span>`).join('')}</div></div>
+  <div class="ins-sec"><div class="ins-lbl">Vitals</div><dl class="vitals">${vit.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
+  ${exp.length?`<div class="ins-sec"><div class="ins-lbl">Exposure</div>${exp.map(r=>`<div class="exp-row"><span class="exp-c">${(e.type==='bill'?r.other:r.bill).label}</span><span class="exp-bar"><i style="width:${Math.round(r.w*100)}%"></i></span><span class="exp-cap">${r.cap}</span></div>`).join('')}</div>`:''}
+  <div class="ins-sec"><div class="ins-lbl">Evidence</div>${ev.map(x=>`<div class="ev-row"><a href="#">${x.kind==='exposes'?'CRS v2 score':'Congress.gov action'} ↗</a></div>`).join('')}</div>
+  <div class="ins-sec ins-act"><button class="btn primary" id="dossierFull">Open full brief ↗</button><button class="btn">Pin</button></div>
+  ${e.type==='company'?'<div class="ins-sec ins-act" style="margin-top:-12px"><button class="btn">Paper trade</button></div>':''}`;
+ body.querySelectorAll('.cchip').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
+ const dfull=body.querySelector('#dossierFull'); if(dfull) dfull.onclick=()=>openFullBrief(id);
+ briefView.style.display='none';dossierView.style.display='block';
+ rpTitle.textContent='Dossier';rpAction.textContent='← Brief';rpAction.onclick=closeDossier;
+}
+function closeDossier(){
+ dossierView.style.display='none';briefView.style.display='block';
+ rpTitle.textContent='Daily intel brief';rpAction.textContent='Copy';rpAction.onclick=copyBrief;
+ selected=null;render();
+}
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('fullbrief').classList.contains('open'))closeDossier();});
+document.querySelectorAll('.cchip[data-id]').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
+
+// holdings rows
+const hb=document.getElementById('holdings');
+holdings.forEach(h=>{const tr=document.createElement('tr');tr.innerHTML=`<td class="sym">${h.sym}</td><td>${h.sh}</td><td>$${h.px.toFixed(2)}</td><td class="${h.day>=0?'up':'down'}">${h.day>=0?'+':''}${h.day}%</td><td>$${h.val.toLocaleString()}</td><td><span class="exposure"><span class="cchip">${h.exp}</span><span class="ebar"><i style="width:${h.ew}%"></i></span></span></td>`;tr.onclick=()=>openDossier(h.id);hb.appendChild(tr);});
+
+// tape
+const tapeData=[
+ {sev:'acid',t:'21:42',txt:'S.2-119 advanced to Senate floor vote'},
+ {sym:'SPY',px:'598.20',chg:'+0.4%',dir:'up'},
+ {sev:'warn',t:'21:31',txt:'HSCE24 detention contract enters renewal window'},
+ {sym:'LLY',px:'842.10',chg:'+1.4%',dir:'up'},
+ {sev:'acid',t:'21:08',txt:'CRS exposure on LLY raised to 0.78'},
+ {sym:'GEO',px:'28.40',chg:'-0.8%',dir:'down'},
+ {sev:'low',t:'20:55',txt:'Lilly files Q1 lobbying disclosure'},
+ {sym:'NVDA',px:'131.20',chg:'+2.1%',dir:'up'},
+];
+function tapeHtml(){return tapeData.map(d=>d.sym?`<span class="tape-item mkt"><b>${d.sym}</b> ${d.px} <span class="${d.dir}">${d.chg}</span></span>`:`<span class="tape-item"><span class="t">${d.t}</span><span class="pdot ${d.sev}"></span>${d.txt}</span>`).join('');}
+const tp=document.getElementById('tape');tp.innerHTML=tapeHtml()+tapeHtml();
+
+// sparkline
+[6,8,7,9,8,11].forEach(h=>{const i=document.createElement('i');i.style.height=h+'px';document.getElementById('pspark').appendChild(i);});
+
+// copy brief
+function copyBrief(){const t=`TS//BRIEF · 10 JUN 2026\nTODAY: One drug-pricing vote is moving toward your largest paper position.\nMOVEMENT: S.2-119 advanced to a Senate floor vote (S.2-119 -> LLY).\nEXPOSURE: S.2-119 -> LLY at 0.78.\nInformational scenarios only · not financial advice`;navigator.clipboard&&navigator.clipboard.writeText(t);}
+rpAction.onclick=copyBrief;document.getElementById('copyBrief2').onclick=copyBrief;
+
+/* ───────────────────────────────────────────────────────────
+   Portfolio chart (vanilla SVG — line + candles, zero deps)
+─────────────────────────────────────────────────────────── */
+function money(v){return '$'+Math.round(v).toLocaleString();}
+function svgEl(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function genPortfolio(n,seed,start){
+  const r=mulberry32(seed); let price=start; const out=[];
+  const today=new Date(2026,5,10);
+  for(let i=n-1;i>=0;i--){
+    const drift=(r()-0.45)*0.018;          // slight upward bias
+    const o=price, c=o*(1+drift);
+    const h=Math.max(o,c)*(1+r()*0.010), l=Math.min(o,c)*(1-r()*0.010);
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    out.push({t:d,o,h,l,c}); price=c;
+  }
+  return out;
+}
+const PSERIES=genPortfolio(130, 91, 92000);
+const PERIOD_N={'1M':22,'3M':66,'6M':130};
+const PCHART={type:'line',period:'3M',slice:[],xOf:null,yOf:null};
+const pchart=document.getElementById('pchart');
+const cw=document.getElementById('cw');
+
+function renderChart(){
+  const w=pchart.clientWidth, h=pchart.clientHeight;
+  if(!w||!h){requestAnimationFrame(renderChart);return;}   // panel hidden / not laid out yet
+  pchart.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  pchart.innerHTML='';
+  const data=PSERIES.slice(-PERIOD_N[PCHART.period]); PCHART.slice=data;
+  const padL=12,padR=62,padT=18,padB=26;
+  let min=Math.min(...data.map(d=>d.l)), max=Math.max(...data.map(d=>d.h));
+  const gpad=(max-min)*0.08; min-=gpad; max+=gpad;
+  const xOf=i=>padL+i/(data.length-1)*(w-padL-padR);
+  const yOf=p=>padT+(1-(p-min)/(max-min))*(h-padT-padB);
+  PCHART.xOf=xOf; PCHART.yOf=yOf;
+
+  // horizontal gridlines + price labels (right)
+  for(let g=0;g<=4;g++){
+    const p=min+(max-min)*g/4, y=yOf(p);
+    pchart.appendChild(svgEl('line',{x1:padL,y1:y,x2:w-padR,y2:y,stroke:'var(--line)','stroke-width':1}));
+    const tx=svgEl('text',{x:w-padR+6,y:y+3,fill:'var(--faint)','font-family':'Space Mono, monospace','font-size':10});
+    tx.textContent=money(p); pchart.appendChild(tx);
+  }
+  // x date labels
+  [0,Math.floor((data.length-1)/2),data.length-1].forEach(i=>{
+    const anchor=i===0?'start':(i===data.length-1?'end':'middle');
+    const tx=svgEl('text',{x:xOf(i),y:h-8,fill:'var(--faint)','font-family':'Space Mono, monospace','font-size':10,'text-anchor':anchor});
+    tx.textContent=data[i].t.toLocaleDateString('en-US',{month:'short',day:'numeric'}); pchart.appendChild(tx);
+  });
+
+  if(PCHART.type==='line'){
+    const linePts=data.map((d,i)=>`${xOf(i)},${yOf(d.c)}`);
+    const linePath='M'+linePts.join(' L');
+    const area=linePath+` L${xOf(data.length-1)},${yOf(min)} L${xOf(0)},${yOf(min)} Z`;
+    const defs=svgEl('defs',{}); const lg=svgEl('linearGradient',{id:'pgrad',x1:0,y1:0,x2:0,y2:1});
+    lg.appendChild(svgEl('stop',{offset:'0%','stop-color':'#C8FF00','stop-opacity':0.22}));
+    lg.appendChild(svgEl('stop',{offset:'100%','stop-color':'#C8FF00','stop-opacity':0}));
+    defs.appendChild(lg); pchart.appendChild(defs);
+    pchart.appendChild(svgEl('path',{d:area,fill:'url(#pgrad)'}));
+    pchart.appendChild(svgEl('path',{d:linePath,fill:'none',stroke:'var(--green)','stroke-width':2,'stroke-linejoin':'round'}));
+    pchart.appendChild(svgEl('circle',{cx:xOf(data.length-1),cy:yOf(data[data.length-1].c),r:3.5,fill:'var(--green)'}));
+  } else {
+    const bw=Math.max(2,(w-padL-padR)/data.length*0.6);
+    data.forEach((d,i)=>{
+      const x=xOf(i), col=d.c>=d.o?'var(--up)':'var(--down)';
+      pchart.appendChild(svgEl('line',{x1:x,y1:yOf(d.h),x2:x,y2:yOf(d.l),stroke:col,'stroke-width':1}));
+      const y1=yOf(Math.max(d.o,d.c)), y2=yOf(Math.min(d.o,d.c));
+      pchart.appendChild(svgEl('rect',{x:x-bw/2,y:y1,width:bw,height:Math.max(1,y2-y1),fill:col}));
+    });
+  }
+  pchart.appendChild(svgEl('g',{id:'cxg'}));   // crosshair layer
+
+  // overlay value + change
+  const last=data[data.length-1].c, first=data[0].c, chg=(last-first)/first*100;
+  document.getElementById('cvVal').textContent=money(last);
+  const chgEl=document.getElementById('cvChg');
+  chgEl.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'% · '+PCHART.period;
+  chgEl.className='cc '+(chg>=0?'up':'down');
+}
+
+// crosshair
+const ctip=document.getElementById('ctip');
+pchart.addEventListener('mousemove',e=>{
+  const data=PCHART.slice; if(!data.length||!PCHART.xOf)return;
+  const rc=pchart.getBoundingClientRect(), w=pchart.clientWidth, h=pchart.clientHeight;
+  const padL=12,padR=62;
+  let i=Math.round((e.clientX-rc.left-padL)/(w-padL-padR)*(data.length-1));
+  i=Math.max(0,Math.min(data.length-1,i));
+  const d=data[i], x=PCHART.xOf(i), y=PCHART.yOf(d.c);
+  const cx=document.getElementById('cxg'); if(!cx)return; cx.innerHTML='';
+  cx.appendChild(svgEl('line',{x1:x,y1:18,x2:x,y2:h-26,stroke:'var(--line-hot)','stroke-width':1}));
+  cx.appendChild(svgEl('circle',{cx:x,cy:y,r:3,fill:'var(--green)',stroke:'#0a0a0a','stroke-width':1}));
+  const dd=d.t.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  ctip.innerHTML = PCHART.type==='candle'
+    ? `<div class="ct-d">${dd}</div><div class="ct-v">O ${money(d.o)} · H ${money(d.h)}<br>L ${money(d.l)} · C ${money(d.c)}</div>`
+    : `<div class="ct-d">${dd}</div><div class="ct-v">${money(d.c)}</div>`;
+  ctip.classList.add('show');
+  ctip.style.left=Math.min(e.clientX+14,innerWidth-160)+'px';
+  ctip.style.top=Math.min(e.clientY+14,innerHeight-70)+'px';
+});
+pchart.addEventListener('mouseleave',()=>{ctip.classList.remove('show');const cx=document.getElementById('cxg');if(cx)cx.innerHTML='';});
+
+// chart type + period controls
+document.querySelectorAll('#cTypeSeg [data-ctype]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#cTypeSeg [data-ctype]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); PCHART.type=b.dataset.ctype; renderChart();
+});
+document.querySelectorAll('#cPeriod [data-p]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#cPeriod [data-p]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); PCHART.period=b.dataset.p; renderChart();
+});
+
+// hero view toggle: graph ⇄ portfolio
+const gw=document.getElementById('gw'), heroMeta=document.getElementById('heroMeta');
+document.querySelectorAll('#heroSeg .seg-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#heroSeg .seg-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  if(b.dataset.hero==='graph'){
+    gw.style.display=''; cw.style.display='none';
+    heroMeta.textContent='Default investigation · drag · scroll to zoom';
+    fit();
+  } else {
+    gw.style.display='none'; cw.style.display='';
+    heroMeta.textContent='Paper portfolio · hover for detail';
+    renderChart();
+  }
+});
+
+/* ───────────────────────────────────────────────────────────
+   Full-page brief — drillable from any node / holding.
+   Renders an in-page brief for every entity type (works offline),
+   and links to the real /bill /stock /contract route when served.
+─────────────────────────────────────────────────────────── */
+const fullbrief=document.getElementById('fullbrief'),fbInner=document.getElementById('fbInner'),fbLive=document.getElementById('fbLive');
+const TYPE_BADGE={bill:'POLICY BILL',agency:'FEDERAL AGENCY',company:'PUBLIC COMPANY',contract:'FEDERAL CONTRACT',lobbying:'LOBBYING FILING',position:'PAPER POSITION'};
+function briefRoute(e){
+  if(e.type==='bill')return '/bill/'+encodeURIComponent(e.label);
+  if(e.type==='company')return '/stock/'+encodeURIComponent(e.label);
+  if(e.type==='contract'){const ed=edges.find(x=>x.kind==='awarded_to'&&x.from===e.id);return ed?'/contract/'+encodeURIComponent(byId[ed.to].label):null;}
+  return null;
+}
+function summaryFor(e){const m={
+  bill:`${e.name} is moving through Congress. In plain terms: ${e.caption} TradeSimple traces where that pressure lands — which agency writes the rules, which contracts get funded, and which publicly traded companies feel it first.`,
+  agency:`${e.name} sits in the middle of this chain. ${e.caption} When a bill funds or directs it, money flows out through contracts to companies you can actually hold.`,
+  company:`${e.name} sits at the end of a policy chain. ${e.caption} The exposure below estimates how much a specific bill could move this name — a scenario model, not a forecast.`,
+  contract:`This is a federal contract in the chain. ${e.caption} Contracts are where legislative intent becomes real dollars to a specific company.`,
+  lobbying:`${e.name}. ${e.caption} Lobbying filings are an early signal that a company sees a bill as material to its business.`,
+  position:`${e.caption} This is simulated capital — your paper account — so you can test a thesis before risking real money.`
+};return m[e.type]||e.caption;}
+function openFullBrief(id){
+  const e=byId[id],chain=chainFor(id),vit=vitals(e),exp=expRows(id);
+  const ev=edges.filter(x=>(x.from===id||x.to===id)&&x.kind!=='holds');
+  const route=briefRoute(e);
+  if(route){fbLive.href=route;fbLive.style.display='';}else{fbLive.style.display='none';}
+  fbInner.innerHTML=`
+   <div class="fb-kicker">TS//BRIEF · ${TYPE_BADGE[e.type]} · REF: COLLECTION_2026</div>
+   <h1 class="fb-h1">${e.name}</h1>
+   <div class="fb-sub">${e.id}${route?' · '+route:' · in-app view'}</div>
+   <div class="fb-lede">${e.caption}</div>
+   <div class="fb-sec"><h3>What this is</h3><p class="fb-p">${summaryFor(e)}</p></div>
+   <div class="fb-sec"><h3>The chain to your money</h3><div class="fb-chain">${chain.map((c,i)=>`${i?'<span class="fb-carrow">→</span>':''}<span class="fb-cchip" data-id="${c}">${byId[c].label}</span>`).join('')}</div></div>
+   ${exp.length?`<div class="fb-sec"><h3>Exposure · scenario model</h3>${exp.map(r=>`<div class="fb-exp"><span class="lab">${(e.type==='bill'?r.other:r.bill).label}</span><span class="bar"><i style="width:${Math.round(r.w*100)}%"></i></span><span class="cap">${r.cap}</span></div>`).join('')}</div>`:''}
+   <div class="fb-sec"><h3>Vitals</h3><div class="fb-vitals">${vit.map(([k,v])=>`<dl class="fb-v"><dt>${k}</dt><dd>${v}</dd></dl>`).join('')}</div></div>
+   <div class="fb-sec"><h3>Evidence &amp; sources</h3><div class="fb-ev">${ev.map(x=>`<a href="${route||'#'}" ${route?'target="_blank" rel="noopener"':''}>${x.kind==='exposes'?'CRS v2 exposure score':x.kind==='lobbied_on'?'Senate LDA lobbying filing':'Congress.gov / USASpending record'} ↗</a>`).join('')||'<p class="fb-p">Sources attach to live entities.</p>'}</div></div>
+   <div class="fb-act">${route?`<a class="btn primary" href="${route}" target="_blank" rel="noopener">Open live page ↗</a>`:''}${e.type==='company'?'<button class="btn">Paper trade</button>':''}<button class="btn">Pin to investigation</button><button class="btn">Copy share link</button></div>
+   <div class="fb-foot">Informational scenarios only · not financial advice · figures are illustrative demo data in this preview.</div>`;
+  fbInner.querySelectorAll('.fb-cchip').forEach(c=>c.onclick=()=>openFullBrief(c.dataset.id));
+  fullbrief.classList.add('open');fullbrief.scrollTop=0;
+}
+function closeFullBrief(){fullbrief.classList.remove('open');}
+document.getElementById('fbBack').onclick=closeFullBrief;
+addEventListener('keydown',e=>{if(e.key==='Escape'&&fullbrief.classList.contains('open'))closeFullBrief();});
+
+/* sidebar nav active-state (makes the rail feel live) */
+document.querySelectorAll('.side-nav .nav-item').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.side-nav .nav-item').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+});
+
+render();fit();
+let warm=36;(function cool(){if(warm-->0){tick();render();requestAnimationFrame(cool);}else applyVp();})();
+addEventListener('resize',()=>{ if(cw.style.display!=='none') renderChart(); else fit(); });
+</script>
+</body>
+</html>

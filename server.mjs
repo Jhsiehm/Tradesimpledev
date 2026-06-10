@@ -234,8 +234,20 @@ const BASE_SECURITY_HEADERS = {
     "frame-ancestors 'none'"
   ].join("; ")
 };
-const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 15_000);
+// The "Markets" view alone requests ~50+ unique symbols. At Finnhub's free-tier
+// ~60 req/min cap, a 30s TTL means ~50 calls every 30s (~100/min) — over budget.
+// 60s TTL halves the steady-state floor to ~50/min, and the worker-pool fetch
+// (below) staggers each symbol's cache-fill time, so refreshes trickle in
+// rather than re-bursting all 50+ symbols at once.
+const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 60_000);
 const quoteCache = new Map();
+// Finnhub's free tier is ~60 req/min with a per-second cap. A burst of parallel
+// quote calls trips HTTP 429, so we (a) cap fetch concurrency and (b) trip a
+// short circuit-breaker when Finnhub rate-limits us — serving cache/fallback
+// until it recovers instead of hammering it on every subsequent request.
+const QUOTE_FETCH_CONCURRENCY = Number(process.env.QUOTE_FETCH_CONCURRENCY || 4);
+const FINNHUB_COOLDOWN_MS = Number(process.env.FINNHUB_COOLDOWN_MS || 60_000);
+let finnhubCooldownUntil = 0;
 const stockSnapshotHistory = new Map();
 const shareRateLimit = new Map();
 const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
@@ -2271,6 +2283,21 @@ server.listen(PORT, "0.0.0.0", async () => {
     console.warn("[WARN] SEC_USER_AGENT contains placeholder email. Set SEC_USER_AGENT in .env.local for EDGAR access (SEC fair-access policy requires a real contact).");
   }
 
+  // Durable persistence status — accounts, paper portfolios, watchlists.
+  // Without Supabase these live in DATA_DIR, which is ephemeral on Railway and
+  // is wiped on every redeploy/restart. Make this impossible to miss at boot.
+  if (dbReady) {
+    console.log("[data] Supabase persistence ACTIVE — accounts, paper portfolios, and watchlists survive restarts.");
+  } else {
+    const ephemeralWarn =
+      "[WARN] Supabase NOT configured — accounts, paper portfolios, and watchlists are stored on the local filesystem and WILL BE LOST on every redeploy/restart. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (and run supabase/schema.sql) to make them durable.";
+    if (process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT) {
+      console.error(ephemeralWarn);
+    } else {
+      console.warn(ephemeralWarn);
+    }
+  }
+
   // Python sidecar health check
   if (isYfinanceEnabled()) {
     const { existsSync: _exists } = await import("node:fs");
@@ -3216,18 +3243,18 @@ async function marketQuotes(res, url) {
         .filter(Boolean)
     )
   ].slice(0, 120);
-  const batches = [];
-  for (let i = 0; i < symbols.length; i += 40) batches.push(symbols.slice(i, i + 40));
+  // Fetch with bounded concurrency so we never burst the provider rate limit.
   const filteredQuotes = [];
-  for (const batch of batches) {
-    const quotes = await Promise.all(
-      batch.map(async (symbol) => {
-        const result = await quoteSnapshot(symbol);
-        return result.quote;
-      })
-    );
-    filteredQuotes.push(...quotes.filter(Boolean));
+  let nextIndex = 0;
+  async function quoteWorker() {
+    while (nextIndex < symbols.length) {
+      const symbol = symbols[nextIndex++];
+      const result = await quoteSnapshot(symbol);
+      if (result.quote) filteredQuotes.push(result.quote);
+    }
   }
+  const workerCount = Math.min(QUOTE_FETCH_CONCURRENCY, symbols.length) || 1;
+  await Promise.all(Array.from({ length: workerCount }, quoteWorker));
   const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
   const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
   const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance").length;
@@ -5768,6 +5795,7 @@ async function shareStockSnapshot(req, res, url) {
       }
     });
   } catch (err) {
+    console.error(`[share/stock] ${symbol} snapshot failed:`, err?.stack || err?.message || String(err));
     sendJson(res, 502, { error: "share_snapshot_unavailable", message: err.message || String(err) });
   }
 }
@@ -7054,12 +7082,19 @@ async function quoteSnapshot(symbol) {
   }
 
   const token = process.env.FINNHUB_API_KEY;
+  const finnhubReady = token && Date.now() >= finnhubCooldownUntil;
 
-  if (token) {
+  if (finnhubReady) {
     try {
       const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
       const response = await fetchWithTimeout(quoteUrl, {}, 7000);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 429) {
+          finnhubCooldownUntil = Date.now() + FINNHUB_COOLDOWN_MS;
+          console.warn(`[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       const mapped = mapFinnhubQuoteResponse(symbol, data);
       const quote = withQuoteFreshness(mapped, "finnhub", mapped.timestamp);

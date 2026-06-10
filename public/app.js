@@ -5471,6 +5471,7 @@ async function loadAnalysis(symbol) {
     renderPolicyCatalysts();
     renderLobbying();
   } catch (error) {
+    console.error("[analysis] /api/share/stock failed:", error);
     if (source) source.textContent = "Analysis unavailable";
     const summary = $("#analysis-left-summary");
     if (summary) summary.textContent = "The analysis endpoint did not return. Check the server console and try again.";
