@@ -1598,6 +1598,45 @@ html[data-theme="light"] body[data-page="dashboard"] .terminal-brand {
   background: rgba(255, 255, 255, 0.55);
 }
 
+body[data-page="dashboard"] .terminal-brand .brand-tagline {
+  display: block;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: rgba(200, 255, 0, 0.6);
+  text-transform: uppercase;
+  margin-top: 1px;
+  line-height: 1;
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .terminal-brand .brand-tagline {
+  color: var(--muted);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram {
+  filter: none;
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram text {
+  fill: var(--green-dim);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram circle[r="12.5"] {
+  stroke: color-mix(in srgb, var(--green-dim) 55%, var(--line-2));
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram circle[stroke-dasharray] {
+  stroke: var(--green-dim);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram line {
+  stroke: color-mix(in srgb, var(--green) 70%, var(--line-2));
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .brand-monogram circle[r="2"] {
+  fill: var(--green);
+}
+
 html[data-theme="light"] body[data-page="dashboard"] .nav-item.active {
   color: var(--green-dim, #1f4a35);
   border-left-color: var(--green-dim, #1f4a35);
