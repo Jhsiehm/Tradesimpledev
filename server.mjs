@@ -234,7 +234,10 @@ const BASE_SECURITY_HEADERS = {
     "frame-ancestors 'none'"
   ].join("; ")
 };
-const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 15_000);
+// 30s keeps the steady-state refresh rate for the ~16 dashboard symbols (16 calls / 30s ≈ 32/min)
+// comfortably under Finnhub's free-tier ~60 req/min cap, leaving headroom for company-news calls
+// and multiple concurrent users.
+const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 30_000);
 const quoteCache = new Map();
 // Finnhub's free tier is ~60 req/min with a per-second cap. A burst of parallel
 // quote calls trips HTTP 429, so we (a) cap fetch concurrency and (b) trip a
