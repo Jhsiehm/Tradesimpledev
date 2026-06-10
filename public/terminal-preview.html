@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TradeSimple Terminal — Rework Preview</title>
+<link rel="icon" type="image/png" href="/favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  /* Surfaces, darkest to lightest */
+  --bg-void:    #050605;
+  --bg-panel:   #0B0D0A;
+  --bg-raised:  #11140E;
+  --bg-overlay: #161A12;
+
+  /* Lines */
+  --line-faint: #1C2016;
+  --line-mid:   #2A2F22;
+  --line-hot:   #3D4430;
+
+  /* Ink */
+  --ink-hi:     #E8EBE0;
+  --ink-mid:    #9BA18E;
+  --ink-low:    #5C6150;
+
+  /* Brand + semantics */
+  --acid:       #C8F000;
+  --acid-dim:   #6F8500;
+  --up:         #4ADE80;
+  --down:       #F87171;
+  --warn:       #FBBF24;
+  --intel:      #7DD3FC;
+
+  /* Entity hues */
+  --ent-bill:     #C8F000;
+  --ent-agency:   #7DD3FC;
+  --ent-company:  #E8EBE0;
+  --ent-contract: #FBBF24;
+  --ent-lobby:    #C084FC;
+  --ent-position: #4ADE80;
+
+  /* Type */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui:      'Outfit', system-ui, sans-serif;
+  --font-mono:    'Space Mono', ui-monospace, monospace;
+
+  --t-display: 34px;
+  --t-head:    19px;
+  --t-body:    14px;
+  --t-data:    13px;
+  --t-label:   11px;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+  --radius: 2px;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 400ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Zone sizes (flip these for collapse states) */
+  --rail-w: 56px;
+  --inspector-w: 360px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg-void);
+  color: var(--ink-hi);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  overflow: hidden;
+}
+
+/* ── Shell grid ─────────────────────────────────────────── */
+.shell {
+  display: grid;
+  height: 100vh;
+  grid-template-columns: var(--rail-w) 1fr var(--inspector-w);
+  grid-template-rows: 24px 32px 1fr 40px;
+  grid-template-areas:
+    "classbar classbar classbar"
+    "tape     tape      tape"
+    "rail     canvas    inspector"
+    "status   status    status";
+  transition: grid-template-columns var(--motion-base) var(--ease);
+}
+.shell.inspector-collapsed { --inspector-w: 0px; }
+
+/* ── Classification bar ─────────────────────────────────── */
+.classbar {
+  grid-area: classbar;
+  background: var(--acid);
+  color: #0a0a0a;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  user-select: none;
+}
+.classbar .left { display: flex; gap: var(--sp-4); align-items: center; }
+.classbar .blink { animation: blink 2s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }
+
+/* ── Policy tape ────────────────────────────────────────── */
+.tape {
+  grid-area: tape;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line-faint);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.tape-track {
+  display: flex;
+  gap: var(--sp-6);
+  white-space: nowrap;
+  animation: marquee 60s linear infinite;
+  padding-left: var(--sp-4);
+}
+.tape:hover .tape-track { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+.tape-event {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-mid);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+.tape-event:hover { color: var(--ink-hi); }
+.tape-event .t { color: var(--ink-low); }
+.tape-event .chip { color: var(--ink-low); border: 1px solid var(--line-mid); padding: 0 5px; border-radius: var(--radius); font-size: 10px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.dot.acid { background: var(--acid); box-shadow: 0 0 6px var(--acid); }
+.dot.warn { background: var(--warn); }
+.dot.low { background: var(--ink-low); }
+
+/* ── Left rail ──────────────────────────────────────────── */
+.rail {
+  grid-area: rail;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--line-faint);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--sp-3) 0;
+  gap: var(--sp-1);
+  overflow: hidden;
+  width: var(--rail-w);
+  transition: width var(--motion-base) var(--ease);
+  z-index: 20;
+}
+.rail:hover { width: 240px; box-shadow: 8px 0 24px rgba(0,0,0,0.5); }
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 38px;
+  padding: 0 18px;
+  color: var(--ink-low);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  border-left: 2px solid transparent;
+}
+.rail-item .ico { flex: none; width: 20px; text-align: center; font-size: 13px; }
+.rail-item:hover { color: var(--ink-hi); background: var(--bg-raised); }
+.rail-item.active { color: var(--acid); border-left-color: var(--acid); }
+.rail-spacer { flex: 1; }
+
+/* ── Canvas ─────────────────────────────────────────────── */
+.canvas {
+  grid-area: canvas;
+  position: relative;
+  background:
+    radial-gradient(circle, var(--line-faint) 1px, transparent 1px) 0 0 / 26px 26px,
+    var(--bg-void);
+  overflow: hidden;
+}
+.canvas svg { width: 100%; height: 100%; display: block; cursor: grab; }
+.canvas svg.panning { cursor: grabbing; }
+
+.filter-chips {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-4);
+  display: flex;
+  gap: var(--sp-2);
+  z-index: 5;
+}
+.chip-toggle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--ink-mid);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chip-toggle .swatch { width: 7px; height: 7px; border-radius: 50%; }
+.chip-toggle.off { opacity: 0.32; }
+.chip-toggle .ct { color: var(--ink-low); }
+
+.canvas-title {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-4);
+  text-align: right;
+  z-index: 5;
+  pointer-events: none;
+}
+.canvas-title .claim {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink-hi);
+  max-width: 340px;
+  line-height: 1.15;
+}
+.canvas-title .meta { font-family: var(--font-mono); font-size: 10px; color: var(--ink-low); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+
+.ghost-banner {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(251,191,36,0.08);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.ghost-cta {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--acid);
+  color: #0a0a0a;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 9px 20px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  z-index: 5;
+}
+
+/* node + edge styling */
+.edge { stroke: var(--line-hot); fill: none; transition: opacity var(--motion-base); }
+.edge.exposes { stroke: var(--acid); }
+.edge.exposes.crawl { stroke-dasharray: 5 7; animation: crawl 6s linear infinite; }
+@keyframes crawl { to { stroke-dashoffset: -120; } }
+.edge.dim { opacity: 0.18; }
+
+.node { cursor: pointer; }
+.node .ring { fill: none; stroke-width: 2; transition: all var(--motion-fast); }
+.node .core { transition: all var(--motion-fast); }
+.node .glyph { font-family: var(--font-mono); font-size: 10px; font-weight: 700; fill: #0a0a0a; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.node .label { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-mid); text-anchor: middle; text-transform: uppercase; letter-spacing: 0.04em; pointer-events: none; }
+.node.dim { opacity: 0.3; }
+.node.selected .ring { stroke: var(--acid); stroke-width: 3; filter: drop-shadow(0 0 6px var(--acid)); }
+.node:hover .core { transform-box: fill-box; transform-origin: center; transform: scale(1.15); }
+
+.caption-chip {
+  position: absolute;
+  background: var(--bg-overlay);
+  border: 1px solid var(--line-hot);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  max-width: 240px;
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0;
+  transition: opacity var(--motion-fast);
+}
+.caption-chip.show { opacity: 1; }
+.caption-chip .cn { font-family: var(--font-mono); font-size: 11px; color: var(--ink-hi); margin-bottom: 3px; }
+.caption-chip .cc { font-size: 12px; color: var(--ink-mid); line-height: 1.3; }
+
+/* ── Inspector ──────────────────────────────────────────── */
+.inspector {
+  grid-area: inspector;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--line-faint);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-4);
+}
+.shell.inspector-collapsed .inspector { display: none; }
+.inspector::-webkit-scrollbar { width: 6px; }
+.inspector::-webkit-scrollbar-thumb { background: var(--line-mid); }
+
+.ins-section { margin-bottom: var(--sp-5); }
+.ins-label { font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-low); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--sp-3); display: flex; justify-content: space-between; }
+
+/* identity */
+.ins-identity { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.ins-glyph { width: 30px; height: 30px; border-radius: var(--radius); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: #0a0a0a; flex: none; }
+.ins-name { font-size: var(--t-head); font-weight: 600; line-height: 1.1; }
+.ins-sublabel { font-family: var(--font-mono); font-size: 11px; color: var(--ink-low); margin-top: 2px; }
+.ins-caption { font-family: var(--font-display); font-size: 16px; font-style: italic; color: var(--ink-hi); line-height: 1.35; margin-top: var(--sp-3); }
+
+/* chain breadcrumb */
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.chain-chip { font-family: var(--font-mono); font-size: 10px; padding: 3px 7px; border: 1px solid var(--line-mid); border-radius: var(--radius); color: var(--ink-mid); cursor: pointer; }
+.chain-chip:hover { border-color: var(--acid); color: var(--acid); }
+.chain-arrow { color: var(--ink-low); font-size: 11px; }
+
+/* vitals */
+.vitals { display: grid; grid-template-columns: auto 1fr; gap: 7px var(--sp-4); font-family: var(--font-mono); font-size: 12px; }
+.vitals dt { color: var(--ink-low); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; align-self: center; }
+.vitals dd { margin: 0; color: var(--ink-hi); text-align: right; }
+.vitals dd.up { color: var(--up); }
+.vitals dd.down { color: var(--down); }
+.minibar { display: inline-block; width: 60px; height: 6px; background: var(--line-mid); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.minibar > i { display: block; height: 100%; background: var(--acid); }
+
+/* exposure list */
+.exp-row { display: flex; align-items: center; gap: var(--sp-2); padding: 7px 0; border-bottom: 1px solid var(--line-faint); }
+.exp-row:last-child { border-bottom: none; }
+.exp-chip { font-family: var(--font-mono); font-size: 10px; color: var(--ent-bill); flex: none; width: 64px; }
+.exp-bar { flex: 1; height: 5px; background: var(--line-mid); border-radius: 3px; overflow: hidden; }
+.exp-bar > i { display: block; height: 100%; background: var(--acid); }
+.exp-cap { font-size: 11px; color: var(--ink-mid); flex: 1.4; line-height: 1.25; }
+
+/* evidence */
+.ev-row { display: flex; gap: var(--sp-2); padding: 5px 0; font-size: 11px; }
+.ev-row a { color: var(--intel); text-decoration: none; font-family: var(--font-mono); }
+.ev-row a:hover { text-decoration: underline; }
+.ev-row .ext { color: var(--ink-low); }
+
+/* actions */
+.ins-actions { display: flex; gap: var(--sp-2); }
+.btn { flex: 1; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 9px; border-radius: var(--radius); cursor: pointer; border: 1px solid var(--line-hot); background: transparent; color: var(--ink-mid); }
+.btn.primary { background: var(--acid); color: #0a0a0a; border-color: var(--acid); font-weight: 700; }
+.btn:hover { border-color: var(--acid); color: var(--ink-hi); }
+.btn.primary:hover { color: #0a0a0a; }
+
+/* brief (no selection) */
+.brief-head { font-family: var(--font-mono); font-size: 10px; color: var(--ink-low); letter-spacing: 0.08em; border-bottom: 1px solid var(--line-mid); padding-bottom: var(--sp-2); margin-bottom: var(--sp-4); }
+.brief-block { margin-bottom: var(--sp-4); }
+.brief-badge { display: inline-block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; padding: 2px 6px; border-radius: var(--radius); margin-bottom: var(--sp-2); }
+.brief-badge.today { background: var(--green-2, #2A3800); color: var(--acid); border: 1px solid var(--acid-dim); }
+.brief-badge.movement { background: rgba(125,211,252,0.1); color: var(--intel); border: 1px solid var(--intel); }
+.brief-badge.exposure { background: rgba(200,240,0,0.08); color: var(--acid); border: 1px solid var(--acid-dim); }
+.brief-sentence { font-family: var(--font-display); font-size: 17px; line-height: 1.3; color: var(--ink-hi); }
+.brief-foot { font-family: var(--font-mono); font-size: 10px; color: var(--ink-low); border-top: 1px solid var(--line-faint); padding-top: var(--sp-3); margin-top: var(--sp-5); }
+.copy-brief { margin-top: var(--sp-3); width: 100%; }
+
+/* ── Status strip ───────────────────────────────────────── */
+.status {
+  grid-area: status;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line-faint);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-mid);
+}
+.status .cluster { display: flex; align-items: center; gap: var(--sp-3); }
+.status .item { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.status .item:hover { color: var(--ink-hi); }
+.status .sep { color: var(--line-hot); }
+.status .lbl { color: var(--ink-low); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
+.status .val { color: var(--ink-hi); }
+.spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.spark > i { width: 3px; background: var(--acid-dim); border-radius: 1px; }
+.status .paper { color: var(--warn); }
+
+.note { position: absolute; left: 14px; bottom: 56px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-low); max-width: 280px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+
+  <!-- Classification bar -->
+  <div class="classbar">
+    <div class="left">
+      <span>TS//TRADESIMPLE</span>
+      <span class="blink">●</span>
+      <span>PAPER MODE // SIMULATED CAPITAL</span>
+    </div>
+    <span id="clock">REF: COLLECTION_2026</span>
+  </div>
+
+  <!-- Policy tape -->
+  <div class="tape">
+    <div class="tape-track" id="tape-track"></div>
+  </div>
+
+  <!-- Left rail -->
+  <nav class="rail">
+    <div class="rail-item active"><span class="ico">◎</span><span>Home</span></div>
+    <div class="rail-item"><span class="ico">◇</span><span>Investigations</span></div>
+    <div class="rail-item"><span class="ico">⬡</span><span>Graph</span></div>
+    <div class="rail-item"><span class="ico">▤</span><span>Bills</span></div>
+    <div class="rail-item"><span class="ico">⊞</span><span>Lobbying</span></div>
+    <div class="rail-item"><span class="ico">▦</span><span>Contracts</span></div>
+    <div class="rail-item"><span class="ico">▲</span><span>Markets</span></div>
+    <div class="rail-item"><span class="ico">◷</span><span>Track Record</span></div>
+    <div class="rail-spacer"></div>
+    <div class="rail-item"><span class="ico">◍</span><span>Account</span></div>
+    <div class="rail-item"><span class="ico">⚙</span><span>Settings</span></div>
+  </nav>
+
+  <!-- Center canvas -->
+  <div class="canvas" id="canvas">
+    <div class="filter-chips" id="filter-chips"></div>
+    <div class="canvas-title">
+      <div class="claim">Drug-pricing reform routes through HHS to reach Eli&nbsp;Lilly.</div>
+      <div class="meta">TRAINING TAPE · DEFAULT INVESTIGATION</div>
+    </div>
+    <svg id="graph">
+      <g id="viewport">
+        <g id="layer-edges"></g>
+        <g id="layer-nodes"></g>
+      </g>
+    </svg>
+    <div class="ghost-banner">TRAINING TAPE · SIMULATED PORTFOLIO · YOUR CASH IS UNTOUCHED</div>
+    <button class="ghost-cta">▸ Start your own investigation</button>
+    <div class="note">Preview build. Hover a node for its plain-English caption · click to select · drag canvas to pan · scroll to zoom.</div>
+  </div>
+
+  <!-- Inspector -->
+  <aside class="inspector" id="inspector"></aside>
+
+  <!-- Status strip -->
+  <div class="status">
+    <div class="cluster">
+      <div class="item"><span class="lbl">Policy Heat</span><span class="val" id="heat">29</span><span class="spark" id="spark"></span></div>
+      <span class="sep">·</span>
+      <div class="item"><span class="lbl">Mapped Bills</span><span class="val">13</span></div>
+      <span class="sep">·</span>
+      <div class="item"><span class="lbl">Top Lobby</span><span class="val">60/100</span></div>
+      <span class="sep">·</span>
+      <div class="item"><span class="lbl">Last Sync</span><span class="val" id="sync">21:54</span></div>
+    </div>
+    <div class="cluster">
+      <span class="paper">PAPER MODE</span><span class="sep">·</span>
+      <span class="val">$100,000</span><span class="sep">·</span>
+      <span class="up">+0.00%</span>
+    </div>
+  </div>
+</div>
+
+<div class="caption-chip" id="chip"></div>
+
+<script>
+// ── Ontology (ghost-mode demo data: two real chains) ──────
+const ENT_HUE = {
+  bill: '#C8F000', agency: '#7DD3FC', company: '#E8EBE0',
+  contract: '#FBBF24', lobbying: '#C084FC', position: '#4ADE80'
+};
+const GLYPH = { bill:'B', agency:'A', company:'C', contract:'K', lobbying:'L', position:'P' };
+
+const entities = [
+  { id:'B:S.2-119', type:'bill', label:'S.2-119', name:'SMART Prices Act',
+    caption:'Lets Medicare negotiate prices on more drugs. Pharma pricing power weakens if it passes.',
+    importance:1.0, ring:'acid' },
+  { id:'A:HHS', type:'agency', label:'HHS', name:'Health & Human Services',
+    caption:'The agency that would write the drug-negotiation rules and run Medicare.',
+    importance:0.7 },
+  { id:'K:75N980', type:'contract', label:'75N980', name:'CMS negotiation support',
+    caption:'A federal contract paying a vendor to help run the price-negotiation program.',
+    importance:0.55, ring:'warn' },
+  { id:'C:LLY', type:'company', label:'LLY', name:'Eli Lilly',
+    caption:'Sells brand-name drugs. Loses pricing power if Medicare negotiation expands.',
+    importance:0.85 },
+  { id:'L:LLY-Q1', type:'lobbying', label:'LLY-Q1', name:'Lilly lobbying 2026 Q1',
+    caption:'Eli Lilly hired lobbyists this quarter to push back on drug-price negotiation.',
+    importance:0.5 },
+  { id:'P:LLY', type:'position', label:'LLY · 12sh', name:'Your paper position',
+    caption:'You hold 12 simulated shares of Eli Lilly in your paper account.',
+    importance:0.45 },
+
+  { id:'B:HR-3', type:'bill', label:'HR-3', name:'Border Capacity Act',
+    caption:'Funds more detention and enforcement capacity at the southern border.',
+    importance:0.8, ring:'warn' },
+  { id:'A:DHS', type:'agency', label:'DHS', name:'Homeland Security',
+    caption:'The agency that buys detention capacity and border-enforcement services.',
+    importance:0.65 },
+  { id:'K:HSCE24', type:'contract', label:'HSCE24', name:'Detention services recompete',
+    caption:'A contract up for renewal soon to run detention facilities — a renewal-risk window.',
+    importance:0.6, ring:'warn' },
+  { id:'C:GEO', type:'company', label:'GEO', name:'GEO Group',
+    caption:'Runs private detention facilities. Wins or loses on border-funding decisions.',
+    importance:0.7 },
+];
+
+const edges = [
+  { from:'B:S.2-119', to:'A:HHS', kind:'regulates', weight:0.71,
+    caption:'If this bill passes, HHS writes the negotiation rules.' },
+  { from:'A:HHS', to:'K:75N980', kind:'funds', weight:0.5,
+    caption:'HHS funds the contract that operates the negotiation program.' },
+  { from:'K:75N980', to:'C:LLY', kind:'awarded_to', weight:0.4,
+    caption:'The program directly negotiates against Lilly’s drug prices.' },
+  { from:'C:LLY', to:'B:S.2-119', kind:'lobbied_on', weight:0.55,
+    caption:'Lilly is lobbying against this exact bill.' },
+  { from:'L:LLY-Q1', to:'B:S.2-119', kind:'lobbied_on', weight:0.5,
+    caption:'Q1 filing names this bill as a lobbying target.' },
+  { from:'P:LLY', to:'C:LLY', kind:'holds', weight:0.6,
+    caption:'Your paper position holds Eli Lilly.' },
+  { from:'B:S.2-119', to:'C:LLY', kind:'exposes', weight:0.78,
+    caption:'CRS: strong negative exposure — passage weakens Lilly pricing power.' },
+
+  { from:'B:HR-3', to:'A:DHS', kind:'funds', weight:0.66,
+    caption:'The bill funds DHS border and detention operations.' },
+  { from:'A:DHS', to:'K:HSCE24', kind:'funds', weight:0.55,
+    caption:'DHS funds the detention services contract.' },
+  { from:'K:HSCE24', to:'C:GEO', kind:'awarded_to', weight:0.62,
+    caption:'GEO Group is the incumbent on this detention contract.' },
+  { from:'B:HR-3', to:'C:GEO', kind:'exposes', weight:0.64,
+    caption:'CRS: positive exposure — more border funding favors GEO revenue.' },
+];
+
+const tapeEvents = [
+  { sev:'acid', t:'21:42', cap:'S.2-119 advanced to Senate floor vote', chips:['B:S.2-119','C:LLY'] },
+  { sev:'warn', t:'21:31', cap:'HSCE24 detention contract enters renewal window', chips:['K:HSCE24','C:GEO'] },
+  { sev:'acid', t:'21:08', cap:'CRS exposure on LLY raised to 0.78', chips:['B:S.2-119','C:LLY'] },
+  { sev:'low',  t:'20:55', cap:'Lilly files Q1 lobbying disclosure', chips:['L:LLY-Q1'] },
+  { sev:'warn', t:'20:30', cap:'HR-3 border funding markup scheduled', chips:['B:HR-3','C:GEO'] },
+  { sev:'low',  t:'20:02', cap:'HHS publishes negotiation rule draft', chips:['A:HHS'] },
+];
+
+// ── Build maps ────────────────────────────────────────────
+const byId = Object.fromEntries(entities.map(e => [e.id, e]));
+const types = [...new Set(entities.map(e => e.type))];
+const visibleTypes = new Set(types);
+
+// ── Force layout (Verlet-ish, per spec §6.2) ─────────────
+const W = 900, H = 600;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rand = mulberry32(42);
+const nodes = entities.map(e => ({
+  id:e.id, ent:e,
+  x: W/2 + (rand()-0.5)*300,
+  y: H/2 + (rand()-0.5)*300,
+  vx:0, vy:0, pinned:false
+}));
+const nodeById = Object.fromEntries(nodes.map(n=>[n.id,n]));
+const REPULSE = 16000, STIFF = 0.04, DAMP = 0.85;
+
+function tick(){
+  for (let i=0;i<nodes.length;i++){
+    for (let j=i+1;j<nodes.length;j++){
+      const a=nodes[i], b=nodes[j];
+      let dx=b.x-a.x, dy=b.y-a.y;
+      let d=Math.max(Math.hypot(dx,dy),20);
+      const f=REPULSE/(d*d);
+      const nx=dx/d, ny=dy/d;
+      a.vx-=nx*f; a.vy-=ny*f; b.vx+=nx*f; b.vy+=ny*f;
+    }
+  }
+  for (const e of edges){
+    const a=nodeById[e.from], b=nodeById[e.to];
+    if(!a||!b) continue;
+    let dx=b.x-a.x, dy=b.y-a.y;
+    let d=Math.max(Math.hypot(dx,dy),1);
+    const rest=90+60*(1-e.weight);
+    const f=(d-rest)*STIFF;
+    const nx=dx/d, ny=dy/d;
+    a.vx+=nx*f; a.vy+=ny*f; b.vx-=nx*f; b.vy-=ny*f;
+  }
+  let ke=0;
+  for (const n of nodes){
+    n.vx += (W/2 - n.x)*0.005;
+    n.vy += (H/2 - n.y)*0.005;
+    if (n.pinned){ n.vx=0; n.vy=0; continue; }
+    n.vx*=DAMP; n.vy*=DAMP;
+    n.x+=n.vx; n.y+=n.vy;
+    ke += n.vx*n.vx + n.vy*n.vy;
+  }
+  return ke;
+}
+// pre-warm so first paint is settled
+for (let i=0;i<260;i++) tick();
+
+// ── Render ────────────────────────────────────────────────
+const svg = document.getElementById('graph');
+const vp = document.getElementById('viewport');
+const layerEdges = document.getElementById('layer-edges');
+const layerNodes = document.getElementById('layer-nodes');
+const NS='http://www.w3.org/2000/svg';
+let selected = null;
+
+function ringColor(e){
+  if(e.ring==='acid') return 'var(--acid)';
+  if(e.ring==='warn') return 'var(--warn)';
+  return 'var(--ink-low)';
+}
+function coreR(e){ return 8 + Math.sqrt(e.importance)*9; }
+
+function render(){
+  layerEdges.innerHTML='';
+  layerNodes.innerHTML='';
+  const sel = selected;
+  const connected = new Set();
+  if (sel){
+    edges.forEach(e=>{ if(e.from===sel||e.to===sel){connected.add(e.from);connected.add(e.to);} });
+  }
+  // edges
+  for (const e of edges){
+    const a=nodeById[e.from], b=nodeById[e.to];
+    if(!a||!b) continue;
+    if(!visibleTypes.has(a.ent.type)||!visibleTypes.has(b.ent.type)) continue;
+    const line=document.createElementNS(NS,'line');
+    line.setAttribute('x1',a.x);line.setAttribute('y1',a.y);
+    line.setAttribute('x2',b.x);line.setAttribute('y2',b.y);
+    let cls='edge';
+    if(e.kind==='exposes'){ cls+=' exposes'; if(e.weight>=0.6) cls+=' crawl'; line.setAttribute('stroke-width', 1+3*e.weight); }
+    else line.setAttribute('stroke-width', 1);
+    if(sel && !(e.from===sel||e.to===sel)) cls+=' dim';
+    line.setAttribute('class',cls);
+    line.dataset.cap=e.caption;
+    line.addEventListener('mouseenter',ev=>showChip(ev, e.kind==='exposes'?'EXPOSURE':e.kind.toUpperCase(), e.caption));
+    line.addEventListener('mouseleave',hideChip);
+    layerEdges.appendChild(line);
+  }
+  // nodes
+  for (const n of nodes){
+    if(!visibleTypes.has(n.ent.type)) continue;
+    const g=document.createElementNS(NS,'g');
+    let cls='node';
+    if(sel===n.id) cls+=' selected';
+    else if(sel && !connected.has(n.id)) cls+=' dim';
+    g.setAttribute('class',cls);
+    g.setAttribute('transform',`translate(${n.x},${n.y})`);
+    const r=coreR(n.ent);
+    const ring=document.createElementNS(NS,'circle');
+    ring.setAttribute('class','ring'); ring.setAttribute('r',r+4);
+    ring.setAttribute('stroke',ringColor(n.ent));
+    const core=document.createElementNS(NS,'circle');
+    core.setAttribute('class','core'); core.setAttribute('r',r);
+    core.setAttribute('fill',ENT_HUE[n.ent.type]);
+    const glyph=document.createElementNS(NS,'text');
+    glyph.setAttribute('class','glyph'); glyph.textContent=GLYPH[n.ent.type];
+    if(n.ent.type==='company'||n.ent.type==='position') glyph.setAttribute('fill','#0a0a0a');
+    const label=document.createElementNS(NS,'text');
+    label.setAttribute('class','label'); label.setAttribute('y',r+16);
+    label.textContent=n.ent.label;
+    g.append(ring,core,glyph,label);
+    g.addEventListener('mouseenter',ev=>showChip(ev,n.ent.name,n.ent.caption));
+    g.addEventListener('mouseleave',hideChip);
+    g.addEventListener('click',ev=>{ev.stopPropagation();select(n.id);});
+    layerNodes.appendChild(g);
+  }
+}
+
+// ── Caption chip ──────────────────────────────────────────
+const chip=document.getElementById('chip');
+function showChip(ev,name,cap){
+  chip.innerHTML=`<div class="cn">${name}</div><div class="cc">${cap}</div>`;
+  chip.classList.add('show');
+  moveChip(ev);
+}
+function moveChip(ev){
+  const x=Math.min(ev.clientX+14, window.innerWidth-260);
+  const y=Math.min(ev.clientY+14, window.innerHeight-90);
+  chip.style.left=x+'px'; chip.style.top=y+'px';
+}
+function hideChip(){ chip.classList.remove('show'); }
+document.getElementById('canvas').addEventListener('mousemove',e=>{ if(chip.classList.contains('show')) moveChip(e); });
+
+// ── Selection + inspector ─────────────────────────────────
+function chainFor(id){
+  // best path to money for known chains
+  const paths={
+    'B:S.2-119':['B:S.2-119','A:HHS','K:75N980','C:LLY','P:LLY'],
+    'A:HHS':['B:S.2-119','A:HHS','K:75N980','C:LLY'],
+    'K:75N980':['A:HHS','K:75N980','C:LLY','P:LLY'],
+    'C:LLY':['B:S.2-119','A:HHS','C:LLY','P:LLY'],
+    'L:LLY-Q1':['L:LLY-Q1','B:S.2-119','C:LLY'],
+    'P:LLY':['C:LLY','P:LLY'],
+    'B:HR-3':['B:HR-3','A:DHS','K:HSCE24','C:GEO'],
+    'A:DHS':['B:HR-3','A:DHS','K:HSCE24','C:GEO'],
+    'K:HSCE24':['A:DHS','K:HSCE24','C:GEO'],
+    'C:GEO':['B:HR-3','A:DHS','C:GEO'],
+  };
+  return paths[id]||[id];
+}
+function exposureRows(id){
+  return edges.filter(e=>e.kind==='exposes'&&(e.from===id||e.to===id))
+    .map(e=>{ const billId=byId[e.from].type==='bill'?e.from:e.to;
+      const otherId=billId===e.from?e.to:e.from;
+      return {bill:byId[billId], other:byId[otherId], w:e.weight, cap:e.caption}; });
+}
+function vitalsFor(e){
+  if(e.type==='bill') return [['Status', e.ring==='acid'?'Floor vote':'Committee'],['Chamber','Senate'],['Momentum',`<span class="minibar"><i style="width:${Math.round(e.importance*70)}%"></i></span>${Math.round(e.importance*70)}`],['Last action','2026-06-05']];
+  if(e.type==='company') return [['Price','$842.10'],['Day','<span class="up">+1.4%</span>'],['CRS top','0.78'],['Lobby TTM','$6.2M']];
+  if(e.type==='contract') return [['Agency', e.id.includes('75N')?'HHS / CMS':'DHS'],['Value','$48.0M'],['Awarded','2024-09-30'],['Renewal','~120 days']];
+  if(e.type==='agency') return [['Type','Federal agency'],['Budget','$1.7T'],['Active bills','3']];
+  if(e.type==='lobbying') return [['Quarter','2026 Q1'],['Spend','$1.4M'],['Target','S.2-119']];
+  if(e.type==='position') return [['Shares','12'],['Cost','$10,105'],['P/L','<span class="up">+$98</span>']];
+  return [];
+}
+
+function select(id){
+  selected=id;
+  render();
+  const e=byId[id];
+  const chain=chainFor(id);
+  const vit=vitalsFor(e);
+  const exp=exposureRows(id);
+  const ev=edges.filter(x=>(x.from===id||x.to===id)&&x.kind!=='holds').slice(0,3);
+  document.getElementById('inspector').innerHTML=`
+    <div class="ins-section ins-identity">
+      <div class="ins-glyph" style="background:${ENT_HUE[e.type]}">${GLYPH[e.type]}</div>
+      <div>
+        <div class="ins-name">${e.name}</div>
+        <div class="ins-sublabel">${e.id} · ${e.type.toUpperCase()}</div>
+      </div>
+    </div>
+    <div class="ins-caption" style="margin-top:-8px;margin-bottom:24px">${e.caption}</div>
+
+    <div class="ins-section">
+      <div class="ins-label">The Chain</div>
+      <div class="chain">${chain.map((c,i)=>`${i?'<span class="chain-arrow">→</span>':''}<span class="chain-chip" data-id="${c}">${byId[c].label}</span>`).join('')}</div>
+    </div>
+
+    <div class="ins-section">
+      <div class="ins-label">Vitals</div>
+      <dl class="vitals">${vit.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    </div>
+
+    ${exp.length?`<div class="ins-section">
+      <div class="ins-label">Exposure</div>
+      ${exp.map(r=>`<div class="exp-row">
+        <span class="exp-chip">${(e.type==='bill'?r.other:r.bill).label}</span>
+        <span class="exp-bar"><i style="width:${Math.round(r.w*100)}%"></i></span>
+        <span class="exp-cap">${r.cap}</span>
+      </div>`).join('')}
+    </div>`:''}
+
+    <div class="ins-section">
+      <div class="ins-label">Evidence</div>
+      ${ev.map(x=>`<div class="ev-row"><a href="#">${x.kind==='exposes'?'CRS v2 score':'Congress.gov action'} ↗</a><span class="ext">${x.caption.slice(0,42)}…</span></div>`).join('')}
+    </div>
+
+    <div class="ins-section ins-actions">
+      <button class="btn primary">Pin to investigation</button>
+      ${e.type==='company'?'<button class="btn">Paper trade</button>':''}
+    </div>
+  `;
+  document.querySelectorAll('.chain-chip').forEach(c=>c.addEventListener('click',()=>select(c.dataset.id)));
+}
+
+function showBrief(){
+  selected=null; render();
+  document.getElementById('inspector').innerHTML=`
+    <div class="brief-head">TS//BRIEF · 09 JUN 2026 · REF: COLLECTION_2026</div>
+    <div class="brief-block">
+      <span class="brief-badge today">TODAY</span>
+      <div class="brief-sentence">Your map is quiet, but one drug-pricing vote is moving toward your largest paper position.</div>
+    </div>
+    <div class="brief-block">
+      <span class="brief-badge movement">MOVEMENT</span>
+      <div class="brief-sentence">S.2-119 advanced to a Senate floor vote — the rule that would squeeze Eli&nbsp;Lilly’s pricing power is one step closer.</div>
+      <div class="chain" style="margin-top:10px"><span class="chain-chip" data-id="B:S.2-119">S.2-119</span><span class="chain-arrow">→</span><span class="chain-chip" data-id="C:LLY">LLY</span></div>
+    </div>
+    <div class="brief-block">
+      <span class="brief-badge exposure">EXPOSURE</span>
+      <div class="brief-sentence">Strongest live link: S.2-119 → LLY at <b>0.78</b>.</div>
+      <div class="exp-bar" style="margin-top:8px"><i style="width:78%"></i></div>
+    </div>
+    <div class="brief-foot">Informational scenarios only · not financial advice</div>
+    <button class="btn copy-brief">Copy brief</button>
+  `;
+  document.querySelectorAll('.chain-chip').forEach(c=>c.addEventListener('click',()=>select(c.dataset.id)));
+}
+
+svg.addEventListener('click',()=>showBrief());
+
+// ── Pan + zoom ────────────────────────────────────────────
+let tx=0, ty=0, k=1, dragging=false, sx, sy;
+function applyVp(){ vp.setAttribute('transform',`translate(${tx},${ty}) scale(${k})`); }
+function fit(){
+  const xs=nodes.map(n=>n.x), ys=nodes.map(n=>n.y);
+  const minX=Math.min(...xs)-60,maxX=Math.max(...xs)+60,minY=Math.min(...ys)-60,maxY=Math.max(...ys)+60;
+  const cw=svg.clientWidth,ch=svg.clientHeight;
+  k=Math.min(cw/(maxX-minX),ch/(maxY-minY),1.4);
+  tx=(cw-(minX+maxX)*k)/2; ty=(ch-(minY+maxY)*k)/2;
+  applyVp();
+}
+svg.addEventListener('mousedown',e=>{ dragging=true; sx=e.clientX-tx; sy=e.clientY-ty; svg.classList.add('panning'); });
+window.addEventListener('mousemove',e=>{ if(!dragging)return; tx=e.clientX-sx; ty=e.clientY-sy; applyVp(); });
+window.addEventListener('mouseup',()=>{ dragging=false; svg.classList.remove('panning'); });
+svg.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const rect=svg.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const wx=(mx-tx)/k, wy=(my-ty)/k;
+  k=Math.max(0.4,Math.min(2.5,k*(e.deltaY<0?1.1:0.9)));
+  tx=mx-wx*k; ty=my-wy*k; applyVp();
+},{passive:false});
+
+// ── Filter chips ──────────────────────────────────────────
+const fc=document.getElementById('filter-chips');
+types.forEach(t=>{
+  const count=entities.filter(e=>e.type===t).length;
+  const el=document.createElement('div');
+  el.className='chip-toggle';
+  el.innerHTML=`<span class="swatch" style="background:${ENT_HUE[t]}"></span>${t.toUpperCase()} <span class="ct">${count}</span>`;
+  el.addEventListener('click',()=>{
+    if(visibleTypes.has(t)){visibleTypes.delete(t);el.classList.add('off');}
+    else{visibleTypes.add(t);el.classList.remove('off');}
+    render();
+  });
+  fc.appendChild(el);
+});
+
+// ── Policy tape ───────────────────────────────────────────
+const tt=document.getElementById('tape-track');
+function tapeHtml(){
+  return tapeEvents.map(ev=>`<span class="tape-event"><span class="t">${ev.t}</span><span class="dot ${ev.sev}"></span>${ev.cap} ${ev.chips.map(c=>`<span class="chip">${c}</span>`).join('')}</span>`).join('');
+}
+tt.innerHTML=tapeHtml()+tapeHtml(); // duplicate track for seamless loop
+tt.querySelectorAll('.tape-event').forEach((el,i)=>{
+  const ev=tapeEvents[i%tapeEvents.length];
+  el.addEventListener('click',()=>select(ev.chips[0]));
+});
+
+// ── Sparkline ─────────────────────────────────────────────
+const spark=document.getElementById('spark');
+[7,9,8,11].forEach(h=>{ const b=document.createElement('i'); b.style.height=h+'px'; spark.appendChild(b); });
+
+// ── Boot ──────────────────────────────────────────────────
+render();
+fit();
+showBrief();
+window.addEventListener('resize',fit);
+
+// gentle continuous cooling so it feels alive on load
+let warm=40;
+(function cool(){ if(warm-->0){ tick(); render(); requestAnimationFrame(cool);} else applyVp(); })();
+</script>
+</body>
+</html>
