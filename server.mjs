@@ -2271,6 +2271,21 @@ server.listen(PORT, "0.0.0.0", async () => {
     console.warn("[WARN] SEC_USER_AGENT contains placeholder email. Set SEC_USER_AGENT in .env.local for EDGAR access (SEC fair-access policy requires a real contact).");
   }
 
+  // Durable persistence status — accounts, paper portfolios, watchlists.
+  // Without Supabase these live in DATA_DIR, which is ephemeral on Railway and
+  // is wiped on every redeploy/restart. Make this impossible to miss at boot.
+  if (dbReady) {
+    console.log("[data] Supabase persistence ACTIVE — accounts, paper portfolios, and watchlists survive restarts.");
+  } else {
+    const ephemeralWarn =
+      "[WARN] Supabase NOT configured — accounts, paper portfolios, and watchlists are stored on the local filesystem and WILL BE LOST on every redeploy/restart. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (and run supabase/schema.sql) to make them durable.";
+    if (process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT) {
+      console.error(ephemeralWarn);
+    } else {
+      console.warn(ephemeralWarn);
+    }
+  }
+
   // Python sidecar health check
   if (isYfinanceEnabled()) {
     const { existsSync: _exists } = await import("node:fs");
