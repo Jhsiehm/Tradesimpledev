@@ -271,6 +271,56 @@ body {
 .btn{ flex:1; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:9px; border-radius:var(--radius); cursor:pointer; border:1px solid var(--line-hot); background:transparent; color:var(--muted); }
 .btn.primary{ background:var(--green); color:#0a0a0a; border-color:var(--green); font-weight:700; }
 .btn:hover{ border-color:var(--green); color:var(--text); } .btn.primary:hover{ color:#0a0a0a; }
+
+/* ── Full-page brief overlay (drill from any node / holding) ── */
+.fullbrief{ position:fixed; inset:0; z-index:200; overflow-y:auto;
+  background:
+    radial-gradient(circle at 72% -10%, rgba(200,255,0,0.06), transparent 45%),
+    radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 30px 30px,
+    var(--bg);
+  opacity:0; pointer-events:none; transform:translateY(14px);
+  transition:opacity 220ms var(--ease), transform 220ms var(--ease); }
+.fullbrief.open{ opacity:1; pointer-events:auto; transform:none; }
+.fb-bar{ position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:14px;
+  padding:12px 26px; background:rgba(10,11,9,.82); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+.fb-bar .right{ display:flex; gap:10px; align-items:center; }
+.fb-back{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+  background:none; border:1px solid var(--line-2); border-radius:var(--radius); padding:7px 12px; cursor:pointer; }
+.fb-back:hover{ color:var(--text); border-color:var(--green-dim); }
+.fb-live{ font-family:var(--mono); font-size:11px; color:var(--green); text-decoration:none;
+  border:1px solid var(--green-dim); border-radius:var(--radius); padding:7px 12px; }
+.fb-live:hover{ background:var(--green); color:#0a0a0a; }
+.fb-inner{ max-width:880px; margin:0 auto; padding:34px 26px 90px; }
+.fb-kicker{ font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--green-dim); }
+.fb-h1{ font-family:var(--serif); font-size:46px; line-height:1.02; font-weight:600; margin:6px 0 4px; }
+.fb-sub{ font-family:var(--mono); font-size:12px; color:var(--faint); margin-bottom:18px; }
+.fb-lede{ font-family:var(--serif); font-style:italic; font-size:21px; line-height:1.4; color:var(--text);
+  border-left:2px solid var(--green-dim); padding-left:16px; margin:18px 0 30px; }
+.fb-sec{ margin:28px 0; }
+.fb-sec h3{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+  margin:0 0 14px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+.fb-p{ font-size:15px; line-height:1.6; color:var(--muted); max-width:64ch; }
+.fb-chain{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fb-cchip{ font-family:var(--mono); font-size:12px; padding:6px 11px; border:1px solid var(--line-2); border-radius:var(--radius);
+  color:var(--text); cursor:pointer; background:var(--bg-2); }
+.fb-cchip:hover{ border-color:var(--green); color:var(--green); }
+.fb-carrow{ color:var(--faint); }
+.fb-vitals{ display:grid; grid-template-columns:repeat(2,1fr); gap:0 30px; }
+.fb-v{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line);
+  padding:10px 0; margin:0; font-family:var(--mono); font-size:13px; }
+.fb-v dt{ color:var(--faint); text-transform:uppercase; font-size:10px; }
+.fb-v dd{ margin:0; color:var(--text); }
+.fb-exp{ display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+.fb-exp .lab{ font-family:var(--mono); font-size:12px; color:var(--green); width:80px; flex:none; }
+.fb-exp .bar{ flex:1; height:6px; background:var(--line-2); border-radius:3px; overflow:hidden; }
+.fb-exp .bar i{ display:block; height:100%; background:var(--green); }
+.fb-exp .cap{ flex:1.6; font-size:13px; color:var(--muted); }
+.fb-ev a{ display:block; font-family:var(--mono); font-size:13px; color:var(--intel); text-decoration:none;
+  padding:8px 0; border-bottom:1px solid var(--line); }
+.fb-ev a:hover{ text-decoration:underline; }
+.fb-act{ display:flex; gap:10px; margin-top:30px; flex-wrap:wrap; }
+.fb-act .btn{ flex:0 0 auto; padding:11px 18px; text-decoration:none; display:inline-block; }
+.fb-foot{ font-family:var(--mono); font-size:11px; color:var(--faint); border-top:1px solid var(--line); padding-top:16px; margin-top:38px; }
 </style>
 </head>
 <body>
@@ -278,7 +328,7 @@ body {
 <!-- Classification bar -->
 <div class="classbar">
   <div class="left"><span>TS//TRADESIMPLE</span><span class="blink">●</span><span>PAPER MODE // SIMULATED CAPITAL</span></div>
-  <span>REF: COLLECTION_2026</span>
+  <span>EXPERIMENTAL PREVIEW · REF: COLLECTION_2026</span>
 </div>
 
 <div class="shell">
@@ -430,6 +480,15 @@ body {
   </div>
 </div>
 
+<!-- Full-page brief overlay -->
+<div class="fullbrief" id="fullbrief">
+  <div class="fb-bar">
+    <button class="fb-back" id="fbBack">← Back to dashboard</button>
+    <div class="right"><a class="fb-live" id="fbLive" target="_blank" rel="noopener" href="#">Open live page ↗</a></div>
+  </div>
+  <div class="fb-inner" id="fbInner"></div>
+</div>
+
 <div class="chip-tip" id="tip"></div>
 <div class="ctip" id="ctip"></div>
 
@@ -514,6 +573,7 @@ function render(){
   g.addEventListener('mouseenter',ev=>tip(ev,n.ent.name,n.ent.caption));
   g.addEventListener('mouseleave',hideTip);
   g.addEventListener('click',ev=>{ev.stopPropagation();openDossier(n.id);});
+  g.addEventListener('dblclick',ev=>{ev.stopPropagation();openFullBrief(n.id);});
   LN.appendChild(g);}
 }
 const tipEl=document.getElementById('tip');
@@ -556,8 +616,10 @@ function openDossier(id){
   <div class="ins-sec"><div class="ins-lbl">Vitals</div><dl class="vitals">${vit.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
   ${exp.length?`<div class="ins-sec"><div class="ins-lbl">Exposure</div>${exp.map(r=>`<div class="exp-row"><span class="exp-c">${(e.type==='bill'?r.other:r.bill).label}</span><span class="exp-bar"><i style="width:${Math.round(r.w*100)}%"></i></span><span class="exp-cap">${r.cap}</span></div>`).join('')}</div>`:''}
   <div class="ins-sec"><div class="ins-lbl">Evidence</div>${ev.map(x=>`<div class="ev-row"><a href="#">${x.kind==='exposes'?'CRS v2 score':'Congress.gov action'} ↗</a></div>`).join('')}</div>
-  <div class="ins-sec ins-act"><button class="btn primary">Pin to investigation</button>${e.type==='company'?'<button class="btn">Paper trade</button>':''}</div>`;
+  <div class="ins-sec ins-act"><button class="btn primary" id="dossierFull">Open full brief ↗</button><button class="btn">Pin</button></div>
+  ${e.type==='company'?'<div class="ins-sec ins-act" style="margin-top:-12px"><button class="btn">Paper trade</button></div>':''}`;
  body.querySelectorAll('.cchip').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
+ const dfull=body.querySelector('#dossierFull'); if(dfull) dfull.onclick=()=>openFullBrief(id);
  briefView.style.display='none';dossierView.style.display='block';
  rpTitle.textContent='Dossier';rpAction.textContent='← Brief';rpAction.onclick=closeDossier;
 }
@@ -566,7 +628,7 @@ function closeDossier(){
  rpTitle.textContent='Daily intel brief';rpAction.textContent='Copy';rpAction.onclick=copyBrief;
  selected=null;render();
 }
-addEventListener('keydown',e=>{if(e.key==='Escape')closeDossier();});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('fullbrief').classList.contains('open'))closeDossier();});
 document.querySelectorAll('.cchip[data-id]').forEach(c=>c.onclick=()=>openDossier(c.dataset.id));
 
 // holdings rows
@@ -720,6 +782,57 @@ document.querySelectorAll('#heroSeg .seg-btn').forEach(b=>b.onclick=()=>{
     heroMeta.textContent='Paper portfolio · hover for detail';
     renderChart();
   }
+});
+
+/* ───────────────────────────────────────────────────────────
+   Full-page brief — drillable from any node / holding.
+   Renders an in-page brief for every entity type (works offline),
+   and links to the real /bill /stock /contract route when served.
+─────────────────────────────────────────────────────────── */
+const fullbrief=document.getElementById('fullbrief'),fbInner=document.getElementById('fbInner'),fbLive=document.getElementById('fbLive');
+const TYPE_BADGE={bill:'POLICY BILL',agency:'FEDERAL AGENCY',company:'PUBLIC COMPANY',contract:'FEDERAL CONTRACT',lobbying:'LOBBYING FILING',position:'PAPER POSITION'};
+function briefRoute(e){
+  if(e.type==='bill')return '/bill/'+encodeURIComponent(e.label);
+  if(e.type==='company')return '/stock/'+encodeURIComponent(e.label);
+  if(e.type==='contract'){const ed=edges.find(x=>x.kind==='awarded_to'&&x.from===e.id);return ed?'/contract/'+encodeURIComponent(byId[ed.to].label):null;}
+  return null;
+}
+function summaryFor(e){const m={
+  bill:`${e.name} is moving through Congress. In plain terms: ${e.caption} TradeSimple traces where that pressure lands — which agency writes the rules, which contracts get funded, and which publicly traded companies feel it first.`,
+  agency:`${e.name} sits in the middle of this chain. ${e.caption} When a bill funds or directs it, money flows out through contracts to companies you can actually hold.`,
+  company:`${e.name} sits at the end of a policy chain. ${e.caption} The exposure below estimates how much a specific bill could move this name — a scenario model, not a forecast.`,
+  contract:`This is a federal contract in the chain. ${e.caption} Contracts are where legislative intent becomes real dollars to a specific company.`,
+  lobbying:`${e.name}. ${e.caption} Lobbying filings are an early signal that a company sees a bill as material to its business.`,
+  position:`${e.caption} This is simulated capital — your paper account — so you can test a thesis before risking real money.`
+};return m[e.type]||e.caption;}
+function openFullBrief(id){
+  const e=byId[id],chain=chainFor(id),vit=vitals(e),exp=expRows(id);
+  const ev=edges.filter(x=>(x.from===id||x.to===id)&&x.kind!=='holds');
+  const route=briefRoute(e);
+  if(route){fbLive.href=route;fbLive.style.display='';}else{fbLive.style.display='none';}
+  fbInner.innerHTML=`
+   <div class="fb-kicker">TS//BRIEF · ${TYPE_BADGE[e.type]} · REF: COLLECTION_2026</div>
+   <h1 class="fb-h1">${e.name}</h1>
+   <div class="fb-sub">${e.id}${route?' · '+route:' · in-app view'}</div>
+   <div class="fb-lede">${e.caption}</div>
+   <div class="fb-sec"><h3>What this is</h3><p class="fb-p">${summaryFor(e)}</p></div>
+   <div class="fb-sec"><h3>The chain to your money</h3><div class="fb-chain">${chain.map((c,i)=>`${i?'<span class="fb-carrow">→</span>':''}<span class="fb-cchip" data-id="${c}">${byId[c].label}</span>`).join('')}</div></div>
+   ${exp.length?`<div class="fb-sec"><h3>Exposure · scenario model</h3>${exp.map(r=>`<div class="fb-exp"><span class="lab">${(e.type==='bill'?r.other:r.bill).label}</span><span class="bar"><i style="width:${Math.round(r.w*100)}%"></i></span><span class="cap">${r.cap}</span></div>`).join('')}</div>`:''}
+   <div class="fb-sec"><h3>Vitals</h3><div class="fb-vitals">${vit.map(([k,v])=>`<dl class="fb-v"><dt>${k}</dt><dd>${v}</dd></dl>`).join('')}</div></div>
+   <div class="fb-sec"><h3>Evidence &amp; sources</h3><div class="fb-ev">${ev.map(x=>`<a href="${route||'#'}" ${route?'target="_blank" rel="noopener"':''}>${x.kind==='exposes'?'CRS v2 exposure score':x.kind==='lobbied_on'?'Senate LDA lobbying filing':'Congress.gov / USASpending record'} ↗</a>`).join('')||'<p class="fb-p">Sources attach to live entities.</p>'}</div></div>
+   <div class="fb-act">${route?`<a class="btn primary" href="${route}" target="_blank" rel="noopener">Open live page ↗</a>`:''}${e.type==='company'?'<button class="btn">Paper trade</button>':''}<button class="btn">Pin to investigation</button><button class="btn">Copy share link</button></div>
+   <div class="fb-foot">Informational scenarios only · not financial advice · figures are illustrative demo data in this preview.</div>`;
+  fbInner.querySelectorAll('.fb-cchip').forEach(c=>c.onclick=()=>openFullBrief(c.dataset.id));
+  fullbrief.classList.add('open');fullbrief.scrollTop=0;
+}
+function closeFullBrief(){fullbrief.classList.remove('open');}
+document.getElementById('fbBack').onclick=closeFullBrief;
+addEventListener('keydown',e=>{if(e.key==='Escape'&&fullbrief.classList.contains('open'))closeFullBrief();});
+
+/* sidebar nav active-state (makes the rail feel live) */
+document.querySelectorAll('.side-nav .nav-item').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.side-nav .nav-item').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
 });
 
 render();fit();
