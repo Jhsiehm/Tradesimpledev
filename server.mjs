@@ -234,10 +234,12 @@ const BASE_SECURITY_HEADERS = {
     "frame-ancestors 'none'"
   ].join("; ")
 };
-// 30s keeps the steady-state refresh rate for the ~16 dashboard symbols (16 calls / 30s ≈ 32/min)
-// comfortably under Finnhub's free-tier ~60 req/min cap, leaving headroom for company-news calls
-// and multiple concurrent users.
-const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 30_000);
+// The "Markets" view alone requests ~50+ unique symbols. At Finnhub's free-tier
+// ~60 req/min cap, a 30s TTL means ~50 calls every 30s (~100/min) — over budget.
+// 60s TTL halves the steady-state floor to ~50/min, and the worker-pool fetch
+// (below) staggers each symbol's cache-fill time, so refreshes trickle in
+// rather than re-bursting all 50+ symbols at once.
+const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 60_000);
 const quoteCache = new Map();
 // Finnhub's free tier is ~60 req/min with a per-second cap. A burst of parallel
 // quote calls trips HTTP 429, so we (a) cap fetch concurrency and (b) trip a
