@@ -7011,13 +7011,17 @@ async function quoteSnapshot(symbol) {
   }
 
   if (Date.now() >= yahooCooldownUntil) {
+    // Set the cooldown before awaiting so concurrent workers that pass this
+    // check in the same tick don't all dogpile Yahoo and each re-log/re-trip
+    // the breaker once it expires.
+    yahooCooldownUntil = Date.now() + YAHOO_COOLDOWN_MS;
     const yahooQuote = await yahooQuoteSnapshot(symbol);
     if (yahooQuote) {
+      yahooCooldownUntil = 0;
       const quote = withQuoteFreshness(yahooQuote, "yahoo_chart", yahooQuote.timestamp);
       quoteCache.set(symbol, { cachedAt: Date.now(), quote });
       return { source: "yahoo_chart", quote };
     }
-    yahooCooldownUntil = Date.now() + YAHOO_COOLDOWN_MS;
     console.warn(`[data] Yahoo chart unavailable — pausing Yahoo for ${Math.round(YAHOO_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
   }
 
