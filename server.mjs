@@ -623,7 +623,48 @@ const MARKET_FALLBACK = {
   META: { symbol: "META", price: 598.4, change: 4.2, pct: 0.71, high: 612.0, low: 568.0, open: 594.2 },
   COIN: { symbol: "COIN", price: 276.5, change: -2.8, pct: -1.0, high: 292.0, low: 248.0, open: 279.3 },
   SPY: { symbol: "SPY", price: 598.2, change: 2.45, pct: 0.41, high: 602.0, low: 588.0, open: 595.75 },
-  QQQ: { symbol: "QQQ", price: 518.6, change: 3.05, pct: 0.59, high: 524.0, low: 508.0, open: 515.55 }
+  QQQ: { symbol: "QQQ", price: 518.6, change: 3.05, pct: 0.59, high: 524.0, low: 508.0, open: 515.55 },
+  // Remaining symbols in the "Markets" tradable catalog (defense/contract/policy
+  // tickers, indices, and crypto) — without an entry here, a symbol shows
+  // "Unavailable" whenever live providers are unreachable (Yahoo/yfinance are
+  // permanently blocked on Railway and Finnhub's free tier can't cover 50+
+  // symbols), which is the steady-state case, not the exception.
+  BA: { symbol: "BA", price: 209.0, change: -5.51, pct: -2.57, high: 216.0, low: 207.0, open: 214.51 },
+  BAH: { symbol: "BAH", price: 108.4, change: -1.85, pct: -1.68, high: 111.5, low: 107.0, open: 110.25 },
+  ABBV: { symbol: "ABBV", price: 192.5, change: 1.35, pct: 0.71, high: 194.0, low: 190.0, open: 191.15 },
+  ADM: { symbol: "ADM", price: 51.2, change: -0.45, pct: -0.87, high: 52.3, low: 50.7, open: 51.65 },
+  AMAT: { symbol: "AMAT", price: 182.4, change: 2.6, pct: 1.45, high: 184.5, low: 178.0, open: 179.8 },
+  ASML: { symbol: "ASML", price: 735.0, change: -8.2, pct: -1.1, high: 748.0, low: 728.0, open: 743.2 },
+  BAC: { symbol: "BAC", price: 44.3, change: 0.28, pct: 0.64, high: 44.8, low: 43.7, open: 44.02 },
+  BTC: { symbol: "BTC", price: 104500, change: 1850, pct: 1.8, high: 106200, low: 101800, open: 102650 },
+  CRWD: { symbol: "CRWD", price: 452.0, change: 6.4, pct: 1.44, high: 458.0, low: 440.0, open: 445.6 },
+  CVS: { symbol: "CVS", price: 64.8, change: -0.55, pct: -0.84, high: 65.9, low: 64.1, open: 65.35 },
+  CXW: { symbol: "CXW", price: 21.3, change: 0.62, pct: 3.0, high: 21.8, low: 20.3, open: 20.68 },
+  DAL: { symbol: "DAL", price: 51.6, change: 0.85, pct: 1.67, high: 52.4, low: 50.2, open: 50.75 },
+  DE: { symbol: "DE", price: 498.0, change: -3.2, pct: -0.64, high: 505.0, low: 494.0, open: 501.2 },
+  ENPH: { symbol: "ENPH", price: 68.4, change: -1.1, pct: -1.58, high: 70.5, low: 67.2, open: 69.5 },
+  ETH: { symbol: "ETH", price: 2780, change: -42, pct: -1.49, high: 2850, low: 2740, open: 2822 },
+  FSLR: { symbol: "FSLR", price: 198.0, change: 4.3, pct: 2.22, high: 201.5, low: 191.0, open: 193.7 },
+  GD: { symbol: "GD", price: 288.0, change: 1.95, pct: 0.68, high: 290.0, low: 284.5, open: 286.05 },
+  GEO: { symbol: "GEO", price: 28.4, change: 0.95, pct: 3.46, high: 29.0, low: 27.0, open: 27.45 },
+  GS: { symbol: "GS", price: 615.0, change: -4.8, pct: -0.78, high: 622.0, low: 610.0, open: 619.8 },
+  HII: { symbol: "HII", price: 215.0, change: -2.4, pct: -1.1, high: 219.0, low: 212.5, open: 217.4 },
+  INTC: { symbol: "INTC", price: 22.4, change: 0.35, pct: 1.59, high: 22.8, low: 21.9, open: 22.05 },
+  JPM: { symbol: "JPM", price: 265.0, change: 1.8, pct: 0.68, high: 267.0, low: 261.5, open: 263.2 },
+  KBE: { symbol: "KBE", price: 58.2, change: 0.42, pct: 0.73, high: 58.6, low: 57.4, open: 57.78 },
+  LDOS: { symbol: "LDOS", price: 168.0, change: -1.3, pct: -0.77, high: 171.0, low: 166.5, open: 169.3 },
+  LHX: { symbol: "LHX", price: 303.0, change: -5.17, pct: -1.68, high: 310.0, low: 301.0, open: 308.17 },
+  LMT: { symbol: "LMT", price: 468.0, change: 3.1, pct: 0.67, high: 471.5, low: 462.0, open: 464.9 },
+  MRK: { symbol: "MRK", price: 82.5, change: -0.95, pct: -1.14, high: 84.0, low: 81.8, open: 83.45 },
+  PANW: { symbol: "PANW", price: 185.0, change: 2.7, pct: 1.48, high: 187.5, low: 180.5, open: 182.3 },
+  PFE: { symbol: "PFE", price: 24.8, change: 0.18, pct: 0.73, high: 25.1, low: 24.4, open: 24.62 },
+  SAIC: { symbol: "SAIC", price: 102.0, change: -1.4, pct: -1.35, high: 104.5, low: 101.0, open: 103.4 },
+  TSM: { symbol: "TSM", price: 205.0, change: 3.5, pct: 1.74, high: 207.5, low: 200.0, open: 201.5 },
+  UAL: { symbol: "UAL", price: 84.0, change: 1.65, pct: 2.0, high: 85.5, low: 81.5, open: 82.35 },
+  UNH: { symbol: "UNH", price: 305.0, change: -6.2, pct: -1.99, high: 315.0, low: 300.0, open: 311.2 },
+  XLE: { symbol: "XLE", price: 89.5, change: -0.65, pct: -0.72, high: 90.8, low: 88.9, open: 90.15 },
+  XLF: { symbol: "XLF", price: 51.2, change: 0.3, pct: 0.59, high: 51.6, low: 50.7, open: 50.9 },
+  XOM: { symbol: "XOM", price: 110.5, change: -1.1, pct: -0.99, high: 112.5, low: 109.8, open: 111.6 }
 };
 
 /** Dashboard symbol universes — exposed via GET /api/dashboard/bootstrap (labeled config, not live quotes). */
