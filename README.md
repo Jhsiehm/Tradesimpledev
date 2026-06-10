@@ -23,7 +23,7 @@ Railway sets `NODE_ENV=production`. If **`AUTH_SECRET` is missing**, the server 
 | Variable | Value |
 |----------|--------|
 | `AUTH_SECRET` | Long random string (32+ chars) — **required** |
-| `APP_URL` | `https://YOUR-SERVICE.up.railway.app` (no trailing slash) |
+| `APP_URL` | `https://YOUR-SERVICE.up.railway.app` (no trailing slash). **Optional on Railway** — if unset or still `localhost`, the server uses `RAILWAY_PUBLIC_DOMAIN` for canonical/OG links and welcome emails. |
 | `PORT` | Leave unset — Railway injects this automatically |
 
 **Recommended for Twitter / OAuth / accounts:**

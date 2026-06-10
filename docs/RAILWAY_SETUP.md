@@ -110,6 +110,8 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 | `ALLOW_LIVE_TRADING` | Must stay `false` unless you intentionally enable live Alpaca (`ALPACA_TRADING_BASE_URL=https://api.alpaca.markets`) |
 | `CONGRESS_API_KEY` | **Required for arbitrary `/bill/H.R.xxxx-119` briefs** — without it only curated seed bills load |
 | `SENATE_LDA_API_KEY` | Live lobbying overlays on bill briefs |
+| `RESEND_API_KEY` | Dispatch welcome emails + founder signup alerts (resend.com) |
+| `DISPATCH_NOTIFY_EMAIL` | Founder inbox notified on each waitlist signup (requires `RESEND_API_KEY`) |
 | `ANTHROPIC_API_KEY` | Optional Haiku plain-English synthesis on bill/contract share pages (cached; not used on landing rotation) |
 | `ADMIN_SECRET` | Protects `/api/admin/waitlist` via `x-admin-secret` header |
 

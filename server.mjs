@@ -2852,17 +2852,25 @@ async function sendImportsStatic(res, pathname) {
 }
 
 function publicConfig() {
+  const ldaEnabled = Boolean(process.env.SENATE_LDA_API_KEY);
+  const dispatchWelcomeEnabled = Boolean(process.env.RESEND_API_KEY);
   return {
     auth: {
       demo: process.env.DEMO_AUTH !== "false",
       email: true
+    },
+    dispatch: {
+      dispatchWelcomeEnabled,
+      dispatchNotifyEnabled: dispatchWelcomeEnabled && Boolean(process.env.DISPATCH_NOTIFY_EMAIL),
+      ldaEnabled
     },
     data: {
       finnhub: Boolean(process.env.FINNHUB_API_KEY),
       yfinance: isYfinanceEnabled(),
       coingecko: Boolean(process.env.COINGECKO_API_KEY),
       congress: Boolean(process.env.CONGRESS_API_KEY),
-      senateLda: Boolean(process.env.SENATE_LDA_API_KEY),
+      senateLda: ldaEnabled,
+      ldaEnabled,
       alpaca: Boolean(process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRET_KEY),
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
