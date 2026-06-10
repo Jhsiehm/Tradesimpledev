@@ -35,14 +35,14 @@ html[data-theme="light"] {
   --bg-deep: #e8e4d8;
   --bg-card: rgba(255, 255, 255, 0.82);
   --bg-card-strong: rgba(255, 255, 255, 0.94);
-  --signal-green: #1f7a4a;
-  --signal-green-soft: #2a9460;
-  --signal-green-dim: rgba(31, 122, 74, 0.12);
+  --signal-green: #1a5c38;
+  --signal-green-soft: #227a4d;
+  --signal-green-dim: rgba(26, 92, 56, 0.14);
   --text-main: #141612;
-  --text-muted: #5c5e58;
-  --text-faint: #8a8c86;
-  --border-soft: rgba(0, 0, 0, 0.1);
-  --border-green: rgba(31, 122, 74, 0.35);
+  --text-muted: #484a44;
+  --text-faint: #5e6058;
+  --border-soft: rgba(0, 0, 0, 0.14);
+  --border-green: rgba(26, 92, 56, 0.38);
   --shadow-terminal:
     0 32px 72px rgba(0, 0, 0, 0.1),
     0 8px 24px rgba(0, 0, 0, 0.06),
@@ -66,11 +66,11 @@ html[data-theme="light"] .terminal-row {
 }
 
 html[data-theme="light"] .terminal-row span {
-  color: rgba(20, 22, 18, 0.48);
+  color: rgba(20, 22, 18, 0.62);
 }
 
 html[data-theme="light"] .terminal-row span:nth-of-type(2) {
-  color: rgba(20, 22, 18, 0.82);
+  color: rgba(20, 22, 18, 0.9);
 }
 
 html[data-theme="light"] .terminal-signal {
@@ -2744,7 +2744,34 @@ body.briefing-open {
 }
 
 html[data-theme="light"] .signal-freshness {
-  color: rgba(26, 24, 18, 0.5);
+  color: rgba(26, 24, 18, 0.62);
+}
+
+html[data-theme="light"] .signal-tag-detail {
+  color: rgba(26, 24, 18, 0.62);
+}
+
+html[data-theme="light"] .signal-brief-cta {
+  color: #0f6b47;
+}
+
+html[data-theme="light"] .ts-ticker-tape {
+  border-top-color: rgba(0, 0, 0, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+html[data-theme="light"] .ts-ticker-track span,
+html[data-theme="light"] .ts-ticker-item {
+  color: rgba(20, 22, 18, 0.72);
+}
+
+html[data-theme="light"] .ts-ticker-track strong {
+  color: rgba(20, 22, 18, 0.55);
+}
+
+html[data-theme="light"] .ts-ticker-item.is-active {
+  color: var(--signal-green);
 }
 
 .signal-editorial-context {
@@ -2758,7 +2785,7 @@ html[data-theme="light"] .signal-freshness {
 }
 
 html[data-theme="light"] .signal-editorial-context {
-  color: rgba(26, 24, 18, 0.72);
+  color: rgba(26, 24, 18, 0.82);
 }
 
 .signal-brief-cta {

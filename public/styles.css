@@ -29,24 +29,24 @@
 /* ── Theme: light palette (html[data-theme="light"]) ── */
 html[data-theme="light"] {
   color-scheme: light;
-  --green: #4A6600;
-  --green-2: #D4E88A;
-  --amber: #b86e0f;
-  --red: #b83836;
-  --blue: #2a6a9e;
-  --rose: #a84440;
+  --green: #3A5200;
+  --green-2: #C8D878;
+  --amber: #9a5f08;
+  --red: #a83030;
+  --blue: #1f5f94;
+  --rose: #963f3b;
   --bg: #F1EEE6;
   --bg-2: #ffffff;
   --bg-3: #e8e4d8;
-  --line: #d4d0c6;
-  --line-2: #b8b4a8;
+  --line: #c8c4ba;
+  --line-2: #a8a49a;
   --text: #141512;
-  --muted: #5a5c54;
-  --faint: #7a7c74;
-  --green-dim: #3A5200;
-  --green-glow: rgba(74, 102, 0, 0.12);
+  --muted: #484a44;
+  --faint: #5e6058;
+  --green-dim: #2f4210;
+  --green-glow: rgba(58, 82, 0, 0.14);
   --ivory: #F1EEE6;
-  --forest: #3A5200;
+  --forest: #2f4210;
   --slate: #3F4542;
 }
 
@@ -219,6 +219,68 @@ html[data-theme="light"] .sidebar-signout {
 html[data-theme="light"] .sidebar-signout:hover {
   background: rgba(0, 0, 0, 0.06);
   border-color: var(--line-2);
+}
+
+/* Light theme — WCAG AA readability (body 4.5:1, large/UI 3:1) */
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder,
+html[data-theme="light"] .search-box input::placeholder,
+html[data-theme="light"] .filter-row input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+html[data-theme="light"] input:disabled,
+html[data-theme="light"] textarea:disabled,
+html[data-theme="light"] select:disabled,
+html[data-theme="light"] button:disabled {
+  color: var(--faint);
+  opacity: 0.72;
+}
+
+html[data-theme="light"] .panel-head h2,
+html[data-theme="light"] .panel-head span,
+html[data-theme="light"] .panel-head [data-freshness],
+html[data-theme="light"] th {
+  color: var(--muted);
+}
+
+html[data-theme="light"] td {
+  color: color-mix(in srgb, var(--text) 18%, var(--muted));
+}
+
+html[data-theme="light"] tbody tr:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+html[data-theme="light"] .ticker-tape {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .research-drawer-head {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .research-drawer-btn {
+  color: var(--green-dim);
+  border-color: var(--line-2);
+}
+
+html[data-theme="light"] .analysis-tab-btn.active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html[data-theme="light"] .analysis-hero-card p {
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+
+html[data-theme="light"] .analysis-hero-quote small {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .analysis-score-hint,
+html[data-theme="light"] .analysis-disclaimer {
+  color: var(--muted);
 }
 
 * { box-sizing: border-box; }

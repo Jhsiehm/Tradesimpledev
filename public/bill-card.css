@@ -1260,6 +1260,86 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
   background: var(--panel, #fffaf0);
 }
 
+html[data-theme="light"] .freshness-chip {
+  background: var(--panel-2, #f7f1e4);
+  border-color: var(--line-strong, rgba(24, 26, 23, 0.2));
+  color: var(--muted, #484a44);
+}
+
+html[data-theme="light"] .freshness-chip--verified {
+  color: #0f6b47;
+  border-color: rgba(15, 107, 71, 0.35);
+}
+
+html[data-theme="light"] .freshness-chip--verified .freshness-chip-dot {
+  background: #0f6b47;
+  box-shadow: 0 0 0 2px rgba(15, 107, 71, 0.22);
+}
+
+html[data-theme="light"] .freshness-chip--stale {
+  color: #92400e;
+  border-color: rgba(146, 64, 14, 0.35);
+}
+
+html[data-theme="light"] .freshness-chip--stale .freshness-chip-dot {
+  background: #b45309;
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.22);
+}
+
+html[data-theme="light"] .freshness-chip--modeled {
+  color: #1d4ed8;
+  border-color: rgba(29, 78, 216, 0.32);
+}
+
+html[data-theme="light"] .freshness-chip--modeled .freshness-chip-dot {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+html[data-theme="light"] .freshness-chip-detail,
+html[data-theme="light"] .freshness-chip-sources {
+  color: var(--muted, #484a44);
+  opacity: 1;
+}
+
+html[data-theme="light"] .bill-prov-pill.exact {
+  color: #0f6b47;
+  border-color: rgba(15, 107, 71, 0.4);
+}
+
+html[data-theme="light"] .bill-prov-pill.scenario {
+  color: #92400e;
+  border-color: rgba(146, 64, 14, 0.4);
+}
+
+html[data-theme="light"] .bill-prov-pill.modeled {
+  color: #1d4ed8;
+  border-color: rgba(29, 78, 216, 0.35);
+}
+
+html[data-theme="light"] .bill-card-id,
+html[data-theme="light"] .dossier-classify-note,
+html[data-theme="light"] .bill-meta-dl dt {
+  opacity: 1;
+  color: var(--muted, #484a44);
+}
+
+html[data-theme="light"] .bill-mode-btn:not(.is-active) {
+  opacity: 1;
+  color: var(--muted, #484a44);
+}
+
+html[data-theme="light"] .bill-card-panel h2 {
+  opacity: 1;
+  color: var(--ink, #181a17);
+}
+
+html[data-theme="light"] .ai-analysis-bullets,
+html[data-theme="light"] .bill-ai-summary .ai-analysis-bullets,
+html[data-theme="light"] .bill-ai-lede-wrap .ai-analysis-bullets {
+  color: var(--ink, #181a17);
+}
+
 /* mobile */
 
 @media (max-width: 540px) {

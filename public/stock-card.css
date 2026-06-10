@@ -30,8 +30,8 @@ html[data-theme="light"] {
   --panel: #fffaf0;
   --panel-2: #f7f1e4;
   --ink: #181a17;
-  --muted: #5c6158;
-  --faint: #858a7f;
+  --muted: #484a44;
+  --faint: #5e6058;
   --line: rgba(24, 26, 23, 0.12);
   --line-strong: rgba(24, 26, 23, 0.2);
   --hero-text: #181a17;

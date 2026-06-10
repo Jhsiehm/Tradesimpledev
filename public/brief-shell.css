@@ -66,6 +66,11 @@
   margin-bottom: 0.35rem;
 }
 
+html[data-theme="light"] .trade-guided-account-cell span {
+  opacity: 1;
+  color: var(--muted, #484a44);
+}
+
 .trade-guided-account-cell strong {
   font-size: 1.15rem;
 }
