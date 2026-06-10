@@ -248,6 +248,21 @@ const quoteCache = new Map();
 const QUOTE_FETCH_CONCURRENCY = Number(process.env.QUOTE_FETCH_CONCURRENCY || 4);
 const FINNHUB_COOLDOWN_MS = Number(process.env.FINNHUB_COOLDOWN_MS || 60_000);
 let finnhubCooldownUntil = 0;
+// Pace Finnhub requests so the worker pool can't burn through the whole
+// per-minute budget in the first few seconds (which is what trips the 429
+// breaker above). One call every ~1.1s caps us at ~54/min, under the 60/min
+// limit, and naturally staggers each symbol's cache fill so refreshes spread
+// across the minute instead of expiring — and re-bursting — all at once.
+const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 1_100);
+let lastFinnhubCallAt = 0;
+// Yahoo's chart endpoint is blocked from Railway's datacenter IPs (403/fetch
+// failed) for every symbol, every cycle. Without a breaker, each symbol that
+// falls through to Yahoo eats a multi-second timeout, so a full ~50-symbol
+// refresh can take longer than the cache TTL itself — which is what produced
+// the ~60s cascade. Trip a longer cooldown on the first failure and skip
+// straight to the static fallback until it recovers.
+const YAHOO_COOLDOWN_MS = Number(process.env.YAHOO_COOLDOWN_MS || 5 * 60_000);
+let yahooCooldownUntil = 0;
 const stockSnapshotHistory = new Map();
 const shareRateLimit = new Map();
 const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
@@ -7082,9 +7097,13 @@ async function quoteSnapshot(symbol) {
   }
 
   const token = process.env.FINNHUB_API_KEY;
-  const finnhubReady = token && Date.now() >= finnhubCooldownUntil;
+  const finnhubReady =
+    token &&
+    Date.now() >= finnhubCooldownUntil &&
+    Date.now() - lastFinnhubCallAt >= FINNHUB_MIN_INTERVAL_MS;
 
   if (finnhubReady) {
+    lastFinnhubCallAt = Date.now();
     try {
       const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
       const response = await fetchWithTimeout(quoteUrl, {}, 7000);
@@ -7118,15 +7137,15 @@ async function quoteSnapshot(symbol) {
     return { source: "yfinance", quote };
   }
 
-  if (token) {
-    console.error("yfinance quote unavailable for", symbol, "trying Yahoo chart fallback");
-  }
-
-  const yahooQuote = await yahooQuoteSnapshot(symbol);
-  if (yahooQuote) {
-    const quote = withQuoteFreshness(yahooQuote, "yahoo_chart", yahooQuote.timestamp);
-    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
-    return { source: "yahoo_chart", quote };
+  if (Date.now() >= yahooCooldownUntil) {
+    const yahooQuote = await yahooQuoteSnapshot(symbol);
+    if (yahooQuote) {
+      const quote = withQuoteFreshness(yahooQuote, "yahoo_chart", yahooQuote.timestamp);
+      quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+      return { source: "yahoo_chart", quote };
+    }
+    yahooCooldownUntil = Date.now() + YAHOO_COOLDOWN_MS;
+    console.warn(`[data] Yahoo chart unavailable — pausing Yahoo for ${Math.round(YAHOO_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
   }
 
   if (fallbackRow) {
