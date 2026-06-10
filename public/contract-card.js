@@ -248,7 +248,10 @@ function stepPaidHtml(data) {
     <h1 class="bill-guided-title">${escapeHtml(data.company || data.symbol)}</h1>
     <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
     <div class="brief-trace-row">${BriefShell.traceTickerCtaHtml(data.symbol, escapeHtml)}</div>
-    <p class="bill-guided-lede">${escapeHtml(data.analysis?.plainEnglish || data.causality?.plainEnglish || "Federal contract exposure profile for this company.")}</p>
+    ${aiPlainBlock(
+      data.analysis?.plainEnglish || data.causality?.plainEnglish || "Federal contract exposure profile for this company.",
+      Boolean(data.analysis?.aiGenerated || data.causality?.aiGenerated)
+    )}
     ${award
       ? `<div class="bill-guided-facts">
           <div class="bill-guided-fact">
@@ -278,6 +281,14 @@ function stepDependencyHtml(data, c, profile) {
     ${c.dogeRisk ? `<p class="dossier-redaction mono">Flagged for agency efficiency / DOGE-style review risk in TradeSimple model</p>` : ""}
     <p><strong>Agencies:</strong> ${escapeHtml((profile.primaryAgencies || []).join(", ") || "—")}</p>
     <p><strong>Programs:</strong> ${escapeHtml((profile.primaryPrograms || []).join(", ") || "—")}</p>`;
+}
+
+function aiPlainBlock(text, isAi) {
+  if (!text) return "";
+  if (isAi && global.BriefShell?.aiAnalysisBulletsHtml) {
+    return BriefShell.aiAnalysisBulletsHtml(text, escapeHtml);
+  }
+  return `<p class="bill-guided-lede">${escapeHtml(text)}</p>`;
 }
 
 function stepPricedHtml(signal, data) {
@@ -421,7 +432,10 @@ function renderFullBrief(data) {
             <div><span class="label">Dependency score</span><strong>${escapeHtml(String(c.scores?.dependency ?? "—"))}/100</strong></div>
             <div><span class="label">Total obligated (sample)</span><strong>${money(data.totalObligated || 0)}</strong></div>
           </div>
-          <p>${escapeHtml(data.analysis?.plainEnglish || c.plainEnglish || "")}</p>
+          ${aiPlainBlock(
+            data.analysis?.plainEnglish || c.plainEnglish || "",
+            Boolean(data.analysis?.aiGenerated || c.aiGenerated)
+          )}
         </div>
         <div class="detail-card-panel">
           <h2>Programs & agencies</h2>
@@ -541,7 +555,14 @@ function translationBlock(rows) {
   return `
     <details class="detail-card-panel bill-collapse">
       <summary><h2>Plain-English translation</h2><span class="bill-collapse-hint muted">Reference</span></summary>
-      ${list.map((t) => `<p><strong>${escapeHtml(t.title)}</strong> — ${escapeHtml(t.body)}</p>`).join("")}
+      <ul class="ai-analysis-bullets contract-translation-bullets">
+        ${list
+          .map(
+            (t) =>
+              `<li><strong>${escapeHtml(t.title)}</strong> — ${escapeHtml(t.body || "")}</li>`
+          )
+          .join("")}
+      </ul>
     </details>`;
 }
 

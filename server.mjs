@@ -444,9 +444,9 @@ const SEC_USER_AGENT =
   "TradeSimple/1.0 (retail research terminal; contact: you@example.com)";
 
 const RESEARCH_SYSTEM_PROMPT = `You are TradeSimple's research assistant. You explain how congressional bills, lobbying activity, federal contracts, and government appointments might affect specific stocks in plain English for retail investors.
-FORMATTING RULES: Never use markdown headers, horizontal rules, or raw markdown syntax. Use plain paragraphs separated by line breaks. Keep responses under 250 words unless the user asks for a deep dive. Lead with the single most important insight in the first sentence. End every response with a maximum of 3 bullet watch items labeled Watch for:
+FORMATTING RULES: Write the main answer as 3-6 bullet points. Put each bullet on its own line starting with "- ". No markdown headers, horizontal rules, or paragraph blocks. Keep responses under 250 words unless the user asks for a deep dive. End every response with "Watch for:" on its own line followed by up to 3 bullet items (each starting with "- ").
 TONE RULES: Never use dramatic language like existential threat, genuinely scared, or death sentence. Let numbers speak for themselves. Use this suggests not this means. Use historically not guaranteed. Never imply a buy or sell decision even indirectly.
-STRUCTURE FOR EVERY RESPONSE: One sentence bottom line up front. The signal breakdown with numbers and ratios. Historical analog if one exists with actual price move and timeframe. What the user still does not know and would need to verify. Watch for with maximum 3 bullet points.
+STRUCTURE FOR EVERY RESPONSE: Start with the disclosure line when discussing position impact. Then 3-6 bullets covering bottom line, signal breakdown with numbers, historical analog if one exists, and what still needs verification. Then the Watch for section with up to 3 bullets.
 DISCLOSURE: Start every response that discusses position impact with exactly this line: Research signal only. Not financial advice.
 DATA HONESTY: If a number comes from a specific source name it. If a number is estimated say so. Never invent historical analogs. If you do not have enough data to answer well say so directly.
 DATA SOURCES YOU CAN REFERENCE: Congress.gov for bill stage and cosponsor data. LDA.gov for lobbying filings and spend. USASpending.gov for federal contract awards and agency budgets. SEC EDGAR for 10-K risk factors and revenue segment data. Finnhub for equity quotes when configured (label source; free tier may be delayed). SAM.gov for contract opportunities and recompetes.
@@ -11192,28 +11192,37 @@ Watch for:
 Add ANTHROPIC_API_KEY or GEMINI_API_KEY to the server for the full metrics walkthrough.`;
 }
 
+function parseAiBulletItems(text) {
+  const raw = String(text ?? "").trim();
+  if (!raw) return [];
+  const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const bullets = [];
+  for (const line of lines) {
+    const matched = line.match(/^(?:[-•*]|\d+[.)])\s+(.+)$/);
+    if (matched) bullets.push(matched[1].trim());
+  }
+  if (bullets.length >= 2) return bullets.slice(0, 6);
+  if (bullets.length === 1 && lines.length === 1) return bullets;
+  const sentences = raw
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 8);
+  if (sentences.length >= 2) return sentences.slice(0, 6);
+  if (bullets.length === 1) return bullets;
+  return raw ? [raw] : [];
+}
+
 function parseResearchResponseText(raw) {
-  const full = String(raw ?? "");
+  const full = String(raw ?? "").trim();
   const lower = full.toLowerCase();
   const needle = "watch for:";
   const keyIdx = lower.indexOf(needle);
-  if (keyIdx === -1) {
-    return { prose: full.trim(), watchFor: [], raw: full };
-  }
-  const head = full.slice(keyIdx).match(/^watch for:/i);
-  const after = head ? full.slice(keyIdx + head[0].length) : "";
-  const prose = full.slice(0, keyIdx).trim();
-  const watchFor = [];
-  for (const line of after.split(/\r?\n/)) {
-    const t = line.trim();
-    if (!t) continue;
-    const m = t.match(/^(?:[-•*]|\d+\.)\s*(.+)$/);
-    if (m) {
-      watchFor.push(m[1].trim());
-      if (watchFor.length >= 3) break;
-    }
-  }
-  return { prose, watchFor, raw: full };
+  const mainText = keyIdx === -1 ? full : full.slice(0, keyIdx).trim();
+  const after = keyIdx === -1 ? "" : full.slice(keyIdx).replace(/^watch for:\s*/i, "");
+  const watchFor = parseAiBulletItems(after).slice(0, 3);
+  const bullets = parseAiBulletItems(mainText);
+  const prose = bullets.length ? bullets.join("\n") : mainText;
+  return { prose, bullets, watchFor, raw: full };
 }
 
 async function callResearchAiProvider({ userContent, maxTokens }) {

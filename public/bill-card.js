@@ -286,7 +286,7 @@ function stepBillHtml(bill, data) {
     ? `<p class="bill-guided-lede">${escapeHtml(data.liveAnalysis.explanation.whyMarketsCare)}</p><p class="muted">From live bill records</p>`
     : "";
   const ai = data.aiSummary?.text
-    ? `<p class="bill-guided-lede bill-ai-lede">${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI summary · from live bill data</p>`
+    ? `<div class="bill-ai-lede-wrap">${BriefShell.aiAnalysisBulletsHtml(data.aiSummary.text, escapeHtml)}</div><p class="muted">AI summary · from live bill data</p>`
     : "";
   const onboardingLead = isOnboardingVisit
     ? `<p class="bill-guided-lede muted">Your first policy brief — we'll connect this bill to the tickers and contracts that matter.</p>`
@@ -556,7 +556,7 @@ function renderFullBrief(data) {
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || data.methodologyDisclaimer || "")}</p>
       </header>
       ${rulesExplanationHtml(data)}
-      ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2><p>${escapeHtml(data.aiSummary.text)}</p><p class="muted">AI synthesis from live bill data</p></section>` : ""}
+      ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2>${BriefShell.aiAnalysisBulletsHtml(data.aiSummary.text, escapeHtml)}<p class="muted">AI synthesis from live bill data</p></section>` : ""}
       ${liveAnalysisPanelHtml(data)}
 
       ${legislativeTimelineSection(leg, bill, status)}

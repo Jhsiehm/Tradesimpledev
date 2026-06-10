@@ -5353,9 +5353,12 @@ function renderEdgarSimplified(simplified) {
     renderEdgarSection("Where the money comes from", simplified.whereMoneyComesFrom),
     renderEdgarSection("What could hurt the company", simplified.whatCouldHurtIt),
     simplified.numbersGoingRight
-      ? `<section class="edgar-simplified-block"><h3 class="edgar-simplified-title">Are the numbers moving the right way?</h3><p>${escapeHtml(
-          String(simplified.numbersGoingRight)
-        )}</p></section>`
+      ? renderEdgarSection(
+          "Are the numbers moving the right way?",
+          Array.isArray(simplified.numbersGoingRight)
+            ? simplified.numbersGoingRight
+            : [String(simplified.numbersGoingRight)]
+        )
       : ""
   ].filter(Boolean);
   if (!blocks.length) {
@@ -5548,9 +5551,16 @@ function renderGovernmentExplainer(analysis) {
   const watch = Array.isArray(explainer.watchFor) && explainer.watchFor.length
     ? explainer.watchFor
     : (analysis.legisAlert || []).flatMap((bill) => watchForBullets(bill)).slice(0, 3);
+  const aiNarrator = isAiExplainerSource(explainer.source);
 
-  if (nowEl) nowEl.textContent = explainer.now || fallbackNow;
-  if (whyEl) whyEl.textContent = explainer.whyItMatters || fallbackWhy;
+  if (nowEl) {
+    if (aiNarrator) nowEl.innerHTML = aiAnalysisBulletsHtml(explainer.now || fallbackNow);
+    else nowEl.textContent = explainer.now || fallbackNow;
+  }
+  if (whyEl) {
+    if (aiNarrator) whyEl.innerHTML = aiAnalysisBulletsHtml(explainer.whyItMatters || fallbackWhy);
+    else whyEl.textContent = explainer.whyItMatters || fallbackWhy;
+  }
   if (watchEl) {
     watchEl.innerHTML = (watch.length ? watch : ["New government filings", "Company revenue commentary", "Rule or bill text changes"])
       .slice(0, 3)
@@ -6879,7 +6889,7 @@ async function callByokProvider(question, billContext) {
   if (!provider || !key) throw new Error("No BYOK key configured.");
 
   const systemPrompt = `You are TradeSimple's research assistant. Explain how congressional bills, lobbying activity, federal contracts, and government policy might affect specific stocks in plain English for retail investors.
-RULES: Never use markdown headers. Use plain paragraphs. Keep responses under 250 words. Lead with the single most important insight. End with up to 3 bullet "Watch for:" items.
+RULES: Write the main answer as 3-6 bullet points. Put each bullet on its own line starting with "- ". No markdown headers or paragraph blocks. Keep responses under 250 words. End with "Watch for:" on its own line followed by up to 3 bullets (each starting with "- ").
 TONE: No dramatic language. Let numbers speak. Use "this suggests" not "this means". Disclose: Research signal only. Not financial advice.`;
 
   const billDigest = (window._policyBillsForByok || [])
@@ -6969,19 +6979,14 @@ TONE: No dramatic language. Let numbers speak. Use "this suggests" not "this mea
 }
 
 function parseByokResponse(text) {
-  if (!text) return { prose: "No response returned.", watchFor: [] };
+  if (!text) return { prose: "No response returned.", bullets: [], watchFor: [] };
   const watchMatch = text.match(/Watch\s+for[:\s]+([\s\S]+)$/i);
-  let prose = text;
-  const watchFor = [];
-  if (watchMatch) {
-    prose = text.slice(0, watchMatch.index).trim();
-    const items = watchMatch[1]
-      .split(/\n|•|-|\*/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    watchFor.push(...items.slice(0, 3));
-  }
-  return { prose, watchFor };
+  let main = text;
+  if (watchMatch) main = text.slice(0, watchMatch.index).trim();
+  const watchFor = watchMatch ? parseAiBulletItems(watchMatch[1]).slice(0, 3) : [];
+  const bullets = parseAiBulletItems(main);
+  const prose = bullets.length ? bullets.join("\n") : main.trim();
+  return { prose, bullets, watchFor };
 }
 
 window._policyBillsForByok = [];
@@ -7047,7 +7052,7 @@ function setupForms() {
       try {
         const response = await callByokProvider(question, null);
         document.querySelector("[data-pending-message]")?.remove();
-        appendResearchAiMessage(response.prose || "", response.watchFor || []);
+        appendResearchAiMessage(response.prose || "", response.watchFor || [], response.bullets || []);
       } catch (error) {
         document.querySelector("[data-pending-message]")?.remove();
         const msg = error.message || "Request failed.";
@@ -7067,7 +7072,7 @@ function setupForms() {
         });
         document.querySelector("[data-pending-message]")?.remove();
         if (response.error) appendMessage(response.error, "ai");
-        else appendResearchAiMessage(response.prose || "", response.watchFor || []);
+        else appendResearchAiMessage(response.prose || "", response.watchFor || [], response.bullets || []);
       } catch (error) {
         document.querySelector("[data-pending-message]")?.remove();
         appendMessage(error.message || "Request failed.", "ai");
@@ -7227,18 +7232,39 @@ function appendMessage(text, kind, pending = false) {
   $("#research-log").scrollTop = $("#research-log").scrollHeight;
 }
 
-function appendResearchAiMessage(prose, watchFor) {
+function appendResearchAiMessage(prose, watchFor, bullets) {
   const div = document.createElement("div");
   div.className = "message";
-  const p = document.createElement("p");
-  if (typeof prose === "string" && prose.includes("**")) {
-    p.innerHTML = escapeHtml(prose).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  } else {
-    p.textContent = prose || "";
-  }
-  div.appendChild(p);
-  if (Array.isArray(watchFor) && watchFor.length) {
+  const items = Array.isArray(bullets) && bullets.length ? bullets : parseAiBulletItems(prose);
+  if (items.length) {
     const ul = document.createElement("ul");
+    ul.className = "ai-analysis-bullets";
+    for (const item of items) {
+      const li = document.createElement("li");
+      if (typeof item === "string" && item.includes("**")) {
+        li.innerHTML = escapeHtml(item).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      } else {
+        li.textContent = item;
+      }
+      ul.appendChild(li);
+    }
+    div.appendChild(ul);
+  } else {
+    const p = document.createElement("p");
+    if (typeof prose === "string" && prose.includes("**")) {
+      p.innerHTML = escapeHtml(prose).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    } else {
+      p.textContent = prose || "";
+    }
+    div.appendChild(p);
+  }
+  if (Array.isArray(watchFor) && watchFor.length) {
+    const label = document.createElement("p");
+    label.className = "research-watch-label muted";
+    label.textContent = "Watch for:";
+    div.appendChild(label);
+    const ul = document.createElement("ul");
+    ul.className = "ai-analysis-bullets research-watch-bullets";
     for (const item of watchFor) {
       const li = document.createElement("li");
       li.textContent = item;
@@ -7263,7 +7289,7 @@ async function askWhyForBill(billId) {
     try {
       const response = await callByokProvider("", id);
       document.querySelector("[data-pending-message]")?.remove();
-      appendResearchAiMessage(response.prose || "", response.watchFor || []);
+      appendResearchAiMessage(response.prose || "", response.watchFor || [], response.bullets || []);
     } catch (error) {
       document.querySelector("[data-pending-message]")?.remove();
       appendMessage(`AI error: ${error.message || "Request failed."}. Check your key in AI Settings.`, "ai");
@@ -7303,7 +7329,7 @@ async function askWhyForBill(billId) {
       return;
     }
     if (payload.error) appendMessage(payload.error, "ai");
-    else appendResearchAiMessage(payload.prose || "", payload.watchFor || []);
+    else appendResearchAiMessage(payload.prose || "", payload.watchFor || [], payload.bullets || []);
   } catch (error) {
     document.querySelector("[data-pending-message]")?.remove();
     appendMessage(error.message || "Request failed.", "ai");
@@ -7411,6 +7437,39 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function parseAiBulletItems(text) {
+  if (global.BriefShell?.parseAiBulletItems) return BriefShell.parseAiBulletItems(text);
+  const raw = String(text ?? "").trim();
+  if (!raw) return [];
+  const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const bullets = [];
+  for (const line of lines) {
+    const matched = line.match(/^(?:[-•*]|\d+[.)])\s+(.+)$/);
+    if (matched) bullets.push(matched[1].trim());
+  }
+  if (bullets.length >= 2) return bullets.slice(0, 6);
+  if (bullets.length === 1 && lines.length === 1) return bullets;
+  const sentences = raw
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 8);
+  if (sentences.length >= 2) return sentences.slice(0, 6);
+  if (bullets.length === 1) return bullets;
+  return raw ? [raw] : [];
+}
+
+function aiAnalysisBulletsHtml(text) {
+  if (global.BriefShell?.aiAnalysisBulletsHtml) return BriefShell.aiAnalysisBulletsHtml(text, escapeHtml);
+  const items = parseAiBulletItems(text);
+  if (!items.length) return `<p class="ai-analysis-prose">${escapeHtml(text)}</p>`;
+  return `<ul class="ai-analysis-bullets">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function isAiExplainerSource(source) {
+  const normalized = String(source || "").toLowerCase();
+  return normalized && normalized !== "local_fallback" && normalized !== "fallback_error" && normalized !== "structured snapshot";
 }
 
 let methodologyUiBound = false;

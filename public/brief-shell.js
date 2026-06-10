@@ -414,6 +414,34 @@
       </details>`;
   }
 
+  /** Parse AI prose or markdown-style bullets into plain strings (3–6 items). */
+  function parseAiBulletItems(text) {
+    const raw = String(text ?? "").trim();
+    if (!raw) return [];
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const bullets = [];
+    for (const line of lines) {
+      const matched = line.match(/^(?:[-•*]|\d+[.)])\s+(.+)$/);
+      if (matched) bullets.push(matched[1].trim());
+    }
+    if (bullets.length >= 2) return bullets.slice(0, 6);
+    if (bullets.length === 1 && lines.length === 1) return bullets;
+    const sentences = raw
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 8);
+    if (sentences.length >= 2) return sentences.slice(0, 6);
+    if (bullets.length === 1) return bullets;
+    return raw ? [raw] : [];
+  }
+
+  function aiAnalysisBulletsHtml(text, escapeHtmlFn) {
+    const esc = typeof escapeHtmlFn === "function" ? escapeHtmlFn : (value) => String(value ?? "");
+    const items = parseAiBulletItems(text);
+    if (!items.length) return `<p class="ai-analysis-prose">${esc(text)}</p>`;
+    return `<ul class="ai-analysis-bullets">${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>`;
+  }
+
   global.BriefShell = {
     storedMode,
     persistMode,
@@ -431,6 +459,8 @@
     lobbyPageUrl,
     traceTickerCtaHtml,
     freshnessChipHtml,
+    parseAiBulletItems,
+    aiAnalysisBulletsHtml,
     init
   };
 })(typeof window !== "undefined" ? window : globalThis);

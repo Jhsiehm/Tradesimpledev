@@ -1425,4 +1425,30 @@ html[data-theme="light"] .bill-guided-callouts .bill-next-milestone {
   }
 }
 
+.ai-analysis-bullets {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+  list-style: disc;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.ai-analysis-bullets li {
+  margin-bottom: 0.45rem;
+}
+.ai-analysis-bullets li:last-child {
+  margin-bottom: 0;
+}
+.bill-ai-summary .ai-analysis-bullets,
+.bill-ai-lede-wrap .ai-analysis-bullets {
+  color: inherit;
+}
+.contract-translation-bullets strong {
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .ai-analysis-bullets {
+    padding-left: 1rem;
+    font-size: 0.9rem;
+  }
+}
 

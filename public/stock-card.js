@@ -399,6 +399,27 @@ function relatedBillsCardsHtml(bills) {
     </div>`;
 }
 
+function aiPlainHtml(text, isAi) {
+  if (!text) return "";
+  if (isAi && global.BriefShell?.aiAnalysisBulletsHtml) {
+    return BriefShell.aiAnalysisBulletsHtml(text, escapeHtml);
+  }
+  return `<p class="hero-lede">${escapeHtml(text)}</p>`;
+}
+
+function explainerFieldHtml(text, fallback, isAi) {
+  const value = text || fallback || "";
+  if (isAi && global.BriefShell?.aiAnalysisBulletsHtml) {
+    return BriefShell.aiAnalysisBulletsHtml(value, escapeHtml);
+  }
+  return `<p class="bill-guided-lede">${escapeHtml(value)}</p>`;
+}
+
+function isAiExplainer(explainer) {
+  const source = String(explainer?.source || "").toLowerCase();
+  return source && source !== "local_fallback" && source !== "fallback_error" && source !== "structured snapshot";
+}
+
 function mappingSidebarHtml(data) {
   const mapping = data.mapping || {};
   const analysis = data.analysis || {};
@@ -409,7 +430,9 @@ function mappingSidebarHtml(data) {
     <section class="section-card stock-mapping-panel">
       <div class="section-head">
         <span class="mini-label">Auto-mapped policy graph</span>
-        <strong>${escapeHtml(analysis.plainEnglish || data.governmentSignals?.headline || "Pre-enriched mapping from share payload")}</strong>
+        ${analysis.aiGenerated && global.BriefShell?.aiAnalysisBulletsHtml
+          ? `<div class="stock-mapping-ai">${BriefShell.aiAnalysisBulletsHtml(analysis.plainEnglish, escapeHtml)}</div>`
+          : `<strong>${escapeHtml(analysis.plainEnglish || data.governmentSignals?.headline || "Pre-enriched mapping from share payload")}</strong>`}
       </div>
       ${bills.length ? `<div class="stock-mapping-block"><span class="mini-label">Related bills</span>${relatedBillsCardsHtml(bills)}</div>` : ""}
       ${mapping.contractProfile
@@ -462,7 +485,7 @@ function stepNowHtml(explainer, data) {
   const copy = readerModeCopy("citizen");
   return `
     <h2 class="bill-step-title">${escapeHtml(copy.signalLabel)}</h2>
-    <p class="bill-guided-lede">${escapeHtml(explainer.now || data.governmentSignals?.detail || "No government signal summary available.")}</p>
+    ${explainerFieldHtml(explainer.now, data.governmentSignals?.detail || "No government signal summary available.", isAiExplainer(explainer))}
     ${sourceDetails("Sources", evidenceSummaryItems(data.evidence || {}, "policy"))}`;
 }
 
@@ -470,7 +493,11 @@ function stepMatterHtml(explainer, evidence) {
   const copy = readerModeCopy("citizen");
   return `
     <h2 class="bill-step-title">${escapeHtml(copy.mechanismLabel)}</h2>
-    <p class="bill-guided-lede">${escapeHtml(explainer.whyItMatters || "Government action can matter through revenue, margins, capex, compliance costs, contract visibility, and investor expectations.")}</p>
+    ${explainerFieldHtml(
+      explainer.whyItMatters,
+      "Government action can matter through revenue, margins, capex, compliance costs, contract visibility, and investor expectations.",
+      isAiExplainer(explainer)
+    )}
     ${sourceDetails("Evidence", evidenceSummaryItems(evidence, "mechanism"))}`;
 }
 
@@ -565,7 +592,10 @@ function renderFullBrief(data) {
               <h1>${escapeHtml(data.symbol)}</h1>
               <span>${escapeHtml(data.company?.name || data.symbol)}</span>
             </div>
-            <p class="hero-lede">${escapeHtml(data.analysis?.plainEnglish || data.governmentSignals?.headline || explainer.headline || "")}</p>
+            ${aiPlainHtml(
+              data.analysis?.plainEnglish || data.governmentSignals?.headline || explainer.headline || "",
+              Boolean(data.analysis?.aiGenerated)
+            )}
             <p class="hero-disclaimer">Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.</p>
           </div>
           <aside class="quote-box">

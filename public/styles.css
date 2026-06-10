@@ -3414,6 +3414,41 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
   line-height: 1.55;
   color: var(--muted);
 }
+
+.ai-analysis-bullets {
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text, inherit);
+}
+.ai-analysis-bullets li {
+  margin-bottom: 0.45rem;
+}
+.ai-analysis-bullets li:last-child {
+  margin-bottom: 0;
+}
+#research-log .message .ai-analysis-bullets {
+  margin-top: 0;
+}
+#research-log .research-watch-label {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 12px;
+  font-weight: 600;
+}
+#analysis-explainer-now.ai-analysis-bullets,
+#analysis-explainer-why.ai-analysis-bullets,
+#analysis-explainer-now ul.ai-analysis-bullets,
+#analysis-explainer-why ul.ai-analysis-bullets {
+  margin-top: 0.35rem;
+}
+@media (max-width: 480px) {
+  .ai-analysis-bullets {
+    padding-left: 1rem;
+    font-size: 13px;
+  }
+}
 .edgar-raw-details {
   margin: 0 16px 16px;
   font-size: 12px;

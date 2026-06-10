@@ -503,7 +503,7 @@ export async function inferLiveBillWhyMarketsCareAI({ bill, billId, rateLimitKey
   const system = `You explain why a US congressional bill matters to public markets.
 Return ONLY valid JSON:
 {
-  "whyMarketsCare": "1-2 plain English sentences linking bill stage to agencies, contractors, and tickers",
+  "whyMarketsCare": "3-4 bullet lines, each starting with - on its own line, linking bill stage to agencies, contractors, and tickers",
   "causalChain": ["Bill stage", "→ Agency", "→ Contractors", "→ Tickers"]
 }
 No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
@@ -588,8 +588,8 @@ Citizen mode avoids finance jargon. Investor mode may use normal market terms. A
 Return ONLY JSON:
 {
   "headline": "short title",
-  "now": "what government or policy signal matters now, 1-3 sentences",
-  "whyItMatters": "the market mechanism: revenue, margin, capex, compliance, subsidy, contract, valuation, or expectations",
+  "now": "3-4 bullet lines starting with - , one per line — what government or policy signal matters now",
+  "whyItMatters": "3-4 bullet lines starting with - , one per line — market mechanism: revenue, margin, capex, compliance, subsidy, contract, valuation, or expectations",
   "watchFor": ["up to 3 bullets"]
 }`;
 
@@ -680,7 +680,7 @@ export async function runEdgarSimplifier({ symbol, riskFactorsText, filingDate }
       whatCouldHurtIt: [
         "SEC risk factors are available, but AI translation needs ANTHROPIC_API_KEY or GEMINI_API_KEY on the server."
       ],
-      numbersGoingRight: "Read the filing excerpt below for the company's own wording."
+      numbersGoingRight: ["Read the filing excerpt below for the company's own wording."]
     };
   }
 
@@ -688,9 +688,9 @@ export async function runEdgarSimplifier({ symbol, riskFactorsText, filingDate }
 ${AI_RESEARCH_DISCLAIMER}
 Return ONLY JSON:
 {
-  "whereMoneyComesFrom": ["bullet"],
-  "whatCouldHurtIt": ["bullet"],
-  "numbersGoingRight": "one short paragraph"
+  "whereMoneyComesFrom": ["3-5 plain-English bullets"],
+  "whatCouldHurtIt": ["3-6 plain-English bullets"],
+  "numbersGoingRight": ["2-4 plain-English bullets on trends and metrics"]
 }`;
 
   const user = `Symbol: ${symbol}
@@ -708,13 +708,17 @@ ${risk.slice(0, 14000)}`;
       whatCouldHurtIt: Array.isArray(parsed.whatCouldHurtIt)
         ? parsed.whatCouldHurtIt.slice(0, 8).map(String)
         : [],
-      numbersGoingRight: String(parsed.numbersGoingRight || "")
+      numbersGoingRight: Array.isArray(parsed.numbersGoingRight)
+        ? parsed.numbersGoingRight.slice(0, 6).map(String)
+        : parsed.numbersGoingRight
+          ? [String(parsed.numbersGoingRight)]
+          : []
     };
   } catch (err) {
     return {
       whereMoneyComesFrom: [],
       whatCouldHurtIt: ["SEC translation temporarily unavailable."],
-      numbersGoingRight: "",
+      numbersGoingRight: [],
       error: err.message
     };
   }
@@ -854,7 +858,7 @@ ${lobbyingContext ? `Lobbying context: ${lobbyingContext}` : ""}
 ${price ? `Current price: $${price}` : ""}
 
 Respond with ONLY a raw JSON object. No markdown, no explanation outside the JSON. Use this structure exactly:
-{"plainEnglish":"2-3 sentence summary of the clearest policy-to-stock mechanism. Name the bill or agency if relevant.","nodes":[{"step":"1 · Budget","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"2 · Signal","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"3 · Exposure","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"4 · Market","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"}],"scenarios":[{"name":"Upside","change":"Specific upside in one sentence","read":"What it means","cls":"positive"},{"name":"Base","change":"Base case in one sentence","read":"What to watch","cls":"warning"},{"name":"Downside","change":"Specific downside in one sentence","read":"What it means","cls":"negative"}],"translation":[{"step":"A","title":"What is happening?","body":"One sentence"},{"step":"B","title":"Why does it matter?","body":"One sentence with a number if known"},{"step":"C","title":"What could change?","body":"One sentence"},{"step":"D","title":"What to watch?","body":"Specific signal or source"}]}
+{"plainEnglish":"3-5 bullet lines starting with - , one per line — clearest policy-to-stock mechanisms. Name bills or agencies when relevant.","nodes":[{"step":"1 · Budget","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"2 · Signal","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"3 · Exposure","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"},{"step":"4 · Market","title":"One causal statement","detail":"1-2 sentence mechanism explanation","source":"source name"}],"scenarios":[{"name":"Upside","change":"Specific upside in one sentence","read":"What it means","cls":"positive"},{"name":"Base","change":"Base case in one sentence","read":"What to watch","cls":"warning"},{"name":"Downside","change":"Specific downside in one sentence","read":"What it means","cls":"negative"}],"translation":[{"step":"A","title":"What is happening?","body":"One sentence"},{"step":"B","title":"Why does it matter?","body":"One sentence with a number if known"},{"step":"C","title":"What could change?","body":"One sentence"},{"step":"D","title":"What to watch?","body":"Specific signal or source"}]}
 
 Fill in real content for ${ticker}. Be specific — if a bill is named in the data, use its actual title.`;
 
@@ -1188,7 +1192,8 @@ export async function runShareBriefSummary({ kind, payload, rateLimitKey, checkR
     ].join("\n");
   }
 
-  const system = `You write 2-3 sentence plain-English brief summaries for TradeSimple share pages.
+  const system = `You write plain-English brief summaries for TradeSimple share pages as 3-5 bullet points.
+Put each bullet on its own line starting with "- ". No paragraphs or markdown headers.
 Use only the facts provided. No buy/sell language. ${AI_RESEARCH_DISCLAIMER}`;
   const text = await fetchAnthropic({
     system,
