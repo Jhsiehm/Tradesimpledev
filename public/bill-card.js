@@ -134,17 +134,28 @@ function renderApp() {
 
 function bindSharedControls(data) {
   const share = document.getElementById("bill-share-copy");
+  const toast = document.getElementById("bill-share-toast");
+  const showToast = (message) => {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.hidden = false;
+    window.setTimeout(() => {
+      toast.hidden = true;
+    }, 2200);
+  };
   if (share) {
     share.addEventListener("click", async () => {
       const url = data.share?.canonicalUrl || `${window.location.origin}/bill/${encodeURIComponent(state.billId)}`;
       try {
         await navigator.clipboard.writeText(url);
-        share.textContent = "Link copied";
+        share.textContent = "Copied!";
+        showToast("Brief link copied — share it anywhere.");
         window.setTimeout(() => {
           share.textContent = "Copy link";
         }, 1600);
       } catch (_) {
-        share.textContent = url;
+        share.textContent = "Copy failed";
+        showToast(url);
       }
     });
   }
@@ -168,9 +179,10 @@ function modeToggleHtml() {
 function heroActionsHtml() {
   return `
     <div class="bill-card-actions">
-      <button type="button" class="card-button ghost" id="bill-share-copy">Copy link</button>
+      <button type="button" class="card-button primary bill-share-copy-btn" id="bill-share-copy">Copy link</button>
       <a class="card-button ghost" href="/dashboard?view=bills">Dashboard</a>
-    </div>`;
+    </div>
+    <p class="bill-share-toast mono" id="bill-share-toast" role="status" aria-live="polite" hidden></p>`;
 }
 
 function freshnessChipHtml(data) {

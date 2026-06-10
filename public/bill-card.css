@@ -32,6 +32,29 @@ body {
   flex-wrap: wrap;
 }
 
+.card-button.primary,
+.bill-share-copy-btn {
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  color: var(--green);
+  font-weight: 600;
+}
+
+.card-button.primary:hover,
+.bill-share-copy-btn:hover {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  color: var(--green);
+}
+
+.bill-share-toast {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
 .bill-card-id {
   opacity: 0.75;
   margin: 0;

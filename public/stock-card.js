@@ -148,17 +148,29 @@ function bindSharedControls(data) {
   });
 
   const share = document.getElementById("public-share-copy");
+  const toast = document.getElementById("stock-share-toast");
   if (share) {
     share.addEventListener("click", async () => {
       const url = `${window.location.origin}/stock/${encodeURIComponent(state.symbol)}`;
       try {
         await navigator.clipboard.writeText(url);
-        share.textContent = "Link copied";
+        share.textContent = "Copied!";
+        if (toast) {
+          toast.textContent = "Brief link copied — share it anywhere.";
+          toast.hidden = false;
+          window.setTimeout(() => {
+            toast.hidden = true;
+          }, 2200);
+        }
         window.setTimeout(() => {
           share.textContent = "Copy link";
         }, 1600);
       } catch (_) {
-        share.textContent = url;
+        share.textContent = "Copy failed";
+        if (toast) {
+          toast.textContent = url;
+          toast.hidden = false;
+        }
       }
     });
   }
@@ -182,9 +194,10 @@ function modeToggleHtml() {
 function heroActionsHtml() {
   return `
     <div class="bill-card-actions">
-      <button type="button" class="card-button ghost" id="public-share-copy">Copy link</button>
+      <button type="button" class="card-button primary bill-share-copy-btn" id="public-share-copy">Copy link</button>
       <a class="card-button ghost" href="/dashboard?view=analysis">Dashboard</a>
-    </div>`;
+    </div>
+    <p class="bill-share-toast mono" id="stock-share-toast" role="status" aria-live="polite" hidden></p>`;
 }
 
 function themeSwitchHtml() {
