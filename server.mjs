@@ -254,7 +254,63 @@ let finnhubCooldownUntil = 0;
 // limit, and naturally staggers each symbol's cache fill so refreshes spread
 // across the minute instead of expiring — and re-bursting — all at once.
 const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 1_100);
+const FINNHUB_FETCH_TIMEOUT_MS = Number(process.env.FINNHUB_FETCH_TIMEOUT_MS || 10_000);
 let lastFinnhubCallAt = 0;
+let finnhubQueueTail = Promise.resolve();
+const quoteProviderErrorAt = new Map();
+const QUOTE_ERROR_LOG_COOLDOWN_MS = Number(process.env.QUOTE_ERROR_LOG_COOLDOWN_MS || 120_000);
+
+function logQuoteProviderError(provider, symbol, message) {
+  const key = `${provider}:${symbol}`;
+  const now = Date.now();
+  if (now - (quoteProviderErrorAt.get(key) || 0) < QUOTE_ERROR_LOG_COOLDOWN_MS) return;
+  quoteProviderErrorAt.set(key, now);
+  console.warn(`[data] ${provider} quote failed for ${symbol}: ${message}`);
+}
+
+async function withFinnhubSlot(fn) {
+  const token = process.env.FINNHUB_API_KEY;
+  if (!token) return null;
+  const run = finnhubQueueTail.then(async () => {
+    if (Date.now() < finnhubCooldownUntil) return null;
+    const waitMs = Math.max(0, FINNHUB_MIN_INTERVAL_MS - (Date.now() - lastFinnhubCallAt));
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    if (Date.now() < finnhubCooldownUntil) return null;
+    lastFinnhubCallAt = Date.now();
+    return fn(token);
+  });
+  finnhubQueueTail = run.catch(() => {});
+  return run;
+}
+
+async function fetchFinnhubQuote(symbol, token, attempt = 0) {
+  const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
+  try {
+    const response = await fetchWithTimeout(quoteUrl, {}, FINNHUB_FETCH_TIMEOUT_MS);
+    if (!response.ok) {
+      if (response.status === 429) {
+        finnhubCooldownUntil = Date.now() + FINNHUB_COOLDOWN_MS;
+        console.warn(
+          `[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`
+        );
+      }
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const mapped = mapFinnhubQuoteResponse(symbol, data);
+    const quote = withQuoteFreshness(mapped, "finnhub", mapped.timestamp);
+    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+    return { source: "finnhub", quote };
+  } catch (error) {
+    const message = error?.message || String(error);
+    const retryable = attempt === 0 && /aborted|timeout|fetch failed/i.test(message);
+    if (retryable) {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return fetchFinnhubQuote(symbol, token, attempt + 1);
+    }
+    throw error;
+  }
+}
 // Yahoo's chart endpoint is blocked from Railway's datacenter IPs (403/fetch
 // failed) for every symbol, every cycle. Without a breaker, each symbol that
 // falls through to Yahoo eats a multi-second timeout, so a full ~50-symbol
@@ -308,6 +364,7 @@ const QUOTE_PROVIDER_LABELS = {
   finnhub: "Finnhub",
   yfinance: "Yahoo Finance (yfinance)",
   yahoo_chart: "Yahoo Finance chart",
+  stooq_public: "Stooq",
   fallback_static: "Modeled fallback",
   fallback: "Modeled fallback",
   unavailable: "Unavailable"
@@ -3313,7 +3370,7 @@ async function marketQuotes(res, url) {
   await Promise.all(Array.from({ length: workerCount }, quoteWorker));
   const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
   const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
-  const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance").length;
+  const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public").length;
   const fallbackCount = filteredQuotes.filter((q) => q.source === "fallback_static").length;
   const source =
     fallbackCount === filteredQuotes.length
@@ -3732,6 +3789,20 @@ async function landingQuoteForSymbol(symbol, timeoutMs = 4500) {
   return landingQuoteFromFallback(symbol);
 }
 
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  const workerCount = Math.min(concurrency, items.length) || 1;
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 async function landingQuotesHandler(res) {
   const now = Date.now();
   if (landingQuotesCache && now - landingQuotesCachedAt < LANDING_QUOTES_TTL_MS) {
@@ -3739,7 +3810,7 @@ async function landingQuotesHandler(res) {
   }
   try {
     const quotes = (
-      await Promise.all(LANDING_QUOTES_TICKERS.map((symbol) => landingQuoteForSymbol(symbol)))
+      await mapWithConcurrency(LANDING_QUOTES_TICKERS, 2, (symbol) => landingQuoteForSymbol(symbol))
     ).filter(Boolean);
     const payload = { quotes, updatedAt: new Date().toISOString() };
     if (quotes.length) {
@@ -4554,7 +4625,7 @@ function buildStockFreshnessBadge({ quote = {}, relatedBills = [], recentNews = 
   const quoteDays = freshnessDaysSince(qTs);
 
   if (qSrc && qSrc !== "fallback_static" && qSrc !== "fallback" && qSrc !== "unavailable") {
-    const liveQuote = qSrc === "finnhub" || qSrc === "yfinance" || qSrc === "alpaca";
+    const liveQuote = qSrc === "finnhub" || qSrc === "yfinance" || qSrc === "stooq_public" || qSrc === "alpaca";
     sources.push({
       kind: "quote",
       asOf: qTs,
@@ -7144,37 +7215,12 @@ async function quoteSnapshot(symbol) {
     return { source: quote.source, quote, cached: true };
   }
 
-  const token = process.env.FINNHUB_API_KEY;
-  const finnhubReady =
-    token &&
-    Date.now() >= finnhubCooldownUntil &&
-    Date.now() - lastFinnhubCallAt >= FINNHUB_MIN_INTERVAL_MS;
-
-  if (finnhubReady) {
-    lastFinnhubCallAt = Date.now();
+  if (process.env.FINNHUB_API_KEY) {
     try {
-      const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token)}`;
-      const response = await fetchWithTimeout(quoteUrl, {}, 7000);
-      if (!response.ok) {
-        if (response.status === 429) {
-          finnhubCooldownUntil = Date.now() + FINNHUB_COOLDOWN_MS;
-          console.warn(`[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      const mapped = mapFinnhubQuoteResponse(symbol, data);
-      const quote = withQuoteFreshness(mapped, "finnhub", mapped.timestamp);
-      quoteCache.set(symbol, { cachedAt: Date.now(), quote });
-      return { source: "finnhub", quote };
+      const finnhubResult = await withFinnhubSlot((token) => fetchFinnhubQuote(symbol, token));
+      if (finnhubResult) return finnhubResult;
     } catch (error) {
-      console.error(
-        "Finnhub fetch failed:",
-        error?.message || String(error),
-        "symbol:",
-        symbol,
-        "trying yfinance fallback"
-      );
+      logQuoteProviderError("Finnhub", symbol, error?.message || String(error));
     }
   }
 
@@ -7197,7 +7243,17 @@ async function quoteSnapshot(symbol) {
       quoteCache.set(symbol, { cachedAt: Date.now(), quote });
       return { source: "yahoo_chart", quote };
     }
-    console.warn(`[data] Yahoo chart unavailable — pausing Yahoo for ${Math.round(YAHOO_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
+    if (!quoteProviderErrorAt.has("yahoo:_cooldown")) {
+      quoteProviderErrorAt.set("yahoo:_cooldown", Date.now());
+      console.warn(`[data] Yahoo chart unavailable — pausing Yahoo for ${Math.round(YAHOO_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`);
+    }
+  }
+
+  const stooqQuote = await stooqQuoteSnapshot(symbol);
+  if (stooqQuote) {
+    const quote = withQuoteFreshness(stooqQuote, "stooq_public", stooqQuote.timestamp);
+    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+    return { source: "stooq_public", quote };
   }
 
   if (fallbackRow) {
@@ -7248,7 +7304,43 @@ async function yahooQuoteSnapshot(symbol) {
       source: "yahoo_chart"
     };
   } catch (error) {
-    console.error("Yahoo quote fetch failed:", error?.message || String(error), "symbol:", symbol);
+    logQuoteProviderError("Yahoo", symbol, error?.message || String(error));
+    return null;
+  }
+}
+
+async function stooqQuoteSnapshot(symbol) {
+  try {
+    const stooqSymbol = `${symbol.toLowerCase().replace(".", "-")}.us`;
+    const response = await fetchWithTimeout(
+      `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`,
+      { headers: { "User-Agent": "TradeSimple/1.0 (+https://tradesimple.app)" } },
+      8000
+    );
+    if (!response.ok) throw new Error(`stooq_${response.status}`);
+    const csv = await response.text();
+    const line = csv.trim().split(/\r?\n/).pop();
+    if (!line || /^N\/D/i.test(line)) return null;
+    const [, , , open, high, low, close] = line.split(",");
+    const price = Number(close);
+    if (!Number.isFinite(price) || price <= 0) return null;
+    const openNum = Number(open);
+    const change = Number.isFinite(openNum) && openNum > 0 ? price - openNum : null;
+    const pct = change != null ? (change / openNum) * 100 : null;
+    return {
+      symbol,
+      price,
+      change,
+      changePercent: pct,
+      pct,
+      high: Number(high) || null,
+      low: Number(low) || null,
+      open: Number.isFinite(openNum) ? openNum : null,
+      timestamp: new Date().toISOString(),
+      source: "stooq_public"
+    };
+  } catch (error) {
+    logQuoteProviderError("Stooq", symbol, error?.message || String(error));
     return null;
   }
 }

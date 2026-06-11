@@ -302,7 +302,7 @@ async function fetchQuotesBatched(symbols) {
   const unique = [...new Set((symbols || []).map((sym) => normalizeWatchSymbol(sym)).filter(Boolean))];
   if (!unique.length) return summarizeQuoteBatchMeta([], "");
   const chunks = [];
-  for (let i = 0; i < unique.length; i += 40) chunks.push(unique.slice(i, i + 40));
+  for (let i = 0; i < unique.length; i += 25) chunks.push(unique.slice(i, i + 25));
   const map = new Map();
   let source = "";
   for (const chunk of chunks) {
@@ -3171,8 +3171,12 @@ async function loadMarketsData() {
   state.marketsQuotesLoading = true;
   renderMarkets();
   try {
-    const symbols = marketsCatalogRows().map((row) => row.symbol);
-    const data = await fetchQuotesBatched(symbols.length ? symbols : marketsDefaultSymbols());
+    const visible = marketsVisibleSymbols();
+    const catalogSymbols = marketsCatalogRows().map((row) => row.symbol);
+    const prioritySymbols = visible.length ? visible : marketsDefaultSymbols();
+    const deferredSymbols = catalogSymbols.filter((symbol) => !prioritySymbols.includes(symbol));
+
+    const data = await fetchQuotesBatched(prioritySymbols);
     mergeQuotesIntoState(data.quotes);
     state.marketsCatalogQuotesLoaded = true;
     state.quoteFeedSource = data.source || state.quoteFeedSource;
@@ -3182,6 +3186,17 @@ async function loadMarketsData() {
     renderTape();
     renderMarkets();
     syncQuotesFallbackBanner(data);
+
+    if (deferredSymbols.length) {
+      void fetchQuotesBatched(deferredSymbols)
+        .then((secondary) => {
+          mergeQuotesIntoState(secondary.quotes);
+          renderMarkets();
+          renderTape();
+          thesisUpdateQuoteTrustUi();
+        })
+        .catch((err) => console.warn("[markets] deferred quotes fetch failed", err));
+    }
   } catch (e) {
     console.error("[markets] quotes fetch failed", e);
     syncQuotesFallbackBanner({ fallback: false });

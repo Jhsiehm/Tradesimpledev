@@ -1,6 +1,15 @@
-# Force Node web process (not static README hosting)
+# Railway: Node web process + optional Python yfinance sidecar fallback.
 [start]
 cmd = "node server.mjs"
 
 [variables]
 NIXPACKS_NODE_VERSION = "20"
+YFINANCE_PYTHON = "python3"
+
+[phases.setup]
+nixPkgs = ["python3", "python3Packages.pip"]
+
+[phases.install]
+cmds = [
+  "python3 -m pip install --user yfinance || python3 -m pip install yfinance",
+]
