@@ -2676,9 +2676,15 @@ function checkFeaturePage(featureName, res, label, { head = false } = {}) {
   return false;
 }
 
+/** Strip trailing slashes so /dashboard/ and /dashboard resolve the same shell. */
+function normalizeRoutePathname(pathname) {
+  if (!pathname || pathname === "/") return "/";
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
 async function route(req, res) {
   const url = new URL(req.url || "/", APP_URL);
-  const pathname = url.pathname;
+  const pathname = normalizeRoutePathname(url.pathname);
 
   if (pathname === "/") return sendLandingIndex(res);
   if (pathname === "/favicon.ico") return sendStatic(res, "favicon.png");
@@ -2690,7 +2696,7 @@ async function route(req, res) {
     }
     return sendStatic(res, "dashboard.html");
   }
-  if (pathname === "/bill" || pathname === "/bill/") {
+  if (pathname === "/bill") {
     if (!checkFeaturePage("BILLS_EXPLORER_ENABLED", res, "Bills Explorer", { head: req.method === "HEAD" })) return;
     return redirect(res, "/dashboard?view=bills");
   }
@@ -2698,7 +2704,7 @@ async function route(req, res) {
     if (!checkFeaturePage("BILLS_EXPLORER_ENABLED", res, "Bills Explorer", { head: req.method === "HEAD" })) return;
     return publicBillCard(req, res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname === "/contract" || pathname === "/contract/") {
+  if (pathname === "/contract") {
     if (!checkFeaturePage("CONTRACTS_ANALYZER_ENABLED", res, "Contracts Analyzer", { head: req.method === "HEAD" })) return;
     return redirect(res, "/dashboard?view=contracts");
   }
@@ -2706,7 +2712,7 @@ async function route(req, res) {
     if (!checkFeaturePage("CONTRACTS_ANALYZER_ENABLED", res, "Contracts Analyzer", { head: req.method === "HEAD" })) return;
     return publicContractCard(res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname === "/lobby" || pathname === "/lobby/") {
+  if (pathname === "/lobby") {
     if (!checkFeaturePage("LOBBYING_EXPLORER_ENABLED", res, "Lobbying Explorer", { head: req.method === "HEAD" })) return;
     return redirect(res, "/dashboard?view=lobbying");
   }
@@ -2714,7 +2720,7 @@ async function route(req, res) {
     if (!checkFeaturePage("LOBBYING_EXPLORER_ENABLED", res, "Lobbying Explorer", { head: req.method === "HEAD" })) return;
     return publicLobbyCard(res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname === "/stock" || pathname === "/stock/") return redirect(res, "/stock/NVDA");
+  if (pathname === "/stock") return redirect(res, "/stock/NVDA");
   if (pathname.startsWith("/stock/") && (req.method === "GET" || req.method === "HEAD")) {
     return publicStockCard(res, pathname, { head: req.method === "HEAD" });
   }
@@ -2944,7 +2950,20 @@ async function route(req, res) {
     return sendDetailRouteHelp(res, pathname);
   }
 
-  sendStatic(res, pathname.slice(1));
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return sendText(res, 404, "Not found");
+  }
+
+  return servePublicStaticFallback(res, pathname);
+}
+
+async function servePublicStaticFallback(res, pathname) {
+  const relative = pathname.slice(1);
+  if (!relative) return sendLandingIndex(res);
+  if (/\.[a-z0-9]+$/i.test(relative)) {
+    return sendStatic(res, relative);
+  }
+  return sendText(res, 404, "Not found");
 }
 
 function sendDetailRouteHelp(res, pathname) {
