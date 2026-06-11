@@ -255,6 +255,7 @@ let finnhubCooldownUntil = 0;
 // across the minute instead of expiring — and re-bursting — all at once.
 const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 1_100);
 const FINNHUB_FETCH_TIMEOUT_MS = Number(process.env.FINNHUB_FETCH_TIMEOUT_MS || 10_000);
+const MARKET_QUOTES_MAX_MS = Number(process.env.MARKET_QUOTES_MAX_MS || 14_000);
 let lastFinnhubCallAt = 0;
 let finnhubQueueTail = Promise.resolve();
 const quoteProviderErrorAt = new Map();
@@ -2552,7 +2553,7 @@ server.listen(PORT, "0.0.0.0", async () => {
   }, 15_000);
 
   if (process.env.FINNHUB_API_KEY) {
-    Promise.all(["SPY", "NVDA", "QQQ"].map((sym) => quoteSnapshot(sym)))
+    Promise.all(DASHBOARD_MARKETS_DEFAULT.map((sym) => quoteSnapshot(sym)))
       .then((rows) => {
         const quotes = rows.map((r) => r.quote).filter(Boolean);
         const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
@@ -3417,11 +3418,13 @@ async function marketQuotes(res, url) {
         .filter(Boolean)
     )
   ].slice(0, 120);
+  const deadline = Date.now() + MARKET_QUOTES_MAX_MS;
   // Fetch with bounded concurrency so we never burst the provider rate limit.
   const filteredQuotes = [];
   let nextIndex = 0;
   async function quoteWorker() {
     while (nextIndex < symbols.length) {
+      if (Date.now() >= deadline) break;
       const symbol = symbols[nextIndex++];
       const result = await quoteSnapshot(symbol);
       if (result.quote) filteredQuotes.push(result.quote);
@@ -3464,6 +3467,10 @@ async function marketQuotes(res, url) {
       envelope.partialFallback = true;
       envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
     }
+  }
+  if (filteredQuotes.length < symbols.length) {
+    envelope.partial = true;
+    envelope.pendingCount = symbols.length - filteredQuotes.length;
   }
   noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
   sendJson(res, 200, envelope);
