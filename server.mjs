@@ -3335,10 +3335,17 @@ async function marketQuotes(res, url) {
     }),
     updatedAt: new Date().toISOString()
   };
-  if (filteredQuotes.some((q) => q.source === "fallback_static")) {
-    envelope.fallback = true;
-    envelope.fallbackNote =
-      "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
+  if (fallbackCount > 0) {
+    envelope.staticQuoteCount = fallbackCount;
+    envelope.liveQuoteCount = filteredQuotes.length - fallbackCount;
+    if (fallbackCount === filteredQuotes.length) {
+      envelope.fallback = true;
+      envelope.fallbackNote =
+        "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
+    } else {
+      envelope.partialFallback = true;
+      envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
+    }
   }
   noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
   sendJson(res, 200, envelope);

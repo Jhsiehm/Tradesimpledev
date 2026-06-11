@@ -280,21 +280,37 @@ function mergeQuotesIntoState(newQuotes) {
   state.quotes = Array.from(map.values());
 }
 
+function quoteIsStaticFallback(quote) {
+  const src = String(quote?.source || "").toLowerCase();
+  return src === "fallback_static" || src === "fallback";
+}
+
+function summarizeQuoteBatchMeta(quotes, source = "") {
+  const staticCount = quotes.filter(quoteIsStaticFallback).length;
+  const fallback = quotes.length > 0 && staticCount === quotes.length;
+  return {
+    quotes,
+    source,
+    fallback,
+    partialFallback: staticCount > 0 && !fallback,
+    staticQuoteCount: staticCount,
+    liveQuoteCount: quotes.length - staticCount
+  };
+}
+
 async function fetchQuotesBatched(symbols) {
   const unique = [...new Set((symbols || []).map((sym) => normalizeWatchSymbol(sym)).filter(Boolean))];
-  if (!unique.length) return { quotes: [], source: "", fallback: false };
+  if (!unique.length) return summarizeQuoteBatchMeta([], "");
   const chunks = [];
   for (let i = 0; i < unique.length; i += 40) chunks.push(unique.slice(i, i + 40));
   const map = new Map();
   let source = "";
-  let fallback = false;
   for (const chunk of chunks) {
     const data = await fetchJson(`/api/market/quotes?symbols=${chunk.join(",")}`);
     normalizeQuotes(data.quotes || []).forEach((quote) => map.set(quote.symbol, quote));
     source = data.source || source;
-    if (data.fallback) fallback = true;
   }
-  return { quotes: Array.from(map.values()), source, fallback };
+  return summarizeQuoteBatchMeta(Array.from(map.values()), source);
 }
 
 function billsForSymbol(symbol) {
@@ -335,11 +351,20 @@ function marketsSourceBadgesHtml(row) {
 
 function marketsQuoteCellHtml(symbol) {
   const quote = quoteFor(symbol);
-  if (quote?.price != null && Number.isFinite(Number(quote.price))) return money(quote.price);
-  if (state.marketsQuotesLoading) return `<span class="markets-quote-pending">…</span>`;
-  if (quote?.source === "fallback_static") {
-    return `<span class="markets-quote-fallback" title="Static reference price">${money(quote.price)}</span>`;
+  if (quote?.price != null && Number.isFinite(Number(quote.price))) {
+    const src = String(quote.source || "").toLowerCase();
+    const isStatic = quoteIsStaticFallback(quote);
+    const priceHtml = isStatic
+      ? `<span class="markets-quote-fallback" title="Static reference price">${money(quote.price)}</span>`
+      : money(quote.price);
+    const srcBadge = isStatic
+      ? `<span class="markets-quote-src markets-quote-src--static" title="Static reference price">ref</span>`
+      : src && src !== "unavailable"
+        ? `<span class="markets-quote-src markets-quote-src--live" title="${escapeHtml(quoteSourceDisplay(quote.source))}">live</span>`
+        : "";
+    return `<span class="markets-quote-cell">${priceHtml}${srcBadge}</span>`;
   }
+  if (state.marketsQuotesLoading) return `<span class="markets-quote-pending">…</span>`;
   return `<span class="markets-quote-unavailable" title="Live quote unavailable">Unavailable</span>`;
 }
 

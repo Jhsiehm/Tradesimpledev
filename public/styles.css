@@ -6778,6 +6778,18 @@ html[data-theme="light"] .sk-block {
 .markets-quote-unavailable { color: var(--muted); font-size: 11px; }
 .markets-quote-pending { color: var(--muted); }
 .markets-quote-fallback { color: #ccaa00; }
+.markets-quote-cell { display: inline-flex; align-items: center; gap: 6px; }
+.markets-quote-src {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+.markets-quote-src--static { color: #ccaa00; border: 1px solid #665500; background: #1a1a00; }
+.markets-quote-src--live { color: #86efac; border: 1px solid #166534; background: #052e16; }
 .markets-empty-row { padding: 16px; color: var(--muted); }
 .order-success-links a { color: var(--green); text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 640px) {
