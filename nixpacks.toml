@@ -1,4 +1,5 @@
-# Railway: Node web process + optional Python yfinance sidecar fallback.
+# Used only when Railway builder is NIXPACKS (not RAILPACK).
+# RAILPACK reads railpack.json; Dockerfile is an explicit fallback.
 [start]
 cmd = "node server.mjs"
 
@@ -7,7 +8,7 @@ NIXPACKS_NODE_VERSION = "20"
 YFINANCE_PYTHON = "python3"
 
 [phases.setup]
-nixPkgs = ["python3", "python3Packages.pip"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
 cmds = [

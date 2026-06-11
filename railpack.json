@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "packages": {
+    "node": "20",
+    "python": "3.11"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "...",
+        "python3 -m pip install --disable-pip-version-check yfinance"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "node server.mjs",
+    "variables": {
+      "YFINANCE_PYTHON": "python3"
+    }
+  }
+}

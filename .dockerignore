@@ -1,0 +1,16 @@
+.git
+.cursor
+.vscode
+.claude
+node_modules
+.env
+.env.*
+docs/RAILWAY_COPY_PASTE.env
+railway-vars.local.txt
+*.log
+data/waitlist.jsonl
+data/paper-accounts.json
+data/predictions.jsonl
+data/accounts.json
+data/cache/
+.venv-yfinance/
