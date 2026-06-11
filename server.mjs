@@ -259,6 +259,12 @@ let lastFinnhubCallAt = 0;
 let finnhubQueueTail = Promise.resolve();
 const quoteProviderErrorAt = new Map();
 const QUOTE_ERROR_LOG_COOLDOWN_MS = Number(process.env.QUOTE_ERROR_LOG_COOLDOWN_MS || 120_000);
+// Stooq CSV endpoints (/q/l/, /q/d/l/) return 404 from datacenter IPs — disabled by default.
+const STOOQ_QUOTES_ENABLED = String(process.env.STOOQ_QUOTES_ENABLED ?? "false").trim().toLowerCase() === "true";
+const STOOQ_COOLDOWN_MS = Number(process.env.STOOQ_COOLDOWN_MS || 30 * 60_000);
+const STOOQ_CRYPTO_SYMBOLS = new Set(["BTC", "ETH"]);
+let stooqCooldownUntil = 0;
+const stooqBatchFailures = { count: 0, sample: [], message: "", timer: null };
 
 function logQuoteProviderError(provider, symbol, message) {
   const key = `${provider}:${symbol}`;
@@ -266,6 +272,42 @@ function logQuoteProviderError(provider, symbol, message) {
   if (now - (quoteProviderErrorAt.get(key) || 0) < QUOTE_ERROR_LOG_COOLDOWN_MS) return;
   quoteProviderErrorAt.set(key, now);
   console.warn(`[data] ${provider} quote failed for ${symbol}: ${message}`);
+}
+
+function logQuoteProviderBatchError(provider, failures) {
+  if (!failures?.count) return;
+  const key = `${provider}:_batch`;
+  const now = Date.now();
+  if (now - (quoteProviderErrorAt.get(key) || 0) < QUOTE_ERROR_LOG_COOLDOWN_MS) return;
+  quoteProviderErrorAt.set(key, now);
+  const sample = failures.sample.slice(0, 5).join(", ");
+  const extra = failures.count > failures.sample.length ? ` (+${failures.count - failures.sample.length} more)` : "";
+  console.warn(`[data] ${provider} quote failed for ${failures.count} symbol(s) [${sample}${extra}]: ${failures.message}`);
+}
+
+function noteStooqBatchFailure(symbol, message) {
+  stooqBatchFailures.count += 1;
+  if (stooqBatchFailures.sample.length < 5) stooqBatchFailures.sample.push(symbol);
+  stooqBatchFailures.message = message;
+  if (stooqBatchFailures.timer) return;
+  stooqBatchFailures.timer = setTimeout(() => {
+    logQuoteProviderBatchError("Stooq", stooqBatchFailures);
+    stooqBatchFailures.count = 0;
+    stooqBatchFailures.sample = [];
+    stooqBatchFailures.message = "";
+    stooqBatchFailures.timer = null;
+  }, 750);
+}
+
+function isStooqEligibleSymbol(symbol) {
+  const sym = String(symbol || "").trim().toUpperCase();
+  if (!sym || STOOQ_CRYPTO_SYMBOLS.has(sym)) return false;
+  // US common stocks only — skip dotted tickers, funds, and non-equity symbols.
+  return /^[A-Z]{1,5}$/.test(sym);
+}
+
+function toStooqSymbol(symbol) {
+  return `${String(symbol || "").trim().toLowerCase().replace(/\./g, "-")}.us`;
 }
 
 async function withFinnhubSlot(fn) {
@@ -3876,9 +3918,16 @@ async function fetchMarketHistoryPayload(symbol, range) {
     return { source: "yahoo_chart", range, points: yahooPoints, stats: historyStats(yahooPoints) };
   }
 
-  const stooqPoints = range === "1d" ? [] : await stooqHistory(symbol, from, to);
-  if (stooqPoints.length) {
-    return { source: "stooq_public", range, points: stooqPoints, stats: historyStats(stooqPoints) };
+  if (
+    STOOQ_QUOTES_ENABLED &&
+    range !== "1d" &&
+    isStooqEligibleSymbol(symbol) &&
+    Date.now() >= stooqCooldownUntil
+  ) {
+    const stooqPoints = await stooqHistory(symbol, from, to);
+    if (stooqPoints.length) {
+      return { source: "stooq_public", range, points: stooqPoints, stats: historyStats(stooqPoints) };
+    }
   }
 
   const quoteResult = await quoteSnapshot(symbol);
@@ -7219,6 +7268,11 @@ async function quoteSnapshot(symbol) {
     try {
       const finnhubResult = await withFinnhubSlot((token) => fetchFinnhubQuote(symbol, token));
       if (finnhubResult) return finnhubResult;
+      if (Date.now() < finnhubCooldownUntil && !quoteProviderErrorAt.has("finnhub:_cooldown")) {
+        quoteProviderErrorAt.set("finnhub:_cooldown", Date.now());
+        const remainingSec = Math.max(1, Math.round((finnhubCooldownUntil - Date.now()) / 1000));
+        console.warn(`[data] Finnhub paused — skipping live quotes for ~${remainingSec}s; serving cached/fallback prices.`);
+      }
     } catch (error) {
       logQuoteProviderError("Finnhub", symbol, error?.message || String(error));
     }
@@ -7249,11 +7303,17 @@ async function quoteSnapshot(symbol) {
     }
   }
 
-  const stooqQuote = await stooqQuoteSnapshot(symbol);
-  if (stooqQuote) {
-    const quote = withQuoteFreshness(stooqQuote, "stooq_public", stooqQuote.timestamp);
-    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
-    return { source: "stooq_public", quote };
+  if (
+    STOOQ_QUOTES_ENABLED &&
+    isStooqEligibleSymbol(symbol) &&
+    Date.now() >= stooqCooldownUntil
+  ) {
+    const stooqQuote = await stooqQuoteSnapshot(symbol);
+    if (stooqQuote) {
+      const quote = withQuoteFreshness(stooqQuote, "stooq_public", stooqQuote.timestamp);
+      quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+      return { source: "stooq_public", quote };
+    }
   }
 
   if (fallbackRow) {
@@ -7310,14 +7370,20 @@ async function yahooQuoteSnapshot(symbol) {
 }
 
 async function stooqQuoteSnapshot(symbol) {
+  if (!isStooqEligibleSymbol(symbol)) return null;
   try {
-    const stooqSymbol = `${symbol.toLowerCase().replace(".", "-")}.us`;
+    const stooqSymbol = toStooqSymbol(symbol);
     const response = await fetchWithTimeout(
-      `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`,
+      `https://stooq.pl/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`,
       { headers: { "User-Agent": "TradeSimple/1.0 (+https://tradesimple.app)" } },
       8000
     );
-    if (!response.ok) throw new Error(`stooq_${response.status}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        stooqCooldownUntil = Date.now() + STOOQ_COOLDOWN_MS;
+      }
+      throw new Error(`stooq_${response.status}`);
+    }
     const csv = await response.text();
     const line = csv.trim().split(/\r?\n/).pop();
     if (!line || /^N\/D/i.test(line)) return null;
@@ -7340,7 +7406,8 @@ async function stooqQuoteSnapshot(symbol) {
       source: "stooq_public"
     };
   } catch (error) {
-    logQuoteProviderError("Stooq", symbol, error?.message || String(error));
+    const message = error?.message || String(error);
+    noteStooqBatchFailure(symbol, message);
     return null;
   }
 }
@@ -7570,12 +7637,20 @@ function downsampleHistoryPoints(points, max) {
 }
 
 async function stooqHistory(symbol, fromUnix, toUnix) {
+  if (!isStooqEligibleSymbol(symbol)) return [];
   try {
-    const stooqSymbol = `${symbol.toLowerCase().replace(".", "-")}.us`;
+    const stooqSymbol = toStooqSymbol(symbol);
     const d1 = dateForStooq(new Date(fromUnix * 1000));
     const d2 = dateForStooq(new Date(toUnix * 1000));
-    const response = await fetchWithTimeout(`https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSymbol)}&d1=${d1}&d2=${d2}&i=d`, {}, 9000);
-    if (!response.ok) throw new Error(`stooq_${response.status}`);
+    const response = await fetchWithTimeout(
+      `https://stooq.pl/q/d/l/?s=${encodeURIComponent(stooqSymbol)}&d1=${d1}&d2=${d2}&i=d`,
+      {},
+      9000
+    );
+    if (!response.ok) {
+      if (response.status === 404) stooqCooldownUntil = Date.now() + STOOQ_COOLDOWN_MS;
+      throw new Error(`stooq_${response.status}`);
+    }
     const csv = await response.text();
     const rows = csv.trim().split(/\r?\n/).slice(1);
     return rows.map((row) => {
