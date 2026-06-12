@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=redesign-polish-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=focus-filters-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=launch-gates-1" />
@@ -104,6 +104,16 @@
           <div class="ticker-tape-track">
             <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
           </div>
+        </div>
+      </div>
+
+      <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
+        <div class="ts-focus-bar-inner">
+          <span class="ts-focus-label">Focus</span>
+          <strong class="ts-focus-symbol" id="ts-focus-symbol">—</strong>
+          <span class="ts-focus-hint muted" id="ts-focus-hint">Filtering tabs to this ticker</span>
+          <a class="ts-focus-link link-button" id="ts-focus-markets-link" href="#" hidden>Browse Markets</a>
+          <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
         </div>
       </div>
 
@@ -276,6 +286,16 @@
             <span class="status-pill" id="signals-source">Connecting</span>
           </div>
           <div id="signals-top-signal" class="overview-top-signal" hidden></div>
+          <div class="ts-filter-bar" id="signals-filter-bar" role="group" aria-label="Filter signals">
+            <span class="ts-filter-bar-label">Type</span>
+            <div class="ts-filter-chips">
+              <button type="button" class="ts-filter-chip is-active" data-signals-filter="all">All</button>
+              <button type="button" class="ts-filter-chip" data-signals-filter="bills">Bills</button>
+              <button type="button" class="ts-filter-chip" data-signals-filter="contracts">Contracts</button>
+              <button type="button" class="ts-filter-chip" data-signals-filter="trending">Trending</button>
+            </div>
+            <span class="ts-filter-context muted" id="signals-filter-context" hidden></span>
+          </div>
           <section class="panel panel-compact trending-panel" id="trending-panel">
             <div class="panel-head">
               <h2>Trending</h2>
@@ -283,6 +303,9 @@
             </div>
             <p class="trending-disclaimer muted">Monitoring topic · not investment advice</p>
             <div id="trending-feed" class="trending-feed"></div>
+            <div class="ts-desk-more-wrap" id="trending-more-wrap" hidden>
+              <button type="button" class="link-button ts-desk-more-btn" id="trending-more-btn">Show more trending</button>
+            </div>
           </section>
           <section class="panel panel-compact contract-watch-panel" id="contract-watch-panel">
             <div class="panel-head">
@@ -291,6 +314,9 @@
             </div>
             <p class="contract-watch-disclaimer muted">Significant federal awards from USASpending.gov · not investment advice · DoD may lag ~90 days</p>
             <div id="contract-watch-feed" class="contract-watch-feed trending-feed"></div>
+            <div class="ts-desk-more-wrap" id="contract-watch-more-wrap" hidden>
+              <button type="button" class="link-button ts-desk-more-btn" id="contract-watch-more-btn">Show more awards</button>
+            </div>
           </section>
           <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
             <div class="panel-head panel-head-quiet">
@@ -338,7 +364,7 @@
               <h2>Equities &amp; ETFs</h2>
               <span id="market-table-meta">Live quotes</span>
             </div>
-            <div class="markets-toolbar" id="markets-filter-bar">
+            <div class="markets-toolbar ts-filter-bar" id="markets-filter-bar">
               <label class="markets-search-wrap">
                 <span class="sr-only">Search symbols</span>
                 <input type="search" id="markets-search" class="markets-search-input" placeholder="Search ticker or name…" autocomplete="off" />
@@ -643,6 +669,15 @@
           </div>
           <div id="bills-guided-root" class="dashboard-guided-host" hidden></div>
           <div id="bills-full-root">
+          <div class="ts-filter-bar" id="bills-filter-bar" role="group" aria-label="Filter bills">
+            <span class="ts-filter-bar-label">Stage</span>
+            <div class="ts-filter-chips">
+              <button type="button" class="ts-filter-chip is-active" data-bills-stage="all">All</button>
+              <button type="button" class="ts-filter-chip" data-bills-stage="floor">Floor</button>
+              <button type="button" class="ts-filter-chip" data-bills-stage="passed">Passed</button>
+            </div>
+            <span class="ts-filter-context muted" id="bills-filter-context" hidden></span>
+          </div>
           <div class="filter-row">
             <input id="bill-filter" placeholder="Filter bills by ticker, title, or issue" />
             <label class="filter-select-wrap">
@@ -709,6 +744,13 @@
             </div>
             <span class="status-pill" id="lobby-source">Connecting</span>
           </div>
+          <div class="ts-filter-bar" id="lobby-filter-bar" role="group" aria-label="Filter lobbying">
+            <label class="ts-filter-search-wrap">
+              <span class="sr-only">Issue keyword</span>
+              <input type="search" id="lobby-keyword-filter" class="ts-filter-search" placeholder="Issue keyword…" autocomplete="off" />
+            </label>
+            <span class="ts-filter-context muted" id="lobby-filter-context" hidden></span>
+          </div>
           <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
               <h2>Filing feed</h2>
@@ -736,10 +778,35 @@
               <p>Federal contract awards can affect revenue for government-exposed companies. Agency reviews, recompetes, cancellations, or appropriations cuts can move a stock before the earnings report reflects it.</p>
             </div>
           </div>
+          <div class="ts-filter-bar" id="contracts-filter-bar" role="group" aria-label="Filter contracts">
+            <span class="ts-filter-bar-label">Agency</span>
+            <div class="ts-filter-chips">
+              <button type="button" class="ts-filter-chip is-active" data-contracts-agency="all">All</button>
+              <button type="button" class="ts-filter-chip" data-contracts-agency="dod">DoD</button>
+              <button type="button" class="ts-filter-chip" data-contracts-agency="nasa">NASA</button>
+              <button type="button" class="ts-filter-chip" data-contracts-agency="dhs">DHS</button>
+            </div>
+            <span class="ts-filter-bar-label">Min amount</span>
+            <div class="ts-filter-chips">
+              <button type="button" class="ts-filter-chip is-active" data-contracts-min="0">Any</button>
+              <button type="button" class="ts-filter-chip" data-contracts-min="1000000">$1M+</button>
+              <button type="button" class="ts-filter-chip" data-contracts-min="10000000">$10M+</button>
+              <button type="button" class="ts-filter-chip" data-contracts-min="50000000">$50M+</button>
+            </div>
+            <span class="ts-filter-context muted" id="contracts-filter-context" hidden></span>
+          </div>
+          <section class="panel panel-compact contract-watch-panel" id="contracts-tab-watch-panel">
+            <div class="panel-head panel-head-quiet">
+              <h2>Recent federal awards</h2>
+              <span id="contracts-tab-watch-source" class="muted">USASpending</span>
+            </div>
+            <p class="contract-watch-disclaimer muted">Filtered by agency and ticker focus · links open contract briefs or USASpending</p>
+            <div id="contracts-tab-watch-feed" class="contract-watch-feed trending-feed"></div>
+          </section>
           <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
               <h2>Federal contract exposure monitor</h2>
-              <span id="contracts-source">Connecting</span>
+              <span id="contracts-source" class="status-pill source-pill">Connecting</span>
             </div>
             <p id="contracts-intro" class="muted contracts-intro">
               Loading recent awards from USASpending.gov. Awards can lag agency disclosure by roughly 30-90 days.

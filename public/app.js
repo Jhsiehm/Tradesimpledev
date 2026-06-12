@@ -196,6 +196,275 @@ function persistMarketsFilter(filter) {
   } catch (_) {}
 }
 
+const FOCUS_SYMBOL_STORAGE_KEY = "ts_focus_symbol";
+const BILLS_STAGE_FILTER_KEY = "ts_bills_stage_filter";
+const SIGNALS_TYPE_FILTER_KEY = "ts_signals_type_filter";
+const CONTRACTS_AGENCY_FILTER_KEY = "ts_contracts_agency_filter";
+const CONTRACTS_MIN_AMOUNT_KEY = "ts_contracts_min_amount";
+const LOBBY_KEYWORD_KEY = "ts_lobby_keyword";
+const SIGNALS_DESK_PREVIEW = 3;
+let _trendingDeskExpanded = false;
+let _contractWatchDeskExpanded = false;
+
+function getStoredFocusSymbol() {
+  try {
+    return normalizeWatchSymbol(sessionStorage.getItem(FOCUS_SYMBOL_STORAGE_KEY) || localStorage.getItem(FOCUS_SYMBOL_STORAGE_KEY) || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function persistFocusSymbol(symbol) {
+  const sym = normalizeWatchSymbol(symbol);
+  try {
+    if (sym) {
+      sessionStorage.setItem(FOCUS_SYMBOL_STORAGE_KEY, sym);
+      localStorage.setItem(FOCUS_SYMBOL_STORAGE_KEY, sym);
+    } else {
+      sessionStorage.removeItem(FOCUS_SYMBOL_STORAGE_KEY);
+      localStorage.removeItem(FOCUS_SYMBOL_STORAGE_KEY);
+    }
+  } catch (_) {}
+}
+
+function getStoredTabFilter(key, allowed, fallback = "all") {
+  try {
+    const value = sessionStorage.getItem(key) || localStorage.getItem(key);
+    if (value && allowed.has(value)) return value;
+  } catch (_) {}
+  return fallback;
+}
+
+function persistTabFilter(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+    localStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function setFocusSymbol(symbol, { persist = true, render = true, syncAnalysis = true } = {}) {
+  const sym = normalizeWatchSymbol(symbol);
+  state.focusSymbol = sym || null;
+  if (persist) persistFocusSymbol(sym);
+  if (sym && syncAnalysis) {
+    state.activeAnalysisSymbol = sym;
+    const sel = $("#analysis-symbol");
+    if (sel) setSymbolPickerValue(sel, sym, { notify: false });
+  }
+  if (sym) {
+    const marketsSearch = $("#markets-search");
+    if (marketsSearch) marketsSearch.value = sym;
+    state.marketsSearch = sym;
+  }
+  if (render) {
+    renderFocusBar();
+    renderTabFilterContexts();
+    renderMarkets();
+    if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
+    if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+      renderContracts();
+      renderContractsTabWatch();
+    }
+    if (isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) renderLobbying();
+    if (isViewEnabled("signals")) renderSignalsDesk();
+    if ($("#view-analysis")?.classList.contains("active") && sym && isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
+      loadAnalysis(sym);
+    }
+    syncFocusUrlParam();
+  }
+  return sym;
+}
+
+function clearFocusSymbol() {
+  setFocusSymbol("", { render: true });
+  const marketsSearch = $("#markets-search");
+  if (marketsSearch) marketsSearch.value = "";
+  state.marketsSearch = "";
+  renderMarkets();
+}
+
+function syncFocusUrlParam() {
+  const params = new URLSearchParams(window.location.search);
+  if (state.focusSymbol) params.set("symbol", state.focusSymbol);
+  else params.delete("symbol");
+  const clean = params.toString();
+  window.history.replaceState({}, "", clean ? `${window.location.pathname}?${clean}` : window.location.pathname);
+}
+
+function renderFocusBar() {
+  const bar = $("#ts-focus-bar");
+  if (!bar) return;
+  const sym = state.focusSymbol;
+  bar.hidden = !sym;
+  const symEl = $("#ts-focus-symbol");
+  const hint = $("#ts-focus-hint");
+  const marketsLink = $("#ts-focus-markets-link");
+  if (symEl) symEl.textContent = sym || "—";
+  if (hint) {
+    hint.textContent = sym
+      ? "Bills, contracts, lobbying, markets, and signals respect this ticker until you clear it."
+      : "";
+  }
+  if (marketsLink) {
+    marketsLink.hidden = !sym;
+    marketsLink.onclick = (e) => {
+      e.preventDefault();
+      showView("markets");
+    };
+  }
+}
+
+function renderTabFilterContexts() {
+  const sym = state.focusSymbol;
+  const focusLine = sym ? `Showing results for ${sym}` : "";
+  for (const id of ["bills-filter-context", "contracts-filter-context", "lobby-filter-context", "signals-filter-context"]) {
+    const el = $(`#${id}`);
+    if (!el) continue;
+    el.hidden = !sym;
+    el.textContent = focusLine;
+  }
+}
+
+function focusNoLinkageHtml(view) {
+  const sym = state.focusSymbol;
+  if (!sym) return "";
+  const linkedViews = new Set(["bills", "contracts", "lobbying", "markets", "signals", "analysis"]);
+  if (!linkedViews.has(view)) {
+    return `<p class="ts-filter-context muted" style="padding:0 16px 8px">No ${escapeHtml(sym)} linkage on this tab yet — <button type="button" class="link-button" data-view-jump="markets">browse Markets</button></p>`;
+  }
+  return "";
+}
+
+function billMatchesStageFilter(bill) {
+  const stage = state.billsStageFilter || "all";
+  if (stage === "all") return true;
+  const status = billStatusInfo(bill);
+  const key = String(status.key || bill.status || "").toLowerCase();
+  const label = String(status.label || "").toLowerCase();
+  if (stage === "floor") {
+    return Boolean(
+      bill.floorScheduled ||
+        key.includes("floor") ||
+        label.includes("floor") ||
+        label.includes("chamber") ||
+        /floor vote/i.test(bill.catalyst?.label || "")
+    );
+  }
+  if (stage === "passed") {
+    return (
+      key.includes("pass") ||
+      key.includes("enacted") ||
+      key.includes("law") ||
+      label.includes("pass") ||
+      label.includes("enacted")
+    );
+  }
+  return true;
+}
+
+function rowMatchesFocusSymbol(tickers = []) {
+  const sym = state.focusSymbol;
+  if (!sym) return true;
+  return (tickers || []).map(normalizeWatchSymbol).includes(sym);
+}
+
+function billMatchesFocusFilter(bill) {
+  if (!state.focusSymbol) return true;
+  const tickers = [...(bill.affected || []), ...(bill.portfolioTickers || [])];
+  return rowMatchesFocusSymbol(tickers);
+}
+
+function contractAgencyHaystack(row) {
+  return [row.topAgency, ...(row.results || []).map((r) => r.awardingAgency)]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+}
+
+function contractAgencyMatches(row, agency) {
+  if (!agency || agency === "all") return true;
+  const hay = contractAgencyHaystack(row);
+  if (agency === "dod") return /DEFENSE|DOD|DEPT OF DEFENSE|ARMY|NAVY|AIR FORCE/.test(hay);
+  if (agency === "nasa") return /NASA/.test(hay);
+  if (agency === "dhs") return /HOMELAND|DHS/.test(hay);
+  return true;
+}
+
+function contractAwardAgencyMatches(award, agency) {
+  if (!agency || agency === "all") return true;
+  const hay = String(award.agency || "").toUpperCase();
+  if (agency === "dod") return /DEFENSE|DOD|DEPT OF DEFENSE|ARMY|NAVY|AIR FORCE/.test(hay);
+  if (agency === "nasa") return /NASA/.test(hay);
+  if (agency === "dhs") return /HOMELAND|DHS/.test(hay);
+  return true;
+}
+
+function contractMatchesTabFilters(row) {
+  if (!contractAgencyMatches(row, state.contractsAgencyFilter)) return false;
+  const min = Number(state.contractsMinAmount || 0);
+  if (min > 0 && Number(row.totalObligated || 0) < min) return false;
+  if (state.focusSymbol && normalizeWatchSymbol(row.symbol) !== state.focusSymbol) return false;
+  return true;
+}
+
+function contractWatchMatchesTabFilters(award) {
+  if (!contractAwardAgencyMatches(award, state.contractsAgencyFilter)) return false;
+  const min = Number(state.contractsMinAmount || 0);
+  if (min > 0 && Number(award.amount || 0) < min) return false;
+  if (state.focusSymbol) {
+    const tickers = [...(award.mappedTickers || []), ...(award.relatedTickers || [])];
+    if (!rowMatchesFocusSymbol(tickers)) return false;
+  }
+  return true;
+}
+
+function lobbyingMatchesTabFilters(filing) {
+  const keyword = String(state.lobbyKeyword || "").trim().toLowerCase();
+  if (keyword) {
+    const hay = [filing.client, filing.registrant, filing.issue].join(" ").toLowerCase();
+    if (!hay.includes(keyword)) return false;
+  }
+  if (!state.focusSymbol) return true;
+  const connection = relatedBillForFiling(filing);
+  const tickers = connection?.bill?.affected || [];
+  if (rowMatchesFocusSymbol(tickers)) return true;
+  const client = String(filing.client || "").toUpperCase();
+  return client.includes(state.focusSymbol);
+}
+
+function signalMatchesTypeFilter(sig) {
+  const type = state.signalsTypeFilter || "all";
+  if (type === "all") return true;
+  if (type === "bills") return sig.type === "bill" || sig.type === "lobbying";
+  if (type === "contracts") return sig.type === "contract";
+  if (type === "trending") {
+    const topics = state.trending || [];
+    const topicTickers = topics.flatMap((t) => [...(t.tickers || []), ...(t.relatedTickers || [])]);
+    return sig.tickers.some((t) => topicTickers.includes(t));
+  }
+  return true;
+}
+
+function signalMatchesFocusFilter(sig) {
+  if (!state.focusSymbol) return true;
+  return rowMatchesFocusSymbol(sig.tickers || []);
+}
+
+function trendingMatchesSignalsFilter(topic) {
+  const type = state.signalsTypeFilter || "all";
+  if (type === "contracts") return topic.type === "contract";
+  if (type === "bills") return topic.type === "legislation" || topic.type === "ma";
+  if (type === "trending" || type === "all") return true;
+  return true;
+}
+
+function syncFilterChipGroup(bar, attr, activeValue) {
+  if (!bar) return;
+  bar.querySelectorAll(`[${attr}]`).forEach((chip) => {
+    chip.classList.toggle("is-active", chip.getAttribute(attr) === activeValue);
+  });
+}
+
 function stockPageUrl(symbol) {
   const sym = normalizeWatchSymbol(symbol);
   return sym ? `/stock/${encodeURIComponent(sym)}` : "/dashboard?view=analysis";
@@ -260,9 +529,10 @@ function marketsFilterLabel(filter) {
 
 function filteredMarketsRows() {
   const filter = state.marketsFilter || "all";
-  const query = String(state.marketsSearch || "").trim().toUpperCase();
+  const query = String(state.marketsSearch || state.focusSymbol || "").trim().toUpperCase();
   return marketsCatalogRows().filter((row) => {
     if (!marketsFilterMatches(row, filter)) return false;
+    if (state.focusSymbol && normalizeWatchSymbol(row.symbol) !== state.focusSymbol) return false;
     if (!query) return true;
     return row.symbol.includes(query) || String(row.name || "").toUpperCase().includes(query);
   });
@@ -587,7 +857,10 @@ function updateMarketsTableMeta() {
   const shown = filteredMarketsRows().length;
   const filter = state.marketsFilter || "all";
   const label = marketsFilterLabel(filter);
-  meta.textContent = shown === total ? `Showing ${shown} symbols · ${label}` : `Showing ${shown} of ${total} · ${label}`;
+  const focus = state.focusSymbol ? ` · focus ${state.focusSymbol}` : "";
+  meta.textContent = shown === total
+    ? `Showing ${shown} symbols · ${label}${focus}`
+    : `Showing ${shown} of ${total} · ${label}${focus}`;
 }
 
 function mergePickerSymbolRows(extra = []) {
@@ -958,6 +1231,15 @@ async function loadDashboardBootstrap() {
     }
     populateSymbolSelects();
     renderCausalityTickerRow();
+    try {
+      if (!sessionStorage.getItem(MARKETS_FILTER_STORAGE_KEY) && !localStorage.getItem(MARKETS_FILTER_STORAGE_KEY)) {
+        state.marketsFilter = resolveDefaultMarketsFilter();
+        const bar = $("#markets-filter-bar");
+        bar?.querySelectorAll("[data-markets-filter]").forEach((chip) => {
+          chip.classList.toggle("is-active", chip.dataset.marketsFilter === state.marketsFilter);
+        });
+      }
+    } catch (_) {}
   } catch (error) {
     console.warn("[bootstrap] dashboard config unavailable", error);
     state.dashboardBootstrap = { source: "unavailable" };
@@ -1473,22 +1755,37 @@ function setupMarketsWatchToggle() {
   document.body.dataset.marketsWatchReady = "true";
   document.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-watch-toggle]");
-    if (!btn) return;
-    event.preventDefault();
-    event.stopPropagation();
-    toggleWatchlistSymbol(btn.dataset.watchToggle);
-    renderMarkets();
+    if (btn) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleWatchlistSymbol(btn.dataset.watchToggle);
+      renderMarkets();
+      return;
+    }
+    const row = event.target.closest(".markets-row[data-symbol]");
+    if (!row || event.target.closest("a, button, [data-watch-toggle]")) return;
+    const sym = row.dataset.symbol;
+    if (sym) setFocusSymbol(sym, { render: true });
   });
 }
 
 let marketsSearchTimer = null;
 
+function resolveDefaultMarketsFilter() {
+  try {
+    if (sessionStorage.getItem(MARKETS_FILTER_STORAGE_KEY) || localStorage.getItem(MARKETS_FILTER_STORAGE_KEY)) {
+      return getStoredMarketsFilter();
+    }
+  } catch (_) {}
+  return state.watchlistSymbols?.length ? "watchlist" : "all";
+}
+
 function setupMarketsFilters() {
   const bar = $("#markets-filter-bar");
   if (!bar || bar.dataset.ready === "true") return;
   bar.dataset.ready = "true";
-  state.marketsFilter = getStoredMarketsFilter();
-  state.marketsSearch = "";
+  state.marketsFilter = resolveDefaultMarketsFilter();
+  state.marketsSearch = state.focusSymbol || "";
   bar.querySelectorAll("[data-markets-filter]").forEach((chip) => {
     chip.classList.toggle("is-active", chip.dataset.marketsFilter === state.marketsFilter);
     chip.addEventListener("click", () => {
@@ -1503,14 +1800,120 @@ function setupMarketsFilters() {
   });
   const search = $("#markets-search");
   if (search) {
+    if (state.focusSymbol) search.value = state.focusSymbol;
     search.addEventListener("input", () => {
       if (marketsSearchTimer) clearTimeout(marketsSearchTimer);
       marketsSearchTimer = setTimeout(() => {
         state.marketsSearch = search.value;
+        const typed = normalizeWatchSymbol(search.value);
+        if (typed && typed.length >= 1 && typed.length <= 6 && isTrackedTicker(typed)) {
+          setFocusSymbol(typed, { render: false });
+          renderFocusBar();
+          renderTabFilterContexts();
+        }
         renderMarkets();
       }, 200);
     });
   }
+}
+
+function setupFocusBar() {
+  $("#ts-focus-clear")?.addEventListener("click", () => clearFocusSymbol());
+}
+
+function setupTabFilters() {
+  state.billsStageFilter = getStoredTabFilter(BILLS_STAGE_FILTER_KEY, new Set(["all", "floor", "passed"]), "all");
+  state.signalsTypeFilter = getStoredTabFilter(SIGNALS_TYPE_FILTER_KEY, new Set(["all", "bills", "contracts", "trending"]), "all");
+  state.contractsAgencyFilter = getStoredTabFilter(CONTRACTS_AGENCY_FILTER_KEY, new Set(["all", "dod", "nasa", "dhs"]), "all");
+  state.contractsMinAmount = getStoredTabFilter(CONTRACTS_MIN_AMOUNT_KEY, new Set(["0", "1000000", "10000000", "50000000"]), "0");
+  try {
+    state.lobbyKeyword = sessionStorage.getItem(LOBBY_KEYWORD_KEY) || localStorage.getItem(LOBBY_KEYWORD_KEY) || "";
+  } catch (_) {
+    state.lobbyKeyword = "";
+  }
+
+  const billsBar = $("#bills-filter-bar");
+  if (billsBar && billsBar.dataset.ready !== "true") {
+    billsBar.dataset.ready = "true";
+    syncFilterChipGroup(billsBar, "data-bills-stage", state.billsStageFilter);
+    billsBar.querySelectorAll("[data-bills-stage]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        state.billsStageFilter = chip.dataset.billsStage || "all";
+        persistTabFilter(BILLS_STAGE_FILTER_KEY, state.billsStageFilter);
+        syncFilterChipGroup(billsBar, "data-bills-stage", state.billsStageFilter);
+        renderBills();
+      });
+    });
+  }
+
+  const signalsBar = $("#signals-filter-bar");
+  if (signalsBar && signalsBar.dataset.ready !== "true") {
+    signalsBar.dataset.ready = "true";
+    syncFilterChipGroup(signalsBar, "data-signals-filter", state.signalsTypeFilter);
+    signalsBar.querySelectorAll("[data-signals-filter]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        state.signalsTypeFilter = chip.dataset.signalsFilter || "all";
+        persistTabFilter(SIGNALS_TYPE_FILTER_KEY, state.signalsTypeFilter);
+        syncFilterChipGroup(signalsBar, "data-signals-filter", state.signalsTypeFilter);
+        _trendingDeskExpanded = state.signalsTypeFilter === "trending";
+        renderSignalsDesk();
+      });
+    });
+  }
+
+  const contractsBar = $("#contracts-filter-bar");
+  if (contractsBar && contractsBar.dataset.ready !== "true") {
+    contractsBar.dataset.ready = "true";
+    syncFilterChipGroup(contractsBar, "data-contracts-agency", state.contractsAgencyFilter);
+    syncFilterChipGroup(contractsBar, "data-contracts-min", state.contractsMinAmount);
+    contractsBar.querySelectorAll("[data-contracts-agency]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        state.contractsAgencyFilter = chip.dataset.contractsAgency || "all";
+        persistTabFilter(CONTRACTS_AGENCY_FILTER_KEY, state.contractsAgencyFilter);
+        syncFilterChipGroup(contractsBar, "data-contracts-agency", state.contractsAgencyFilter);
+        renderContracts();
+        renderContractsTabWatch();
+      });
+    });
+    contractsBar.querySelectorAll("[data-contracts-min]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        state.contractsMinAmount = chip.dataset.contractsMin || "0";
+        persistTabFilter(CONTRACTS_MIN_AMOUNT_KEY, state.contractsMinAmount);
+        syncFilterChipGroup(contractsBar, "data-contracts-min", state.contractsMinAmount);
+        renderContracts();
+        renderContractsTabWatch();
+      });
+    });
+  }
+
+  const lobbyKeyword = $("#lobby-keyword-filter");
+  if (lobbyKeyword && lobbyKeyword.dataset.ready !== "true") {
+    lobbyKeyword.dataset.ready = "true";
+    lobbyKeyword.value = state.lobbyKeyword || "";
+    let lobbyTimer = 0;
+    lobbyKeyword.addEventListener("input", () => {
+      clearTimeout(lobbyTimer);
+      lobbyTimer = setTimeout(() => {
+        state.lobbyKeyword = lobbyKeyword.value.trim();
+        try {
+          sessionStorage.setItem(LOBBY_KEYWORD_KEY, state.lobbyKeyword);
+          localStorage.setItem(LOBBY_KEYWORD_KEY, state.lobbyKeyword);
+        } catch (_) {}
+        renderLobbying();
+      }, 200);
+    });
+  }
+
+  $("#trending-more-btn")?.addEventListener("click", () => {
+    _trendingDeskExpanded = true;
+    renderTrendingSection();
+  });
+  $("#contract-watch-more-btn")?.addEventListener("click", () => {
+    _contractWatchDeskExpanded = true;
+    renderContractWatchSection();
+  });
+
+  renderTabFilterContexts();
 }
 
 function setupWatchlistStripInteraction() {
@@ -1569,6 +1972,7 @@ function activateDrilldown(data) {
 function openTickerAnalysis(symbol) {
   const sym = String(symbol || "").toUpperCase().replace(/[^A-Z.]/g, "");
   if (!sym) return;
+  setFocusSymbol(sym, { render: true, syncAnalysis: true });
   if (!isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
     thesisPrimeTicker(sym);
     return showView("thesis");
@@ -2125,6 +2529,12 @@ const state = {
   contractWatchLoadedAt: null,
   contractWatchMeta: null,
   methodology: null,
+  focusSymbol: null,
+  billsStageFilter: "all",
+  signalsTypeFilter: "all",
+  contractsAgencyFilter: "all",
+  contractsMinAmount: "0",
+  lobbyKeyword: "",
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
   tradeSymbol: "NVDA",
@@ -2695,6 +3105,8 @@ async function initDashboard() {
   setupWatchlistStripInteraction();
   setupMarketsWatchToggle();
   setupMarketsFilters();
+  setupFocusBar();
+  setupTabFilters();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -2718,6 +3130,11 @@ async function initDashboard() {
   await loadDataHealth();
   thesisSyncIntakeState();
 
+  const storedFocus = getStoredFocusSymbol();
+  const focusSym = initialSymbol || storedFocus;
+  if (focusSym) {
+    setFocusSymbol(focusSym, { persist: Boolean(initialSymbol), render: false, syncAnalysis: true });
+  }
   if (initialSymbol) {
     state.activeAnalysisSymbol = initialSymbol;
     state.tradeSymbol = initialSymbol;
@@ -2727,6 +3144,8 @@ async function initDashboard() {
     const orderSelect = $("#order-symbol");
     if (orderSelect) setSymbolPickerValue(orderSelect, initialSymbol, { notify: false });
   }
+  renderFocusBar();
+  renderTabFilterContexts();
 
   const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
   const rawView = params.get("view") || defaultView;
@@ -2931,6 +3350,12 @@ function openMethodologyOrDataHealth() {
 }
 
 function renderSourceBadges() {
+  renderSourceFreshnessBar();
+  const hidePagePills = Boolean($("#source-freshness-bar") && !$("#source-freshness-bar").hidden);
+  for (const sel of ["#market-source", "#bill-source", "#signals-source", "#lobby-source", "#contracts-source"]) {
+    const el = $(sel);
+    if (el) el.hidden = hidePagePills;
+  }
   updateSourceBadge("#market-source", "market");
   updateSourceBadge("#crypto-source", "crypto");
   updateSourceBadge("#bill-source", "bills");
@@ -2945,9 +3370,10 @@ function updateSourceBadge(selector, key) {
   const el = $(selector);
   if (!el) return;
   const meta = state.dataMeta[key];
-  const label = sourceLabel(meta?.source || "connecting");
+  const label = sourceLabel(meta?.source || (meta?.updatedAt ? "cached" : "connecting"));
   const confidence = meta?.confidence ? ` · ${meta.confidence}` : "";
-  el.innerHTML = `<span class="live-dot" aria-hidden="true"></span>${escapeHtml(label)} · ${freshnessText(meta?.updatedAt)}${escapeHtml(confidence)}`;
+  const pulse = meta?.updatedAt ? "" : `<span class="live-dot" aria-hidden="true"></span>`;
+  el.innerHTML = `${pulse}${escapeHtml(label)} · ${freshnessText(meta?.updatedAt)}${escapeHtml(confidence)}`;
   el.classList.add("status-pill", "source-pill");
   el.classList.toggle("source-live", Boolean(meta?.updatedAt) && !String(meta.source || "").includes("fallback"));
   el.classList.toggle("source-fallback", String(meta?.source || "").includes("fallback"));
@@ -3652,15 +4078,27 @@ function renderOverview() {
 function renderSignalsConvictionList() {
   const el = $("#signal-list");
   if (!el) return;
-  el.innerHTML = policyBills()
-    .slice()
-    .sort((a, b) => billMomentum(b) - billMomentum(a))
-    .slice(0, 8)
-    .map(signalCard)
-    .join("");
+  let bills = policyBills().slice().sort((a, b) => billMomentum(b) - billMomentum(a));
+  if (state.focusSymbol) bills = bills.filter(billMatchesFocusFilter);
+  if (state.signalsTypeFilter === "contracts") {
+    el.innerHTML = `<div class="sc-empty muted">Conviction scans are bill-driven — switch type to All or Bills.</div>`;
+    return;
+  }
+  if (!bills.length) {
+    el.innerHTML = state.focusSymbol
+      ? `<div class="sc-empty muted">No conviction signals for ${escapeHtml(state.focusSymbol)} yet.</div>`
+      : `<div class="sc-empty muted">No conviction signals loaded yet.</div>`;
+    return;
+  }
+  el.innerHTML = bills.slice(0, 8).map(signalCard).join("");
 }
 
 function renderSignalsDesk() {
+  const type = state.signalsTypeFilter || "all";
+  const trendingPanel = $("#trending-panel");
+  const contractPanel = $("#contract-watch-panel");
+  if (trendingPanel) trendingPanel.hidden = type === "contracts";
+  if (contractPanel) contractPanel.hidden = type === "bills";
   renderTopSignal();
   renderTrendingSection();
   renderContractWatchSection();
@@ -3668,6 +4106,7 @@ function renderSignalsDesk() {
   renderPolicyCatalysts();
   renderSignalsConvictionList();
   renderLiveAlerts();
+  renderTabFilterContexts();
 }
 
 const TRENDING_TYPE_LABELS = {
@@ -3739,11 +4178,22 @@ function renderTrendingSection() {
       ? `Updated ${new Date(state.trendingLoadedAt).toLocaleTimeString()}`
       : "Monitoring topics";
   }
-  if (!topics.length) {
-    feed.innerHTML = `<div class="sc-empty muted">No trending topics pinned yet — founder can add via admin or data/trending-topics.json.</div>`;
+  const filtered = topics.filter(trendingMatchesSignalsFilter);
+  if (!filtered.length) {
+    feed.innerHTML = `<div class="sc-empty muted">No trending topics match this filter${state.focusSymbol ? ` for ${escapeHtml(state.focusSymbol)}` : ""}.</div>`;
+    const moreWrap = $("#trending-more-wrap");
+    if (moreWrap) moreWrap.hidden = true;
     return;
   }
-  feed.innerHTML = topics.map(renderTrendingCard).join("");
+  const preview = _trendingDeskExpanded ? filtered : filtered.slice(0, SIGNALS_DESK_PREVIEW);
+  feed.innerHTML = preview.map(renderTrendingCard).join("");
+  const moreWrap = $("#trending-more-wrap");
+  const moreBtn = $("#trending-more-btn");
+  if (moreWrap && moreBtn) {
+    const hasMore = filtered.length > SIGNALS_DESK_PREVIEW && !_trendingDeskExpanded;
+    moreWrap.hidden = !hasMore;
+    if (hasMore) moreBtn.textContent = `Show ${filtered.length - SIGNALS_DESK_PREVIEW} more trending`;
+  }
   feed.querySelectorAll("[data-show-view]").forEach((el) => {
     el.addEventListener("click", () => showView(el.dataset.showView || "signals"));
   });
@@ -3778,7 +4228,8 @@ function contractWatchTickerLine(award) {
 function renderContractWatchCard(award) {
   const freshness = award.freshness?.label || (award.isNew ? "New" : "Recent");
   const tickers = contractWatchTickerLine(award);
-  const briefUrl = award.contractBriefUrl;
+  const primaryTicker = (award.mappedTickers || [])[0] || (award.relatedTickers || [])[0] || "";
+  const briefUrl = primaryTicker ? contractPageUrl(primaryTicker) : award.contractBriefUrl;
   const usaspendingUrl = award.contractUrl;
   const firstSeen = award.firstSeenAt ? `First seen by TradeSimple: ${freshnessText(award.firstSeenAt)}` : "";
   const actionDate = award.awardDate ? `Award date ${award.awardDate}` : "";
@@ -3797,8 +4248,8 @@ function renderContractWatchCard(award) {
       <p class="sc-sub muted">${escapeHtml(award.agency || "Federal agency")}${award.descriptionSnippet ? ` · ${escapeHtml(String(award.descriptionSnippet).slice(0, 100))}` : ""}</p>
       ${meta ? `<p class="contract-watch-meta muted">${escapeHtml(meta)}</p>` : ""}
       <div class="contract-watch-actions">
-        ${briefUrl ? `<a class="link-button" href="${escapeHtml(briefUrl)}">Contract brief →</a>` : ""}
-        ${usaspendingUrl ? `<a class="link-button" href="${escapeHtml(usaspendingUrl)}" target="_blank" rel="noopener noreferrer">View on USASpending →</a>` : ""}
+        ${briefUrl ? `<a class="link-button" href="${escapeHtml(briefUrl)}">${primaryTicker ? `${escapeHtml(primaryTicker)} brief →` : "Contract brief →"}</a>` : ""}
+        ${usaspendingUrl ? `<a class="link-button" href="${escapeHtml(usaspendingUrl)}" target="_blank" rel="noopener noreferrer">USASpending →</a>` : ""}
       </div>
       <p class="trending-card-foot muted">${escapeHtml(award.disclaimer || "USASpending.gov · not investment advice")}</p>
     </article>`;
@@ -3819,11 +4270,45 @@ function renderContractWatchSection() {
       ? `Updated ${new Date(refreshed).toLocaleTimeString()} · ${awards.length} award(s)`
       : "Polling USASpending";
   }
-  if (!awards.length) {
-    feed.innerHTML = `<div class="sc-empty muted">No significant awards in the last 7 days for watched recipients. TradeSimple polls USASpending every ~30 minutes.</div>`;
+  const filtered = awards.filter(contractWatchMatchesTabFilters);
+  if (!filtered.length) {
+    const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
+    feed.innerHTML = `<div class="sc-empty muted">No significant awards${escapeHtml(focusMsg)} in the last 7 days. TradeSimple polls USASpending every ~30 minutes.</div>`;
+    const moreWrap = $("#contract-watch-more-wrap");
+    if (moreWrap) moreWrap.hidden = true;
     return;
   }
-  feed.innerHTML = awards.slice(0, 12).map(renderContractWatchCard).join("");
+  const preview = _contractWatchDeskExpanded ? filtered : filtered.slice(0, SIGNALS_DESK_PREVIEW);
+  feed.innerHTML = preview.map(renderContractWatchCard).join("");
+  const moreWrap = $("#contract-watch-more-wrap");
+  const moreBtn = $("#contract-watch-more-btn");
+  if (moreWrap && moreBtn) {
+    const hasMore = filtered.length > SIGNALS_DESK_PREVIEW && !_contractWatchDeskExpanded;
+    moreWrap.hidden = !hasMore;
+    if (hasMore) moreBtn.textContent = `Show ${filtered.length - SIGNALS_DESK_PREVIEW} more awards`;
+  }
+}
+
+function renderContractsTabWatch() {
+  const feed = $("#contracts-tab-watch-feed");
+  const source = $("#contracts-tab-watch-source");
+  if (!feed) return;
+  const awards = (state.contractWatch || [])
+    .slice()
+    .sort((a, b) => Date.parse(b.firstSeenAt || b.lastModifiedDate || 0) - Date.parse(a.firstSeenAt || a.lastModifiedDate || 0))
+    .filter(contractWatchMatchesTabFilters);
+  if (source) {
+    const refreshed = state.contractWatchMeta?.lastRefreshAt || state.contractWatchLoadedAt;
+    source.textContent = refreshed
+      ? `Updated ${new Date(refreshed).toLocaleTimeString()} · ${awards.length} award(s)`
+      : "Polling USASpending";
+  }
+  if (!awards.length) {
+    const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
+    feed.innerHTML = `<div class="sc-empty muted">No recent awards${escapeHtml(focusMsg)} match these filters.</div>`;
+    return;
+  }
+  feed.innerHTML = awards.slice(0, 8).map(renderContractWatchCard).join("");
 }
 
 async function refreshContractWatchFeed({ render = true } = {}) {
@@ -3840,12 +4325,16 @@ async function refreshContractWatchFeed({ render = true } = {}) {
     if (render) {
       renderSourceBadges();
       renderContractWatchSection();
+      renderContractsTabWatch();
       renderLiveAlerts();
     }
     return data;
   } catch (err) {
     console.warn("[contract-watch] feed unavailable", err);
-    if (render) renderContractWatchSection();
+    if (render) {
+      renderContractWatchSection();
+      renderContractsTabWatch();
+    }
     return { awards: [], error: true };
   }
 }
@@ -4211,12 +4700,17 @@ function renderMarkets() {
 
   const rows = filteredMarketsRows();
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="markets-empty-row">No symbols match this filter. Try <strong>All</strong> or clear the search box.</td></tr>`;
+    const focusHint = state.focusSymbol
+      ? `No markets row for <strong>${escapeHtml(state.focusSymbol)}</strong> with these filters.`
+      : "No symbols match this filter.";
+    tbody.innerHTML = `<tr><td colspan="7" class="markets-empty-row">${focusHint} Try <strong>All</strong> or <button type="button" class="link-button" id="markets-clear-focus-inline">clear focus</button>.</td></tr>`;
+    $("#markets-clear-focus-inline")?.addEventListener("click", () => clearFocusSymbol());
     return;
   }
 
   tbody.innerHTML = rows.map((row) => {
     const sym = row.symbol;
+    const focusMatch = state.focusSymbol && normalizeWatchSymbol(sym) === state.focusSymbol;
     const quote = quoteFor(sym);
     const pctRaw = quote ? Number(quote.changePercent ?? quote.pct ?? 0) : null;
     const pct = pctRaw != null && Number.isFinite(pctRaw) ? pctRaw : null;
@@ -4227,7 +4721,7 @@ function renderMarkets() {
     const watching = isOnWatchlist(sym);
     const policyHtml = marketsPolicySignalHtml(sym);
     return `
-      <tr class="markets-row clickable-row" data-symbol="${escapeHtml(sym)}">
+      <tr class="markets-row clickable-row${focusMatch ? " is-focus-match" : ""}" data-symbol="${escapeHtml(sym)}">
         <td class="mono ticker-link-cell markets-ticker-cell">
           <a class="markets-ticker-link" href="${escapeHtml(stockPageUrl(sym))}" onclick="event.stopPropagation()">${escapeHtml(sym)}</a>
           <span class="markets-ticker-name">${escapeHtml(row.name || sym)}</span>
@@ -4384,7 +4878,16 @@ function renderContracts() {
     return;
   }
 
-  tbody.innerHTML = state.contracts.map((row) => {
+  const filtered = state.contracts.filter(contractMatchesTabFilters);
+  if (!filtered.length) {
+    const focusMsg = state.focusSymbol
+      ? `No contract exposure for <strong>${escapeHtml(state.focusSymbol)}</strong> with these filters.`
+      : "No contracts match these filters.";
+    tbody.innerHTML = `<tr><td colspan="7"><div class="guided-empty-state">${focusMsg} <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button> or adjust agency/amount chips.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((row) => {
     const detailId = `cd-${escapeHtml(row.symbol)}`;
     const pageUrl = contractPageUrl(row.symbol);
     return `
@@ -4510,7 +5013,9 @@ function renderBills() {
   if (billsGuidedMode() === "guided") return;
   clearSkeleton("#bill-feed");
   const query = ($("#bill-filter")?.value || "").toLowerCase();
-  const bills = policyBills({ includeUnmapped: Boolean(query) }).filter((bill) => {
+  const bills = policyBills({ includeUnmapped: Boolean(query || state.focusSymbol) }).filter((bill) => {
+    if (!billMatchesStageFilter(bill)) return false;
+    if (!billMatchesFocusFilter(bill)) return false;
     if (!query) return true;
     return [bill.id, bill.title, bill.shortTitle, bill.status, bill.signal, ...(bill.affected || []), ...(bill.tags || [])]
       .join(" ")
@@ -4521,9 +5026,14 @@ function renderBills() {
   const feed = $("#bill-feed");
   if (!feed) return;
   if (!bills.length) {
-    feed.innerHTML = query
-      ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
-      : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
+    const focusMsg = state.focusSymbol
+      ? `No bills linked to <strong>${escapeHtml(state.focusSymbol)}</strong> yet. <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button> or clear focus.`
+      : "";
+    feed.innerHTML = focusMsg
+      ? `<tr><td colspan="8"><div class="guided-empty-state">${focusMsg}</div></td></tr>`
+      : query
+        ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
+        : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
     return;
   }
   feed.innerHTML = sortBillsForTable(bills).map((bill) => {
@@ -4630,13 +5140,19 @@ function renderLobbying() {
     sourceEl.textContent = meta?.source === "senate_lda" ? "Senate LDA" : meta?.source === "fallback" ? "Sample filings" : "Connecting";
   }
   if (!feedEl) return;
-  if (!state.lobbying?.length) {
+  const filtered = (state.lobbying || []).filter(lobbyingMatchesTabFilters);
+  if (!filtered.length) {
     feedEl.innerHTML = "";
-    if (emptyEl) emptyEl.hidden = false;
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      if (state.focusSymbol) {
+        emptyEl.innerHTML = `<strong>No lobbying filings for ${escapeHtml(state.focusSymbol)} yet.</strong> Try clearing focus or broadening the issue keyword. <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button>`;
+      }
+    }
     return;
   }
   if (emptyEl) emptyEl.hidden = true;
-  feedEl.innerHTML = state.lobbying.map((filing) => {
+  feedEl.innerHTML = filtered.map((filing) => {
     const pageUrl = lobbyPageUrl(filing);
     const pressure = Number(filing.lobbyingPressure ?? 0);
     const fConf = filing.filingConfidence || "Low";
@@ -6939,10 +7455,11 @@ function renderSignalFeed() {
   const footer = $("#signal-chain-footer");
   if (!feed) return;
 
-  const signals = buildSignalFeed();
+  const signals = buildSignalFeed().filter((sig) => signalMatchesTypeFilter(sig) && signalMatchesFocusFilter(sig));
 
   if (!signals.length) {
-    feed.innerHTML = `<div class="sc-empty muted">No signals available yet — waiting for bills and contract data.</div>`;
+    const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
+    feed.innerHTML = `<div class="sc-empty muted">No signals${escapeHtml(focusMsg)} match this filter — waiting for bills and contract data.</div>`;
     if (footer) footer.hidden = true;
     return;
   }
@@ -7201,9 +7718,14 @@ function showView(view, updateUrl = true) {
     if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
     renderBills();
   }
-  if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") && !state.contractsLoadedAt) {
-    showSkeleton("#contracts-feed", 4, "card");
-    void refreshContractsFeed().finally(() => clearSkeleton("#contracts-feed"));
+  if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+    renderContractsTabWatch();
+    if (!state.contractsLoadedAt) {
+      showSkeleton("#contracts-feed", 4, "card");
+      void refreshContractsFeed().finally(() => clearSkeleton("#contracts-feed"));
+    } else {
+      renderContracts();
+    }
   }
   if (view === "lobbying" && isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
     if (!state.lobbying?.length) {
@@ -7237,6 +7759,7 @@ function setupAnalysisControls() {
   wireSymbolCombobox(select);
   select.addEventListener("change", () => {
     state.activeAnalysisSymbol = normalizeWatchSymbol(select.value);
+    setFocusSymbol(state.activeAnalysisSymbol, { render: true, syncAnalysis: false });
     if ($("#view-analysis")?.classList.contains("active")) {
       const params = new URLSearchParams(window.location.search);
       params.set("view", "analysis");
@@ -7298,8 +7821,12 @@ function setupFilters() {
   $("#terminal-search").addEventListener("input", (event) => {
     const query = event.target.value.trim().toUpperCase();
     if (!query) return;
-    if (isTrackedTicker(query)) showView("markets");
+    if (isTrackedTicker(query)) {
+      setFocusSymbol(query, { render: true });
+      showView("markets");
+    }
     if (state.bills.some((bill) => [bill.id, bill.title, ...(bill.affected || [])].join(" ").toUpperCase().includes(query))) {
+      setFocusSymbol(query, { render: true });
       showView("bills");
       $("#bill-filter").value = query;
       renderBills();
