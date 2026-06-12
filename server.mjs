@@ -2552,19 +2552,35 @@ server.listen(PORT, "0.0.0.0", async () => {
     }
   }, 15_000);
 
-  if (process.env.FINNHUB_API_KEY) {
-    Promise.all(DASHBOARD_MARKETS_DEFAULT.map((sym) => quoteSnapshot(sym)))
-      .then((rows) => {
-        const quotes = rows.map((r) => r.quote).filter(Boolean);
-        const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
-        noteFeedSuccess("market", {
-          source: fallbackCount === quotes.length ? "fallback" : "finnhub",
-          recordCount: quotes.length
-        });
-      })
-      .catch((err) => console.warn("[data] Initial quote warm failed:", err.message));
-  }
+  warmQuoteCatalogCache();
 });
+
+/** Stagger full catalog quote fetches over ~2 min so first dashboard load hits warm cache. */
+function warmQuoteCatalogCache() {
+  const symbols = [...DASHBOARD_MARKET_SYMBOLS];
+  if (!symbols.length) return;
+  const windowMs = Number(process.env.QUOTE_WARM_WINDOW_MS || 120_000);
+  const staggerMs = Math.max(400, Math.floor(windowMs / symbols.length));
+  console.warn(
+    `[data] Warming ${symbols.length} quote caches over ~${Math.round((symbols.length * staggerMs) / 1000)}s`
+  );
+  symbols.forEach((sym, index) => {
+    setTimeout(() => {
+      quoteSnapshot(sym)
+        .then((row) => {
+          if (index === symbols.length - 1) {
+            const quotes = [...quoteCache.values()].map((entry) => entry.quote).filter(Boolean);
+            const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
+            noteFeedSuccess("market", {
+              source: fallbackCount === quotes.length ? "fallback" : "mixed_live",
+              recordCount: quotes.length
+            });
+          }
+        })
+        .catch(() => {});
+    }, index * staggerMs);
+  });
+}
 
 function requestIp(req) {
   const raw =
@@ -3432,6 +3448,15 @@ async function marketQuotes(res, url) {
   }
   const workerCount = Math.min(QUOTE_FETCH_CONCURRENCY, symbols.length) || 1;
   await Promise.all(Array.from({ length: workerCount }, quoteWorker));
+  const returnedSymbols = new Set(filteredQuotes.map((q) => q.symbol));
+  for (const symbol of symbols) {
+    if (returnedSymbols.has(symbol)) continue;
+    const result = quoteSnapshotCachedOrFallback(symbol, { pending: true });
+    if (result.quote) {
+      filteredQuotes.push({ ...result.quote, pending: true });
+      returnedSymbols.add(symbol);
+    }
+  }
   const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
   const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
   const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public").length;
@@ -7276,6 +7301,32 @@ function slug(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+/** Instant quote for deadline backfill — cache or static seed only, no network I/O. */
+function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
+  const cached = quoteCache.get(symbol);
+  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS) {
+    const quote = withQuoteFreshness(
+      cached.quote,
+      cached.quote.source,
+      cached.quote.providerTimestamp || cached.quote.timestamp
+    );
+    if (pending && quote.source === "fallback_static") quote.pending = true;
+    return { source: quote.source, quote, cached: true };
+  }
+  const fallbackRow = enrichStaticQuote(MARKET_FALLBACK[symbol]) || null;
+  if (fallbackRow) {
+    const quote = withQuoteFreshness(
+      fallbackRow,
+      "fallback_static",
+      fallbackRow?.timestamp || null
+    );
+    if (pending) quote.pending = true;
+    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+    return { source: "fallback", quote };
+  }
+  return { source: "fallback", quote: null };
 }
 
 async function quoteSnapshot(symbol) {
