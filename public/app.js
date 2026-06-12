@@ -2119,6 +2119,8 @@ const state = {
   analysis: null,
   policyNetwork: null,
   policyCatalysts: [],
+  trending: [],
+  trendingLoadedAt: null,
   methodology: null,
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
@@ -2756,6 +2758,7 @@ function startLiveFeeds() {
     setInterval(() => runFeed("market", refreshMarketFeed), LIVE_FEED_INTERVALS.marketMs),
     setInterval(() => runFeed("account", refreshAccountFeed), LIVE_FEED_INTERVALS.accountMs),
     setInterval(() => runFeed("policy", refreshPolicyFeed), LIVE_FEED_INTERVALS.policyMs),
+    setInterval(() => runFeed("trending", refreshTrendingFeed), LIVE_FEED_INTERVALS.policyMs),
     setInterval(() => runFeed("tradeHistory", refreshActiveTradeHistory), LIVE_FEED_INTERVALS.tradeHistoryMs),
     setInterval(() => runFeed("analysisChart", refreshActiveAnalysisChart), LIVE_FEED_INTERVALS.analysisChartMs),
     setInterval(() => runFeed("portfolioChart", refreshPortfolioChartLive), LIVE_FEED_INTERVALS.portfolioChartMs)
@@ -2774,7 +2777,8 @@ function startLiveFeeds() {
         const tasks = [
           refreshMarketFeed(),
           refreshAccountFeed(),
-          refreshPolicyFeed()
+          refreshPolicyFeed(),
+          refreshTrendingFeed()
         ];
         if (isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) tasks.push(refreshCryptoFeed());
         await Promise.allSettled(tasks);
@@ -3044,12 +3048,13 @@ async function refreshTerminalData() {
     refreshAccountFeed({ render: false }),
     refreshMarketFeed({ render: false }),
     isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
-    refreshPolicyFeed({ render: false })
+    refreshPolicyFeed({ render: false }),
+    refreshTrendingFeed({ render: false })
   ]);
 
   settled.forEach((result, index) => {
     if (result.status === "rejected") {
-      console.error(["account", "market", "crypto", "policy"][index], "feed failed", result.reason);
+      console.error(["account", "market", "crypto", "policy", "trending"][index], "feed failed", result.reason);
     }
   });
 
@@ -3651,10 +3656,108 @@ function renderSignalsConvictionList() {
 
 function renderSignalsDesk() {
   renderTopSignal();
+  renderTrendingSection();
   renderSignalFeed();
   renderPolicyCatalysts();
   renderSignalsConvictionList();
   renderLiveAlerts();
+}
+
+const TRENDING_TYPE_LABELS = {
+  ma: "M&A",
+  contract: "Contract",
+  legislation: "Legislation",
+  topic: "Topic"
+};
+
+function trendingTypeLabel(type) {
+  return TRENDING_TYPE_LABELS[type] || String(type || "Topic");
+}
+
+function trendingTickerLine(topic) {
+  const direct = topic.tickers || [];
+  const related = (topic.relatedTickers || []).filter((t) => !direct.includes(t));
+  if (direct.length) return direct.join(", ");
+  if (related.length) return `No listed ticker · related: ${related.slice(0, 4).join(", ")}`;
+  return "No public ticker";
+}
+
+function trendingCardLink(topic) {
+  if (topic.briefUrl) return topic.briefUrl;
+  const contract = (topic.contractMatches || []).find((row) => row.directUrl);
+  if (contract?.directUrl) return contract.directUrl;
+  const headline = (topic.headlineMatches || []).find((row) => row.url);
+  if (headline?.url) return headline.url;
+  if ((topic.tickers || [])[0]) return `/stock/${encodeURIComponent(topic.tickers[0])}`;
+  if ((topic.relatedTickers || [])[0]) return `/stock/${encodeURIComponent(topic.relatedTickers[0])}`;
+  return null;
+}
+
+function renderTrendingCard(topic) {
+  const type = topic.type || "topic";
+  const typeClass = `sc-card--${type === "contract" ? "contract" : type === "ma" ? "bill" : "lobbying"}`;
+  const link = trendingCardLink(topic);
+  const headline = (topic.headlineMatches || [])[0];
+  const bill = (topic.congressMatches || [])[0];
+  const contract = (topic.contractMatches || [])[0];
+  const freshness = topic.freshness?.label || topic.freshness?.status || "";
+  const subline = headline?.headline || bill?.title || contract?.description || topic.keywords?.join(" · ") || "";
+  const linkAttrs = link
+    ? `href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer"`
+    : `data-show-view="signals" role="button" tabindex="0"`;
+
+  return `
+    <article class="sc-card trending-card ${typeClass}" ${link ? "" : 'data-show-view="signals"'}>
+      <a class="trending-card-link" ${linkAttrs}>
+        <div class="sc-card-header">
+          <span class="sc-type-badge">${escapeHtml(trendingTypeLabel(type))}</span>
+          ${topic.privateCompany ? `<span class="trending-private-badge">No public ticker</span>` : ""}
+          ${freshness ? `<span class="trending-freshness muted">${escapeHtml(freshness)}</span>` : ""}
+        </div>
+        <h3 class="sc-title">${escapeHtml(topic.title || topic.id)}</h3>
+        <p class="trending-ticker-line">${escapeHtml(trendingTickerLine(topic))}</p>
+        ${subline ? `<p class="sc-sub muted">${escapeHtml(String(subline).slice(0, 120))}</p>` : ""}
+        <p class="trending-card-foot muted">${escapeHtml(topic.disclaimer || "Monitoring topic · not investment advice")}</p>
+      </a>
+    </article>`;
+}
+
+function renderTrendingSection() {
+  const feed = $("#trending-feed");
+  const source = $("#trending-source");
+  if (!feed) return;
+  const topics = state.trending || [];
+  if (source) {
+    source.textContent = state.trendingLoadedAt
+      ? `Updated ${new Date(state.trendingLoadedAt).toLocaleTimeString()}`
+      : "Monitoring topics";
+  }
+  if (!topics.length) {
+    feed.innerHTML = `<div class="sc-empty muted">No trending topics pinned yet — founder can add via admin or data/trending-topics.json.</div>`;
+    return;
+  }
+  feed.innerHTML = topics.map(renderTrendingCard).join("");
+  feed.querySelectorAll("[data-show-view]").forEach((el) => {
+    el.addEventListener("click", () => showView(el.dataset.showView || "signals"));
+  });
+}
+
+async function refreshTrendingFeed({ render = true } = {}) {
+  try {
+    const data = await fetchJson("/api/trending");
+    state.trending = data.topics || [];
+    state.trendingLoadedAt = data.updatedAt || new Date().toISOString();
+    rememberFeedMeta("trending", data, "trending");
+    if (render) {
+      renderSourceBadges();
+      renderTrendingSection();
+    }
+    return data;
+  } catch (err) {
+    console.warn("[trending] feed unavailable", err);
+    if (render) renderTrendingSection();
+    return { topics: [], error: true };
+  }
 }
 
 function renderResearchJourney() {

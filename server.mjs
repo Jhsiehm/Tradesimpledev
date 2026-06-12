@@ -42,6 +42,7 @@ import {
   runThesisAnalyzer,
   enrichSnapshotWithRecentNews,
   fetchBillRelatedHeadlines,
+  fetchCompanyNews,
   runScorecardNarrator,
   runEdgarSimplifier,
   runCausalityAnalyzer,
@@ -89,6 +90,10 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, "public");
 const DATA_DIR = join(ROOT, "data");
 const WAITLIST_FILE = join(DATA_DIR, "waitlist.jsonl");
+const TRENDING_TOPICS_FILE = join(DATA_DIR, "trending-topics.json");
+const CONTRACT_WATCH_FILE = join(DATA_DIR, "contract-watch.json");
+const CONTRACT_WATCH_POLL_MS = Number(process.env.CONTRACT_WATCH_POLL_MS || 30 * 60 * 1000);
+const CONTRACT_WATCH_API_CACHE_MS = Number(process.env.CONTRACT_WATCH_API_CACHE_MS || 30 * 60 * 1000);
 const PAPER_ACCOUNTS_FILE = join(DATA_DIR, "paper-accounts.json");
 const PAPER_STARTING_CASH = 100000;
 
@@ -2877,6 +2882,8 @@ async function route(req, res) {
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
+  if (pathname === "/api/admin/trending" && req.method === "POST") return trendingAdminHandler(req, res);
+  if (pathname === "/api/admin/contract-watch" && req.method === "POST") return contractWatchAdminHandler(req, res);
   if (pathname === "/api/admin/validate-bills" && req.method === "GET") return validateBillsAdmin(req, res);
   if (pathname === "/terminal" || pathname === "/terminal/") {
     return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dhome");
@@ -2892,6 +2899,9 @@ async function route(req, res) {
   if (pathname === "/.well-known/security.txt") return sendStatic(res, ".well-known/security.txt");
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
+  if (pathname === "/api/trending" && req.method === "GET") return trendingListHandler(res);
+  if (pathname === "/api/contract-watch" && req.method === "GET") return contractWatchListHandler(res);
+  if (pathname === "/api/contract-watch/alerts" && req.method === "GET") return contractWatchAlertsHandler(res, url);
   if (pathname === "/api/onboarding/bill" && req.method === "GET") return onboardingBillHandler(res);
 
   // ── Email/password accounts (public — these create the session) ──
@@ -3812,9 +3822,14 @@ function landingSignalHandler(res) {
   });
 }
 
+async function sendLandingSignalResponse(res, payload) {
+  if (payload) payload.trending = await buildLandingTrendingStrip();
+  return sendJson(res, 200, payload);
+}
+
 async function landingSignalHandlerAsync(res) {
   const pool = landingSignalBillPool();
-  if (!pool.length) return sendJson(res, 200, null);
+  if (!pool.length) return sendLandingSignalResponse(res, null);
 
   const editorialBill = await resolveEditorialLeadBillAsync(pool);
   const merged = pool.map((b) => mergeCongressLiveIntoBill(b));
@@ -3834,7 +3849,7 @@ async function landingSignalHandlerAsync(res) {
         payload: buildLandingSignalPayload(editorialBill, "editorial", dateKey, { editorial: true })
       };
     }
-    return sendJson(res, 200, landingSignalDailyPick.payload);
+    return sendLandingSignalResponse(res, landingSignalDailyPick.payload);
   }
 
   if (hasLiveData) {
@@ -3852,13 +3867,394 @@ async function landingSignalHandlerAsync(res) {
         payload: buildLandingSignalPayload(topBill, "daily", dateKey)
       };
     }
-    return sendJson(res, 200, landingSignalDailyPick.payload);
+    return sendLandingSignalResponse(res, landingSignalDailyPick.payload);
   }
 
   // Fallback (no live Congress data): rotate every 30 seconds so the landing
   // page still feels alive in dev/demo mode.
   const idx = Math.floor(Date.now() / 30_000) % merged.length;
-  sendJson(res, 200, buildLandingSignalPayload(merged[idx], "rotation", dateKey));
+  return sendLandingSignalResponse(res, buildLandingSignalPayload(merged[idx], "rotation", dateKey));
+}
+
+// ── Trending topics (curated + live enrichment) ─────────────────────────────
+
+const TRENDING_ENRICH_CACHE_TTL_MS = 5 * 60 * 1000;
+let trendingEnrichCache = { fetchedAt: 0, topics: [] };
+
+function topicKeywordsMatch(text, keywords = []) {
+  const lower = String(text || "").toLowerCase();
+  return keywords.some((kw) => lower.includes(String(kw || "").toLowerCase().trim()));
+}
+
+function inferTickerFromRecipientName(name = "") {
+  const upper = String(name || "").toUpperCase();
+  if (!upper) return null;
+  const nameMap = { ...CONTRACT_COMPANY_NAMES, ...CONTRACT_SEARCH_HINTS };
+  for (const [sym, label] of Object.entries(nameMap)) {
+    const token = String(label || "").toUpperCase().split(/\s+/)[0];
+    if (token.length >= 4 && upper.includes(token)) return sym;
+  }
+  for (const sym of Object.keys(CONTRACT_PROFILES)) {
+    const hint = resolveContractCompanyName(sym);
+    if (hint && upper.includes(String(hint).toUpperCase().slice(0, Math.min(10, hint.length)))) return sym;
+  }
+  return null;
+}
+
+async function loadTrendingTopicsStore() {
+  try {
+    const raw = await readFile(TRENDING_TOPICS_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    const topics = Array.isArray(parsed?.topics) ? parsed.topics : [];
+    return { topics: topics.filter((t) => t && t.id && t.title) };
+  } catch {
+    return { topics: [] };
+  }
+}
+
+async function saveTrendingTopicsStore(store) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await withFileLock(TRENDING_TOPICS_FILE, () =>
+    writeFile(TRENDING_TOPICS_FILE, `${JSON.stringify(store, null, 2)}\n`, "utf8")
+  );
+}
+
+function searchTrendingCorpusBills(keywords = []) {
+  const matches = [];
+  for (const bill of allBrowsablePolicyBills()) {
+    const merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+    const corpus = billExposureCorpus(merged).toLowerCase();
+    if (!topicKeywordsMatch(corpus, keywords)) continue;
+    matches.push({
+      billId: merged.id,
+      title: merged.shortTitle || merged.title || merged.id,
+      status: merged.status || null,
+      latestActionDate: merged.latestActionDate || merged.lastSubstantiveActionDate || null,
+      tickers: (merged.affected || []).slice(0, 6),
+      momentum: computeLegislativeMomentum(merged),
+      briefUrl: shareBillPath(merged.id),
+      source: "corpus"
+    });
+  }
+  return matches.sort((a, b) => b.momentum - a.momentum).slice(0, 6);
+}
+
+async function searchCongressTrendingMatches(keywords = [], apiKey) {
+  const matches = [];
+  if (!apiKey) return matches;
+  const cacheKey = `trending:congress:${keywords.join("|").toLowerCase()}`;
+  const cached = usaspendingCacheGet(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const resp = await fetchWithTimeout(
+      `https://api.congress.gov/v3/bill/${CURRENT_CONGRESS}?format=json&limit=100&sort=updateDate+desc&api_key=${encodeURIComponent(apiKey)}`,
+      {},
+      9000
+    );
+    if (!resp.ok) return matches;
+    const data = await resp.json();
+    for (const bill of data.bills || []) {
+      const title = bill.title || "";
+      if (!topicKeywordsMatch(title, keywords)) continue;
+      const normalized = decorateBill(normalizeLiveCongressBill(bill));
+      matches.push({
+        billId: normalized.id,
+        title: normalized.shortTitle || normalized.title || normalized.id,
+        status: normalized.status || null,
+        latestActionDate: normalized.latestActionDate || null,
+        tickers: (normalized.affected || []).slice(0, 6),
+        momentum: computeLegislativeMomentum(normalized),
+        briefUrl: shareBillPath(normalized.id),
+        source: "congress_api"
+      });
+    }
+    const sorted = matches.sort((a, b) => b.momentum - a.momentum).slice(0, 6);
+    usaspendingCacheSet(cacheKey, sorted);
+    return sorted;
+  } catch {
+    return matches;
+  }
+}
+
+async function searchTrendingContractMatches(keywords = []) {
+  const matches = [];
+  const seen = new Set();
+  for (const kw of keywords.slice(0, 3)) {
+    const results = await fetchUsaspendingSpendingByAward(
+      { keywords: [kw] },
+      `trending:contracts:${String(kw).toLowerCase()}`
+    );
+    for (const row of results || []) {
+      const key = row.awardId || row.internalId || row.recipientName;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      matches.push({
+        awardId: row.awardId || null,
+        recipientName: row.recipientName || null,
+        awardingAgency: row.awardingAgency || null,
+        obligatedAmount: row.obligatedAmount || 0,
+        startDate: row.startDate || null,
+        directUrl: row.directUrl || usaspendingSearchUrl(row.recipientName || kw),
+        inferredTicker: inferTickerFromRecipientName(row.recipientName),
+        description: row.description || null
+      });
+    }
+  }
+  return matches.slice(0, 8);
+}
+
+async function searchTrendingHeadlineMatches(topic) {
+  const keywords = topic.keywords || [];
+  const tickers = [...new Set([...(topic.tickers || []), ...(topic.relatedTickers || [])])].slice(0, 4);
+  const pool = [];
+  const seen = new Set();
+
+  if (process.env.FINNHUB_API_KEY && tickers.length) {
+    for (const sym of tickers) {
+      const rows = await fetchCompanyNews(sym, { days: 3, limit: 6 }).catch(() => []);
+      for (const row of rows) {
+        const blob = `${row.headline || ""} ${row.summary || ""}`.toLowerCase();
+        if (!topicKeywordsMatch(blob, keywords) && !topicKeywordsMatch(blob, [topic.title])) continue;
+        const key = row.url || row.headline;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        pool.push({ ...row, symbol: sym, stub: false });
+      }
+    }
+  }
+
+  if (!pool.length) {
+    pool.push({
+      headline: `Monitoring: ${topic.title}`,
+      source: "TradeSimple rules",
+      url: null,
+      publishedAt: new Date().toISOString(),
+      summary: `Keyword watch on ${keywords.join(", ") || topic.title}. Context only — not investment advice.`,
+      stub: true
+    });
+  }
+
+  return pool
+    .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
+    .slice(0, 6);
+}
+
+function buildTrendingMappedTickers(topic, congressMatches = [], contractMatches = []) {
+  const set = new Set();
+  (topic.tickers || []).forEach((t) => set.add(String(t).toUpperCase()));
+  (topic.relatedTickers || []).forEach((t) => set.add(String(t).toUpperCase()));
+  for (const row of congressMatches) {
+    (row.tickers || []).forEach((t) => set.add(String(t).toUpperCase()));
+  }
+  for (const row of contractMatches) {
+    if (row.inferredTicker) set.add(String(row.inferredTicker).toUpperCase());
+  }
+  return [...set].filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 10);
+}
+
+async function enrichTrendingTopic(topic) {
+  const keywords = topic.keywords || [];
+  const corpusMatches = searchTrendingCorpusBills(keywords);
+  const apiCongressMatches = await searchCongressTrendingMatches(keywords, process.env.CONGRESS_API_KEY);
+  const corpusIds = new Set(corpusMatches.map((m) => m.billId));
+  const congressMatches = [
+    ...corpusMatches,
+    ...apiCongressMatches.filter((m) => !corpusIds.has(m.billId))
+  ].slice(0, 8);
+  const contractMatches = await searchTrendingContractMatches(keywords);
+  const headlineMatches = await searchTrendingHeadlineMatches(topic);
+  const mappedTickers = buildTrendingMappedTickers(topic, congressMatches, contractMatches);
+  const directTickers = (topic.tickers || [])
+    .map((t) => String(t).toUpperCase())
+    .filter((t) => VALID_TICKER_PATTERN.test(t));
+  const relatedTickers = [
+    ...new Set([
+      ...(topic.relatedTickers || []).map((t) => String(t).toUpperCase()),
+      ...mappedTickers.filter((t) => !directTickers.includes(t))
+    ])
+  ].filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 8);
+
+  const bestBill = congressMatches[0] || null;
+  const freshness = buildFreshnessBadge({
+    type: "bill",
+    bill: bestBill
+      ? {
+          exactCongressRecord: bestBill.source === "congress_api",
+          _dynamicCongressBill: true,
+          latestActionDate: bestBill.latestActionDate,
+          lobbyingSource: null
+        }
+      : {},
+    relatedContracts: contractMatches
+      .filter((c) => c.directUrl)
+      .map((c) => ({ directUrl: c.directUrl, awardCount: 1 }))
+  });
+
+  return {
+    id: topic.id,
+    title: topic.title,
+    type: topic.type || "topic",
+    keywords: topic.keywords || [],
+    tickers: directTickers,
+    relatedTickers,
+    pinned: Boolean(topic.pinned),
+    addedAt: topic.addedAt || null,
+    hasPublicTicker: directTickers.length > 0,
+    privateCompany: directTickers.length === 0,
+    congressMatches,
+    contractMatches,
+    headlineMatches,
+    mappedTickers,
+    freshness,
+    briefUrl: bestBill?.briefUrl || null,
+    disclaimer: "Monitoring topic · not investment advice",
+    enrichedAt: new Date().toISOString()
+  };
+}
+
+async function getEnrichedTrendingTopics({ force = false } = {}) {
+  const store = await loadTrendingTopicsStore();
+  if (
+    !force &&
+    trendingEnrichCache.topics.length &&
+    Date.now() - trendingEnrichCache.fetchedAt < TRENDING_ENRICH_CACHE_TTL_MS
+  ) {
+    return trendingEnrichCache.topics;
+  }
+  const enriched = [];
+  for (const topic of store.topics) {
+    enriched.push(await enrichTrendingTopic(topic));
+  }
+  enriched.sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  trendingEnrichCache = { fetchedAt: Date.now(), topics: enriched };
+  return enriched;
+}
+
+function summarizeTrendingForLanding(topic) {
+  const direct = topic.tickers || [];
+  const related = (topic.relatedTickers || []).filter((t) => !direct.includes(t));
+  let tickerLabel = "";
+  if (direct.length) tickerLabel = direct.join(", ");
+  else if (related.length) tickerLabel = `No public ticker · related: ${related.slice(0, 3).join(", ")}`;
+  else tickerLabel = "No public ticker";
+
+  return {
+    id: topic.id,
+    title: topic.title,
+    type: topic.type,
+    mappedTickers: topic.mappedTickers || [],
+    tickerLabel,
+    hasPublicTicker: topic.hasPublicTicker,
+    privateCompany: topic.privateCompany,
+    briefUrl: topic.briefUrl,
+    headline: (topic.headlineMatches || [])[0]?.headline || null,
+    freshness: topic.freshness,
+    disclaimer: topic.disclaimer
+  };
+}
+
+async function buildLandingTrendingStrip() {
+  const topics = await getEnrichedTrendingTopics();
+  return topics.filter((t) => t.pinned).slice(0, 3).map(summarizeTrendingForLanding);
+}
+
+function trendingListHandler(res) {
+  trendingListHandlerAsync(res).catch((err) => {
+    console.error("[trending]", err.message);
+    sendJson(res, 500, { error: "trending_failed" });
+  });
+}
+
+async function trendingListHandlerAsync(res) {
+  const topics = await getEnrichedTrendingTopics();
+  sendJson(res, 200, {
+    topics,
+    count: topics.length,
+    disclaimer: "Monitoring topics · not investment advice",
+    updatedAt: new Date().toISOString()
+  });
+}
+
+async function trendingAdminHandler(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  const body = await readJson(req);
+  const store = await loadTrendingTopicsStore();
+  const incoming = body.topic || body;
+  const topics = Array.isArray(body.topics) ? body.topics : null;
+
+  if (topics) {
+    store.topics = topics
+      .filter((t) => t && t.id && t.title)
+      .map((t) => ({
+        id: String(t.id).trim(),
+        title: String(t.title).trim(),
+        keywords: Array.isArray(t.keywords) ? t.keywords.map(String) : [],
+        tickers: Array.isArray(t.tickers) ? t.tickers.map((s) => String(s).toUpperCase()) : [],
+        relatedTickers: Array.isArray(t.relatedTickers) ? t.relatedTickers.map((s) => String(s).toUpperCase()) : [],
+        type: String(t.type || "topic"),
+        pinned: Boolean(t.pinned),
+        addedAt: t.addedAt || new Date().toISOString().slice(0, 10)
+      }));
+  } else if (incoming?.id && incoming?.title) {
+    const normalized = {
+      id: String(incoming.id).trim(),
+      title: String(incoming.title).trim(),
+      keywords: Array.isArray(incoming.keywords) ? incoming.keywords.map(String) : [],
+      tickers: Array.isArray(incoming.tickers) ? incoming.tickers.map((s) => String(s).toUpperCase()) : [],
+      relatedTickers: Array.isArray(incoming.relatedTickers)
+        ? incoming.relatedTickers.map((s) => String(s).toUpperCase())
+        : [],
+      type: String(incoming.type || "topic"),
+      pinned: incoming.pinned !== false,
+      addedAt: incoming.addedAt || new Date().toISOString().slice(0, 10)
+    };
+    const idx = store.topics.findIndex((t) => t.id === normalized.id);
+    if (idx >= 0) store.topics[idx] = { ...store.topics[idx], ...normalized };
+    else store.topics.push(normalized);
+  } else {
+    return sendJson(res, 400, { error: "invalid_topic", message: "Provide topic { id, title } or topics[]" });
+  }
+
+  await saveTrendingTopicsStore(store);
+  trendingEnrichCache = { fetchedAt: 0, topics: [] };
+  const enriched = await getEnrichedTrendingTopics({ force: true });
+  sendJson(res, 200, { ok: true, count: store.topics.length, topics: enriched });
+}
+
+async function refreshTrendingCongressDiscoveries(key) {
+  if (!key) return 0;
+  const store = await loadTrendingTopicsStore();
+  const keywords = [...new Set(store.topics.flatMap((t) => t.keywords || []).filter(Boolean))];
+  if (!keywords.length) return 0;
+
+  let added = 0;
+  const seenIds = new Set([...liveCongressBillRegistry.keys(), ...POLICY_BILLS.map((b) => b.id)]);
+  try {
+    const resp = await fetchWithTimeout(
+      `https://api.congress.gov/v3/bill/${CURRENT_CONGRESS}?format=json&limit=100&sort=updateDate+desc&api_key=${encodeURIComponent(key)}`,
+      {},
+      9000
+    );
+    if (!resp.ok) return added;
+    const data = await resp.json();
+    for (const bill of data.bills || []) {
+      const titleLower = (bill.title || "").toLowerCase();
+      if (!keywords.some((kw) => titleLower.includes(String(kw).toLowerCase()))) continue;
+      const normalized = decorateBill(normalizeLiveCongressBill(bill));
+      if (!seenIds.has(normalized.id)) {
+        liveCongressBillRegistry.set(normalized.id, normalized);
+        seenIds.add(normalized.id);
+        added += 1;
+      }
+    }
+  } catch {
+    /* Congress API unavailable */
+  }
+  return added;
 }
 
 // ── Prediction ledger ────────────────────────────────────────────────────────
@@ -8485,7 +8881,8 @@ async function refreshCongressLiveCache() {
     }
   }
   const dynamicCount = await refreshDynamicCongressRegistry(key).catch(() => 0);
-  if (updates.size || dynamicCount) {
+  const trendingCount = await refreshTrendingCongressDiscoveries(key).catch(() => 0);
+  if (updates.size || dynamicCount || trendingCount) {
     bumpLandingSignalCacheVersion();
     liveBillAnalysisCache.clear();
   }
@@ -8497,7 +8894,7 @@ async function refreshCongressLiveCache() {
     liveCount: liveBillCount,
     scenarioCount: decorated.length - liveBillCount
   });
-  return { updated: updates.size, dynamic: dynamicCount };
+  return { updated: updates.size, dynamic: dynamicCount, trending: trendingCount };
 }
 
 async function refreshLdaLobbyingCache() {

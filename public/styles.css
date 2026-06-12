@@ -5174,6 +5174,51 @@ html[data-theme="light"] .government-explainer-grid li {
 body:has(#view-analysis.active) .research-drawer-btn { display: none; }
 body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; align-items: center; justify-content: center; }
 
+/* ── Trending topics ───────────────────────────────────────────────────────── */
+.trending-panel { margin-bottom: 16px; }
+.trending-disclaimer {
+  padding: 0 16px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.trending-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+.trending-card-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.trending-ticker-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+}
+.trending-private-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 165, 0, 0.12);
+  color: var(--amber, #d4a017);
+}
+.trending-freshness {
+  margin-left: auto;
+  font-size: 10px;
+}
+.trending-card-foot {
+  font-size: 10px;
+  margin: 0;
+}
+
 /* ── Signal Chain ──────────────────────────────────────────────────────────── */
 .signal-chain-panel { margin-bottom: 16px; }
 .signal-chain-feed {

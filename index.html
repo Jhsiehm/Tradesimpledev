@@ -445,6 +445,29 @@ section{position:relative;z-index:1}
 .msd.g{background:var(--green)}
 .msd.a{background:var(--amber)}
 
+/* ── LANDING TRENDING STRIP ─────────────────────────── */
+.landing-trending-strip{
+  margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;
+  background:rgba(0,0,0,.22);
+}
+.landing-trending-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;
+}
+.landing-trending-label{
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);
+}
+.landing-trending-cta{font-size:11px;color:var(--muted)}
+.landing-trending-cta:hover{color:var(--text)}
+.landing-trending-items{display:flex;flex-direction:column;gap:8px}
+.landing-trending-item{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;
+  padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2);
+}
+.landing-trending-item strong{font-size:12px;font-weight:600;line-height:1.35}
+.landing-trending-item em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.landing-trending-item span{font-size:10px;color:var(--amber);white-space:nowrap}
+.landing-trending-note{margin:8px 0 0;font-size:10px;color:var(--faint);font-family:var(--mono)}
+
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
   border-top:1px solid var(--line);
@@ -692,6 +715,14 @@ footer nav a:hover{color:var(--text)}
                 </div>
                 <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
                 <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+              </div>
+              <div class="landing-trending-strip" id="landing-trending-strip" hidden>
+                <div class="landing-trending-head">
+                  <span class="landing-trending-label">Trending now</span>
+                  <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
+                </div>
+                <div class="landing-trending-items" id="landing-trending-items"></div>
+                <p class="landing-trending-note">Monitoring topic · not investment advice</p>
               </div>
             </div>
           </div>
@@ -1218,6 +1249,20 @@ function hydrateLandingSignal(){
     var pct=Math.max(0,Math.min(100,Number(d.confidence||0)));
     if(confText) confText.textContent=pct+'/100';
     if(confFill) confFill.style.width=pct+'%';
+    updateTrendingStrip(d.trending||[]);
+  }
+  function updateTrendingStrip(items){
+    var strip=document.getElementById('landing-trending-strip');
+    var host=document.getElementById('landing-trending-items');
+    if(!strip||!host)return;
+    if(!items||!items.length){strip.hidden=true;host.innerHTML='';return;}
+    strip.hidden=false;
+    host.innerHTML=items.slice(0,3).map(function(item){
+      var href=item.briefUrl||'/auth/demo?next=%2Fdashboard%3Fview%3Dsignals';
+      var type=(item.type||'topic').toUpperCase();
+      var tick=item.tickerLabel||'';
+      return '<a class="landing-trending-item" href="'+href+'"><div><strong>'+item.title+'</strong><em>'+tick+'</em></div><span>'+type+'</span></a>';
+    }).join('');
   }
   function fetchSignal(){
     fetch(tsApiUrl('/api/landing-signal'))

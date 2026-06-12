@@ -1,0 +1,23 @@
+{
+  "topics": [
+    {
+      "id": "dell-deal-2026",
+      "title": "Dell take-private / M&A speculation",
+      "keywords": ["dell", "take-private", "silver lake"],
+      "tickers": ["DELL"],
+      "relatedTickers": ["MSFT", "NVDA"],
+      "type": "ma",
+      "pinned": true,
+      "addedAt": "2026-06-11"
+    },
+    {
+      "id": "spacex-nasa-contracts",
+      "title": "SpaceX federal launch contracts",
+      "keywords": ["spacex", "nasa", "launch services"],
+      "tickers": [],
+      "relatedTickers": ["BAH", "LMT", "RKLB"],
+      "type": "contract",
+      "pinned": true
+    }
+  ]
+}
