@@ -2121,6 +2121,9 @@ const state = {
   policyCatalysts: [],
   trending: [],
   trendingLoadedAt: null,
+  contractWatch: [],
+  contractWatchLoadedAt: null,
+  contractWatchMeta: null,
   methodology: null,
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
@@ -2759,6 +2762,7 @@ function startLiveFeeds() {
     setInterval(() => runFeed("account", refreshAccountFeed), LIVE_FEED_INTERVALS.accountMs),
     setInterval(() => runFeed("policy", refreshPolicyFeed), LIVE_FEED_INTERVALS.policyMs),
     setInterval(() => runFeed("trending", refreshTrendingFeed), LIVE_FEED_INTERVALS.policyMs),
+    setInterval(() => runFeed("contractWatch", refreshContractWatchFeed), LIVE_FEED_INTERVALS.contractsMs),
     setInterval(() => runFeed("tradeHistory", refreshActiveTradeHistory), LIVE_FEED_INTERVALS.tradeHistoryMs),
     setInterval(() => runFeed("analysisChart", refreshActiveAnalysisChart), LIVE_FEED_INTERVALS.analysisChartMs),
     setInterval(() => runFeed("portfolioChart", refreshPortfolioChartLive), LIVE_FEED_INTERVALS.portfolioChartMs)
@@ -2778,7 +2782,8 @@ function startLiveFeeds() {
           refreshMarketFeed(),
           refreshAccountFeed(),
           refreshPolicyFeed(),
-          refreshTrendingFeed()
+          refreshTrendingFeed(),
+          refreshContractWatchFeed()
         ];
         if (isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) tasks.push(refreshCryptoFeed());
         await Promise.allSettled(tasks);
@@ -3049,12 +3054,13 @@ async function refreshTerminalData() {
     refreshMarketFeed({ render: false }),
     isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
     refreshPolicyFeed({ render: false }),
-    refreshTrendingFeed({ render: false })
+    refreshTrendingFeed({ render: false }),
+    refreshContractWatchFeed({ render: false })
   ]);
 
   settled.forEach((result, index) => {
     if (result.status === "rejected") {
-      console.error(["account", "market", "crypto", "policy", "trending"][index], "feed failed", result.reason);
+      console.error(["account", "market", "crypto", "policy", "trending", "contractWatch"][index], "feed failed", result.reason);
     }
   });
 
@@ -3657,6 +3663,7 @@ function renderSignalsConvictionList() {
 function renderSignalsDesk() {
   renderTopSignal();
   renderTrendingSection();
+  renderContractWatchSection();
   renderSignalFeed();
   renderPolicyCatalysts();
   renderSignalsConvictionList();
@@ -3757,6 +3764,89 @@ async function refreshTrendingFeed({ render = true } = {}) {
     console.warn("[trending] feed unavailable", err);
     if (render) renderTrendingSection();
     return { topics: [], error: true };
+  }
+}
+
+function contractWatchTickerLine(award) {
+  const mapped = award.mappedTickers || [];
+  const related = (award.relatedTickers || []).filter((t) => !mapped.includes(t));
+  if (mapped.length) return mapped.join(", ");
+  if (related.length) return `No public ticker · related: ${related.slice(0, 4).join(", ")}`;
+  return "No public ticker";
+}
+
+function renderContractWatchCard(award) {
+  const freshness = award.freshness?.label || (award.isNew ? "New" : "Recent");
+  const tickers = contractWatchTickerLine(award);
+  const briefUrl = award.contractBriefUrl;
+  const usaspendingUrl = award.contractUrl;
+  const firstSeen = award.firstSeenAt ? `First seen by TradeSimple: ${freshnessText(award.firstSeenAt)}` : "";
+  const actionDate = award.awardDate ? `Award date ${award.awardDate}` : "";
+  const meta = [firstSeen, actionDate].filter(Boolean).join(" · ");
+
+  return `
+    <article class="sc-card trending-card sc-card--contract contract-watch-card">
+      <div class="sc-card-header">
+        <span class="sc-type-badge">Federal award</span>
+        ${award.isNew ? `<span class="trending-private-badge contract-watch-new">New</span>` : ""}
+        ${award.noPublicTicker ? `<span class="trending-private-badge">No public ticker</span>` : ""}
+        <span class="trending-freshness muted">${escapeHtml(freshness)}</span>
+      </div>
+      <h3 class="sc-title">${escapeHtml(compactMoney(award.amount))} → ${escapeHtml(award.recipient || "Recipient")}</h3>
+      <p class="trending-ticker-line">${escapeHtml(tickers)}</p>
+      <p class="sc-sub muted">${escapeHtml(award.agency || "Federal agency")}${award.descriptionSnippet ? ` · ${escapeHtml(String(award.descriptionSnippet).slice(0, 100))}` : ""}</p>
+      ${meta ? `<p class="contract-watch-meta muted">${escapeHtml(meta)}</p>` : ""}
+      <div class="contract-watch-actions">
+        ${briefUrl ? `<a class="link-button" href="${escapeHtml(briefUrl)}">Contract brief →</a>` : ""}
+        ${usaspendingUrl ? `<a class="link-button" href="${escapeHtml(usaspendingUrl)}" target="_blank" rel="noopener noreferrer">View on USASpending →</a>` : ""}
+      </div>
+      <p class="trending-card-foot muted">${escapeHtml(award.disclaimer || "USASpending.gov · not investment advice")}</p>
+    </article>`;
+}
+
+function renderContractWatchSection() {
+  const feed = $("#contract-watch-feed");
+  const source = $("#contract-watch-source");
+  if (!feed) return;
+  const awards = (state.contractWatch || []).slice().sort((a, b) => {
+    const aTs = Date.parse(a.firstSeenAt || a.lastModifiedDate || 0);
+    const bTs = Date.parse(b.firstSeenAt || b.lastModifiedDate || 0);
+    return bTs - aTs;
+  });
+  if (source) {
+    const refreshed = state.contractWatchMeta?.lastRefreshAt || state.contractWatchLoadedAt;
+    source.textContent = refreshed
+      ? `Updated ${new Date(refreshed).toLocaleTimeString()} · ${awards.length} award(s)`
+      : "Polling USASpending";
+  }
+  if (!awards.length) {
+    feed.innerHTML = `<div class="sc-empty muted">No significant awards in the last 7 days for watched recipients. TradeSimple polls USASpending every ~30 minutes.</div>`;
+    return;
+  }
+  feed.innerHTML = awards.slice(0, 12).map(renderContractWatchCard).join("");
+}
+
+async function refreshContractWatchFeed({ render = true } = {}) {
+  try {
+    const data = await fetchJson("/api/contract-watch");
+    state.contractWatch = data.awards || [];
+    state.contractWatchLoadedAt = data.updatedAt || new Date().toISOString();
+    state.contractWatchMeta = {
+      lastRefreshAt: data.lastRefreshAt,
+      minAmount: data.minAmount,
+      alertCount: data.alertCount
+    };
+    rememberFeedMeta("contractWatch", data, "usaspending.gov");
+    if (render) {
+      renderSourceBadges();
+      renderContractWatchSection();
+      renderLiveAlerts();
+    }
+    return data;
+  } catch (err) {
+    console.warn("[contract-watch] feed unavailable", err);
+    if (render) renderContractWatchSection();
+    return { awards: [], error: true };
   }
 }
 
@@ -4000,7 +4090,21 @@ function buildLiveAlerts() {
     });
   }
 
-  return alerts.slice(0, 5);
+  const newWatch = (state.contractWatch || []).filter((row) => row.isNew).slice().sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
+  if (newWatch) {
+    alerts.push({
+      label: "Contract Watch",
+      pillClass: "green",
+      tone: "good",
+      title: `${compactMoney(newWatch.amount)} → ${newWatch.recipient || "Recipient"}`,
+      body: `${newWatch.agency || "Federal agency"} · ${contractWatchTickerLine(newWatch)} · ${freshnessText(newWatch.firstSeenAt || newWatch.lastModifiedDate)}.`,
+      action: "view",
+      viewName: "signals",
+      url: newWatch.contractUrl || ""
+    });
+  }
+
+  return alerts.slice(0, 6);
 }
 
 function latestFeedTime(keys) {

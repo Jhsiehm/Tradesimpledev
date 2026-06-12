@@ -1,0 +1,25 @@
+{
+  "config": {
+    "recipients": [
+      "SPACEX",
+      "SPACE EXPLORATION",
+      "PALANTIR",
+      "GEO GROUP",
+      "CORECIVIC",
+      "BOOZ ALLEN",
+      "LOCKHEED",
+      "NORTHROP"
+    ],
+    "minAmount": 10000000,
+    "agencies": [
+      "Department of Defense",
+      "National Aeronautics and Space Administration",
+      "Department of Homeland Security"
+    ]
+  },
+  "seenAwardIds": {},
+  "alerts": [],
+  "awards": [],
+  "lastRefreshAt": null,
+  "updatedAt": null
+}

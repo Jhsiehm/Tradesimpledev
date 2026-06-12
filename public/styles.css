@@ -5219,6 +5219,35 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
   margin: 0;
 }
 
+.contract-watch-panel { margin-bottom: 16px; }
+.contract-watch-disclaimer {
+  padding: 0 16px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.contract-watch-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+.contract-watch-card { padding: 14px 16px; }
+.contract-watch-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  margin: 0;
+}
+.contract-watch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 4px;
+}
+.contract-watch-new {
+  background: rgba(94, 234, 212, 0.12);
+  color: var(--green);
+}
+
 /* ── Signal Chain ──────────────────────────────────────────────────────────── */
 .signal-chain-panel { margin-bottom: 16px; }
 .signal-chain-feed {

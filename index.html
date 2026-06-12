@@ -1249,6 +1249,14 @@ function hydrateLandingSignal(){
     var pct=Math.max(0,Math.min(100,Number(d.confidence||0)));
     if(confText) confText.textContent=pct+'/100';
     if(confFill) confFill.style.width=pct+'%';
+    if(d.contractAward&&d.contractAward.line){
+      if(fresh) fresh.textContent=(d.contractAward.line+' · USASpending')+(fresh.textContent?(' · '+fresh.textContent):'');
+      if(chain&&!d.chain){
+        chain.setAttribute('data-full-text',d.contractAward.line);
+        if(typeof window.tsRestartTypewriter==='function') window.tsRestartTypewriter(chain);
+        else chain.textContent=d.contractAward.line;
+      }
+    }
     updateTrendingStrip(d.trending||[]);
   }
   function updateTrendingStrip(items){

@@ -2605,6 +2605,16 @@ server.listen(PORT, "0.0.0.0", async () => {
     refreshLdaLobbyingCache().catch((err) => console.warn("[data] Initial LDA refresh failed:", err.message));
   }
   setTimeout(() => {
+    refreshContractWatch()
+      .then((r) => {
+        if (r.awards?.length) console.warn(`[contract-watch] ${r.awards.length} significant award(s) in 7d window`);
+      })
+      .catch((err) => console.warn("[contract-watch] Initial refresh failed:", err.message));
+  }, 14_000);
+  setInterval(() => {
+    refreshContractWatch().catch((err) => console.warn("[contract-watch] Poll failed:", err.message));
+  }, CONTRACT_WATCH_POLL_MS);
+  setTimeout(() => {
     try {
       const report = validateBillPipelineSample();
       if (report.warnings.length) {
@@ -3823,7 +3833,10 @@ function landingSignalHandler(res) {
 }
 
 async function sendLandingSignalResponse(res, payload) {
-  if (payload) payload.trending = await buildLandingTrendingStrip();
+  if (payload) {
+    payload.trending = await buildLandingTrendingStrip();
+    payload.contractAward = pickLandingContractAwardLine();
+  }
   return sendJson(res, 200, payload);
 }
 
@@ -4168,9 +4181,16 @@ function trendingListHandler(res) {
 
 async function trendingListHandlerAsync(res) {
   const topics = await getEnrichedTrendingTopics();
+  const watchPayload = await getContractWatchPayload().catch(() => ({ awards: [] }));
+  const watchTopics = (watchPayload.awards || [])
+    .filter((row) => row.isNew || isWithinDays(row.firstSeenAt, 2))
+    .slice(0, 8)
+    .map(contractWatchAlertAsTrendingTopic);
+  const merged = [...watchTopics, ...topics.filter((t) => !String(t.id).startsWith("contract-watch-"))];
   sendJson(res, 200, {
-    topics,
-    count: topics.length,
+    topics: merged,
+    count: merged.length,
+    contractWatchCount: watchTopics.length,
     disclaimer: "Monitoring topics · not investment advice",
     updatedAt: new Date().toISOString()
   });
@@ -4223,6 +4243,519 @@ async function trendingAdminHandler(req, res) {
   trendingEnrichCache = { fetchedAt: 0, topics: [] };
   const enriched = await getEnrichedTrendingTopics({ force: true });
   sendJson(res, 200, { ok: true, count: store.topics.length, topics: enriched });
+}
+
+// ── Contract Watch (USASpending significant-award monitor) ─────────────────
+
+const CONTRACT_WATCH_PRIVATE_RELATED = {
+  spacex: ["BAH", "LMT", "RKLB"],
+  "space exploration": ["BAH", "LMT", "RKLB"],
+  anduril: ["LMT", "PLTR", "BAH"]
+};
+
+const CONTRACT_WATCH_DISCLAIMER =
+  "Federal award data from USASpending.gov. DoD postings may lag signing by up to 90 days. Research context only — not investment advice.";
+
+let contractWatchRuntime = { lastRefreshAt: null, awards: [], alerts: [], refreshing: false };
+let contractWatchApiCache = { fetchedAt: 0, payload: null };
+
+function defaultContractWatchStore() {
+  return {
+    config: {
+      recipients: [
+        "SPACEX",
+        "SPACE EXPLORATION",
+        "PALANTIR",
+        "GEO GROUP",
+        "CORECIVIC",
+        "BOOZ ALLEN",
+        "LOCKHEED",
+        "NORTHROP"
+      ],
+      minAmount: 10_000_000,
+      agencies: [
+        "Department of Defense",
+        "National Aeronautics and Space Administration",
+        "Department of Homeland Security"
+      ]
+    },
+    seenAwardIds: {},
+    alerts: [],
+    awards: [],
+    lastRefreshAt: null,
+    updatedAt: null
+  };
+}
+
+async function loadContractWatchStore() {
+  try {
+    const raw = await readFile(CONTRACT_WATCH_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    const base = defaultContractWatchStore();
+    return {
+      ...base,
+      ...parsed,
+      config: { ...base.config, ...(parsed.config || {}) },
+      seenAwardIds: parsed.seenAwardIds && typeof parsed.seenAwardIds === "object" ? parsed.seenAwardIds : {},
+      alerts: Array.isArray(parsed.alerts) ? parsed.alerts : [],
+      awards: Array.isArray(parsed.awards) ? parsed.awards : []
+    };
+  } catch {
+    return defaultContractWatchStore();
+  }
+}
+
+async function saveContractWatchStore(store) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await withFileLock(CONTRACT_WATCH_FILE, () =>
+    writeFile(CONTRACT_WATCH_FILE, `${JSON.stringify(store, null, 2)}\n`, "utf8")
+  );
+}
+
+function parseUsaspendingTimestamp(value) {
+  if (!value) return NaN;
+  const normalized = String(value).trim().replace(" ", "T");
+  const ts = Date.parse(normalized.endsWith("Z") ? normalized : `${normalized}Z`);
+  return Number.isFinite(ts) ? ts : NaN;
+}
+
+function isWithinDays(value, days) {
+  const ts = parseUsaspendingTimestamp(value);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts <= Number(days) * 86_400_000;
+}
+
+function contractWatchAwardKey(row) {
+  return (
+    row?.internalId ||
+    row?.generated_internal_id ||
+    row?.["generated_internal_id"] ||
+    row?.awardId ||
+    row?.["Award ID"] ||
+    null
+  );
+}
+
+function agencyMatchesWatch(awardingAgency, agencies = []) {
+  if (!agencies.length) return true;
+  const agency = String(awardingAgency || "").toLowerCase();
+  return agencies.some((name) => {
+    const n = String(name || "").toLowerCase();
+    return agency.includes(n) || n.includes(agency);
+  });
+}
+
+function mapUsaspendingWatchAwardRow(row) {
+  const base = mapUsaspendingAwardRow(row);
+  return {
+    ...base,
+    lastModifiedDate: row["Last Modified Date"] || null
+  };
+}
+
+async function fetchUsaspendingWatchAwards(filters, cacheKey, { sort = "Last Modified Date", limit = 20 } = {}) {
+  if (cacheKey) {
+    const cached = usaspendingCacheGet(cacheKey);
+    if (cached) return cached;
+  }
+
+  const watchFields = [
+    "Award ID",
+    "generated_internal_id",
+    "recipient_id",
+    "Recipient Name",
+    "Awarding Agency",
+    "Award Amount",
+    "Description",
+    "Start Date",
+    "End Date",
+    "Contract Award Type",
+    "NAICS",
+    "PSC",
+    "Last Modified Date"
+  ];
+
+  try {
+    const response = await fetchWithTimeout(
+      `${USASPENDING_API_BASE}/search/spending_by_award/`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filters: { ...filters, award_type_codes: ["A", "B", "C", "D"] },
+          fields: watchFields,
+          sort,
+          order: "desc",
+          page: 1,
+          limit
+        })
+      },
+      USASPENDING_FETCH_TIMEOUT_MS
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const results = (data.results || []).slice(0, limit).map(mapUsaspendingWatchAwardRow);
+    if (results.length && cacheKey) usaspendingCacheSet(cacheKey, results);
+    return results.length ? results : null;
+  } catch {
+    return null;
+  }
+}
+
+function contractWatchSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function relatedTickersForPrivateRecipient(recipientName = "", watchKeyword = "") {
+  const blob = `${recipientName} ${watchKeyword}`.toLowerCase();
+  const found = new Set();
+  for (const [needle, tickers] of Object.entries(CONTRACT_WATCH_PRIVATE_RELATED)) {
+    if (blob.includes(needle)) tickers.forEach((t) => found.add(String(t).toUpperCase()));
+  }
+  if (/spacex|space exploration/i.test(blob)) ["BAH", "LMT", "RKLB"].forEach((t) => found.add(t));
+  if (/palantir/i.test(blob)) found.add("PLTR");
+  if (/geo group/i.test(blob)) found.add("GEO");
+  if (/corecivic/i.test(blob)) found.add("CXW");
+  if (/booz allen/i.test(blob)) found.add("BAH");
+  if (/lockheed/i.test(blob)) found.add("LMT");
+  if (/northrop/i.test(blob)) found.add("NOC");
+  if (/leidos/i.test(blob)) found.add("LDOS");
+  if (/saic/i.test(blob)) found.add("SAIC");
+  return [...found].filter((t) => VALID_TICKER_PATTERN.test(t)).slice(0, 6);
+}
+
+function mapContractWatchTickers(row) {
+  const recipient = row.recipientName || "";
+  const direct = contractSymbolForCompany(recipient) || inferTickerFromRecipientName(recipient);
+  const mapped = direct ? [direct] : [];
+  const related = relatedTickersForPrivateRecipient(recipient, row.watchKeyword || "");
+  const noPublicTicker = mapped.length === 0;
+  const mergedRelated = [...new Set(related.filter((t) => !mapped.includes(t)))];
+  return { mappedTickers: mapped, relatedTickers: mergedRelated, noPublicTicker };
+}
+
+function buildContractWatchFreshness({ lastModifiedDate, firstSeenAt, isNew }) {
+  const modDays = freshnessDaysSince(lastModifiedDate);
+  const seenDays = freshnessDaysSince(firstSeenAt);
+  let label = "Recent";
+  if (isNew || (seenDays != null && seenDays <= 2)) label = "New";
+  else if (modDays != null && modDays <= 1) label = "Updated today";
+  else if (modDays != null && modDays <= 7) label = "This week";
+  return {
+    label,
+    status: modDays != null && modDays <= 7 ? "verified" : "stale",
+    lastModifiedDate: lastModifiedDate || null,
+    firstSeenAt: firstSeenAt || null
+  };
+}
+
+function contractWatchRelativeTime(value) {
+  const days = freshnessDaysSince(value);
+  if (days == null) return "recently";
+  if (days < 1 / 24) return "just now";
+  if (days < 1) return `${Math.max(1, Math.round(days * 24))}h ago`;
+  if (days < 14) return `${Math.round(days)}d ago`;
+  return freshnessShortDate(value) || "recently";
+}
+
+function formatContractWatchAward(row, mapping, seenRecord, nowIso) {
+  const key = contractWatchAwardKey(row);
+  const firstSeenAt = seenRecord[key] || nowIso;
+  const lastModifiedDate = row.lastModifiedDate || null;
+  const isNew = isWithinDays(firstSeenAt, 2) && isWithinDays(lastModifiedDate, 7);
+  const primaryTicker = mapping.mappedTickers[0] || mapping.relatedTickers[0] || null;
+  const description = row.description || "";
+  return {
+    awardId: row.awardId || key,
+    internalId: row.internalId || null,
+    recipient: row.recipientName || "Unknown recipient",
+    amount: Number(row.obligatedAmount || 0),
+    agency: row.awardingAgency || null,
+    awardDate: row.startDate || null,
+    actionDate: row.startDate || null,
+    lastModifiedDate,
+    descriptionSnippet: description ? `${description.slice(0, 180)}${description.length > 180 ? "…" : ""}` : null,
+    mappedTickers: mapping.mappedTickers,
+    relatedTickers: mapping.relatedTickers,
+    noPublicTicker: mapping.noPublicTicker,
+    contractUrl: row.directUrl || usaspendingSearchUrl(row.recipientName),
+    contractBriefUrl: primaryTicker ? shareContractPath(primaryTicker) : null,
+    freshness: buildContractWatchFreshness({ lastModifiedDate, firstSeenAt, isNew }),
+    isNew,
+    firstSeenAt,
+    watchKeyword: row.watchKeyword || null,
+    disclaimer: CONTRACT_WATCH_DISCLAIMER
+  };
+}
+
+async function refreshContractWatch({ force = false } = {}) {
+  if (contractWatchRuntime.refreshing && !force) return contractWatchRuntime;
+  contractWatchRuntime.refreshing = true;
+
+  try {
+    const store = await loadContractWatchStore();
+    const config = store.config || defaultContractWatchStore().config;
+    const minAmount = Number(config.minAmount) || 10_000_000;
+    const recipients = [...new Set((config.recipients || []).map((r) => String(r).trim()).filter(Boolean))];
+    const agencies = config.agencies || [];
+    const seen = { ...(store.seenAwardIds || {}) };
+    const isFirstRun = !Object.keys(seen).length;
+    const nowIso = new Date().toISOString();
+    const collected = new Map();
+
+    for (const kw of recipients) {
+      await contractWatchSleep(400);
+      const rows =
+        (await fetchUsaspendingWatchAwards({ keywords: [kw] }, `watch:kw:${kw.toLowerCase()}`, { limit: 25 })) || [];
+      for (const row of rows) {
+        if (Number(row.obligatedAmount || 0) < minAmount) continue;
+        if (!agencyMatchesWatch(row.awardingAgency, agencies)) continue;
+        if (!isWithinDays(row.lastModifiedDate, 7)) continue;
+        const key = contractWatchAwardKey(row);
+        if (!key || collected.has(key)) continue;
+        collected.set(key, { ...row, watchKeyword: kw });
+      }
+    }
+
+    for (const agency of agencies.slice(0, 3)) {
+      await contractWatchSleep(400);
+      const rows =
+        (await fetchUsaspendingWatchAwards(
+          {
+            agencies: [{ type: "awarding", tier: "toptier", name: agency }],
+            award_amounts: [{ lower_bound: minAmount }]
+          },
+          `watch:agency:${agency.toLowerCase()}:${minAmount}`,
+          { limit: 20 }
+        )) || [];
+      for (const row of rows) {
+        if (Number(row.obligatedAmount || 0) < minAmount) continue;
+        if (!isWithinDays(row.lastModifiedDate, 7)) continue;
+        const key = contractWatchAwardKey(row);
+        if (!key || collected.has(key)) continue;
+        collected.set(key, { ...row, watchKeyword: agency });
+      }
+    }
+
+    const newAlerts = [];
+    const awards = [];
+
+    for (const [key, row] of collected) {
+      const mapping = mapContractWatchTickers(row);
+      const wasSeen = Boolean(seen[key]);
+      if (!wasSeen) seen[key] = nowIso;
+      const formatted = formatContractWatchAward(row, mapping, seen, seen[key]);
+      awards.push(formatted);
+
+      if (!wasSeen && !isFirstRun) {
+        newAlerts.push(formatted);
+      } else if (!wasSeen && isFirstRun && isWithinDays(row.lastModifiedDate, 2)) {
+        newAlerts.push(formatted);
+      }
+    }
+
+    awards.sort(
+      (a, b) => parseUsaspendingTimestamp(b.lastModifiedDate) - parseUsaspendingTimestamp(a.lastModifiedDate)
+    );
+
+    store.seenAwardIds = seen;
+    store.awards = awards.slice(0, 120);
+    store.alerts = [...newAlerts, ...(store.alerts || [])]
+      .filter((row, idx, arr) => arr.findIndex((x) => x.awardId === row.awardId) === idx)
+      .slice(0, 60);
+    store.lastRefreshAt = nowIso;
+    store.updatedAt = nowIso;
+
+    await saveContractWatchStore(store);
+    contractWatchRuntime = {
+      lastRefreshAt: nowIso,
+      awards: store.awards,
+      alerts: store.alerts,
+      refreshing: false
+    };
+    contractWatchApiCache = { fetchedAt: 0, payload: null };
+  } catch (err) {
+    console.error("[contract-watch] refresh failed:", err.message);
+  } finally {
+    contractWatchRuntime.refreshing = false;
+  }
+
+  return contractWatchRuntime;
+}
+
+async function getContractWatchPayload({ force = false } = {}) {
+  if (
+    !force &&
+    contractWatchApiCache.payload &&
+    Date.now() - contractWatchApiCache.fetchedAt < CONTRACT_WATCH_API_CACHE_MS
+  ) {
+    return contractWatchApiCache.payload;
+  }
+
+  const store = await loadContractWatchStore();
+  let awards = store.awards?.length ? store.awards : contractWatchRuntime.awards;
+  if (!awards.length && !contractWatchRuntime.lastRefreshAt) {
+    await refreshContractWatch({ force: true });
+    awards = contractWatchRuntime.awards;
+  }
+
+  const payload = {
+    source: "contract_watch",
+    updatedAt: store.updatedAt || contractWatchRuntime.lastRefreshAt || new Date().toISOString(),
+    lastRefreshAt: store.lastRefreshAt || contractWatchRuntime.lastRefreshAt,
+    minAmount: Number(store.config?.minAmount) || 10_000_000,
+    recipientCount: (store.config?.recipients || []).length,
+    disclaimer: CONTRACT_WATCH_DISCLAIMER,
+    awards: awards.slice(0, 80),
+    alertCount: (store.alerts || []).filter((a) => isWithinDays(a.firstSeenAt, 2)).length
+  };
+  contractWatchApiCache = { fetchedAt: Date.now(), payload };
+  return payload;
+}
+
+function contractWatchAlertAsTrendingTopic(award) {
+  const tickers = award.mappedTickers || [];
+  const related = award.relatedTickers || [];
+  const titleRecipient = award.recipient || "Federal recipient";
+  return {
+    id: `contract-watch-${award.awardId}`,
+    title: `${compactMoney(award.amount)} → ${titleRecipient}`,
+    type: "contract",
+    keywords: award.watchKeyword ? [award.watchKeyword] : [],
+    tickers,
+    relatedTickers: related.filter((t) => !tickers.includes(t)),
+    pinned: Boolean(award.isNew),
+    hasPublicTicker: tickers.length > 0,
+    privateCompany: Boolean(award.noPublicTicker),
+    contractMatches: [
+      {
+        awardId: award.awardId,
+        recipientName: award.recipient,
+        awardingAgency: award.agency,
+        obligatedAmount: award.amount,
+        startDate: award.awardDate,
+        directUrl: award.contractUrl,
+        inferredTicker: tickers[0] || related[0] || null,
+        description: award.descriptionSnippet,
+        firstSeenAt: award.firstSeenAt,
+        lastModifiedDate: award.lastModifiedDate
+      }
+    ],
+    headlineMatches: award.isNew
+      ? [
+          {
+            headline: `New federal award: ${compactMoney(award.amount)} to ${titleRecipient}`,
+            source: "USASpending · Contract Watch",
+            url: award.contractUrl,
+            publishedAt: award.firstSeenAt || award.lastModifiedDate,
+            summary: award.descriptionSnippet || CONTRACT_WATCH_DISCLAIMER,
+            stub: false
+          }
+        ]
+      : [],
+    congressMatches: [],
+    mappedTickers: [...new Set([...tickers, ...related])],
+    freshness: {
+      label: award.freshness?.label || "Recent",
+      level: award.freshness?.status === "verified" ? "verified" : "stale",
+      sourcesLine: award.firstSeenAt
+        ? `First seen by TradeSimple ${contractWatchRelativeTime(award.firstSeenAt)} · USASpending modified ${award.lastModifiedDate || "unknown"}`
+        : `USASpending · ${award.lastModifiedDate || "unknown"}`
+    },
+    briefUrl: award.contractBriefUrl,
+    disclaimer: CONTRACT_WATCH_DISCLAIMER,
+    enrichedAt: new Date().toISOString(),
+    contractWatch: true
+  };
+}
+
+function pickLandingContractAwardLine() {
+  const awards = contractWatchRuntime.awards?.length
+    ? contractWatchRuntime.awards
+    : contractWatchApiCache.payload?.awards || [];
+  const fresh = awards.find((row) => isWithinDays(row.firstSeenAt, 1) || (row.isNew && isWithinDays(row.lastModifiedDate, 1)));
+  if (!fresh) return null;
+  return {
+    line: `New federal award: ${compactMoney(fresh.amount)} to ${fresh.recipient}`,
+    recipient: fresh.recipient,
+    amount: fresh.amount,
+    url: fresh.contractUrl,
+    firstSeenAt: fresh.firstSeenAt,
+    awardDate: fresh.awardDate,
+    disclaimer: CONTRACT_WATCH_DISCLAIMER
+  };
+}
+
+function contractWatchListHandler(res) {
+  getContractWatchPayload()
+    .then((payload) => sendJson(res, 200, payload))
+    .catch((err) => {
+      console.error("[contract-watch]", err.message);
+      sendJson(res, 500, { error: "contract_watch_failed" });
+    });
+}
+
+function contractWatchAlertsHandler(res, url) {
+  const sinceParam = url.searchParams.get("since");
+  const sinceTs = sinceParam ? Date.parse(sinceParam) : NaN;
+  getContractWatchPayload()
+    .then(async (payload) => {
+      const store = await loadContractWatchStore();
+      let alerts = (store.alerts || payload.awards.filter((a) => a.isNew)).filter(
+        (row) => isWithinDays(row.firstSeenAt, 2) || isWithinDays(row.lastModifiedDate, 2)
+      );
+      if (Number.isFinite(sinceTs)) {
+        alerts = alerts.filter((row) => {
+          const ts = Date.parse(row.firstSeenAt || "");
+          return Number.isFinite(ts) && ts > sinceTs;
+        });
+      }
+      sendJson(res, 200, {
+        source: "contract_watch_alerts",
+        updatedAt: new Date().toISOString(),
+        lastRefreshAt: payload.lastRefreshAt,
+        count: alerts.length,
+        alerts,
+        disclaimer: CONTRACT_WATCH_DISCLAIMER
+      });
+    })
+    .catch((err) => {
+      console.error("[contract-watch/alerts]", err.message);
+      sendJson(res, 500, { error: "contract_watch_alerts_failed" });
+    });
+}
+
+async function contractWatchAdminHandler(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  const body = await readJson(req);
+  const store = await loadContractWatchStore();
+  const config = store.config || defaultContractWatchStore().config;
+
+  if (Array.isArray(body.recipients)) {
+    config.recipients = [...new Set(body.recipients.map((r) => String(r).trim().toUpperCase()).filter(Boolean))];
+  } else if (body.recipient) {
+    const term = String(body.recipient).trim().toUpperCase();
+    if (term && !config.recipients.includes(term)) config.recipients.push(term);
+  }
+  if (body.minAmount != null) config.minAmount = Math.max(0, Number(body.minAmount) || config.minAmount);
+  if (Array.isArray(body.agencies)) config.agencies = body.agencies.map(String);
+
+  store.config = config;
+  store.updatedAt = new Date().toISOString();
+  await saveContractWatchStore(store);
+  contractWatchApiCache = { fetchedAt: 0, payload: null };
+  await refreshContractWatch({ force: true });
+  const payload = await getContractWatchPayload({ force: true });
+  sendJson(res, 200, {
+    ok: true,
+    config: store.config,
+    awardCount: payload.awards.length,
+    alertCount: payload.alertCount,
+    lastRefreshAt: payload.lastRefreshAt
+  });
 }
 
 async function refreshTrendingCongressDiscoveries(key) {
@@ -12015,6 +12548,8 @@ function contractSymbolForCompany(company) {
   if (c.includes("rtx") || c.includes("raytheon")) return "RTX";
   if (c.includes("northrop")) return "NOC";
   if (c.includes("general dynamics")) return "GD";
+  if (c.includes("geo group")) return "GEO";
+  if (c.includes("corecivic")) return "CXW";
   return null;
 }
 
