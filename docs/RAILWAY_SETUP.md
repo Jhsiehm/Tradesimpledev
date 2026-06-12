@@ -105,6 +105,11 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 | `APP_URL` | Auto from `RAILWAY_PUBLIC_DOMAIN` if unset |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth (if re-enabled) |
 | `FINNHUB_API_KEY` | Live quotes on Markets tab and stock briefs |
+| `FINNHUB_MIN_INTERVAL_MS` | Ms between Finnhub API calls (default `2000` — ~30/min) |
+| `CATALOG_WARM_INTERVAL_MS` | Ms between catalog warmup symbols (default `5000` — 52 symbols in ~4.3 min) |
+| `QUOTE_FETCH_CONCURRENCY` | Parallel quote workers for `/api/market/quotes` (default `1` on free tier) |
+| `FINNHUB_COOLDOWN_MS` | Pause all Finnhub calls after HTTP 429 (default `105000`) |
+| `QUOTE_FRESH_SKIP_MS` | Skip Finnhub when live quote cached younger than this (default `120000`) |
 | `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` | Optional Alpaca paper broker (set `ALPACA_PAPER_ENABLED=true` to route orders) |
 | `ALPACA_PAPER_ENABLED` | `true` sends paper orders to Alpaca paper API (local account still mirrors fills) |
 | `ALLOW_LIVE_TRADING` | Must stay `false` unless you intentionally enable live Alpaca (`ALPACA_TRADING_BASE_URL=https://api.alpaca.markets`) |

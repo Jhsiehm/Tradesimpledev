@@ -245,21 +245,23 @@ const BASE_SECURITY_HEADERS = {
 // (below) staggers each symbol's cache-fill time, so refreshes trickle in
 // rather than re-bursting all 50+ symbols at once.
 const QUOTE_CACHE_TTL_MS = Number(process.env.QUOTE_CACHE_TTL_MS || 60_000);
+// Skip Finnhub when a live quote is already cached younger than this (dedupes
+// warmup + Markets + landing requests against the same ~60 req/min free tier).
+const QUOTE_FRESH_SKIP_MS = Number(process.env.QUOTE_FRESH_SKIP_MS || 120_000);
 const quoteCache = new Map();
 // Finnhub's free tier is ~60 req/min with a per-second cap. A burst of parallel
 // quote calls trips HTTP 429, so we (a) cap fetch concurrency and (b) trip a
 // short circuit-breaker when Finnhub rate-limits us — serving cache/fallback
 // until it recovers instead of hammering it on every subsequent request.
-const QUOTE_FETCH_CONCURRENCY = Number(process.env.QUOTE_FETCH_CONCURRENCY || 4);
-const FINNHUB_COOLDOWN_MS = Number(process.env.FINNHUB_COOLDOWN_MS || 60_000);
+const QUOTE_FETCH_CONCURRENCY = Number(process.env.QUOTE_FETCH_CONCURRENCY || 1);
+const FINNHUB_COOLDOWN_MS = Number(process.env.FINNHUB_COOLDOWN_MS || 105_000);
 let finnhubCooldownUntil = 0;
-// Pace Finnhub requests so the worker pool can't burn through the whole
-// per-minute budget in the first few seconds (which is what trips the 429
-// breaker above). One call every ~1.1s caps us at ~54/min, under the 60/min
-// limit, and naturally staggers each symbol's cache fill so refreshes spread
-// across the minute instead of expiring — and re-bursting — all at once.
-const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 1_100);
+// Pace Finnhub requests globally (single queue). Default 2s ≈ 30/min — well under
+// the free-tier ~60/min cap even with catalog warmup + Markets refreshes.
+const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 2_000);
 const FINNHUB_FETCH_TIMEOUT_MS = Number(process.env.FINNHUB_FETCH_TIMEOUT_MS || 10_000);
+// Catalog warmup: one symbol every N ms (52 × 5s ≈ 4.3 min; tunable to 5–8 min).
+const CATALOG_WARM_INTERVAL_MS = Number(process.env.CATALOG_WARM_INTERVAL_MS || 5_000);
 // 0 = no per-request deadline — always backfill misses with cache/static ref prices.
 const MARKET_QUOTES_MAX_MS = Number(process.env.MARKET_QUOTES_MAX_MS || 0);
 let lastFinnhubCallAt = 0;
@@ -274,11 +276,36 @@ let stooqCooldownUntil = 0;
 const stooqBatchFailures = { count: 0, sample: [], message: "", timer: null };
 
 function logQuoteProviderError(provider, symbol, message) {
+  if (/HTTP 429|\b429\b/.test(String(message || ""))) return;
   const key = `${provider}:${symbol}`;
   const now = Date.now();
   if (now - (quoteProviderErrorAt.get(key) || 0) < QUOTE_ERROR_LOG_COOLDOWN_MS) return;
   quoteProviderErrorAt.set(key, now);
   console.warn(`[data] ${provider} quote failed for ${symbol}: ${message}`);
+}
+
+function noteFinnhubRateLimited() {
+  const now = Date.now();
+  if (now < finnhubCooldownUntil) return;
+  finnhubCooldownUntil = now + FINNHUB_COOLDOWN_MS;
+  const key = "finnhub:_429";
+  if (now - (quoteProviderErrorAt.get(key) || 0) < FINNHUB_COOLDOWN_MS) return;
+  quoteProviderErrorAt.set(key, now);
+  console.warn(
+    `[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/yfinance/fallback prices.`
+  );
+}
+
+function isLiveQuoteSource(source) {
+  const s = String(source || "").toLowerCase();
+  return s && s !== "fallback_static" && s !== "fallback";
+}
+
+function cachedQuoteFresh(symbol, maxAgeMs = QUOTE_FRESH_SKIP_MS) {
+  const cached = quoteCache.get(symbol);
+  if (!cached?.quote || !quoteHasValidPrice(cached.quote)) return null;
+  if (Date.now() - cached.cachedAt >= maxAgeMs) return null;
+  return cached;
 }
 
 function logQuoteProviderBatchError(provider, failures) {
@@ -337,12 +364,7 @@ async function fetchFinnhubQuote(symbol, token, attempt = 0) {
   try {
     const response = await fetchWithTimeout(quoteUrl, {}, FINNHUB_FETCH_TIMEOUT_MS);
     if (!response.ok) {
-      if (response.status === 429) {
-        finnhubCooldownUntil = Date.now() + FINNHUB_COOLDOWN_MS;
-        console.warn(
-          `[data] Finnhub rate-limited (429) — pausing Finnhub for ${Math.round(FINNHUB_COOLDOWN_MS / 1000)}s; serving cached/fallback prices.`
-        );
-      }
+      if (response.status === 429) noteFinnhubRateLimited();
       throw new Error(`HTTP ${response.status}`);
     }
     const data = await response.json();
@@ -944,41 +966,46 @@ function seedCatalogFallbackCache() {
 
 function queueBackgroundQuoteRefresh(symbols) {
   const unique = [...new Set((symbols || []).map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))];
-  if (!unique.length) return;
-  unique.forEach((symbol, index) => {
+  const stale = unique.filter((symbol) => {
+    const fresh = cachedQuoteFresh(symbol);
+    return !(fresh && isLiveQuoteSource(fresh.quote.source));
+  });
+  if (!stale.length) return;
+  const gapMs = Math.max(FINNHUB_MIN_INTERVAL_MS, 500);
+  stale.forEach((symbol, index) => {
     setTimeout(() => {
       quoteSnapshot(symbol).catch(() => {});
-    }, index * 120);
+    }, index * gapMs);
   });
 }
 
 async function enrichCatalogNamesFromFinnhub(catalog) {
-  const token = process.env.FINNHUB_API_KEY;
-  if (!token) return catalog;
-  const needs = catalog.symbols.filter((row) => row.name === row.symbol).slice(0, 24);
-  await Promise.all(
-    needs.map(async (row) => {
-      if (finnhubSymbolNameCache.has(row.symbol)) {
-        const cached = finnhubSymbolNameCache.get(row.symbol);
-        if (cached) row.name = cached;
-        return;
-      }
-      try {
+  if (!process.env.FINNHUB_API_KEY || Date.now() < finnhubCooldownUntil) return catalog;
+  const needs = catalog.symbols.filter((row) => row.name === row.symbol).slice(0, 12);
+  for (const row of needs) {
+    if (finnhubSymbolNameCache.has(row.symbol)) {
+      const cached = finnhubSymbolNameCache.get(row.symbol);
+      if (cached) row.name = cached;
+      continue;
+    }
+    if (Date.now() < finnhubCooldownUntil) break;
+    try {
+      const data = await withFinnhubSlot(async (token) => {
         const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(row.symbol)}&token=${encodeURIComponent(token)}`;
         const response = await fetchWithTimeout(url, {}, 5000);
         if (!response.ok) {
-          finnhubSymbolNameCache.set(row.symbol, row.name);
-          return;
+          if (response.status === 429) noteFinnhubRateLimited();
+          return null;
         }
-        const data = await response.json();
-        const name = data.name || row.name;
-        finnhubSymbolNameCache.set(row.symbol, name);
-        row.name = name;
-      } catch {
-        finnhubSymbolNameCache.set(row.symbol, row.name);
-      }
-    })
-  );
+        return response.json();
+      });
+      const name = data?.name || row.name;
+      finnhubSymbolNameCache.set(row.symbol, name);
+      row.name = name;
+    } catch {
+      finnhubSymbolNameCache.set(row.symbol, row.name);
+    }
+  }
   return catalog;
 }
 
@@ -2629,35 +2656,44 @@ server.listen(PORT, "0.0.0.0", async () => {
   warmQuoteCatalogCache();
 });
 
-/** Stagger full catalog quote fetches over ~2–3 min so first dashboard load hits warm cache. */
+/** Stagger catalog quote fetches one symbol at a time so boot never bursts Finnhub. */
 function warmQuoteCatalogCache() {
-  const symbols = getCatalogQuoteSymbols();
-  if (!symbols.length) return;
-  const windowMs = Number(process.env.QUOTE_WARM_WINDOW_MS || 180_000);
-  const staggerMs = Math.max(FINNHUB_MIN_INTERVAL_MS, Math.floor(windowMs / symbols.length));
-  console.warn(
-    `[data] Warming ${symbols.length} catalog quote caches over ~${Math.round((symbols.length * staggerMs) / 1000)}s`
-  );
-  symbols.forEach((sym, index) => {
-    setTimeout(() => {
-      quoteSnapshot(sym)
-        .then(() => {
-          if (index === symbols.length - 1) {
-            const catalogSet = getCatalogQuoteSymbolSet();
-            const quotes = [...quoteCache.entries()]
-              .filter(([sym]) => catalogSet.has(sym))
-              .map(([, entry]) => entry.quote)
-              .filter(quoteHasValidPrice);
-            const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
-            noteFeedSuccess("market", {
-              source: fallbackCount === quotes.length ? "fallback" : "mixed_live",
-              recordCount: quotes.length
-            });
-          }
-        })
-        .catch(() => {});
-    }, index * staggerMs);
+  const allSymbols = getCatalogQuoteSymbols();
+  if (!allSymbols.length) return;
+  const symbols = allSymbols.filter((sym) => {
+    const fresh = cachedQuoteFresh(sym);
+    return !(fresh && isLiveQuoteSource(fresh.quote.source));
   });
+  const skipped = allSymbols.length - symbols.length;
+  const estSec = Math.round((symbols.length * CATALOG_WARM_INTERVAL_MS) / 1000);
+  console.warn(
+    `[data] Warming ${symbols.length} catalog quote caches over ~${estSec}s` +
+      (skipped ? ` (${skipped} already fresh, skipped)` : "")
+  );
+  void (async () => {
+    for (let index = 0; index < symbols.length; index++) {
+      const sym = symbols[index];
+      try {
+        await quoteSnapshot(sym);
+      } catch {
+        /* yfinance/static fallback inside quoteSnapshot */
+      }
+      if (index < symbols.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, CATALOG_WARM_INTERVAL_MS));
+      }
+    }
+    if (!symbols.length) return;
+    const catalogSet = getCatalogQuoteSymbolSet();
+    const quotes = [...quoteCache.entries()]
+      .filter(([sym]) => catalogSet.has(sym))
+      .map(([, entry]) => entry.quote)
+      .filter(quoteHasValidPrice);
+    const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
+    noteFeedSuccess("market", {
+      source: fallbackCount === quotes.length ? "fallback" : "mixed_live",
+      recordCount: quotes.length
+    });
+  })();
 }
 
 function requestIp(req) {
@@ -3516,7 +3552,8 @@ async function marketQuotesCatalog(res) {
     if (result.quote && quoteHasValidPrice(result.quote)) {
       filteredQuotes.push(result.quote);
       const cached = quoteCache.get(symbol);
-      const isStale = !cached || Date.now() - cached.cachedAt >= QUOTE_CACHE_TTL_MS;
+      const fresh = cachedQuoteFresh(symbol);
+      const isStale = !fresh || !isLiveQuoteSource(fresh.quote.source);
       if (isStale || result.quote.source === "fallback_static") needsLiveRefresh.push(symbol);
       continue;
     }
@@ -4970,9 +5007,27 @@ async function landingQuotesHandler(res) {
     return sendJson(res, 200, landingQuotesCache);
   }
   try {
-    const quotes = (
-      await mapWithConcurrency(LANDING_QUOTES_TICKERS, 2, (symbol) => landingQuoteForSymbol(symbol))
-    ).filter(Boolean);
+    const quotes = [];
+    const needsFetch = [];
+    for (const symbol of LANDING_QUOTES_TICKERS) {
+      const fresh = cachedQuoteFresh(symbol);
+      if (fresh && quoteHasValidPrice(fresh.quote)) {
+        quotes.push({
+          symbol,
+          price: fresh.quote.price,
+          changePercent: fresh.quote.changePercent ?? fresh.quote.pct,
+          source: fresh.quote.source
+        });
+      } else {
+        needsFetch.push(symbol);
+      }
+    }
+    for (const symbol of needsFetch) {
+      const row = await landingQuoteForSymbol(symbol);
+      if (row) quotes.push(row);
+    }
+    const order = new Map(LANDING_QUOTES_TICKERS.map((sym, index) => [sym, index]));
+    quotes.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
     const payload = { quotes, updatedAt: new Date().toISOString() };
     if (quotes.length) {
       landingQuotesCache = payload;
@@ -4996,25 +5051,29 @@ async function fetchMarketHistoryPayload(symbol, range) {
   const from = to - seconds;
   const resolution = finnhubHistoryResolution(range);
 
-  if (token) {
+  if (token && Date.now() >= finnhubCooldownUntil) {
     try {
-      const historyUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}&token=${encodeURIComponent(token)}`;
-      const response = await fetchWithTimeout(historyUrl, {}, 9000);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.s === "ok" && Array.isArray(data.c) && data.c.length >= historyMinPoints(range)) {
-          const points = data.c.map((close, index) => ({
-            date: data.t?.[index]
-              ? new Date(data.t[index] * 1000).toISOString().slice(0, range === "1d" || range === "1w" ? 16 : 10)
-              : "",
-            close: Number(close),
-            open: Number(data.o?.[index] || close),
-            high: Number(data.h?.[index] || close),
-            low: Number(data.l?.[index] || close),
-            volume: Number(data.v?.[index] || 0)
-          }));
-          return { source: "finnhub", range, points, stats: historyStats(points) };
+      const data = await withFinnhubSlot(async (t) => {
+        const historyUrl = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}&token=${encodeURIComponent(t)}`;
+        const response = await fetchWithTimeout(historyUrl, {}, 9000);
+        if (!response.ok) {
+          if (response.status === 429) noteFinnhubRateLimited();
+          return null;
         }
+        return response.json();
+      });
+      if (data?.s === "ok" && Array.isArray(data.c) && data.c.length >= historyMinPoints(range)) {
+        const points = data.c.map((close, index) => ({
+          date: data.t?.[index]
+            ? new Date(data.t[index] * 1000).toISOString().slice(0, range === "1d" || range === "1w" ? 16 : 10)
+            : "",
+          close: Number(close),
+          open: Number(data.o?.[index] || close),
+          high: Number(data.h?.[index] || close),
+          low: Number(data.l?.[index] || close),
+          volume: Number(data.v?.[index] || 0)
+        }));
+        return { source: "finnhub", range, points, stats: historyStats(points) };
       }
     } catch (error) {
       console.error(
@@ -8409,15 +8468,20 @@ async function quoteSnapshot(symbol) {
     return { source: quote.source, quote, cached: true };
   }
 
-  if (process.env.FINNHUB_API_KEY) {
+  const freshLive = cachedQuoteFresh(symbol);
+  if (freshLive && isLiveQuoteSource(freshLive.quote.source)) {
+    const quote = withQuoteFreshness(
+      freshLive.quote,
+      freshLive.quote.source,
+      freshLive.quote.providerTimestamp || freshLive.quote.timestamp
+    );
+    return { source: quote.source, quote, cached: true };
+  }
+
+  if (process.env.FINNHUB_API_KEY && Date.now() >= finnhubCooldownUntil) {
     try {
       const finnhubResult = await withFinnhubSlot((token) => fetchFinnhubQuote(symbol, token));
       if (finnhubResult) return finnhubResult;
-      if (Date.now() < finnhubCooldownUntil && !quoteProviderErrorAt.has("finnhub:_cooldown")) {
-        quoteProviderErrorAt.set("finnhub:_cooldown", Date.now());
-        const remainingSec = Math.max(1, Math.round((finnhubCooldownUntil - Date.now()) / 1000));
-        console.warn(`[data] Finnhub paused — skipping live quotes for ~${remainingSec}s; serving cached/fallback prices.`);
-      }
     } catch (error) {
       logQuoteProviderError("Finnhub", symbol, error?.message || String(error));
     }
