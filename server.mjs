@@ -8432,6 +8432,15 @@ function slug(value) {
 
 /** Instant quote for deadline backfill — cache or static seed only, no network I/O. */
 function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
+  const freshLive = cachedQuoteFresh(symbol);
+  if (freshLive && isLiveQuoteSource(freshLive.quote.source)) {
+    const quote = withQuoteFreshness(
+      freshLive.quote,
+      freshLive.quote.source,
+      freshLive.quote.providerTimestamp || freshLive.quote.timestamp
+    );
+    return { source: quote.source, quote, cached: true };
+  }
   const cached = quoteCache.get(symbol);
   if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS && quoteHasValidPrice(cached.quote)) {
     const quote = withQuoteFreshness(
@@ -8439,7 +8448,7 @@ function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
       cached.quote.source,
       cached.quote.providerTimestamp || cached.quote.timestamp
     );
-    if (pending && quote.source === "fallback_static") quote.pending = true;
+    if (pending && !isLiveQuoteSource(quote.source)) quote.pending = true;
     return { source: quote.source, quote, cached: true };
   }
   const fallbackRow = resolveCatalogFallbackQuote(symbol);
@@ -8459,7 +8468,12 @@ function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
 async function quoteSnapshot(symbol) {
   const fallbackRow = resolveCatalogFallbackQuote(symbol) || null;
   const cached = quoteCache.get(symbol);
-  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS && quoteHasValidPrice(cached.quote)) {
+  if (
+    cached &&
+    Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS &&
+    quoteHasValidPrice(cached.quote) &&
+    isLiveQuoteSource(cached.quote.source)
+  ) {
     const quote = withQuoteFreshness(
       cached.quote,
       cached.quote.source,

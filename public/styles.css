@@ -592,6 +592,19 @@ button { color: inherit; }
   min-height: 38px;
 }
 
+.quote-warmup-hint {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent, #c9a227);
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+.quote-warmup-hint[hidden] {
+  display: none;
+}
+
 .tape-strip .ticker-tape-track {
   position: relative;
   width: 100%;

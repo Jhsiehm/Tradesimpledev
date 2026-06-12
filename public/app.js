@@ -618,6 +618,7 @@ function applyQuoteBatchToState(data, { render = true } = {}) {
   if (state.tradeHistory) renderTradePanel();
   renderLiveAlerts();
   syncQuotesFallbackBanner(data);
+  syncQuoteWarmupHint();
   if ($("#view-analysis")?.classList.contains("active") && state.analysis) {
     refreshActiveAnalysisChart();
   }
@@ -644,7 +645,8 @@ function summarizeQuoteBatchMeta(quotes, source = "") {
 const QUOTE_BATCH_CHUNK_SIZE = 6;
 const QUOTE_BATCH_CHUNK_TIMEOUT_MS = 15000;
 const QUOTE_BATCH_MAX_RETRY_PASSES = 2;
-const QUOTE_MISSING_POLL_MS = 45_000;
+const QUOTE_LIVE_UPGRADE_POLL_MS = 60_000;
+const QUOTE_LIVE_MAJORITY_RATIO = 0.5;
 const QUOTE_CATALOG_TIMEOUT_MS = 8000;
 
 function hotQuoteSymbols() {
@@ -763,28 +765,91 @@ function missingQuoteSymbols() {
   return universe.filter((symbol) => !quoteHasRenderablePrice(quoteFor(symbol)));
 }
 
-async function pollMissingQuotes({ render = true } = {}) {
+function staticFallbackQuoteSymbols() {
+  const catalog = marketsCatalogRows().map((row) => row.symbol);
+  const universe = catalog.length ? catalog : quoteSymbolUniverse();
+  return universe.filter((symbol) => {
+    const quote = quoteFor(symbol);
+    return quoteHasRenderablePrice(quote) && quoteIsStaticFallback(quote);
+  });
+}
+
+function catalogLiveQuoteStats() {
+  const symbols = marketsCatalogRows().map((row) => row.symbol);
+  const total = symbols.length;
+  let live = 0;
+  for (const sym of symbols) {
+    const quote = quoteFor(sym);
+    if (quoteHasRenderablePrice(quote) && !quoteIsStaticFallback(quote)) live += 1;
+  }
+  return { total, live, static: total - live };
+}
+
+function syncQuoteWarmupHint() {
+  const el = $("#quote-warmup-hint");
+  if (!el) return;
+  const { total, live, static: staticCount } = catalogLiveQuoteStats();
+  if (!total || staticCount === 0) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = `Upgrading to live prices… ${live}/${total} live`;
+}
+
+function quoteUpgradeTargets() {
   const missing = missingQuoteSymbols();
-  if (!missing.length) return;
-  markQuoteSymbolsPending(missing);
-  if (render) renderMarkets();
+  const staticRefs = staticFallbackQuoteSymbols();
+  return [...new Set([...missing, ...staticRefs])];
+}
+
+function quoteUpgradePollActive() {
+  const { total, live } = catalogLiveQuoteStats();
+  if (!total) return false;
+  return live / total < QUOTE_LIVE_MAJORITY_RATIO || missingQuoteSymbols().length > 0;
+}
+
+async function pollQuoteUpgrades({ render = true } = {}) {
+  if (!quoteUpgradePollActive()) {
+    syncQuoteWarmupHint();
+    return;
+  }
+  const targets = quoteUpgradeTargets();
+  if (!targets.length) {
+    syncQuoteWarmupHint();
+    return;
+  }
+  markQuoteSymbolsPending(targets);
+  if (render) {
+    syncQuoteWarmupHint();
+    renderMarkets();
+  }
   try {
     const data = await fetchCatalogQuotes({ timeoutMs: QUOTE_CATALOG_TIMEOUT_MS });
     applyQuoteBatchToState(data, { render });
-    const stillMissing = missingQuoteSymbols();
-    if (stillMissing.length) {
-      const retry = await fetchQuotesBatched(stillMissing, { trackPending: true, retryMissing: true });
+    syncQuotesFallbackBanner(data);
+    syncQuoteWarmupHint();
+    const stillNeeding = quoteUpgradeTargets();
+    if (stillNeeding.length) {
+      const batch = stillNeeding.slice(0, QUOTE_BATCH_CHUNK_SIZE * 2);
+      const retry = await fetchQuotesBatched(batch, { trackPending: true, retryMissing: true });
       applyQuoteBatchToState(retry, { render });
+      syncQuoteWarmupHint();
     }
   } catch (error) {
-    console.warn("[quotes] missing-symbol poll failed", error);
-    bumpQuoteRetryFailures(missing);
+    console.warn("[quotes] live-upgrade poll failed", error);
+    bumpQuoteRetryFailures(targets);
     try {
-      const retry = await fetchQuotesBatched(missing, { trackPending: true, retryMissing: true });
+      const retry = await fetchQuotesBatched(targets.slice(0, QUOTE_BATCH_CHUNK_SIZE * 2), {
+        trackPending: true,
+        retryMissing: true
+      });
       applyQuoteBatchToState(retry, { render });
     } catch (retryError) {
-      console.warn("[quotes] batched retry failed", retryError);
+      console.warn("[quotes] batched live-upgrade retry failed", retryError);
     }
+    syncQuoteWarmupHint();
     if (render) renderMarkets();
   }
 }
@@ -792,8 +857,9 @@ async function pollMissingQuotes({ render = true } = {}) {
 function startMissingQuotePoll() {
   if (state.missingQuotePollTimer) clearInterval(state.missingQuotePollTimer);
   state.missingQuotePollTimer = setInterval(() => {
-    void pollMissingQuotes({ render: $("#view-markets")?.classList.contains("active") });
-  }, QUOTE_MISSING_POLL_MS);
+    const onMarkets = $("#view-markets")?.classList.contains("active");
+    void pollQuoteUpgrades({ render: onMarkets || quoteUpgradePollActive() });
+  }, QUOTE_LIVE_UPGRADE_POLL_MS);
 }
 
 function billsForSymbol(symbol) {
@@ -847,7 +913,7 @@ function marketsQuoteCellHtml(symbol) {
         : "";
     return `<span class="markets-quote-cell">${priceHtml}${srcBadge}</span>`;
   }
-  return `<span class="markets-quote-pending" title="Fetching quote — auto-retry every 45s">Loading…</span>`;
+  return `<span class="markets-quote-pending" title="Fetching quote — auto-retry every 60s">Loading…</span>`;
 }
 
 function updateMarketsTableMeta() {
@@ -3827,11 +3893,19 @@ function syncQuotesFallbackBanner(data) {
   const tableWrap = document.querySelector("#view-markets section.panel .table-wrap");
   if (!tableWrap?.parentNode) return;
   const existing = document.getElementById("ts-fallback-banner");
-  if (!data?.fallback) {
+  if (!data?.fallback && !data?.partialFallback) {
     existing?.remove();
     return;
   }
-  if (existing) return;
+  const note =
+    data.fallbackNote ||
+    (data.partialFallback
+      ? `${data.staticQuoteCount ?? "Some"} symbols still on reference prices — live refresh in progress.`
+      : "Static reference prices — live data unavailable");
+  if (existing) {
+    existing.textContent = note.startsWith("⚠") ? note : `⚠ ${note}`;
+    return;
+  }
   const banner = document.createElement("div");
   banner.id = "ts-fallback-banner";
   banner.style.background = "#1a1a00";
@@ -3841,7 +3915,7 @@ function syncQuotesFallbackBanner(data) {
   banner.style.padding = "6px 12px";
   banner.style.marginBottom = "8px";
   banner.style.borderRadius = "4px";
-  banner.textContent = "⚠ Static reference prices — live data unavailable";
+  banner.textContent = note.startsWith("⚠") ? note : `⚠ ${note}`;
   tableWrap.parentNode.insertBefore(banner, tableWrap);
 }
 
@@ -3890,7 +3964,7 @@ async function loadMarketsData() {
     .then(applyBatch)
     .catch((err) => console.warn("[markets] live refresh failed", err));
 
-  void pollMissingQuotes({ render: true });
+  void pollQuoteUpgrades({ render: true });
 
   if (!isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) {
     state.crypto = [];
