@@ -307,9 +307,7 @@ function bumpQuoteRetryFailures(symbols) {
   for (const raw of symbols || []) {
     const sym = normalizeWatchSymbol(raw);
     if (!sym) continue;
-    const next = (state.quoteRetryFailures.get(sym) || 0) + 1;
-    state.quoteRetryFailures.set(sym, next);
-    if (next >= QUOTE_UNAVAILABLE_AFTER_FAILURES) clearQuoteSymbolPending(sym);
+    state.quoteRetryFailures.set(sym, (state.quoteRetryFailures.get(sym) || 0) + 1);
   }
 }
 
@@ -376,8 +374,8 @@ function summarizeQuoteBatchMeta(quotes, source = "") {
 const QUOTE_BATCH_CHUNK_SIZE = 6;
 const QUOTE_BATCH_CHUNK_TIMEOUT_MS = 15000;
 const QUOTE_BATCH_MAX_RETRY_PASSES = 2;
-const QUOTE_MISSING_POLL_MS = 60_000;
-const QUOTE_UNAVAILABLE_AFTER_FAILURES = 3;
+const QUOTE_MISSING_POLL_MS = 45_000;
+const QUOTE_CATALOG_TIMEOUT_MS = 8000;
 
 function hotQuoteSymbols() {
   return [
@@ -402,6 +400,19 @@ async function fetchJsonTimed(url, init, timeoutMs = QUOTE_BATCH_CHUNK_TIMEOUT_M
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchCatalogQuotes(options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || QUOTE_CATALOG_TIMEOUT_MS;
+  const data = await fetchJsonTimed("/api/market/quotes/catalog", null, timeoutMs);
+  return summarizeQuoteBatchMeta(normalizeQuotes(data.quotes || []), data.source || "");
+}
+
+function catalogQuoteCoverage() {
+  const catalog = marketsCatalogRows().map((row) => row.symbol);
+  if (!catalog.length) return { total: 0, priced: 0, missing: [] };
+  const missing = catalog.filter((symbol) => !quoteHasRenderablePrice(quoteFor(symbol)));
+  return { total: catalog.length, priced: catalog.length - missing.length, missing };
 }
 
 async function fetchQuotesBatched(symbols, options = {}) {
@@ -477,26 +488,33 @@ async function fetchQuotesBatched(symbols, options = {}) {
 }
 
 function missingQuoteSymbols() {
-  return quoteSymbolUniverse().filter((symbol) => !quoteHasRenderablePrice(quoteFor(symbol)));
-}
-
-function quoteFailuresFor(symbol) {
-  return state.quoteRetryFailures?.get(normalizeWatchSymbol(symbol)) || 0;
+  const catalog = marketsCatalogRows().map((row) => row.symbol);
+  const universe = catalog.length ? catalog : quoteSymbolUniverse();
+  return universe.filter((symbol) => !quoteHasRenderablePrice(quoteFor(symbol)));
 }
 
 async function pollMissingQuotes({ render = true } = {}) {
-  const missing = missingQuoteSymbols().filter(
-    (symbol) => quoteFailuresFor(symbol) < QUOTE_UNAVAILABLE_AFTER_FAILURES
-  );
+  const missing = missingQuoteSymbols();
   if (!missing.length) return;
   markQuoteSymbolsPending(missing);
   if (render) renderMarkets();
   try {
-    const data = await fetchQuotesBatched(missing, { trackPending: true, retryMissing: true });
+    const data = await fetchCatalogQuotes({ timeoutMs: QUOTE_CATALOG_TIMEOUT_MS });
     applyQuoteBatchToState(data, { render });
+    const stillMissing = missingQuoteSymbols();
+    if (stillMissing.length) {
+      const retry = await fetchQuotesBatched(stillMissing, { trackPending: true, retryMissing: true });
+      applyQuoteBatchToState(retry, { render });
+    }
   } catch (error) {
     console.warn("[quotes] missing-symbol poll failed", error);
     bumpQuoteRetryFailures(missing);
+    try {
+      const retry = await fetchQuotesBatched(missing, { trackPending: true, retryMissing: true });
+      applyQuoteBatchToState(retry, { render });
+    } catch (retryError) {
+      console.warn("[quotes] batched retry failed", retryError);
+    }
     if (render) renderMarkets();
   }
 }
@@ -546,7 +564,7 @@ function marketsSourceBadgesHtml(row) {
 
 function marketsQuoteCellHtml(symbol) {
   const quote = quoteFor(symbol);
-  if (quote?.price != null && Number.isFinite(Number(quote.price))) {
+  if (quoteHasRenderablePrice(quote)) {
     const src = String(quote.source || "").toLowerCase();
     const isStatic = quoteIsStaticFallback(quote);
     const priceHtml = isStatic
@@ -559,13 +577,7 @@ function marketsQuoteCellHtml(symbol) {
         : "";
     return `<span class="markets-quote-cell">${priceHtml}${srcBadge}</span>`;
   }
-  if (state.marketsQuotesLoading || state.quotePendingSymbols?.has(symbol)) {
-    return `<span class="markets-quote-pending" title="Fetching quote">Loading…</span>`;
-  }
-  if (quoteFailuresFor(symbol) < QUOTE_UNAVAILABLE_AFTER_FAILURES) {
-    return `<span class="markets-quote-pending" title="Retrying quote fetch">Loading…</span>`;
-  }
-  return `<span class="markets-quote-unavailable" title="Live quote unavailable after retries">Unavailable</span>`;
+  return `<span class="markets-quote-pending" title="Fetching quote — auto-retry every 45s">Loading…</span>`;
 }
 
 function updateMarketsTableMeta() {
@@ -3400,54 +3412,48 @@ async function loadMarketsData() {
   state.marketsQuotesLoading = true;
   state.quoteFeedError = "";
   const catalogSymbols = marketsCatalogRows().map((row) => row.symbol);
-  const visible = marketsVisibleSymbols();
-  const hot = hotQuoteSymbols();
-  const allCatalogSymbols = [...new Set([...visible, ...catalogSymbols])];
-  const deferredSymbols = allCatalogSymbols.filter((symbol) => !hot.includes(symbol));
-  markQuoteSymbolsPending(allCatalogSymbols);
+  markQuoteSymbolsPending(catalogSymbols);
   renderMarkets();
 
   const applyBatch = (data) => {
     applyQuoteBatchToState(data, { render: true });
+    syncQuotesFallbackBanner(data);
     renderMarkets();
   };
 
   try {
-    const data = await fetchQuotesBatched(hot, {
-      onChunk: (partial) => applyBatch(partial)
-    });
+    const data = await fetchCatalogQuotes();
     applyBatch(data);
     state.marketsCatalogQuotesLoaded = true;
   } catch (e) {
-    console.error("[markets] quotes fetch failed", e);
-    state.quoteFeedError = "Could not load live quotes — check connection or tap Refresh.";
-    syncQuotesFallbackBanner({ fallback: false });
-    renderSourceBadges();
-    renderMarkets();
+    console.warn("[markets] catalog quotes failed, falling back to batched fetch", e);
+    try {
+      const hot = hotQuoteSymbols();
+      const data = await fetchQuotesBatched(hot, {
+        onChunk: (partial) => applyBatch(partial)
+      });
+      applyBatch(data);
+      state.marketsCatalogQuotesLoaded = true;
+    } catch (err) {
+      console.error("[markets] quotes fetch failed", err);
+      state.quoteFeedError = "Could not load quotes — check connection or tap Refresh.";
+      syncQuotesFallbackBanner({ fallback: false });
+      renderSourceBadges();
+      renderMarkets();
+    }
   } finally {
     state.marketsQuotesLoading = false;
     renderMarkets();
   }
 
-  if (deferredSymbols.length) {
-    try {
-      const deferredData = await fetchQuotesBatched(deferredSymbols, {
-        onChunk: (partial) => applyBatch(partial)
-      });
-      applyBatch(deferredData);
-    } catch (err) {
-      console.warn("[markets] deferred quotes fetch failed", err);
-      state.quoteFeedError = "Some symbols still loading — prices may appear shortly.";
-      renderSourceBadges();
-      renderMarkets();
-    } finally {
-      renderMarkets();
-      void pollMissingQuotes({ render: true });
-    }
-  } else {
-    renderMarkets();
-    void pollMissingQuotes({ render: true });
-  }
+  void fetchQuotesBatched(hotQuoteSymbols(), {
+    trackPending: true,
+    onChunk: (partial) => applyBatch(partial)
+  })
+    .then(applyBatch)
+    .catch((err) => console.warn("[markets] live refresh failed", err));
+
+  void pollMissingQuotes({ render: true });
 
   if (!isFeatureEnabled("CRYPTO_TRACKER_ENABLED")) {
     state.crypto = [];

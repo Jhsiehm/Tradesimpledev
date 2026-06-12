@@ -255,7 +255,8 @@ let finnhubCooldownUntil = 0;
 // across the minute instead of expiring — and re-bursting — all at once.
 const FINNHUB_MIN_INTERVAL_MS = Number(process.env.FINNHUB_MIN_INTERVAL_MS || 1_100);
 const FINNHUB_FETCH_TIMEOUT_MS = Number(process.env.FINNHUB_FETCH_TIMEOUT_MS || 10_000);
-const MARKET_QUOTES_MAX_MS = Number(process.env.MARKET_QUOTES_MAX_MS || 14_000);
+// 0 = no per-request deadline — always backfill misses with cache/static ref prices.
+const MARKET_QUOTES_MAX_MS = Number(process.env.MARKET_QUOTES_MAX_MS || 0);
 let lastFinnhubCallAt = 0;
 let finnhubQueueTail = Promise.resolve();
 const quoteProviderErrorAt = new Map();
@@ -887,6 +888,63 @@ function getTradableSymbolCatalog() {
     symbols,
     updatedAt: new Date().toISOString()
   };
+}
+
+let catalogQuoteSymbolsCache = null;
+
+function getCatalogQuoteSymbols() {
+  if (!catalogQuoteSymbolsCache) {
+    catalogQuoteSymbolsCache = getTradableSymbolCatalog().symbols.map((row) => row.symbol);
+  }
+  return catalogQuoteSymbolsCache;
+}
+
+function getCatalogQuoteSymbolSet() {
+  return new Set(getCatalogQuoteSymbols());
+}
+
+function quoteHasValidPrice(quote) {
+  return quote?.price != null && Number.isFinite(Number(quote.price)) && Number(quote.price) > 0;
+}
+
+/** Static reference price for any tradable catalog symbol — explicit seed or generic placeholder. */
+function resolveCatalogFallbackQuote(symbol) {
+  const sym = String(symbol || "").trim().toUpperCase();
+  if (!sym) return null;
+  const explicit = enrichStaticQuote(MARKET_FALLBACK[sym]);
+  if (explicit) return explicit;
+  if (!getCatalogQuoteSymbolSet().has(sym)) return null;
+  return enrichStaticQuote({
+    symbol: sym,
+    price: 100,
+    change: 0,
+    pct: 0,
+    high: 100,
+    low: 100,
+    open: 100
+  });
+}
+
+/** Pre-populate quoteCache with static refs so /api/market/quotes/catalog is instant on boot. */
+function seedCatalogFallbackCache() {
+  for (const symbol of getCatalogQuoteSymbols()) {
+    const row = resolveCatalogFallbackQuote(symbol);
+    if (!row) continue;
+    const cached = quoteCache.get(symbol);
+    if (cached && quoteHasValidPrice(cached.quote)) continue;
+    const quote = withQuoteFreshness(row, "fallback_static", row.timestamp || null);
+    quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+  }
+}
+
+function queueBackgroundQuoteRefresh(symbols) {
+  const unique = [...new Set((symbols || []).map((s) => String(s || "").trim().toUpperCase()).filter(Boolean))];
+  if (!unique.length) return;
+  unique.forEach((symbol, index) => {
+    setTimeout(() => {
+      quoteSnapshot(symbol).catch(() => {});
+    }, index * 120);
+  });
 }
 
 async function enrichCatalogNamesFromFinnhub(catalog) {
@@ -2552,24 +2610,29 @@ server.listen(PORT, "0.0.0.0", async () => {
     }
   }, 15_000);
 
+  seedCatalogFallbackCache();
   warmQuoteCatalogCache();
 });
 
-/** Stagger full catalog quote fetches over ~2 min so first dashboard load hits warm cache. */
+/** Stagger full catalog quote fetches over ~2–3 min so first dashboard load hits warm cache. */
 function warmQuoteCatalogCache() {
-  const symbols = [...DASHBOARD_MARKET_SYMBOLS];
+  const symbols = getCatalogQuoteSymbols();
   if (!symbols.length) return;
-  const windowMs = Number(process.env.QUOTE_WARM_WINDOW_MS || 120_000);
-  const staggerMs = Math.max(400, Math.floor(windowMs / symbols.length));
+  const windowMs = Number(process.env.QUOTE_WARM_WINDOW_MS || 180_000);
+  const staggerMs = Math.max(FINNHUB_MIN_INTERVAL_MS, Math.floor(windowMs / symbols.length));
   console.warn(
-    `[data] Warming ${symbols.length} quote caches over ~${Math.round((symbols.length * staggerMs) / 1000)}s`
+    `[data] Warming ${symbols.length} catalog quote caches over ~${Math.round((symbols.length * staggerMs) / 1000)}s`
   );
   symbols.forEach((sym, index) => {
     setTimeout(() => {
       quoteSnapshot(sym)
-        .then((row) => {
+        .then(() => {
           if (index === symbols.length - 1) {
-            const quotes = [...quoteCache.values()].map((entry) => entry.quote).filter(Boolean);
+            const catalogSet = getCatalogQuoteSymbolSet();
+            const quotes = [...quoteCache.entries()]
+              .filter(([sym]) => catalogSet.has(sym))
+              .map(([, entry]) => entry.quote)
+              .filter(quoteHasValidPrice);
             const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
             noteFeedSuccess("market", {
               source: fallbackCount === quotes.length ? "fallback" : "mixed_live",
@@ -2850,6 +2913,7 @@ async function route(req, res) {
       return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     }
 
+    if (pathname === "/api/market/quotes/catalog") return marketQuotesCatalog(res);
     if (pathname === "/api/market/quotes") return marketQuotes(res, url);
     if (pathname === "/api/market/history") return marketHistory(res, url);
     if (pathname === "/api/analysis/stock") {
@@ -3423,6 +3487,77 @@ async function waitlistSignup(req, res) {
   sendJson(res, 200, { ok: true, message: successMsg });
 }
 
+async function marketQuotesCatalog(res) {
+  const symbols = getCatalogQuoteSymbols();
+  const filteredQuotes = [];
+  const needsLiveRefresh = [];
+  for (const symbol of symbols) {
+    const result = quoteSnapshotCachedOrFallback(symbol);
+    if (result.quote && quoteHasValidPrice(result.quote)) {
+      filteredQuotes.push(result.quote);
+      const cached = quoteCache.get(symbol);
+      const isStale = !cached || Date.now() - cached.cachedAt >= QUOTE_CACHE_TTL_MS;
+      if (isStale || result.quote.source === "fallback_static") needsLiveRefresh.push(symbol);
+      continue;
+    }
+    const fallbackRow = resolveCatalogFallbackQuote(symbol);
+    if (fallbackRow) {
+      const quote = withQuoteFreshness(fallbackRow, "fallback_static", fallbackRow.timestamp || null);
+      quoteCache.set(symbol, { cachedAt: Date.now(), quote });
+      filteredQuotes.push(quote);
+      needsLiveRefresh.push(symbol);
+    }
+  }
+  if (needsLiveRefresh.length) queueBackgroundQuoteRefresh(needsLiveRefresh);
+  const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
+  const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
+  const publicCount = filteredQuotes.filter(
+    (q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public"
+  ).length;
+  const fallbackCount = filteredQuotes.filter((q) => q.source === "fallback_static").length;
+  const source =
+    fallbackCount === filteredQuotes.length
+      ? "fallback"
+      : liveCount === filteredQuotes.length
+        ? "finnhub"
+        : yfinanceCount === filteredQuotes.length
+          ? "yfinance"
+          : publicCount === filteredQuotes.length
+            ? yfinanceCount
+              ? "yfinance"
+              : "yahoo_chart"
+            : "mixed_live";
+  const envelope = {
+    source,
+    catalog: true,
+    symbolCount: symbols.length,
+    quotes: filteredQuotes,
+    confidence: scoreConfidence({
+      missingInputs: Math.max(0, symbols.length - filteredQuotes.length) + fallbackCount,
+      estimatedInputs: publicCount && !liveCount ? 1 : 0
+    }),
+    updatedAt: new Date().toISOString()
+  };
+  if (fallbackCount > 0) {
+    envelope.staticQuoteCount = fallbackCount;
+    envelope.liveQuoteCount = filteredQuotes.length - fallbackCount;
+    if (fallbackCount === filteredQuotes.length) {
+      envelope.fallback = true;
+      envelope.fallbackNote =
+        "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
+    } else {
+      envelope.partialFallback = true;
+      envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
+    }
+  }
+  if (filteredQuotes.length < symbols.length) {
+    envelope.partial = true;
+    envelope.pendingCount = symbols.length - filteredQuotes.length;
+  }
+  noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
+  sendJson(res, 200, envelope);
+}
+
 async function marketQuotes(res, url) {
   const symbolsParam =
     url.searchParams.get("symbols") || "SPY,QQQ,NVDA,AAPL,TSLA,LLY,AMZN,MSFT,AMD,META";
@@ -3434,7 +3569,7 @@ async function marketQuotes(res, url) {
         .filter(Boolean)
     )
   ].slice(0, 120);
-  const deadline = Date.now() + MARKET_QUOTES_MAX_MS;
+  const deadline = MARKET_QUOTES_MAX_MS > 0 ? Date.now() + MARKET_QUOTES_MAX_MS : Infinity;
   // Fetch with bounded concurrency so we never burst the provider rate limit.
   const filteredQuotes = [];
   let nextIndex = 0;
@@ -3497,6 +3632,10 @@ async function marketQuotes(res, url) {
     envelope.partial = true;
     envelope.pendingCount = symbols.length - filteredQuotes.length;
   }
+  const pendingLive = filteredQuotes
+    .filter((q) => q.pending && q.source === "fallback_static")
+    .map((q) => q.symbol);
+  if (pendingLive.length) queueBackgroundQuoteRefresh(pendingLive);
   noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
   sendJson(res, 200, envelope);
 }
@@ -7306,7 +7445,7 @@ function slug(value) {
 /** Instant quote for deadline backfill — cache or static seed only, no network I/O. */
 function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
   const cached = quoteCache.get(symbol);
-  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS && quoteHasValidPrice(cached.quote)) {
     const quote = withQuoteFreshness(
       cached.quote,
       cached.quote.source,
@@ -7315,7 +7454,7 @@ function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
     if (pending && quote.source === "fallback_static") quote.pending = true;
     return { source: quote.source, quote, cached: true };
   }
-  const fallbackRow = enrichStaticQuote(MARKET_FALLBACK[symbol]) || null;
+  const fallbackRow = resolveCatalogFallbackQuote(symbol);
   if (fallbackRow) {
     const quote = withQuoteFreshness(
       fallbackRow,
@@ -7330,9 +7469,9 @@ function quoteSnapshotCachedOrFallback(symbol, { pending = false } = {}) {
 }
 
 async function quoteSnapshot(symbol) {
-  const fallbackRow = enrichStaticQuote(MARKET_FALLBACK[symbol]) || null;
+  const fallbackRow = resolveCatalogFallbackQuote(symbol) || null;
   const cached = quoteCache.get(symbol);
-  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.cachedAt < QUOTE_CACHE_TTL_MS && quoteHasValidPrice(cached.quote)) {
     const quote = withQuoteFreshness(
       cached.quote,
       cached.quote.source,
