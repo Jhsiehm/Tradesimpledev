@@ -19,10 +19,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=focus-filters-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=gotham-polish-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -67,6 +67,7 @@
         </button>
         </div>
         <nav class="side-nav" aria-label="Terminal sections">
+          <span class="nav-section-label">Research</span>
           <button class="nav-item active" data-view="overview">Home</button>
           <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="signals">Signals</button>
@@ -74,9 +75,12 @@
           <button class="nav-item" data-view="lobbying">Lobbying</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
           <button class="nav-item" data-view="analysis">Analysis</button>
+          <span class="nav-section-label">Markets</span>
           <button class="nav-item" data-view="markets">Markets</button>
           <button class="nav-item" data-view="track-record">Track Record</button>
+          <span class="nav-section-label">Account</span>
           <button class="nav-item" data-view="trade">Account</button>
+          <span class="nav-section-label">Settings</span>
           <button class="nav-item nav-item-settings" data-view="settings">Settings</button>
         </nav>
         <div class="sidebar-footer-actions">
@@ -127,21 +131,20 @@
             <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
           </div>
         </div>
-        <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
-        <details class="dash-meta-fold source-freshness-fold" id="source-freshness-fold" hidden>
-          <summary class="dash-meta-fold-summary">Source freshness</summary>
-          <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness" hidden>
-            <div class="source-freshness-inner">
-              <div id="source-freshness-grid" class="source-freshness-grid"></div>
-              <a class="source-freshness-link" href="#" id="data-health-details-link">How data is verified</a>
-            </div>
-          </section>
-        </details>
-        <details class="dash-meta-fold terminal-start-fold">
-          <summary class="dash-meta-fold-summary">Start here — research path</summary>
-          <p class="terminal-start-note" aria-label="Terminal start instructions">
-            Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.
-          </p>
+        <details class="dash-meta-fold system-status-fold" id="system-status-fold">
+          <summary class="dash-meta-fold-summary" id="system-status-summary">System status</summary>
+          <div class="system-status-body">
+            <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
+            <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness">
+              <div class="source-freshness-inner">
+                <div id="source-freshness-grid" class="source-freshness-grid"></div>
+                <a class="source-freshness-link" href="#" id="data-health-details-link">How data is verified</a>
+              </div>
+            </section>
+            <p class="terminal-start-note" aria-label="Terminal start instructions">
+              Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.
+            </p>
+          </div>
         </details>
       </div>
 
@@ -285,7 +288,7 @@
               <span id="holdings-updated">Waiting</span>
             </div>
             <div class="table-wrap">
-              <table class="terminal-table">
+              <table class="terminal-table terminal-table--holdings">
                 <thead>
                   <tr>
                     <th>Asset</th>
@@ -356,21 +359,21 @@
               <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
             </div>
           </section>
-          <section class="panel panel-compact live-alert-panel" aria-live="polite">
+          <section class="panel panel-compact live-alert-panel" id="signals-tape-panel" aria-live="polite">
             <div class="panel-head">
               <h2>Live signal tape</h2>
               <span id="live-alert-updated">Waiting for feeds</span>
             </div>
             <div id="live-alerts" class="live-alerts"></div>
           </section>
-          <section class="panel panel-compact policy-catalyst-panel">
+          <section class="panel panel-compact policy-catalyst-panel" id="policy-catalyst-panel">
             <div class="panel-head">
               <h2>Congress catalyst queue</h2>
               <span id="policy-catalyst-source">Waiting</span>
             </div>
             <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
           </section>
-          <section class="panel">
+          <section class="panel" id="signals-conviction-panel">
             <div class="panel-head">
               <h2>Highest-conviction signals</h2>
               <button type="button" class="link-button" data-view-jump="bills">Browse all bills</button>
@@ -981,11 +984,11 @@
               <button type="button" class="button button-primary compact" id="thesis-header-start">New thesis</button>
             </div>
           </div>
-          <div id="thesis-empty-guide" class="thesis-empty-guide panel panel-compact" hidden>
+          <div id="thesis-empty-guide" class="thesis-empty-guide panel panel-compact">
             <p><strong>No thesis yet.</strong> Pick a ticker, write one sentence on why it could move, then tap <em>Generate Thesis Map</em> to see linked bills, lobbying, and contracts.</p>
             <button type="button" class="button button-secondary compact" id="thesis-empty-example">Try PLTR example</button>
           </div>
-          <div class="thesis-outer-tabs">
+          <div class="thesis-outer-tabs thesis-outer-tabs--flow" hidden aria-hidden="true">
             <button type="button" class="thesis-outer-tab active" data-thesis-outer="build">Thesis Command Center</button>
             <button type="button" class="thesis-outer-tab" data-thesis-outer="map">Signal map</button>
           </div>
@@ -1397,7 +1400,59 @@
           <div id="trade-full-root">
           <div class="overview-metrics-strip account-metrics-strip" id="account-grid" role="list" aria-label="Account metrics"></div>
 
-          <div class="trade-workspace">
+          <div class="trade-workspace trade-workspace--priority">
+            <section class="panel panel-emphasis">
+              <div class="panel-head panel-head-quiet">
+                <h2>Order entry</h2>
+                <span id="trade-order-estimate">Market order · paper mode</span>
+              </div>
+              <form id="order-form" class="trade-form">
+                <label>Symbol
+                  <div class="symbol-combobox symbol-combobox--trade">
+                    <input type="text" class="symbol-combobox-input" id="order-symbol" name="symbol" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-autocomplete="list" aria-expanded="false" />
+                    <ul class="symbol-combobox-list" role="listbox" hidden></ul>
+                  </div>
+                </label>
+                <label>Quantity<input name="qty" id="order-qty" type="number" min="0.0001" step="0.0001" value="1" /></label>
+                <label>Side<select name="side" id="order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+                <div id="paper-order-preview" class="paper-order-preview" role="status" aria-live="polite">
+                  <span class="paper-order-preview-label">Order preview</span>
+                  <p class="paper-order-preview-copy muted">Enter a symbol and quantity to see cash impact.</p>
+                </div>
+                <button class="button button-primary" type="submit">Place paper order</button>
+              </form>
+              <div class="paper-order-help">
+                <strong>Paper mode</strong>
+                <p>This fills at the latest quote in your simulated account. It does not send real money or real shares anywhere.</p>
+              </div>
+              <pre class="order-result" id="order-result">No order submitted.</pre>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head panel-head-quiet">
+                <h2>Paper positions</h2>
+                <span>Live mark-to-market</span>
+              </div>
+              <div class="table-wrap">
+                <table class="terminal-table terminal-table--positions">
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th class="num">Qty</th>
+                      <th class="num">Avg cost</th>
+                      <th class="num">Price</th>
+                      <th class="num">Market value</th>
+                      <th class="num">P/L</th>
+                      <th>Policy risk</th>
+                    </tr>
+                  </thead>
+                  <tbody id="paper-positions-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="trade-workspace mt">
             <section class="panel panel-emphasis trade-chart-panel">
               <div class="panel-head panel-head-quiet">
                 <h2 id="trade-symbol-title">Paper trade setup</h2>
@@ -1429,66 +1484,20 @@
                 <div id="trade-plain-context" class="trade-plain-context">Loading historical context.</div>
               </div>
             </section>
-
-            <section class="panel">
-              <div class="panel-head panel-head-quiet">
-                <h2>Order entry</h2>
-                <span id="trade-order-estimate">Market order</span>
-              </div>
-              <form id="order-form" class="trade-form">
-                <label>Symbol
-                  <div class="symbol-combobox symbol-combobox--trade">
-                    <input type="text" class="symbol-combobox-input" id="order-symbol" name="symbol" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-autocomplete="list" aria-expanded="false" />
-                    <ul class="symbol-combobox-list" role="listbox" hidden></ul>
-                  </div>
-                </label>
-                <label>Quantity<input name="qty" id="order-qty" type="number" min="0.0001" step="0.0001" value="1" /></label>
-                <label>Side<select name="side" id="order-side"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
-                <button class="button button-primary" type="submit">Place paper order</button>
-              </form>
-              <div class="paper-order-help">
-                <strong>Plain English</strong>
-                <p>This fills at the latest quote in your simulated account. It does not send real money or real shares anywhere.</p>
-              </div>
-              <pre class="order-result" id="order-result">No order submitted.</pre>
-            </section>
           </div>
 
-          <div class="trade-workspace mt">
-            <section class="panel">
-              <div class="panel-head panel-head-quiet">
-                <h2>Paper positions</h2>
-                <span>Live mark-to-market</span>
-              </div>
-              <div class="table-wrap">
-                <table class="terminal-table terminal-table--positions">
-                  <thead>
-                    <tr>
-                      <th>Symbol</th>
-                      <th class="num">Qty</th>
-                      <th class="num">Avg cost</th>
-                      <th class="num">Price</th>
-                      <th class="num">Market value</th>
-                      <th class="num">P/L</th>
-                      <th>Policy risk</th>
-                    </tr>
-                  </thead>
-                  <tbody id="paper-positions-body"></tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-head panel-head-quiet">
-                <h2>Recent orders</h2>
-                <span>Paper fills</span>
-              </div>
-              <div id="paper-orders" class="paper-orders"></div>
-            </section>
-          </div>
+          <section class="panel mt">
+            <div class="panel-head panel-head-quiet">
+              <h2>Recent orders</h2>
+              <span>Paper fills</span>
+            </div>
+            <div id="paper-orders" class="paper-orders"></div>
+          </section>
 
           </div>
 
+          <details class="dash-meta-fold hypothetical-funds-fold" id="hypothetical-funds-fold">
+            <summary class="dash-meta-fold-summary">Hypothetical funds (simulated baskets)</summary>
           <section class="panel funds-panel mt" id="hypothetical-funds-panel">
             <div class="panel-head panel-head-quiet">
               <div>
@@ -1635,6 +1644,7 @@
               </div>
             </div>
           </section>
+          </details>
         </section>
 
         <!-- ════════════ TRACK RECORD ════════════ -->
@@ -1688,41 +1698,49 @@
 
           <div class="settings-grid">
 
-            <!-- AI Brain -->
+            <!-- AI Brain (server-managed) -->
             <div class="settings-card">
               <div class="settings-card-head">
                 <div class="settings-card-icon">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".6"/></svg>
                 </div>
                 <div>
-                  <h2>AI Brain</h2>
-                  <p>Powers the research assistant, scorecard analysis, and EDGAR simplifier.</p>
+                  <h2>Server AI</h2>
+                  <p>Research assistant, scorecards, and EDGAR — configured on the server, not in your browser.</p>
                 </div>
                 <span id="s-anthropic-status" class="settings-status-pill"></span>
               </div>
               <div class="settings-fields">
-                <div class="settings-field">
-                  <label for="s-anthropic-key">Anthropic API key</label>
-                  <div class="settings-input-row">
-                    <input id="s-anthropic-key" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
-                    <button type="button" class="settings-reveal-btn" id="s-anthropic-reveal" title="Show / hide">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.75" fill="currentColor"/></svg>
-                    </button>
+                <div class="settings-source-list settings-readonly-list">
+                  <div class="settings-source-row">
+                    <span class="settings-source-name">Status</span>
+                    <span id="s-server-ai-status" class="settings-source-pill">Checking…</span>
                   </div>
-                  <span class="settings-field-hint">Stored server-side in <code>.env.local</code>. Never sent to the browser.</span>
+                  <div class="settings-source-row">
+                    <span class="settings-source-name">Model</span>
+                    <span id="s-server-ai-model" class="settings-source-url">—</span>
+                  </div>
                 </div>
-                <div class="settings-field">
-                  <label for="s-anthropic-model">Model</label>
-                  <select id="s-anthropic-model">
-                    <option value="claude-sonnet-4-5">claude-sonnet-4-5 (default — fast + smart)</option>
-                    <option value="claude-opus-4-7">claude-opus-4-7 (most capable)</option>
-                    <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest)</option>
-                  </select>
-                  <span class="settings-field-hint">Saved locally in your browser.</span>
+                <p class="settings-field-hint">Set <code>ANTHROPIC_API_KEY</code> and <code>ANTHROPIC_MODEL</code> in <code>.env.local</code> on the server. The model cannot be changed from this dashboard.</p>
+              </div>
+            </div>
+
+            <!-- BYOK -->
+            <div class="settings-card">
+              <div class="settings-card-head">
+                <div class="settings-card-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="6" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 6V4.5a3 3 0 016 0V6" stroke="currentColor" stroke-width="1.3"/></svg>
                 </div>
+                <div>
+                  <h2>Your own AI key (BYOK)</h2>
+                  <p>Optional — stored only in this browser for the research drawer.</p>
+                </div>
+              </div>
+              <div class="settings-fields">
+                <p class="settings-field-hint">Bring Your Own Key lets you run AI research from your device without using the server key. Keys never leave your browser.</p>
                 <div class="settings-actions">
-                  <button class="button button-primary compact" id="s-anthropic-save">Save AI settings</button>
-                  <span id="s-anthropic-msg" class="settings-msg"></span>
+                  <button type="button" class="button button-secondary compact" id="s-byok-open-btn">Open BYOK panel</button>
+                  <span id="s-byok-status" class="settings-msg muted">No personal key saved</span>
                 </div>
               </div>
             </div>
@@ -1869,7 +1887,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=gotham-hybrid-1" defer></script>
+    <script src="/assets/app.js?v=usability-audit-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
@@ -2080,11 +2098,25 @@
             el.textContent = ok ? "Connected" : "Not configured";
           });
 
-          // Anthropic status pill in card header
+          // Server AI status (read-only)
           var ap = document.getElementById("s-anthropic-status");
+          var serverStatus = document.getElementById("s-server-ai-status");
+          var serverModel = document.getElementById("s-server-ai-model");
           if (ap) {
             ap.className = "settings-status-pill " + (cfg.data.anthropic ? "pill-ok" : "pill-off");
             ap.textContent = cfg.data.anthropic ? "Active" : "Not set";
+          }
+          if (serverStatus) {
+            serverStatus.className = "settings-source-pill " + (cfg.data.anthropic ? "pill-ok" : "pill-off");
+            serverStatus.textContent = cfg.data.anthropic ? "Connected" : "Not configured";
+          }
+          if (serverModel) {
+            serverModel.textContent = cfg.data.anthropicModel || "claude-haiku-4-5-20251001 (default)";
+          }
+
+          var byokStatus = document.getElementById("s-byok-status");
+          if (byokStatus && typeof window.__tsByokStatusLabel === "function") {
+            byokStatus.textContent = window.__tsByokStatusLabel();
           }
 
           // Trading
@@ -2113,81 +2145,9 @@
           if (pr) pr.textContent = user.provider || "—";
         });
 
-        // ── Anthropic key form ───────────────────────────────────────────────
-        var modelKey = "ts_anthropic_model";
-        var modelEl  = document.getElementById("s-anthropic-model");
-        var keyEl    = document.getElementById("s-anthropic-key");
-        var revealEl = document.getElementById("s-anthropic-reveal");
-        var saveBtn  = document.getElementById("s-anthropic-save");
-        var msgEl    = document.getElementById("s-anthropic-msg");
-
-        if (modelEl) {
-          var saved = localStorage.getItem(modelKey);
-          if (saved) modelEl.value = saved;
-        }
-
-        if (revealEl && keyEl) {
-          revealEl.addEventListener("click", function () {
-            keyEl.type = keyEl.type === "password" ? "text" : "password";
-          });
-        }
-
-        if (saveBtn) {
-          saveBtn.addEventListener("click", function () {
-            var key   = keyEl ? keyEl.value.trim() : "";
-            var model = modelEl ? modelEl.value : "";
-            if (model) localStorage.setItem(modelKey, model);
-
-            if (!key) {
-              msgEl.textContent = "Model saved. Enter a key to update it.";
-              msgEl.className = "settings-msg msg-ok";
-              return;
-            }
-
-            saveBtn.disabled = true;
-            msgEl.textContent = "Saving…";
-            msgEl.className = "settings-msg";
-
-            fetch("/api/settings/anthropic", {
-              method: "POST",
-              credentials: "same-origin",
-              headers: (function () {
-                var h = { "content-type": "application/json" };
-                var m = document.cookie.match(/(?:^|;\s*)ts_csrf=([^;]*)/);
-                if (m) h["X-CSRF-Token"] = decodeURIComponent(m[1]);
-                return h;
-              })(),
-              body: JSON.stringify({ apiKey: key, model: model })
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-              if (d.ok) {
-                configCache = null;
-                keyEl.value = "";
-                msgEl.textContent = "Saved — activating AI layers…";
-                msgEl.className = "settings-msg msg-ok";
-                var ap = document.getElementById("s-anthropic-status");
-                if (ap) { ap.className = "settings-status-pill pill-ok"; ap.textContent = "Active"; }
-                document.querySelectorAll(".settings-source-pill[data-source='anthropic']").forEach(function (el) {
-                  el.className = "settings-source-pill pill-ok"; el.textContent = "Connected";
-                });
-                // Re-fetch config + re-run analysis so AI narration activates immediately
-                if (typeof window.__tsActivateAi === "function") {
-                  window.__tsActivateAi().then(function () {
-                    msgEl.textContent = "AI Brain active. Analysis and research drawer are live.";
-                  });
-                } else {
-                  msgEl.textContent = "Saved. Reload the page to activate all AI layers.";
-                }
-              } else {
-                msgEl.textContent = d.error || "Failed to save.";
-                msgEl.className = "settings-msg msg-err";
-              }
-            })
-            .catch(function () { msgEl.textContent = "Request failed."; msgEl.className = "settings-msg msg-err"; })
-            .finally(function () { saveBtn.disabled = false; });
-          });
-        }
+        document.getElementById("s-byok-open-btn")?.addEventListener("click", function () {
+          document.querySelector(".byok-settings-btn")?.click();
+        });
       }
 
       // Re-init each time settings view is opened

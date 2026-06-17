@@ -524,6 +524,17 @@ button { color: inherit; }
 
 .terminal-brand { height: 58px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .side-nav { display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; }
+.nav-section-label {
+  display: block;
+  padding: 10px 10px 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  user-select: none;
+}
+.nav-section-label:first-child { padding-top: 2px; }
 .nav-item {
   width: 100%;
   min-height: 36px;
@@ -3359,6 +3370,31 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
   opacity: 1;
 }
 
+.paper-order-preview {
+  margin: 12px 0 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-3) 70%, transparent);
+}
+.paper-order-preview-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 6px;
+}
+.paper-order-preview-copy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.paper-order-preview-copy.muted { color: var(--muted); font-size: 11px; }
+
 .trade-plain-context,
 .paper-order-help {
   margin-top: 12px;
@@ -5388,8 +5424,32 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
 }
 
 @media (max-width: 900px) {
-  .analysis-shell { flex-direction: column; height: auto; min-height: calc(100vh - 104px); margin: 0; overflow: visible; }
-  .analysis-left { width: 100%; min-width: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .analysis-shell { flex-direction: column; height: auto; min-height: 0; margin: 0; overflow: visible; }
+  .analysis-left {
+    width: 100%;
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .analysis-tab-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .analysis-tab-list::-webkit-scrollbar { display: none; }
+  .analysis-tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 40px;
+    padding: 8px 12px;
+  }
   .government-explainer-grid { grid-template-columns: 1fr; }
   .analysis-risk-radar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -6289,7 +6349,10 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .sidebar.nav-open .nav-item { min-height: 44px; }
   .sidebar-footer-actions { display: none !important; }
   .sidebar.nav-open .sidebar-footer-actions { display: flex !important; }
-  #methodology-open-btn { display: none; }
+  #methodology-open-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
   .research-drawer-btn,
   .analysis-ticker-ai-btn {
     bottom: max(16px, env(safe-area-inset-bottom, 0px));
@@ -6345,6 +6408,15 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .terminal-table--positions td:nth-child(3),
   .terminal-table--positions th:nth-child(5),
   .terminal-table--positions td:nth-child(5) { display: none; }
+
+  /* Home holdings — keep asset, value, today, policy; drop shares + price */
+  body[data-page="dashboard"] table.terminal-table.terminal-table--holdings { min-width: 0 !important; }
+  .terminal-table--holdings th:nth-child(2),
+  .terminal-table--holdings td:nth-child(2),
+  .terminal-table--holdings th:nth-child(3),
+  .terminal-table--holdings td:nth-child(3) { display: none; }
+  .terminal-table--holdings th,
+  .terminal-table--holdings td { white-space: normal; overflow-wrap: anywhere; }
 
   /* Overview metrics grid */
   .overview-metrics-grid,

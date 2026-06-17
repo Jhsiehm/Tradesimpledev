@@ -3102,6 +3102,58 @@ body[data-page="dashboard"] .dash-chrome-rail .data-accuracy-banner[hidden] {
   display: none;
 }
 
+body[data-page="dashboard"] .system-status-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+body[data-page="dashboard"] .system-status-body .source-freshness-bar {
+  border-top: 1px solid var(--gotham-line);
+  padding: 10px 22px 12px;
+}
+
+body[data-page="dashboard"] .system-status-body .terminal-start-note {
+  margin: 0;
+  padding: 10px 22px 12px;
+  border-top: 1px solid var(--gotham-line);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+body[data-page="dashboard"] .hypothetical-funds-fold .funds-panel {
+  border: 0;
+  border-radius: 0;
+  margin-top: 0;
+}
+
+body[data-page="dashboard"] .nav-section-label {
+  padding: 10px 14px 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gotham-faint);
+}
+
+body[data-page="dashboard"] .trade-workspace--priority {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  body[data-page="dashboard"] .trade-workspace--priority {
+    grid-template-columns: 1fr;
+  }
+}
+
+body[data-page="dashboard"] .thesis-legacy-wizard {
+  display: none !important;
+}
+
 body[data-page="dashboard"] .dash-meta-fold {
   border-bottom: 1px solid var(--gotham-line);
 }
@@ -3846,6 +3898,23 @@ html[data-theme="light"] body[data-page="dashboard"] tbody tr:hover td {
     display: none;
   }
 
+  body[data-page="dashboard"] table.terminal-table.terminal-table--holdings {
+    min-width: 0 !important;
+  }
+
+  body[data-page="dashboard"] .terminal-table--holdings th:nth-child(2),
+  body[data-page="dashboard"] .terminal-table--holdings td:nth-child(2),
+  body[data-page="dashboard"] .terminal-table--holdings th:nth-child(3),
+  body[data-page="dashboard"] .terminal-table--holdings td:nth-child(3) {
+    display: none;
+  }
+
+  body[data-page="dashboard"] .terminal-table--holdings th,
+  body[data-page="dashboard"] .terminal-table--holdings td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   body[data-page="dashboard"] .terminal-table--contracts th:nth-child(2),
   body[data-page="dashboard"] .terminal-table--contracts td:nth-child(2),
   body[data-page="dashboard"] .terminal-table--contracts th:nth-child(5),
@@ -4046,7 +4115,7 @@ body[data-page="dashboard"] .thesis-view-header {
   margin-bottom: 0;
 }
 
-/* Analysis mobile two-panel balance */
+/* Analysis mobile — single column, no sticky left rail */
 @media (max-width: 960px) {
   body[data-page="dashboard"] #view-analysis .analysis-shell {
     height: auto;
@@ -4055,24 +4124,39 @@ body[data-page="dashboard"] .thesis-view-header {
   }
 
   body[data-page="dashboard"] #view-analysis .analysis-left {
-    position: sticky;
-    top: 0;
-    z-index: 6;
+    position: static;
+    top: auto;
+    z-index: auto;
     background: var(--bg);
     border-bottom: 1px solid var(--gotham-line);
     padding-bottom: 12px;
-    max-height: 55vh;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  body[data-page="dashboard"] #view-analysis .analysis-tab-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  body[data-page="dashboard"] #view-analysis .analysis-tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 40px;
   }
 
   body[data-page="dashboard"] #view-analysis .analysis-right {
-    min-height: 40vh;
+    min-height: 0;
   }
 
   body[data-page="dashboard"] .analysis-view-header {
-    position: sticky;
-    top: 0;
-    z-index: 7;
+    position: static;
+    z-index: auto;
     background: var(--bg);
     padding-top: 4px;
   }

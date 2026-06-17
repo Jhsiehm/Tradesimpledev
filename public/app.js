@@ -346,11 +346,7 @@ function renderTabFilterContexts() {
   if (signalsCtx) {
     const type = state.signalsTypeFilter || "all";
     const typeLbl = type === "all" ? "All types" : type.charAt(0).toUpperCase() + type.slice(1);
-    let count = 0;
-    if (type !== "contracts") count += policyBills().filter((b) => !state.focusSymbol || billMatchesFocusFilter(b)).length;
-    if (type === "all" || type === "contracts" || type === "trending") {
-      count += (state.trending || []).filter(trendingMatchesSignalsFilter).length;
-    }
+    const count = countSignalsDeskItems(type);
     signalsCtx.hidden = false;
     signalsCtx.textContent = `${typeLbl} · ${count} item${count === 1 ? "" : "s"}${focusSuffix}`;
   }
@@ -500,6 +496,53 @@ function trendingMatchesSignalsFilter(topic) {
   if (type === "bills") return topic.type === "legislation" || topic.type === "ma";
   if (type === "trending" || type === "all") return true;
   return true;
+}
+
+function countSignalsDeskItems(type = "all") {
+  const t = type || state.signalsTypeFilter || "all";
+  let count = 0;
+  if (t === "all" || t === "trending") {
+    count += (state.trending || []).filter(trendingMatchesSignalsFilter).length;
+  }
+  if (t === "all" || t === "contracts") {
+    count += (state.contractWatch || []).filter(contractWatchMatchesTabFilters).length;
+  }
+  if (t === "all" || t === "bills") {
+    count += buildSignalFeed().filter((sig) => signalMatchesTypeFilter(sig) && signalMatchesFocusFilter(sig)).length;
+    count += catalystCandidates().filter((item) => !state.focusSymbol || (item.tickers || []).map(normalizeWatchSymbol).includes(state.focusSymbol)).length;
+    count += policyBills().filter((bill) => billMatchesFocusFilter(bill)).length;
+    count += buildLiveAlerts().length;
+  }
+  if (t === "trending") {
+    count = (state.trending || []).filter(trendingMatchesSignalsFilter).length;
+  }
+  if (t === "contracts") {
+    count = (state.contractWatch || []).filter(contractWatchMatchesTabFilters).length
+      + buildSignalFeed().filter((sig) => sig.type === "contract" && signalMatchesFocusFilter(sig)).length;
+  }
+  if (t === "bills") {
+    count = buildSignalFeed().filter((sig) => (sig.type === "bill" || sig.type === "lobbying") && signalMatchesFocusFilter(sig)).length
+      + catalystCandidates().length
+      + policyBills().filter(billMatchesFocusFilter).length;
+  }
+  return count;
+}
+
+function applySignalsDeskVisibility() {
+  const type = state.signalsTypeFilter || "all";
+  const show = (allowed) => type === "all" || allowed.includes(type);
+  const setHidden = (sel, allowed) => {
+    const el = typeof sel === "string" ? $(sel) : sel;
+    if (el) el.hidden = !show(allowed);
+  };
+  setHidden("#trending-panel", ["trending"]);
+  setHidden("#contract-watch-panel", ["contracts"]);
+  setHidden("#signal-chain-panel", ["bills", "contracts"]);
+  setHidden("#signals-tape-panel", ["bills"]);
+  setHidden("#policy-catalyst-panel", ["bills"]);
+  setHidden("#signals-conviction-panel", ["bills"]);
+  const top = $("#signals-top-signal");
+  if (top && type !== "all" && type !== "bills") top.hidden = true;
 }
 
 function syncFilterChipGroup(bar, attr, activeValue) {
@@ -3038,7 +3081,7 @@ function renderTradeGuided() {
     return;
   }
   syncTradeBillsGuidedChrome();
-  const fundsPanel = $("#hypothetical-funds-panel");
+  const fundsPanel = $("#hypothetical-funds-fold") || $("#hypothetical-funds-panel");
   if (tradeGuidedMode() !== "guided") {
     host.hidden = true;
     full.hidden = false;
@@ -3373,8 +3416,18 @@ async function loadDataHealth() {
     console.warn("[data-health] load failed", e);
     state.dataHealth = null;
   }
+  renderSystemStatusChrome();
+}
+
+function renderSystemStatusChrome() {
   renderDataAccuracyBanner();
   renderSourceFreshnessBar();
+  const summary = $("#system-status-summary");
+  if (!summary) return;
+  const mode = state.dataHealth?.dataMode || inferClientDataMode();
+  const modeLbl = mode === "live" ? "Live" : mode === "mixed" ? "Mixed" : "Scenario";
+  const focus = state.focusSymbol ? ` · Focus ${state.focusSymbol}` : "";
+  summary.textContent = `System status · ${modeLbl} data${focus}`;
 }
 
 function renderDataAccuracyBanner() {
@@ -3434,9 +3487,6 @@ function renderSourceFreshnessBar() {
   const bar = $("#source-freshness-bar");
   const grid = $("#source-freshness-grid");
   if (!bar || !grid) return;
-  bar.hidden = false;
-  const fold = $("#source-freshness-fold");
-  if (fold) fold.hidden = false;
 
   const health = state.dataHealth;
   const feeds = health?.feeds || {};
@@ -3484,7 +3534,7 @@ function openMethodologyOrDataHealth() {
 
 function renderSourceBadges() {
   renderSourceFreshnessBar();
-  const hidePagePills = Boolean($("#source-freshness-bar") && !$("#source-freshness-bar").hidden);
+  const hidePagePills = Boolean($("#system-status-fold"));
   for (const sel of ["#market-source", "#bill-source", "#signals-source", "#lobby-source", "#contracts-source"]) {
     const el = $(sel);
     if (el) el.hidden = hidePagePills;
@@ -3911,8 +3961,7 @@ async function refreshPolicyFeed({ render = true } = {}) {
   state.lobbying = lobbying.filings || [];
   rememberFeedMeta("bills", bills, bills.source || "bills");
   rememberFeedMeta("lobbying", lobbying, lobbying.source || "lobbying");
-  renderDataAccuracyBanner();
-  renderSourceFreshnessBar();
+  renderSystemStatusChrome();
   if (render) {
     renderSourceBadges();
     renderOverview();
@@ -4114,6 +4163,7 @@ function renderTape() {
 }
 
 function renderOverview() {
+  if (!state.account) showSkeleton("#holdings-body", 4, "row");
   let investedValue = 0;
   let cost = 0;
   let dayChange = 0;
@@ -4172,6 +4222,7 @@ function renderOverview() {
         .join("");
 
   $("#holdings-body").innerHTML = rows;
+  clearSkeleton("#holdings-body");
   const equity = paperEquity(state.account);
   const startingCash = Number(accountMeta.startingCash || PAPER_STARTING_CASH);
   const totalReturn = Number(accountMeta.totalReturn);
@@ -4251,27 +4302,28 @@ function renderOverview() {
 function renderSignalsConvictionList() {
   const el = $("#signal-list");
   if (!el) return;
-  let bills = policyBills().slice().sort((a, b) => billMomentum(b) - billMomentum(a));
-  if (state.focusSymbol) bills = bills.filter(billMatchesFocusFilter);
-  if (state.signalsTypeFilter === "contracts") {
+  const type = state.signalsTypeFilter || "all";
+  if (type === "contracts" || type === "trending") {
     el.innerHTML = `<div class="sc-empty muted">Conviction scans are bill-driven — switch type to All or Bills.</div>`;
+    clearSkeleton("#signal-list");
     return;
   }
+  let bills = policyBills().slice().sort((a, b) => billMomentum(b) - billMomentum(a));
+  if (state.focusSymbol) bills = bills.filter(billMatchesFocusFilter);
   if (!bills.length) {
     el.innerHTML = state.focusSymbol
       ? `<div class="sc-empty muted">No conviction signals for ${escapeHtml(state.focusSymbol)} yet.</div>`
       : `<div class="sc-empty muted">No conviction signals loaded yet.</div>`;
+    clearSkeleton("#signal-list");
     return;
   }
   el.innerHTML = bills.slice(0, 8).map(signalCard).join("");
+  clearSkeleton("#signal-list");
 }
 
 function renderSignalsDesk() {
   const type = state.signalsTypeFilter || "all";
-  const trendingPanel = $("#trending-panel");
-  const contractPanel = $("#contract-watch-panel");
-  if (trendingPanel) trendingPanel.hidden = type === "contracts";
-  if (contractPanel) contractPanel.hidden = type === "bills";
+  applySignalsDeskVisibility();
   renderTopSignal();
   renderTrendingSection();
   renderContractWatchSection();
@@ -5118,6 +5170,7 @@ function renderContracts() {
       : "Connecting";
   }
   renderTabFilterContexts();
+  clearSkeleton("#contracts-body");
 }
 
 function renderContractDetailPanel(row) {
@@ -5377,6 +5430,7 @@ function renderLobbying() {
     `;
   }).join("");
   renderTabFilterContexts();
+  clearSkeleton("#lobby-feed");
 }
 
 function renderAccount() {
@@ -5423,6 +5477,7 @@ function renderAccount() {
     : `<article class="empty-state" style="padding:1.5rem;text-align:center"><p style="margin:0 0 0.35rem;font-weight:600">No orders yet</p><p class="muted" style="margin:0;font-size:0.85rem">Your paper trade history will appear here once you place an order.</p></article>`;
 
   renderTradePanel();
+  renderPaperOrderPreview();
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) void loadFunds();
 }
 
@@ -6412,6 +6467,11 @@ function topSignalTrustMarkup(top, bills) {
 function renderTopSignal() {
   const el = $("#signals-top-signal");
   if (!el) return;
+  const type = state.signalsTypeFilter || "all";
+  if (type !== "all" && type !== "bills") {
+    el.hidden = true;
+    return;
+  }
   const bills = policyBills().filter((b) => !b.scenarioOnly && b.affected?.length);
   if (!bills.length) return;
 
@@ -7814,7 +7874,7 @@ function applyFeatureGateVisibility() {
   document.querySelectorAll(".research-drawer-btn, .research-drawer-global, .byok-settings-btn, #analysis-ticker-ai-btn").forEach((el) => {
     el.hidden = !isFeatureEnabled("AI_RESEARCH_ENABLED");
   });
-  const fundsPanel = document.getElementById("hypothetical-funds-panel");
+  const fundsPanel = document.getElementById("hypothetical-funds-fold") || document.getElementById("hypothetical-funds-panel");
   if (fundsPanel) fundsPanel.hidden = !isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED");
 }
 
@@ -7895,6 +7955,7 @@ function showView(view, updateUrl = true) {
     }
   }
   if (view === "signals" && isViewEnabled("signals")) {
+    if (!state.bills?.length && !state.trending?.length) showSkeleton("#signal-list", 4, "card");
     renderSignalsDesk();
   }
   if (view === "bills" && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) {
@@ -7904,8 +7965,8 @@ function showView(view, updateUrl = true) {
   if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
     renderContractsTabWatch();
     if (!state.contractsLoadedAt) {
-      showSkeleton("#contracts-feed", 4, "card");
-      void refreshContractsFeed().finally(() => clearSkeleton("#contracts-feed"));
+      showSkeleton("#contracts-body", 6, "row");
+      void refreshContractsFeed().finally(() => clearSkeleton("#contracts-body"));
     } else {
       renderContracts();
     }
@@ -8198,9 +8259,104 @@ function parseByokResponse(text) {
 
 window._policyBillsForByok = [];
 
+function paperOrderPreviewLines() {
+  const sym = normalizeWatchSymbol($("#order-symbol")?.value || "");
+  const qty = Number($("#order-qty")?.value || 0);
+  const side = String($("#order-side")?.value || "buy");
+  if (!sym || !Number.isFinite(qty) || qty <= 0) return null;
+  const quote = quoteFor(sym);
+  const price = Number(quote?.price || 0);
+  const meta = paperAccountMeta(state.account);
+  const cash = Number(meta.cash ?? meta.buyingPower ?? PAPER_STARTING_CASH);
+  const equity = paperEquity(state.account) || PAPER_STARTING_CASH;
+  const estCost = price > 0 ? price * qty : 0;
+  const position = (state.account?.positions || []).find((p) => normalizeWatchSymbol(p.symbol) === sym);
+  const heldQty = Number(position?.qty || 0);
+  const heldValue = heldQty * (Number(position?.price || price) || price);
+  const afterCash = side === "buy" ? cash - estCost : cash + estCost;
+  const afterValue = side === "buy" ? heldValue + estCost : Math.max(0, heldValue - estCost);
+  const positionPct = equity > 0 && estCost > 0 ? (afterValue / equity) * 100 : 0;
+  return {
+    sym,
+    qty,
+    side,
+    price,
+    cash,
+    estCost,
+    afterCash,
+    positionPct,
+    hasQuote: price > 0
+  };
+}
+
+function renderPaperOrderPreview() {
+  const el = $("#paper-order-preview");
+  if (!el) return;
+  const data = paperOrderPreviewLines();
+  if (!data) {
+    el.innerHTML = `<span class="paper-order-preview-label">Order preview</span><p class="paper-order-preview-copy muted">Enter a symbol and quantity to see cash impact.</p>`;
+    return;
+  }
+  const sideLbl = data.side === "buy" ? "Buy" : "Sell";
+  const priceLine = data.hasQuote
+    ? `Est. ${money(data.estCost)} at ${money(data.price)}`
+    : "Price unavailable — order may reject without a live quote";
+  const cashLine = data.side === "buy"
+    ? `Cash after fill: ${money(Math.max(0, data.afterCash))} (now ${money(data.cash)})`
+    : `Cash after fill: ${money(data.afterCash)} (now ${money(data.cash)})`;
+  const pctLine = data.hasQuote && data.side === "buy"
+    ? `Position would be ~${fmt(data.positionPct)}% of portfolio`
+    : "";
+  el.innerHTML = `
+    <span class="paper-order-preview-label">Paper mode · simulated only</span>
+    <p class="paper-order-preview-copy"><strong>${escapeHtml(sideLbl)} ${fmt(data.qty)} ${escapeHtml(data.sym)}</strong> — ${escapeHtml(priceLine)}</p>
+    <p class="paper-order-preview-copy muted">${escapeHtml(cashLine)}${pctLine ? ` · ${escapeHtml(pctLine)}` : ""}</p>`;
+}
+
+function setupPaperOrderPreview() {
+  const form = $("#order-form");
+  if (!form || form.dataset.previewReady === "true") return;
+  form.dataset.previewReady = "true";
+  const refresh = () => renderPaperOrderPreview();
+  form.addEventListener("input", refresh);
+  form.addEventListener("change", refresh);
+  $("#order-symbol")?.addEventListener("change", refresh);
+  refresh();
+}
+
+window.__tsByokStatusLabel = function __tsByokStatusLabel() {
+  if (byokIsConfigured()) {
+    const provider = BYOK_PROVIDERS[state.byok.provider]?.label || state.byok.provider || "Provider";
+    return `Personal key saved · ${provider}`;
+  }
+  return "No personal key saved";
+};
+
 function setupForms() {
+  setupPaperOrderPreview();
   $("#order-form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    const preview = paperOrderPreviewLines();
+    if (!preview) {
+      $("#order-result").textContent = "Enter a valid symbol and quantity.";
+      return;
+    }
+    const sideLbl = preview.side === "buy" ? "Buy" : "Sell";
+    const confirmLines = [
+      "Paper mode — this order uses simulated cash only.",
+      `${sideLbl} ${preview.qty} ${preview.sym}${preview.hasQuote ? ` at ~${money(preview.price)}` : ""}`,
+      preview.hasQuote ? `Estimated cost: ${money(preview.estCost)}` : "Live quote unavailable — proceed anyway?",
+      `Cash after fill: ~${money(preview.afterCash)}`,
+      preview.side === "buy" && preview.hasQuote ? `Position ~${fmt(preview.positionPct)}% of portfolio` : ""
+    ].filter(Boolean);
+    const ok = await openAppConfirm({
+      title: "Confirm paper order",
+      lines: confirmLines
+    });
+    if (!ok) {
+      $("#order-result").textContent = "Order cancelled.";
+      return;
+    }
     const form = new FormData(event.currentTarget);
     $("#order-result").textContent = "Submitting paper order...";
     try {
@@ -8216,6 +8372,7 @@ function setupForms() {
       });
       state.account = response;
       renderAccount();
+      renderPaperOrderPreview();
       if (state.pendingThesisId) {
         void thesisRefreshSavedOutcome();
         state.pendingThesisId = null;
@@ -9737,10 +9894,8 @@ function thesisEnsureResultPanelVisibility() {
 
 function thesisSyncEmptyGuide() {
   const guide = document.getElementById("thesis-empty-guide");
-  const buildPane = document.getElementById("thesis-pane-build");
-  if (!guide || !buildPane) return;
-  const onBuildTab = buildPane.classList.contains("active");
-  guide.hidden = thesisState.built || !onBuildTab;
+  if (!guide) return;
+  guide.hidden = Boolean(thesisState.built);
 }
 
 function thesisRenderCommandSummary() {

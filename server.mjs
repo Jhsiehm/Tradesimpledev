@@ -3257,6 +3257,7 @@ function publicConfig() {
       ldaEnabled,
       alpaca: Boolean(process.env.ALPACA_API_KEY_ID && process.env.ALPACA_API_SECRET_KEY),
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+      anthropicModel: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
       gemini: Boolean(process.env.GEMINI_API_KEY),
       serverAi: serverAiProviderEnabled(),
       supabase: dbReady,
