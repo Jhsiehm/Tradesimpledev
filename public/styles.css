@@ -41,8 +41,8 @@ html[data-theme="light"] {
   --line: #c8c4ba;
   --line-2: #a8a49a;
   --text: #141512;
-  --muted: #484a44;
-  --faint: #5e6058;
+  --muted: #3f4239;
+  --faint: #45483f;
   --green-dim: #2f4210;
   --green-glow: rgba(58, 82, 0, 0.14);
   --ivory: #F1EEE6;
@@ -238,15 +238,8 @@ html[data-theme="light"] button:disabled {
   opacity: 0.72;
 }
 
-html[data-theme="light"] .panel-head h2,
-html[data-theme="light"] .panel-head span,
-html[data-theme="light"] .panel-head [data-freshness],
-html[data-theme="light"] th {
+html[data-theme="light"] .panel-head h2 {
   color: var(--muted);
-}
-
-html[data-theme="light"] td {
-  color: color-mix(in srgb, var(--text) 18%, var(--muted));
 }
 
 html[data-theme="light"] tbody tr:hover {
@@ -281,6 +274,31 @@ html[data-theme="light"] .analysis-hero-quote small {
 html[data-theme="light"] .analysis-score-hint,
 html[data-theme="light"] .analysis-disclaimer {
   color: var(--muted);
+}
+
+/* Light theme — secondary text contrast pass (cream/warm surfaces) */
+html[data-theme="light"] .muted,
+html[data-theme="light"] .fine-print,
+html[data-theme="light"] .ts-filter-context,
+html[data-theme="light"] .markets-subtab-context {
+  color: var(--faint);
+}
+
+html[data-theme="light"] .panel-head span,
+html[data-theme="light"] .panel-head [data-freshness],
+html[data-theme="light"] th,
+html[data-theme="light"] .stat-card span,
+html[data-theme="light"] .search-box span {
+  color: var(--faint);
+}
+
+html[data-theme="light"] td {
+  color: color-mix(in srgb, var(--text) 28%, var(--muted));
+}
+
+html[data-theme="light"] td.muted,
+html[data-theme="light"] .terminal-table td.muted {
+  color: var(--faint);
 }
 
 * { box-sizing: border-box; }
@@ -4754,6 +4772,10 @@ button, a, .button, input, select, textarea, .nav-item, .range-chip, .prompt-chi
   font-family: var(--sans);
   font-size: 13px;
 }
+.reader-mode-wrap {
+  display: grid;
+  gap: 6px;
+}
 .reader-mode-control {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4764,7 +4786,7 @@ button, a, .button, input, select, textarea, .nav-item, .range-chip, .prompt-chi
   background: color-mix(in srgb, var(--bg-3) 72%, transparent);
 }
 .reader-mode-btn {
-  min-height: 30px;
+  min-height: 36px;
   border-radius: 6px;
   border: 1px solid transparent;
   color: var(--muted);
@@ -4776,6 +4798,11 @@ button, a, .button, input, select, textarea, .nav-item, .range-chip, .prompt-chi
   color: var(--text);
   border-color: color-mix(in srgb, var(--green) 42%, var(--line));
   background: color-mix(in srgb, var(--green) 14%, var(--bg-2));
+}
+.reader-mode-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
 }
 .analysis-hero-card {
   display: grid;
@@ -5475,6 +5502,8 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
   .analysis-risk-radar { grid-template-columns: 1fr; }
   .analysis-hero-card { grid-template-columns: 1fr; }
   .reader-mode-control { grid-template-columns: 1fr; }
+  .reader-mode-btn { min-height: 44px; font-size: 11px; }
+  .markets-sub-tab { min-height: 44px; }
   .terminal-shell {
     display: block;
   }
@@ -6943,6 +6972,57 @@ html[data-theme="light"] .sk-block {
   background: color-mix(in srgb, var(--green) 10%, transparent);
 }
 .markets-filter-chip--topic { font-size: 10px; }
+
+/* Markets Equities / Crypto sub-tabs */
+.markets-sub-tabs {
+  display: flex;
+  gap: 0;
+  margin: 0 0 10px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-3) 65%, transparent);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.markets-sub-tabs::-webkit-scrollbar { display: none; }
+.markets-sub-tab {
+  flex: 1 0 auto;
+  min-height: 40px;
+  min-width: 140px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+.markets-sub-tab:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-2) 50%, transparent);
+}
+.markets-sub-tab.is-active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--green) 16%, var(--bg-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 38%, var(--line));
+}
+html[data-theme="light"] .markets-sub-tab.is-active {
+  color: var(--green-dim);
+  background: color-mix(in srgb, var(--green) 12%, #fff);
+}
+.markets-subtab-context {
+  display: block;
+  margin: 0 0 12px;
+  padding: 0 2px;
+  font-size: 11px;
+}
 .markets-ticker-cell { min-width: 88px; }
 .markets-ticker-link {
   color: var(--green);

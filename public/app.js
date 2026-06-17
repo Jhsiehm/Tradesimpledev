@@ -364,11 +364,18 @@ function renderTabFilterContexts() {
 
   const marketsCtx = $("#markets-filter-context");
   if (marketsCtx) {
-    const rows = filteredMarketsRows();
-    const filter = state.marketsFilter || "all";
-    const label = marketsFilterLabel(filter);
-    marketsCtx.hidden = false;
-    marketsCtx.textContent = `${rows.length} symbol${rows.length === 1 ? "" : "s"} · ${label}${focusSuffix}`;
+    const subTab = state.marketsSubTab || "equities";
+    if (subTab === "crypto") {
+      const n = (state.crypto || []).length;
+      marketsCtx.hidden = false;
+      marketsCtx.textContent = `${n} asset${n === 1 ? "" : "s"} · Crypto${focusSuffix}`;
+    } else {
+      const rows = filteredMarketsRows();
+      const filter = state.marketsFilter || "all";
+      const label = marketsFilterLabel(filter);
+      marketsCtx.hidden = false;
+      marketsCtx.textContent = `${rows.length} symbol${rows.length === 1 ? "" : "s"} · ${label}${focusSuffix}`;
+    }
   }
 }
 
@@ -1236,6 +1243,40 @@ const PAPER_STARTING_CASH = 100000;
 
 const THEME_STORAGE_KEY = "ts_theme";
 const READER_MODE_STORAGE_KEY = "ts_reader_mode";
+const MARKETS_SUBTAB_KEY = "ts_markets_subtab";
+
+function readerModeCopy(mode) {
+  if (mode === "citizen") {
+    return {
+      buttonHint: "Plain English",
+      note: "Citizen mode explains the policy story without market jargon — shorter copy, fewer tickers, and everyday language.",
+      title: "Plain English — policy story without market jargon"
+    };
+  }
+  if (mode === "analyst") {
+    return {
+      buttonHint: "Scores + limits",
+      note: "Analyst mode keeps source metadata, confidence scores, and model limits closer to the surface — denser detail with less hand-holding.",
+      title: "Scores and limits — source metadata, confidence, and model limits"
+    };
+  }
+  return {
+    buttonHint: "Investor context",
+    note: "Investor mode uses normal market language: revenue, margins, guidance risk, and expectations — balanced density for everyday investors.",
+    title: "Investor context — revenue, margins, guidance risk, and expectations"
+  };
+}
+
+function updateReaderModeNote(mode) {
+  const noteEl = $("#reader-mode-note");
+  if (!noteEl) return;
+  const copy = readerModeCopy(mode);
+  noteEl.textContent = copy.note;
+  document.querySelectorAll(".reader-mode-btn").forEach((btn) => {
+    const hint = readerModeCopy(btn.dataset.readerMode || "investor");
+    btn.setAttribute("title", hint.title);
+  });
+}
 
 function getStoredTheme() {
   try {
@@ -1287,6 +1328,7 @@ function applyReaderMode(mode, { reload = false } = {}) {
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-pressed", active ? "true" : "false");
   });
+  updateReaderModeNote(next);
   if (reload && state.activeAnalysisSymbol && isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
     loadAnalysis(state.activeAnalysisSymbol);
   }
@@ -1989,6 +2031,42 @@ function resolveDefaultMarketsFilter() {
     }
   } catch (_) {}
   return state.watchlistSymbols?.length ? "watchlist" : "all";
+}
+
+function getStoredMarketsSubTab() {
+  try {
+    const tab = localStorage.getItem(MARKETS_SUBTAB_KEY);
+    if (tab === "equities" || tab === "crypto") return tab;
+  } catch (_) {}
+  return "equities";
+}
+
+function applyMarketsSubTab(tab) {
+  const next = tab === "crypto" ? "crypto" : "equities";
+  state.marketsSubTab = next;
+  try {
+    localStorage.setItem(MARKETS_SUBTAB_KEY, next);
+  } catch (_) {}
+  const equitiesPanel = $("#markets-equities-panel");
+  const cryptoPanel = $("#markets-crypto-panel");
+  if (equitiesPanel) equitiesPanel.hidden = next !== "equities";
+  if (cryptoPanel) cryptoPanel.hidden = next !== "crypto";
+  document.querySelectorAll("[data-markets-subtab]").forEach((btn) => {
+    const active = btn.dataset.marketsSubtab === next;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  renderTabFilterContexts();
+}
+
+function setupMarketsSubTabs() {
+  const bar = document.querySelector(".markets-sub-tabs");
+  if (!bar || bar.dataset.ready === "true") return;
+  bar.dataset.ready = "true";
+  applyMarketsSubTab(getStoredMarketsSubTab());
+  bar.querySelectorAll("[data-markets-subtab]").forEach((btn) => {
+    btn.addEventListener("click", () => applyMarketsSubTab(btn.dataset.marketsSubtab));
+  });
 }
 
 function setupMarketsFilters() {
@@ -3352,6 +3430,7 @@ async function initDashboard() {
   setupAnalysisLobbyBillJump();
   setupWatchlistStripInteraction();
   setupMarketsWatchToggle();
+  setupMarketsSubTabs();
   setupMarketsFilters();
   setupFocusBar();
   setupTabFilters();
@@ -5089,6 +5168,7 @@ function renderCrypto() {
   if (!cryptoData.length) {
     grid.innerHTML =
       '<p class="muted mono" style="padding:16px;font-size:11px;">Crypto prices unavailable. Set COINGECKO_API_KEY in .env.local for live data.</p>';
+    if ((state.marketsSubTab || "equities") === "crypto") renderTabFilterContexts();
     return;
   }
   grid.innerHTML = cryptoData.map((asset) => {
@@ -5112,6 +5192,7 @@ function renderCrypto() {
     </article>
   `;
   }).join("");
+  if ((state.marketsSubTab || "equities") === "crypto") renderTabFilterContexts();
 }
 
 async function refreshContractsFeed({ render = true } = {}) {

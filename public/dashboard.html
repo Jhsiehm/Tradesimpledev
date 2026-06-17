@@ -19,10 +19,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-2" />
+    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-3" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-2" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-3" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -395,6 +395,12 @@
               <button type="button" class="button button-secondary compact" id="markets-refresh-inline">Refresh quotes</button>
             </div>
           </div>
+          <div class="markets-sub-tabs" role="tablist" aria-label="Markets asset class">
+            <button type="button" class="markets-sub-tab is-active" role="tab" aria-selected="true" data-markets-subtab="equities" id="markets-subtab-equities">Equities &amp; ETFs</button>
+            <button type="button" class="markets-sub-tab" role="tab" aria-selected="false" data-markets-subtab="crypto" id="markets-subtab-crypto">Crypto</button>
+          </div>
+          <span class="ts-filter-context muted markets-subtab-context" id="markets-filter-context" hidden></span>
+          <div id="markets-equities-panel">
           <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
               <h2>Equities &amp; ETFs</h2>
@@ -418,7 +424,6 @@
                 <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="tech">Tech</button>
                 <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="pharma">Pharma</button>
               </div>
-              <span class="ts-filter-context muted" id="markets-filter-context" hidden></span>
             </div>
             <div class="table-wrap">
               <table class="terminal-table terminal-table--markets terminal-table--scan">
@@ -437,13 +442,16 @@
               </table>
             </div>
           </section>
-          <section class="panel mt">
+          </div>
+          <div id="markets-crypto-panel" hidden>
+          <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
               <h2>Crypto</h2>
               <span id="crypto-source">Connecting</span>
             </div>
             <div class="crypto-grid" id="crypto-grid"></div>
           </section>
+          </div>
         </section>
 
         <section class="view terminal-view" id="view-analysis">
@@ -460,10 +468,13 @@
                 <input type="text" class="symbol-combobox-input analysis-symbol-select" id="analysis-symbol" name="symbol" autocomplete="off" spellcheck="false" placeholder="Search symbol…" aria-label="Select analysis ticker" aria-autocomplete="list" aria-expanded="false" />
                 <ul class="symbol-combobox-list" role="listbox" hidden></ul>
               </div>
-              <div class="reader-mode-control" role="group" aria-label="Reader mode">
-                <button type="button" class="reader-mode-btn" data-reader-mode="citizen">Citizen</button>
-                <button type="button" class="reader-mode-btn active" data-reader-mode="investor">Investor</button>
-                <button type="button" class="reader-mode-btn" data-reader-mode="analyst">Analyst</button>
+              <div class="reader-mode-wrap">
+                <div class="reader-mode-control" role="group" aria-label="Reader mode">
+                  <button type="button" class="reader-mode-btn" data-reader-mode="citizen" title="Plain English — policy story without market jargon">Citizen</button>
+                  <button type="button" class="reader-mode-btn active" data-reader-mode="investor" title="Investor context — revenue, margins, guidance risk, and expectations">Investor</button>
+                  <button type="button" class="reader-mode-btn" data-reader-mode="analyst" title="Scores and limits — source metadata, confidence, and model limits">Analyst</button>
+                </div>
+                <p class="reader-mode-note muted" id="reader-mode-note" aria-live="polite">Investor mode uses normal market language: revenue, margins, guidance risk, and expectations.</p>
               </div>
               <div class="analysis-hero-card terminal-hero-card" id="analysis-hero-card">
                 <div>

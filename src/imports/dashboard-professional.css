@@ -1120,7 +1120,7 @@ html[data-theme="light"] body[data-page="dashboard"] .portfolio-sparkline {
 
 html[data-theme="light"] body[data-page="dashboard"] table.terminal-table th {
   background: color-mix(in srgb, var(--bg-3) 70%, #fff);
-  color: var(--muted);
+  color: var(--faint);
 }
 
 html[data-theme="light"] body[data-page="dashboard"] table.terminal-table tbody tr:hover {
@@ -2878,7 +2878,29 @@ body[data-page="dashboard"] {
 html[data-theme="light"] body[data-page="dashboard"] {
   --gotham-line: var(--line);
   --gotham-line-2: var(--line-2);
-  --gotham-faint: var(--faint);
+  --gotham-faint: #45483f;
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .nav-item:not(.active) {
+  color: var(--faint);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .nav-item.active {
+  color: var(--green-dim);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .user-box span {
+  color: var(--faint);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .dash-classbar-ref {
+  opacity: 0.88;
+  color: var(--green-dim);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .ts-filter-context,
+html[data-theme="light"] body[data-page="dashboard"] .markets-subtab-context {
+  color: var(--faint);
 }
 
 /* Subtle intelligence grid — mockup dot field */
