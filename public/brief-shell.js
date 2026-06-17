@@ -10,8 +10,7 @@
     next: "Continue →",
     lastNext: "Open dashboard",
     stepCount: (cur, total) => `Step ${cur} of ${total}`,
-    sectionLine: (cur, total, ref) =>
-      `SECTION ${String(cur).padStart(2, "0")} / ${String(total).padStart(2, "0")} — ${String(ref || "").toUpperCase()}`
+    sectionLine: (cur, total, ref) => String(ref || "").trim() || `Brief part ${cur} of ${total}`,
   };
 
   const SWIPE_THRESHOLD = 48;

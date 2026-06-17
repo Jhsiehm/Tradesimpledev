@@ -63,9 +63,9 @@ html[data-theme="light"] .site-shell {
 
 html[data-theme="light"] .site-nav {
   border-bottom-color: var(--line);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: saturate(160%) blur(20px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05), 0 4px 28px rgba(0, 0, 0, 0.06);
+  background: var(--bg-2);
+  backdrop-filter: none;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 
 html[data-theme="light"] .section-band {
@@ -6609,7 +6609,7 @@ body:has(.research-drawer-global.open) .research-drawer-btn { display: none; }
   color: var(--muted);
   margin-left: 6px;
 }
-.social-badge.curated { border-color: rgba(155, 110, 208, 0.45); color: #9b6ed0; }
+.social-badge.curated { border-color: var(--line-2); color: var(--muted); }
 .social-badge.live-feed { border-color: rgba(55, 138, 221, 0.45); color: var(--blue); }
 .social-badge.modeled { border-color: var(--line); color: var(--muted); }
 .fund-weight-editor { margin-top: 10px; }

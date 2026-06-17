@@ -30,7 +30,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=redesign-polish-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=anti-vibe-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -104,10 +104,9 @@ html[data-theme="light"] .grid-overlay{display:none}
   display:flex;align-items:center;gap:28px;width:100%;max-width:1180px;
   min-height:52px;padding:0 22px;
   border-radius:999px;
-  background:rgba(8,9,9,.72);
+  background:var(--bg-2);
   border:1px solid var(--line-2);
-  backdrop-filter:saturate(160%) blur(22px);
-  box-shadow:0 18px 48px rgba(10,14,8,.38);
+  box-shadow:0 1px 0 var(--line);
   transition:background .3s,box-shadow .3s;
 }
 html[data-theme="light"] .nav-inner{
@@ -117,9 +116,7 @@ html[data-theme="light"] .nav-inner{
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;letter-spacing:-.02em}
 .brand-dot{
   width:8px;height:8px;border-radius:50%;background:var(--green);
-  box-shadow:0 0 0 4px var(--green-glow);
-  will-change:transform,opacity;
-  animation:breathe 3s var(--ease) infinite;
+  box-shadow:0 0 0 2px var(--green-glow);
 }
 .brand-monogram{flex-shrink:0;filter:drop-shadow(0 0 6px rgba(91,191,130,.28))}
 @keyframes breathe{
@@ -174,7 +171,7 @@ html[data-theme="light"] .nav-inner{
   clip-path:circle(0% at 50% 50%);
   transition:clip-path .4s var(--ease);
 }
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(91,191,130,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.18)}
 .btn-primary:hover::after{clip-path:circle(150% at var(--mx,50%) var(--my,50%))}
 .btn-primary:focus-visible{outline:2px solid var(--text);outline-offset:3px}
 .btn-primary:active{transform:translateY(0) scale(.98) !important}
@@ -616,7 +613,7 @@ footer nav a:hover{color:var(--text)}
 
   <div class="ts-hero-content">
     <div class="ts-hero-copy">
-      <p class="ts-kicker"><span></span>Live policy surveillance</p>
+      <p class="ts-kicker"><span></span>Congress.gov · Senate LDA · USASpending</p>
       <h1>Markets<br><em>move</em> when<br>bills <i>pass.</i></h1>
       <p class="ts-subcopy">
         Congressional activity, lobbying filings, federal contracts, and market data —
@@ -657,8 +654,8 @@ footer nav a:hover{color:var(--text)}
           <figcaption>CAM-03_NYC_STREET</figcaption>
         </figure>
         <div class="cinema-signal-dock">
-          <div class="cinema-live-row"><span></span>Live stream matrix</div>
-          <div class="cinema-stamp">Active signal</div>
+          <div class="cinema-live-row"><span></span>Policy source feed</div>
+          <div class="cinema-stamp">CRS band</div>
           <div class="cinema-audio-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           <div class="cinema-intel-ticker" aria-label="Live intelligence briefings">
             <span class="cinema-intel-label">Intel queue</span>
@@ -721,7 +718,7 @@ footer nav a:hover{color:var(--text)}
               </div>
               <div class="landing-trending-strip" id="landing-trending-strip" hidden>
                 <div class="landing-trending-head">
-                  <span class="landing-trending-label">Trending now</span>
+                  <span class="landing-trending-label">Policy topics</span>
                   <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
                 </div>
                 <div class="landing-trending-items" id="landing-trending-items"></div>
@@ -748,17 +745,17 @@ footer nav a:hover{color:var(--text)}
   <div class="wrap manifesto-wrap">
     <div class="manifesto-layout reveal">
       <div class="manifesto-heading">
-        <p class="chapter-eyebrow">02 — The Manifesto</p>
-        <h2>An aesthetic<br>approach to<br><em>political intelligence.</em></h2>
+        <p class="chapter-eyebrow">Methodology</p>
+        <h2>Public records<br>mapped to<br><em>exposed tickers.</em></h2>
       </div>
       <div class="manifesto-copy">
-        <p class="manifesto-quote">"In a world cluttered with noise, clarity is the ultimate luxury. We strip away the unnecessary, exposing the raw, structural lines that connect federal policy to capital markets."</p>
-        <p>TradeSimple does not report news. We document the precise causal vectors of lobbying expenditure, legislative draft alignments, source freshness, market movement, and paper-trade outcomes. It is a forensic system for turning public records into testable theses.</p>
+        <p class="manifesto-quote">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, and quote snapshots from market feeds — each labeled live, modeled, or fallback before you act.</p>
+        <p>TradeSimple does not report news. We document lobbying spend, legislative draft alignments, source freshness, market movement, and paper-trade outcomes so each thesis can be tested against public records.</p>
       </div>
     </div>
 
     <div class="manifesto-registry">
-      <p class="chapter-eyebrow muted">03 — The Severity Registry</p>
+      <p class="chapter-eyebrow muted">CRS severity bands</p>
       <div class="severity-grid stagger">
         <article class="severity-card high">
           <header><span>CRS 7.0-10.0</span><b>Active signal</b></header>
@@ -786,21 +783,18 @@ footer nav a:hover{color:var(--text)}
 <!-- INTELLIGENCE PIPELINE -->
 <section class="archive-section archive-pipeline div-line" id="how-it-works">
   <div class="archive-wrap">
-    <p class="chapter-eyebrow">04 — The Intelligence Pipeline</p>
+    <p class="chapter-eyebrow">Intelligence pipeline</p>
     <div class="archive-pipeline-grid reveal">
       <article class="archive-step">
-        <span>I.</span>
-        <h2>We Monitor</h2>
-        <p>Forensic scanning of Congressional markup schedules, lobbying disclosure databases, agency award notices, and federal procurement contracts.</p>
+        <h2>Monitor</h2>
+        <p>Congressional markup schedules, lobbying disclosure databases, agency award notices, and federal procurement contracts.</p>
       </article>
       <article class="archive-step">
-        <span>II.</span>
-        <h2>We Score</h2>
+        <h2>Score</h2>
         <p>Each political event is calibrated into a CRS band, with source freshness, confidence, and live/model/fallback state exposed instead of hidden.</p>
       </article>
       <article class="archive-step">
-        <span>III.</span>
-        <h2>You Test</h2>
+        <h2>Test</h2>
         <p>Structured briefs move into the TradeSimple thesis lab and paper-trading rails, so the idea can be tested before any real capital is at risk.</p>
       </article>
     </div>
@@ -810,7 +804,7 @@ footer nav a:hover{color:var(--text)}
 <!-- TERMINAL VIEW -->
 <section class="archive-terminal-section div-line" id="data">
   <div class="archive-wrap">
-    <p class="chapter-eyebrow">05 — Terminal View</p>
+    <p class="chapter-eyebrow">Terminal view</p>
     <div class="terminal-preview-shell reveal">
       <div class="terminal-preview-head">
         <span>TRADESIMPLE SECURE PORTAL — v1.0</span>
@@ -825,7 +819,7 @@ footer nav a:hover{color:var(--text)}
           <div><b>LLY</b><em>$796.60</em></div>
         </aside>
         <div class="terminal-feed-preview">
-          <header><span></span>Intel feed — live/model tagged <b>5 active signals</b></header>
+          <header><span></span>Intel feed — illustrative examples · live/model tagged</header>
           <article>
             <h3>DOD Tactical Intelligence Mesh Contract Award</h3>
             <p>CONTRACT · 2H AGO · PLTR +3.2% · CRS 8.4</p>
@@ -868,7 +862,7 @@ footer nav a:hover{color:var(--text)}
     </div>
 
     <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
-      <article><span>AUTH + SESSIONS</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes remain powered by the TradeSimple backend.</p></article>
+      <article><span>AUTH + SESSIONS</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
       <article><span>SOURCE FRESHNESS</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
       <article><span>AI RESEARCH</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
       <article><span>THESIS LAB</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
@@ -889,9 +883,9 @@ footer nav a:hover{color:var(--text)}
 <section class="archive-access-section div-line" id="early-access">
   <div class="archive-wrap access-grid">
     <div class="reveal">
-      <p class="chapter-eyebrow">06 — Controlled Access</p>
-      <h2>Open the terminal before the headline hits.</h2>
-      <p>Policy signals, cited sources, AI research, thesis storage, and paper trading now sit inside the TradeSimple intelligence archive.</p>
+      <p class="chapter-eyebrow">Terminal access</p>
+      <h2>Read the record before the headline.</h2>
+      <p>Policy signals, cited sources, plain-English research, thesis storage, and paper trading in one terminal.</p>
       <div class="access-actions">
         <a href="/auth/demo?next=/dashboard%3Fview%3Dhome" class="ts-primary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
         <a href="/signup" class="ts-secondary-cta" data-app-path="/signup">Create account</a>
@@ -902,12 +896,12 @@ footer nav a:hover{color:var(--text)}
       <label for="access-email">Join the signal list</label>
       <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
       <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
-      <p class="wl-status" id="wl-status">Join the dispatch list — we'll reach you before the headline.</p>
+      <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
       <div class="access-checklist" aria-label="Access path">
-        <span>1. Open demo terminal</span>
-        <span>2. Review a source chain</span>
-        <span>3. Save a thesis</span>
-        <span>4. Test in paper mode</span>
+        <span>Open demo terminal</span>
+        <span>Review a source chain</span>
+        <span>Save a thesis</span>
+        <span>Test in paper mode</span>
       </div>
     </form>
   </div>

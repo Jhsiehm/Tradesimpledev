@@ -41,8 +41,7 @@ body[data-page="dashboard"] .nav-item.active {
 }
 
 body[data-page="dashboard"] .topbar-stack {
-  backdrop-filter: saturate(145%) blur(14px);
-  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  background: var(--bg-2);
   border-bottom-color: var(--dash-edge);
 }
 
@@ -77,7 +76,7 @@ body[data-page="dashboard"] .page-header h1 {
 
 body[data-page="dashboard"] .portfolio-terminal-card {
   border-radius: var(--dash-radius-lg);
-  box-shadow: var(--dash-elev), 0 0 0 1px rgba(200, 255, 0, 0.07);
+  box-shadow: var(--dash-elev);
 }
 
 body[data-page="dashboard"] .trade-form select,
@@ -859,11 +858,11 @@ body[data-page="dashboard"] .portfolio-command {
   border-radius: var(--dash-radius-lg);
   border-color: var(--dash-glass-edge);
   box-shadow: var(--dash-elev);
-  backdrop-filter: blur(14px) saturate(140%);
+  background: var(--bg-2);
 }
 
 body[data-page="dashboard"] .watchlist-chip-wrap {
-  backdrop-filter: blur(6px);
+  background: transparent;
 }
 
 /* Portfolio terminal card (hero sparkline) */
@@ -871,26 +870,14 @@ body[data-page="dashboard"] .portfolio-terminal-card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  backdrop-filter: blur(18px) saturate(145%);
-  background:
-    linear-gradient(155deg, rgba(200, 255, 0, 0.09) 0%, transparent 46%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 32%),
-    color-mix(in srgb, var(--bg-2) 86%, rgba(7, 8, 8, 0.92));
-  border: 1px solid color-mix(in srgb, var(--green) 26%, var(--line));
-  box-shadow:
-    var(--dash-inner),
-    0 18px 44px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(200, 255, 0, 0.09);
+  backdrop-filter: none;
+  background: var(--bg-2);
+  border: 1px solid var(--gotham-line, var(--line));
+  box-shadow: var(--dash-elev);
 }
 
 body[data-page="dashboard"] .portfolio-terminal-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse 70% 55% at 100% 0%, rgba(200, 255, 0, 0.14), transparent 58%);
-  opacity: 0.85;
-  z-index: 0;
+  display: none;
 }
 
 body[data-page="dashboard"] .portfolio-terminal-head,
@@ -904,7 +891,6 @@ body[data-page="dashboard"] .portfolio-terminal-head strong {
   font-size: clamp(1.75rem, 2.5vw, 2.05rem);
   letter-spacing: -0.035em;
   font-feature-settings: "tnum" 1;
-  text-shadow: 0 1px 24px rgba(200, 255, 0, 0.12);
 }
 
 body[data-page="dashboard"] .portfolio-terminal-foot {
@@ -2443,8 +2429,8 @@ body[data-page="dashboard"] .research-journey-strip {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(200, 255, 0, 0.2);
-  background: rgba(200, 255, 0, 0.06);
+  border: 1px solid var(--gotham-line, rgba(255, 255, 255, 0.1));
+  background: var(--bg-3);
 }
 
 body[data-page="dashboard"] .research-journey-head {
@@ -2461,22 +2447,22 @@ body[data-page="dashboard"] .research-journey-steps {
 }
 
 body[data-page="dashboard"] .research-journey-step {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   gap: 0.5rem;
   align-items: center;
+  justify-content: space-between;
   text-align: left;
   padding: 0.55rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  border: 1px solid var(--gotham-line, rgba(255, 255, 255, 0.1));
+  background: var(--bg-2);
   cursor: pointer;
   color: inherit;
   font: inherit;
 }
 
 body[data-page="dashboard"] .research-journey-step:hover {
-  border-color: rgba(200, 255, 0, 0.45);
+  border-color: color-mix(in srgb, var(--green) 35%, var(--gotham-line, rgba(255, 255, 255, 0.1)));
 }
 
 body[data-page="dashboard"] .research-journey-num {
@@ -2534,19 +2520,14 @@ body[data-page="dashboard"] .onboarding-checklist {
 
 body[data-page="dashboard"] .onboarding-checklist li {
   display: grid;
-  grid-template-columns: 2rem 1fr;
-  gap: 0.65rem;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--gotham-line, rgba(255, 255, 255, 0.12));
 }
 
 body[data-page="dashboard"] .onboarding-step-num {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(200, 255, 0, 0.4);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.8rem;
+  display: none;
 }
 
 body[data-page="dashboard"] .onboarding-lead {
@@ -3046,8 +3027,8 @@ body[data-page="dashboard"] .topbar-stack {
   position: sticky;
   top: 24px;
   z-index: 14;
-  backdrop-filter: blur(6px);
-  background: color-mix(in srgb, var(--bg-2) 72%, transparent);
+  backdrop-filter: none;
+  background: var(--bg-2);
   border-bottom-color: var(--gotham-line);
   box-shadow: var(--gotham-elev);
 }
@@ -3297,7 +3278,7 @@ body[data-page="dashboard"] .research-journey-strip {
   margin-top: 12px;
   padding: 10px 12px;
   border-color: var(--gotham-line-2);
-  background: color-mix(in srgb, var(--bg-3) 50%, transparent);
+  background: var(--bg-2);
 }
 
 body[data-page="dashboard"] .research-journey-steps {

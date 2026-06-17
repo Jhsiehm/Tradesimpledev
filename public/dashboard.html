@@ -19,10 +19,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-3" />
+    <link rel="stylesheet" href="/assets/styles.css?v=anti-vibe-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-3" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=anti-vibe-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -152,8 +152,8 @@
         <section class="view active dashboard-overview-view" id="view-overview">
           <header class="dash-view-header dash-view-header--overview">
             <div class="dash-view-header-copy">
-              <h1 class="overview-hero-title">Your policy-aware portfolio</h1>
-              <p id="overview-subtitle" class="dash-view-purpose">Loading live data and policy signals.</p>
+              <h1 class="overview-hero-title">Holdings &amp; policy exposure</h1>
+              <p id="overview-subtitle" class="dash-view-purpose">Portfolio value, mapped bills, and lobbying pressure for your watchlist.</p>
             </div>
             <div class="dash-view-header-rail">
               <button type="button" class="button button-primary compact" data-view-jump="thesis">Start in Thesis Lab</button>
@@ -1872,19 +1872,19 @@
       <div class="methodology-modal-backdrop" data-close-onboarding tabindex="-1"></div>
       <div class="methodology-modal-panel onboarding-modal-panel">
         <header class="methodology-modal-head">
-          <h2 id="onboarding-modal-title">Welcome to TradeSimple</h2>
+          <h2 id="onboarding-modal-title">Terminal orientation</h2>
           <button type="button" class="button button-ghost compact" data-close-onboarding aria-label="Close onboarding">✕</button>
         </header>
         <div class="methodology-modal-body onboarding-modal-body">
-          <p class="onboarding-lead">This is a <strong>research beta</strong> — live data where keys are set, clear labels where models are illustrative. Follow the path below to get value in under five minutes.</p>
+          <p class="onboarding-lead">Paper mode is default — $100,000 simulated cash, no real brokerage. Follow the checklist to trace one ticker from thesis to evidence.</p>
           <ol class="onboarding-checklist" id="onboarding-checklist">
-            <li data-step="watchlist"><span class="onboarding-step-num">1</span><div><strong>Set your watchlist</strong><p>Tap tickers on Home to track symbols you care about.</p><button type="button" class="button button-secondary compact" data-onboarding-go="overview">Go to Home</button></div></li>
-            <li data-step="thesis"><span class="onboarding-step-num">2</span><div><strong>Build one thesis</strong><p>Pick a ticker, write your view in one sentence, then open the Signal map.</p><button type="button" class="button button-secondary compact" data-onboarding-go="thesis">Open Thesis Lab</button></div></li>
-            <li data-step="bills"><span class="onboarding-step-num">3</span><div><strong>Trace policy</strong><p>Open a bill, follow the causal chain, and jump to exposed tickers.</p><button type="button" class="button button-secondary compact" data-onboarding-go="bills">Browse Bills</button></div></li>
-            <li data-step="share"><span class="onboarding-step-num">4</span><div><strong>Paper trade the view</strong><p>When your thesis is clear, place a paper trade in Account to track the idea.</p><button type="button" class="button button-secondary compact" data-onboarding-go="trade">Open Account</button></div></li>
+            <li data-step="watchlist"><div><strong>Set your watchlist</strong><p>Tap tickers on Home to track symbols you care about.</p><button type="button" class="button button-secondary compact" data-onboarding-go="overview">Go to Home</button></div></li>
+            <li data-step="thesis"><div><strong>Build one thesis</strong><p>Pick a ticker, write your view in one sentence, then open the Signal map.</p><button type="button" class="button button-secondary compact" data-onboarding-go="thesis">Open Thesis Lab</button></div></li>
+            <li data-step="bills"><div><strong>Trace policy</strong><p>Open a bill, follow the causal chain, and jump to exposed tickers.</p><button type="button" class="button button-secondary compact" data-onboarding-go="bills">Browse Bills</button></div></li>
+            <li data-step="share"><div><strong>Paper trade the view</strong><p>When your thesis is clear, place a paper trade in Account to track the idea.</p><button type="button" class="button button-secondary compact" data-onboarding-go="trade">Open Account</button></div></li>
           </ol>
           <label class="onboarding-skip"><input type="checkbox" id="onboarding-dismiss" /> Don&apos;t show again</label>
-          <button type="button" class="button button-primary" id="onboarding-finish">Start researching</button>
+          <button type="button" class="button button-primary" id="onboarding-finish">Open Thesis Lab</button>
         </div>
       </div>
     </div>

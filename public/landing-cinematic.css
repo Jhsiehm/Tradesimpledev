@@ -240,13 +240,13 @@ html[data-theme="light"] .ts-hero-dark-overlay {
 }
 
 .ts-nav.is-scrolled {
-  background: rgba(8, 8, 8, 0.82);
-  backdrop-filter: blur(16px);
+  background: var(--bg, #080808);
+  backdrop-filter: none;
   border-bottom: 1px solid var(--border-soft);
 }
 
 html[data-theme="light"] .ts-nav.is-scrolled {
-  background: rgba(241, 238, 230, 0.88);
+  background: var(--bg, #F1EEE6);
 }
 
 .ts-brand {
@@ -895,8 +895,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   height: 5px;
   border-radius: 50%;
   background: var(--signal-green);
-  box-shadow: 0 0 12px rgba(200, 255, 0, 0.5);
-  animation: pulseAmber 2s ease-in-out infinite;
+  box-shadow: none;
 }
 
 .cinema-stamp {

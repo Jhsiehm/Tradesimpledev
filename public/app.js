@@ -4416,7 +4416,7 @@ function renderOverview() {
     tradeModeEl.textContent = safety?.liveTradingEnabled ? "Live enabled" : "Paper";
     tradeModeEl.className = safety?.liveTradingEnabled ? "overview-metric-value amber" : "overview-metric-value";
   }
-  $("#trade-mode-sub").textContent = safety?.liveTradingEnabled ? "Broker live mode is unlocked" : "Live trading is locked";
+  $("#trade-mode-sub").textContent = safety?.liveTradingEnabled ? "Broker live mode enabled" : "Live trading locked by default";
   const classMode = $("#dash-classbar-mode");
   if (classMode) {
     classMode.textContent = safety?.liveTradingEnabled
@@ -4627,7 +4627,7 @@ function renderContractWatchCard(award) {
     <article class="sc-card trending-card sc-card--contract contract-watch-card">
       <div class="sc-card-header">
         <span class="sc-type-badge">Federal award</span>
-        ${award.isNew ? `<span class="trending-private-badge contract-watch-new">New</span>` : ""}
+        ${award.isNew ? `<span class="trending-private-badge contract-watch-new">Recent award</span>` : ""}
         ${award.noPublicTicker ? `<span class="trending-private-badge">No public ticker</span>` : ""}
         <span class="trending-freshness muted">${escapeHtml(freshness)}</span>
       </div>
@@ -4758,23 +4758,22 @@ function renderResearchJourney() {
   if (!strip) return;
   const sym = state.activeAnalysisSymbol || "NVDA";
   const steps = [
-    { n: 1, title: "Thesis", desc: "Write your view & map signals", view: "thesis", cta: "Thesis Lab" },
-    { n: 2, title: "Signals", desc: "Conviction scans & catalyst queue", view: "signals", cta: "Signals" },
-    { n: 3, title: "Lobbying", desc: "Who is spending on which issues", view: "lobbying", cta: "Lobbying" },
-    { n: 4, title: "Contracts", desc: "Federal award exposure", view: "contracts", cta: "Contracts" },
-    { n: 5, title: "Analysis", desc: `Deep dive · ${sym}`, view: "analysis", cta: sym }
+    { title: "Thesis", desc: "Write view & map signals", view: "thesis", cta: "Thesis Lab" },
+    { title: "Signals", desc: "Conviction scans & catalyst queue", view: "signals", cta: "Signals" },
+    { title: "Lobbying", desc: "Issue-area spend by registrant", view: "lobbying", cta: "Lobbying" },
+    { title: "Contracts", desc: "Federal award exposure", view: "contracts", cta: "Contracts" },
+    { title: "Analysis", desc: `Deep dive · ${sym}`, view: "analysis", cta: sym }
   ];
   strip.innerHTML = `
     <div class="research-journey-head">
       <span class="mini-label">Research path</span>
-      <button type="button" class="button button-ghost compact" id="research-journey-replay">Tour</button>
+      <button type="button" class="button button-ghost compact" id="research-journey-replay">Orientation</button>
     </div>
     <div class="research-journey-steps">
       ${steps
         .map(
           (s) =>
             `<button type="button" class="research-journey-step" data-journey-view="${escapeHtml(s.view)}">
-              <span class="research-journey-num">${s.n}</span>
               <span class="research-journey-copy"><strong>${escapeHtml(s.title)}</strong><small>${escapeHtml(s.desc)}</small></span>
               <span class="research-journey-cta">${escapeHtml(s.cta)} →</span>
             </button>`
