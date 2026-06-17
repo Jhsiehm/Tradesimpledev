@@ -22,10 +22,18 @@
     <link rel="stylesheet" href="/assets/styles.css?v=focus-filters-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=launch-gates-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=gotham-hybrid-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
+    <div class="dash-classbar" role="presentation" aria-hidden="true">
+      <div class="dash-classbar-left">
+        <span>TS//TRADESIMPLE</span>
+        <span class="dash-classbar-blink" aria-hidden="true">●</span>
+        <span id="dash-classbar-mode">PAPER MODE // SIMULATED CAPITAL</span>
+      </div>
+      <span class="dash-classbar-ref" id="dash-classbar-ref">POLICY INTELLIGENCE TERMINAL</span>
+    </div>
     <div class="terminal-shell">
       <aside class="sidebar" id="main-sidebar">
         <div class="sidebar-brand-row">
@@ -83,6 +91,7 @@
         </div>
       </aside>
 
+      <div class="main-column">
       <div class="topbar-stack">
         <header class="topbar">
           <label class="search-box">
@@ -108,28 +117,33 @@
         </div>
       </div>
 
-      <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
-        <div class="ts-focus-bar-inner">
-          <span class="ts-focus-label">Focus</span>
-          <strong class="ts-focus-symbol" id="ts-focus-symbol">—</strong>
-          <span class="ts-focus-hint muted" id="ts-focus-hint">Filtering tabs to this ticker</span>
-          <a class="ts-focus-link link-button" id="ts-focus-markets-link" href="#" hidden>Browse Markets</a>
-          <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
+      <div class="dash-chrome-rail" aria-label="Terminal status">
+        <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
+          <div class="ts-focus-bar-inner">
+            <span class="ts-focus-label">Focus</span>
+            <strong class="ts-focus-symbol" id="ts-focus-symbol">—</strong>
+            <span class="ts-focus-hint muted" id="ts-focus-hint">Filtering tabs to this ticker</span>
+            <a class="ts-focus-link link-button" id="ts-focus-markets-link" href="#" hidden>Browse Markets</a>
+            <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
+          </div>
         </div>
+        <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
+        <details class="dash-meta-fold source-freshness-fold" id="source-freshness-fold" hidden>
+          <summary class="dash-meta-fold-summary">Source freshness</summary>
+          <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness" hidden>
+            <div class="source-freshness-inner">
+              <div id="source-freshness-grid" class="source-freshness-grid"></div>
+              <a class="source-freshness-link" href="#" id="data-health-details-link">How data is verified</a>
+            </div>
+          </section>
+        </details>
+        <details class="dash-meta-fold terminal-start-fold">
+          <summary class="dash-meta-fold-summary">Start here — research path</summary>
+          <p class="terminal-start-note" aria-label="Terminal start instructions">
+            Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.
+          </p>
+        </details>
       </div>
-
-      <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
-      <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness" hidden>
-        <div class="source-freshness-inner">
-          <span class="source-freshness-title">Source freshness</span>
-          <div id="source-freshness-grid" class="source-freshness-grid"></div>
-          <a class="source-freshness-link" href="#" id="data-health-details-link">How data is verified</a>
-        </div>
-      </section>
-      <section class="terminal-start-note" aria-label="Terminal start instructions">
-        <strong>Start here:</strong>
-        <span>Build a thesis in Thesis Lab, scan Signals for catalysts, then use Bills, Markets, and Contracts before placing a paper trade.</span>
-      </section>
 
       <main class="workspace" id="workspace-main">
         <section class="view active dashboard-overview-view" id="view-overview">
@@ -137,7 +151,7 @@
             <div class="portfolio-command-copy">
               <h1>Know what can move your money before the move.</h1>
               <p id="overview-subtitle">Loading live data and policy signals.</p>
-              <p class="dashboard-brief-share-note muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
+              <p class="dashboard-brief-share-note dash-quiet-meta muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
               <div class="watchlist-strip-wrap">
                 <span class="watchlist-strip-label">Watchlist</span>
                 <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
@@ -1742,6 +1756,7 @@
         </section>
 
       </main>
+      </div>
     </div>
 
     <button type="button" class="research-drawer-btn">Ask AI</button>
@@ -1812,7 +1827,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=guided-dash-2" defer></script>
+    <script src="/assets/app.js?v=gotham-hybrid-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {

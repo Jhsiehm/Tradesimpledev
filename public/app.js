@@ -171,7 +171,7 @@ const MARKETS_INDEX_ETFS = new Set([
   "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "ARKK", "XLE", "XLF", "XLK", "XLV", "XLI", "XLP", "XLY", "XLU", "XLB", "KBE"
 ]);
 const MARKETS_TOPIC_TAGS = {
-  defense: new Set(["LMT", "NOC", "RTX", "GD", "BAH", "PLTR", "LDOS", "HII", "TXT", "LHX", "KTOS", "CACI"]),
+  defense: new Set(["LMT", "NOC", "RTX", "GD", "BAH", "PLTR", "LDOS", "HII", "TXT", "LHX", "KTOS", "CACI", "SPCX"]),
   crypto: new Set(["COIN", "MSTR", "MARA", "RIOT", "HOOD"]),
   tech: new Set(["NVDA", "AMD", "AAPL", "MSFT", "GOOGL", "META", "AMZN", "INTC", "AVGO", "CRM", "ORCL", "MU", "QCOM"]),
   pharma: new Set(["LLY", "PFE", "MRNA", "ABBV", "JNJ", "BMY", "GILD", "REGN", "VRTX"])
@@ -2766,7 +2766,7 @@ function buildTradeGuidedSteps() {
             ${tradeSymbolPickerHtml("guided-order-symbol", symbol)}
           </label>
         </form>
-        <p class="muted bill-guided-note">Try PLTR, LMT, NVDA, or search the full policy-linked catalog.</p>`
+        <p class="muted bill-guided-note">Try SPCX, PLTR, LMT, NVDA, or search the full policy-linked catalog.</p>`
     },
     {
       id: "order",
@@ -3370,6 +3370,8 @@ function renderSourceFreshnessBar() {
   const grid = $("#source-freshness-grid");
   if (!bar || !grid) return;
   bar.hidden = false;
+  const fold = $("#source-freshness-fold");
+  if (fold) fold.hidden = false;
 
   const health = state.dataHealth;
   const feeds = health?.feeds || {};
@@ -4119,6 +4121,12 @@ function renderOverview() {
     tradeModeEl.className = safety?.liveTradingEnabled ? "overview-metric-value amber" : "overview-metric-value";
   }
   $("#trade-mode-sub").textContent = safety?.liveTradingEnabled ? "Broker live mode is unlocked" : "Live trading is locked";
+  const classMode = $("#dash-classbar-mode");
+  if (classMode) {
+    classMode.textContent = safety?.liveTradingEnabled
+      ? "LIVE MODE // BROKER ENABLED"
+      : "PAPER MODE // SIMULATED CAPITAL";
+  }
 
   const bills = policyBills();
   const maxMom = bills.reduce((max, b) => Math.max(max, billMomentum(b)), 0);

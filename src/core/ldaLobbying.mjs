@@ -29,7 +29,8 @@ const TICKER_CLIENT_HINTS = {
   CXW: ["corecivic", "core civic", "corrections corporation"],
   PLTR: ["palantir"],
   BAH: ["booz allen", "booz allen hamilton"],
-  LMT: ["lockheed martin", "lockheed"]
+  LMT: ["lockheed martin", "lockheed"],
+  SPCX: ["spacex", "space exploration technologies", "space exploration technologies corp"]
 };
 
 const HOMELAND_ISSUE_KEYWORDS = [

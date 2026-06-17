@@ -411,7 +411,7 @@ async function withFileLock(filePath, fn) {
   }
 }
 
-const LANDING_QUOTES_TICKERS = ["GME", "AMZN", "RTX", "PLTR", "NOC", "NVDA", "AAPL", "LLY"];
+const LANDING_QUOTES_TICKERS = ["GME", "AMZN", "SPCX", "RTX", "PLTR", "NOC", "NVDA", "AAPL", "LLY"];
 const LANDING_QUOTES_TTL_MS = 5 * 60 * 1000;
 let landingQuotesCache = null;
 let landingQuotesCachedAt = 0;
@@ -787,6 +787,7 @@ const MARKET_FALLBACK = {
   PANW: { symbol: "PANW", price: 185.0, change: 2.7, pct: 1.48, high: 187.5, low: 180.5, open: 182.3 },
   PFE: { symbol: "PFE", price: 24.8, change: 0.18, pct: 0.73, high: 25.1, low: 24.4, open: 24.62 },
   SAIC: { symbol: "SAIC", price: 102.0, change: -1.4, pct: -1.35, high: 104.5, low: 101.0, open: 103.4 },
+  SPCX: { symbol: "SPCX", price: 211.6, change: 5.89, pct: 2.86, high: 225.64, low: 192.5, open: 205.71 },
   TSM: { symbol: "TSM", price: 205.0, change: 3.5, pct: 1.74, high: 207.5, low: 200.0, open: 201.5 },
   UAL: { symbol: "UAL", price: 84.0, change: 1.65, pct: 2.0, high: 85.5, low: 81.5, open: 82.35 },
   UNH: { symbol: "UNH", price: 305.0, change: -6.2, pct: -1.99, high: 315.0, low: 300.0, open: 311.2 },
@@ -811,6 +812,7 @@ const DASHBOARD_POLICY_BLURBS = {
   AAPL: "Platform antitrust risk fading",
   LLY: "Drug-pricing bill exposure",
   TSLA: "Permitting reform watch",
+  SPCX: "NASA/DoD launch contracts; post-IPO policy watch",
   AMZN: "Antitrust overhang easing"
 };
 
@@ -831,6 +833,7 @@ const CONTRACT_COMPANY_NAMES = {
   LDOS: "Leidos",
   SAIC: "Science Applications International",
   PLTR: "Palantir Technologies",
+  SPCX: "Space Exploration Technologies Corp.",
   GEO: "The GEO Group",
   CXW: "CoreCivic"
 };
@@ -842,7 +845,8 @@ const CONTRACT_SEARCH_HINTS = {
   HII: "Huntington Ingalls",
   LHX: "L3Harris Technologies",
   BA: "Boeing",
-  RTX: "RTX Corporation"
+  RTX: "RTX Corporation",
+  SPCX: "Space Exploration Technologies"
 };
 
 function buildContractWatchlist() {
@@ -1471,7 +1475,27 @@ const FUNDAMENTALS = {
     catalyst: "DHS/ICE funding · immigration enforcement budgets",
     moat: "Federal detention contracts tie revenue to immigration enforcement appropriations cycles.",
     plainBull: "Sustained border enforcement funding supports facility utilization.",
-    plainBear: "Budget cuts or shifts away from private operators reduce contract demand."
+    plainBear: "Enforcement budget cuts or shifts away from private operators reduce contract demand."
+  },
+  SPCX: {
+    name: "Space Exploration Technologies Corp.",
+    sector: "Aerospace & launch services",
+    marketCap: 2800000000000,
+    pe: null,
+    forwardPe: null,
+    ps: 18.4,
+    grossMargin: 42,
+    revenueGrowth: 38,
+    freeCashFlowMargin: 12,
+    debtToEquity: 0.18,
+    beta: 1.85,
+    analystTarget: 240,
+    analystRating: "Buy",
+    analystCount: 12,
+    catalyst: "NASA launch contracts · Starlink · Starship milestones · post-IPO lock-up",
+    moat: "Reusable launch cadence, vertical integration, and Starlink scale create a durable cost advantage in orbital access.",
+    plainBull: "NASA and DoD launch awards plus Starlink growth can validate the newly public equity story.",
+    plainBear: "IPO valuation embeds aggressive growth; launch failures or budget shifts at NASA would hit sentiment fast."
   },
   SPY: {
     name: "SPDR S&P 500 ETF",
@@ -1586,6 +1610,12 @@ const GOVERNMENT_SIGNAL_EXPOSURES = {
   CXW: ["ICE detention funding", "DHS appropriations", "immigration enforcement budgets"],
   PLTR: ["DHS surveillance contracts", "immigration enforcement IT", "defense AI procurement"],
   BAH: ["DHS IT modernization", "federal consulting budgets", "cybersecurity procurement"],
+  SPCX: [
+    "NASA launch services contracts",
+    "DoD space launch procurement",
+    "National security space budgets",
+    "Starlink government connectivity"
+  ],
   SPY: [
     "Federal Reserve path",
     "tax policy",
@@ -2151,6 +2181,20 @@ const CONTRACT_PROFILES = {
     archetypeExplain: "Border and immigration enforcement budgets flow to detention bed capacity — CoreCivic moves with ICE funding visibility more than broad market beta.",
     bull: "Sustained ICE appropriations support facility occupancy and renewal pipelines.",
     bear: "Enforcement budget cuts or policy limits on private detention reduce the addressable contract base."
+  },
+  SPCX: {
+    governmentRevenuePct: 0.52,
+    renewalRisk: 0.45,
+    primaryAgencies: ["National Aeronautics and Space Administration", "Department of Defense", "Space Force"],
+    primaryPrograms: ["Falcon 9 launch services", "Falcon Heavy", "Starship", "Starlink", "NASA VADR task orders"],
+    dogeRisk: false,
+    agencyBudgetRisk: "medium",
+    archetype: "Narrative-Sensitive Contractor",
+    linkedBillIds: [],
+    note: "SpaceX derives a large share of revenue from NASA and DoD launch awards plus government Starlink connectivity. As a newly public company, smaller unexpected civilian-space awards can carry more narrative weight than routine NASA task orders.",
+    archetypeExplain: "Federal launch awards validate capacity and backlog for investors watching post-IPO execution. NASA VADR and national-security launch task orders are direct revenue drivers — less about a single award size than sustained government demand visibility.",
+    bull: "NASA and DoD launch pipelines plus Starlink government adoption support multi-year backlog visibility.",
+    bear: "Launch failures, NASA budget cuts, or loss of national-security launch certification would hit both revenue and sentiment."
   }
 };
 
@@ -2193,10 +2237,10 @@ const FIGURE_LINKS = [
   },
   {
     name: "Elon Musk",
-    label: "Tesla CEO — permitting & energy infrastructure policy comments",
-    date: "2026-04-02",
-    symbols: ["TSLA", "AMZN"],
-    url: "https://www.congress.gov/search?q=permitting+reform+energy"
+    label: "SpaceX CEO — NASA launch contracts & space procurement policy",
+    date: "2026-06-12",
+    symbols: ["SPCX", "TSLA"],
+    url: "https://www.congress.gov/search?q=SpaceX+NASA+launch"
   }
 ];
 
@@ -2216,7 +2260,9 @@ const LOBBY_CLIENT_TICKERS = {
   "phrma": ["LLY", "MRK", "PFE", "ABBV"],
   "geo group": ["GEO"],
   "corecivic": ["CXW"],
-  "palantir": ["PLTR"]
+  "palantir": ["PLTR"],
+  "spacex": ["SPCX"],
+  "space exploration": ["SPCX"]
 };
 
 // Agency signal scores: higher = less analyst coverage = more informational value
@@ -4285,8 +4331,8 @@ async function trendingAdminHandler(req, res) {
 // ── Contract Watch (USASpending significant-award monitor) ─────────────────
 
 const CONTRACT_WATCH_PRIVATE_RELATED = {
-  spacex: ["BAH", "LMT", "RKLB"],
-  "space exploration": ["BAH", "LMT", "RKLB"],
+  spacex: ["SPCX", "BAH", "LMT", "RKLB"],
+  "space exploration": ["SPCX", "BAH", "LMT", "RKLB"],
   anduril: ["LMT", "PLTR", "BAH"]
 };
 
@@ -4302,6 +4348,7 @@ function defaultContractWatchStore() {
       recipients: [
         "SPACEX",
         "SPACE EXPLORATION",
+        "SPACE EXPLORATION TECHNOLOGIES",
         "PALANTIR",
         "GEO GROUP",
         "CORECIVIC",
@@ -4449,7 +4496,7 @@ function relatedTickersForPrivateRecipient(recipientName = "", watchKeyword = ""
   for (const [needle, tickers] of Object.entries(CONTRACT_WATCH_PRIVATE_RELATED)) {
     if (blob.includes(needle)) tickers.forEach((t) => found.add(String(t).toUpperCase()));
   }
-  if (/spacex|space exploration/i.test(blob)) ["BAH", "LMT", "RKLB"].forEach((t) => found.add(t));
+  if (/spacex|space exploration/i.test(blob)) ["SPCX", "BAH", "LMT", "RKLB"].forEach((t) => found.add(t));
   if (/palantir/i.test(blob)) found.add("PLTR");
   if (/geo group/i.test(blob)) found.add("GEO");
   if (/corecivic/i.test(blob)) found.add("CXW");
@@ -12628,6 +12675,7 @@ function contractSymbolForCompany(company) {
   if (c.includes("general dynamics")) return "GD";
   if (c.includes("geo group")) return "GEO";
   if (c.includes("corecivic")) return "CXW";
+  if (c.includes("spacex") || c.includes("space exploration")) return "SPCX";
   return null;
 }
 
@@ -13518,7 +13566,7 @@ function inferTickers(title = "") {
   if (lower.includes("trade") || lower.includes("tariff") || lower.includes("import") || lower.includes("export") || lower.includes("china trade")) matched.push(...["NVDA", "AAPL", "AMZN"]);
   if (lower.includes("broadband") || lower.includes("internet access") || lower.includes("telecom") || lower.includes("spectrum") || lower.includes("5g")) matched.push(...["GOOGL", "META", "MSFT"]);
   if (lower.includes("tax") || lower.includes("revenue") || lower.includes("irs") || lower.includes("corporate tax") || lower.includes("capital gains")) matched.push(...["AAPL", "MSFT", "GOOGL", "META", "AMZN"]);
-  if (lower.includes("space") || lower.includes("nasa") || lower.includes("satellite") || lower.includes("launch vehicle")) matched.push(...["TSLA", "LMT"]);
+  if (lower.includes("space") || lower.includes("nasa") || lower.includes("satellite") || lower.includes("launch vehicle") || lower.includes("spacex") || lower.includes("starlink")) matched.push(...["SPCX", "LMT", "RKLB"]);
   if (lower.includes("climate") || lower.includes("carbon") || lower.includes("emission")) matched.push(...["XLE", "TSLA", "ENPH"]);
   if (lower.includes("privacy") || lower.includes("cybersecurity") || lower.includes("data security")) matched.push(...["MSFT", "CRWD", "PANW"]);
   if (/\bice\b/.test(lower) || lower.includes("border patrol") || lower.includes("customs and border") || lower.includes("homeland security") || lower.includes("immigration enforcement") || lower.includes("detention") || lower.includes("secure america") || /\bdhs\b/.test(lower)) {
@@ -13537,7 +13585,14 @@ const BILL_KEYWORD_BUCKETS = [
   { id: "crypto", patterns: [/digital asset/i, /\bcrypto\b/i, /\bbitcoin\b/i, /blockchain/i, /stablecoin/i, /virtual currency/i, /clarity act/i], sectors: ["crypto", "financial"], tickers: ["COIN", "BTC", "ETH"], tier: "crypto_proxy" },
   { id: "energy", patterns: [/energy/i, /electric vehicle/i, /\bev\b/i, /charging/i, /clean energy/i, /solar/i, /wind/i, /\bpermit/i], sectors: ["energy", "clean energy"], tickers: ["TSLA", "ENPH", "FSLR", "XLE"], tier: "sector_etf" },
   { id: "antitrust", patterns: [/platform/i, /antitrust/i, /monopoly/i, /competition/i, /big tech/i, /app store/i, /marketplace/i], sectors: ["antitrust", "platform", "technology"], tickers: ["AMZN", "AAPL", "GOOGL", "META"], tier: "direct" },
-  { id: "defense", patterns: [/defense/i, /military/i, /pentagon/i, /national security/i, /armed forces/i, /procurement/i, /weapons/i], sectors: ["defense", "national security"], tickers: ["LMT", "RTX", "NOC", "PLTR"], tier: "direct" },
+  { id: "defense", patterns: [/defense/i, /military/i, /pentagon/i, /national security/i, /armed forces/i, /procurement/i, /weapons/i], sectors: ["defense", "national security"], tickers: ["LMT", "RTX", "NOC", "PLTR", "SPCX"], tier: "direct" },
+  {
+    id: "space",
+    patterns: [/space/i, /nasa/i, /satellite/i, /launch vehicle/i, /spacex/i, /starlink/i, /orbital/i],
+    sectors: ["aerospace", "space"],
+    tickers: ["SPCX", "LMT", "RKLB"],
+    tier: "direct"
+  },
   {
     id: "foreign_affairs",
     patterns: [/foreign affairs/i, /international relations/i, /diplomatic/i, /caucasus/i, /embassy/i, /state department/i, /foreign aid/i],
@@ -13573,7 +13628,7 @@ const BILL_KEYWORD_BUCKETS = [
 
 const COMMITTEE_SECTOR_MAP = [
   { patterns: [/banking/i, /financial services/i, /finance/i], sectors: ["banking"], tickers: ["KBE", "XLF", "JPM"], tier: "sector_etf" },
-  { patterns: [/armed services/i, /defense/i, /veterans/i, /intelligence/i], sectors: ["defense"], tickers: ["LMT", "RTX", "NOC"], tier: "direct" },
+  { patterns: [/armed services/i, /defense/i, /veterans/i, /intelligence/i], sectors: ["defense"], tickers: ["LMT", "RTX", "NOC", "SPCX"], tier: "direct" },
   { patterns: [/energy/i, /natural resources/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "XOM", "TSLA"], tier: "sector_etf" },
   { patterns: [/judiciary/i, /antitrust/i], sectors: ["antitrust", "technology"], tickers: ["GOOGL", "META", "AMZN"], tier: "direct" },
   { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["NVDA", "MSFT", "GOOGL"], tier: "direct" },
@@ -13588,7 +13643,8 @@ const POLICY_AREA_SECTOR_MAP = [
   { patterns: [/finance/i, /financial/i], sectors: ["financial"], tickers: ["XLF", "JPM"], tier: "sector_etf" },
   { patterns: [/commerce/i, /science/i, /technology/i], sectors: ["technology"], tickers: ["QQQ", "NVDA"], tier: "broad_index" },
   { patterns: [/energy/i, /environment/i], sectors: ["energy"], tickers: ["XLE", "TSLA"], tier: "sector_etf" },
-  { patterns: [/defense/i, /national security/i, /armed/i], sectors: ["defense"], tickers: ["LMT", "RTX"], tier: "direct" },
+  { patterns: [/defense/i, /national security/i, /armed/i], sectors: ["defense"], tickers: ["LMT", "RTX", "SPCX"], tier: "direct" },
+  { patterns: [/space/i, /nasa/i, /aerospace/i], sectors: ["aerospace", "space"], tickers: ["SPCX", "LMT"], tier: "direct" },
   { patterns: [/international/i, /foreign/i], sectors: ["foreign policy"], tickers: ["LMT", "RTX", "GD"], tier: "direct" },
   { patterns: [/tax/i], sectors: ["tax"], tickers: ["SPY"], tier: "broad_index" },
   { patterns: [/transport/i], sectors: ["transport"], tickers: ["UAL", "DAL"], tier: "direct" },

@@ -14,7 +14,7 @@
       "id": "spacex-nasa-contracts",
       "title": "SpaceX federal launch contracts",
       "keywords": ["spacex", "nasa", "launch services"],
-      "tickers": [],
+      "tickers": ["SPCX"],
       "relatedTickers": ["BAH", "LMT", "RKLB"],
       "type": "contract",
       "pinned": true
