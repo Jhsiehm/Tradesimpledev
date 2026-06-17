@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=focus-filters-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=gotham-hybrid-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=gotham-polish-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -147,19 +147,29 @@
 
       <main class="workspace" id="workspace-main">
         <section class="view active dashboard-overview-view" id="view-overview">
+          <header class="dash-view-header dash-view-header--overview">
+            <div class="dash-view-header-copy">
+              <h1 class="overview-hero-title">Your policy-aware portfolio</h1>
+              <p id="overview-subtitle" class="dash-view-purpose">Loading live data and policy signals.</p>
+            </div>
+            <div class="dash-view-header-rail">
+              <button type="button" class="button button-primary compact" data-view-jump="thesis">Start in Thesis Lab</button>
+            </div>
+          </header>
           <section class="portfolio-command portfolio-command-hero">
             <div class="portfolio-command-copy">
-              <h1>Know what can move your money before the move.</h1>
-              <p id="overview-subtitle">Loading live data and policy signals.</p>
-              <p class="dashboard-brief-share-note dash-quiet-meta muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
               <div class="watchlist-strip-wrap">
                 <span class="watchlist-strip-label">Watchlist</span>
                 <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
               </div>
               <section class="research-journey-strip" id="research-journey-strip" aria-label="Recommended research path"></section>
+              <details class="dash-meta-fold overview-share-fold">
+                <summary class="dash-meta-fold-summary">Share briefs</summary>
+                <p class="dashboard-brief-share-note muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
+              </details>
               <div class="portfolio-command-actions">
-                <button class="button button-secondary" data-view-jump="analysis">Analyze holdings</button>
-                <button class="button button-ghost" data-view-jump="signals">Signals desk</button>
+                <button class="button button-secondary" data-view-jump="signals">Scan signals</button>
+                <button class="button button-ghost" data-view-jump="analysis">Analyze holdings</button>
                 <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
               </div>
             </div>
@@ -293,17 +303,20 @@
         </section>
 
         <section class="view terminal-view" id="view-signals">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Signals</h1>
-              <p>Congressional catalysts, conviction-ranked policy chains, and the live alert tape — separate from portfolio Home.</p>
+              <p class="dash-view-purpose">Congressional catalysts, conviction scans, and the live alert tape — filtered by type below.</p>
             </div>
-            <span class="status-pill" id="signals-source">Connecting</span>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" id="signals-source">Connecting</span>
+              <button type="button" class="button button-secondary compact" data-view-jump="bills">Browse bills</button>
+            </div>
           </div>
           <div id="signals-top-signal" class="overview-top-signal" hidden></div>
-          <div class="ts-filter-bar" id="signals-filter-bar" role="group" aria-label="Filter signals">
+          <div class="ts-filter-bar ts-filter-bar--sticky" id="signals-filter-bar" role="group" aria-label="Filter signals">
             <span class="ts-filter-bar-label">Type</span>
-            <div class="ts-filter-chips">
+            <div class="ts-filter-chips ts-filter-chips--segmented">
               <button type="button" class="ts-filter-chip is-active" data-signals-filter="all">All</button>
               <button type="button" class="ts-filter-chip" data-signals-filter="bills">Bills</button>
               <button type="button" class="ts-filter-chip" data-signals-filter="contracts">Contracts</button>
@@ -362,17 +375,20 @@
               <h2>Highest-conviction signals</h2>
               <button type="button" class="link-button" data-view-jump="bills">Browse all bills</button>
             </div>
-            <div id="signal-list" class="stack-list"></div>
+            <div id="signal-list" class="stack-list stack-list--conviction sc-card-grid"></div>
           </section>
         </section>
 
         <section class="view terminal-view" id="view-markets">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Markets</h1>
-              <p>Live market prices, crypto assets, and mapped policy signals. Source freshness updates as each feed polls.</p>
+              <p class="dash-view-purpose">Live quotes, policy-linked tickers, and watchlist — scan lanes show live vs reference prices.</p>
             </div>
-            <span class="status-pill" id="market-source">Connecting</span>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" id="market-source">Connecting</span>
+              <button type="button" class="button button-secondary compact" id="markets-refresh-inline">Refresh quotes</button>
+            </div>
           </div>
           <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
@@ -399,7 +415,7 @@
               </div>
             </div>
             <div class="table-wrap">
-              <table class="terminal-table terminal-table--markets">
+              <table class="terminal-table terminal-table--markets terminal-table--scan">
                 <thead>
                   <tr>
                     <th>Ticker</th>
@@ -425,6 +441,12 @@
         </section>
 
         <section class="view terminal-view" id="view-analysis">
+          <div class="page-header dash-view-header analysis-view-header">
+            <div class="dash-view-header-copy">
+              <h1>Analysis</h1>
+              <p class="dash-view-purpose">Plain-English snapshot for one ticker — scores, bills, lobbying, and federal contracts.</p>
+            </div>
+          </div>
           <div class="analysis-shell">
             <div class="analysis-left">
               <label class="analysis-ticker-label" for="analysis-symbol">You are looking at</label>
@@ -672,19 +694,19 @@
         </section>
 
         <section class="view terminal-view" id="view-bills">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Bills</h1>
-              <p>Intro dates, committee gates, last action, and vote timing — plus momentum, lobbying, and tickers.</p>
+              <p class="dash-view-purpose">Legislative momentum, lobbying pressure, and ticker mapping — filters update the table below.</p>
             </div>
-            <div class="page-header-actions">
+            <div class="page-header-actions dash-view-header-rail">
               <div id="bills-mode-toggle" aria-label="Bills view mode"></div>
               <span class="status-pill" id="bill-source">Connecting</span>
             </div>
           </div>
           <div id="bills-guided-root" class="dashboard-guided-host" hidden></div>
           <div id="bills-full-root">
-          <div class="ts-filter-bar" id="bills-filter-bar" role="group" aria-label="Filter bills">
+          <div class="ts-filter-bar ts-filter-bar--sticky" id="bills-filter-bar" role="group" aria-label="Filter bills">
             <span class="ts-filter-bar-label">Stage</span>
             <div class="ts-filter-chips">
               <button type="button" class="ts-filter-chip is-active" data-bills-stage="all">All</button>
@@ -724,7 +746,7 @@
               <span data-freshness>Pending</span>
             </div>
             <div class="table-wrap">
-              <table class="terminal-table terminal-table--bills">
+              <table class="terminal-table terminal-table--bills terminal-table--scan">
                 <thead>
                   <tr>
                     <th>Bill / model ID</th>
@@ -752,14 +774,16 @@
         </section>
 
         <section class="view terminal-view" id="view-lobbying">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Lobbying</h1>
-              <p>Senate LDA filings when configured — spend spikes, issue areas, and links to related legislation. Each filing opens a full brief page.</p>
+              <p class="dash-view-purpose">Senate LDA filings — spend spikes, issue areas, and links to related legislation.</p>
             </div>
-            <span class="status-pill" id="lobby-source">Connecting</span>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" id="lobby-source">Connecting</span>
+            </div>
           </div>
-          <div class="ts-filter-bar" id="lobby-filter-bar" role="group" aria-label="Filter lobbying">
+          <div class="ts-filter-bar ts-filter-bar--sticky" id="lobby-filter-bar" role="group" aria-label="Filter lobbying">
             <label class="ts-filter-search-wrap">
               <span class="sr-only">Issue keyword</span>
               <input type="search" id="lobby-keyword-filter" class="ts-filter-search" placeholder="Issue keyword…" autocomplete="off" />
@@ -787,13 +811,16 @@
         </section>
 
         <section class="view terminal-view" id="view-contracts">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Contracts</h1>
-              <p>Federal contract awards can affect revenue for government-exposed companies. Agency reviews, recompetes, cancellations, or appropriations cuts can move a stock before the earnings report reflects it.</p>
+              <p class="dash-view-purpose">Federal award exposure by ticker — agency filters narrow both the watch feed and exposure table.</p>
+            </div>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" id="contracts-header-source">Connecting</span>
             </div>
           </div>
-          <div class="ts-filter-bar" id="contracts-filter-bar" role="group" aria-label="Filter contracts">
+          <div class="ts-filter-bar ts-filter-bar--sticky" id="contracts-filter-bar" role="group" aria-label="Filter contracts">
             <span class="ts-filter-bar-label">Agency</span>
             <div class="ts-filter-chips">
               <button type="button" class="ts-filter-chip is-active" data-contracts-agency="all">All</button>
@@ -810,7 +837,7 @@
             </div>
             <span class="ts-filter-context muted" id="contracts-filter-context" hidden></span>
           </div>
-          <section class="panel panel-compact contract-watch-panel" id="contracts-tab-watch-panel">
+          <section class="panel panel-compact contract-watch-panel contracts-watch-secondary" id="contracts-tab-watch-panel">
             <div class="panel-head panel-head-quiet">
               <h2>Recent federal awards</h2>
               <span id="contracts-tab-watch-source" class="muted">USASpending</span>
@@ -818,7 +845,7 @@
             <p class="contract-watch-disclaimer muted">Filtered by agency and ticker focus · links open contract briefs or USASpending</p>
             <div id="contracts-tab-watch-feed" class="contract-watch-feed trending-feed"></div>
           </section>
-          <section class="panel panel-emphasis">
+          <section class="panel panel-emphasis contracts-exposure-panel">
             <div class="panel-head panel-head-quiet">
               <h2>Federal contract exposure monitor</h2>
               <span id="contracts-source" class="status-pill source-pill">Connecting</span>
@@ -827,7 +854,7 @@
               Loading recent awards from USASpending.gov. Awards can lag agency disclosure by roughly 30-90 days.
             </p>
             <div class="table-wrap">
-              <table class="terminal-table">
+              <table class="terminal-table terminal-table--contracts terminal-table--scan">
                 <thead>
                   <tr>
                     <th>Ticker</th>
@@ -945,6 +972,19 @@
         </section>
 
         <section class="view terminal-view" id="view-thesis">
+          <div class="page-header dash-view-header thesis-view-header">
+            <div class="dash-view-header-copy">
+              <h1>Thesis Lab</h1>
+              <p class="dash-view-purpose">Write a one-sentence view, map policy signals to your ticker, then test in paper mode.</p>
+            </div>
+            <div class="dash-view-header-rail">
+              <button type="button" class="button button-primary compact" id="thesis-header-start">New thesis</button>
+            </div>
+          </div>
+          <div id="thesis-empty-guide" class="thesis-empty-guide panel panel-compact" hidden>
+            <p><strong>No thesis yet.</strong> Pick a ticker, write one sentence on why it could move, then tap <em>Generate Thesis Map</em> to see linked bills, lobbying, and contracts.</p>
+            <button type="button" class="button button-secondary compact" id="thesis-empty-example">Try PLTR example</button>
+          </div>
           <div class="thesis-outer-tabs">
             <button type="button" class="thesis-outer-tab active" data-thesis-outer="build">Thesis Command Center</button>
             <button type="button" class="thesis-outer-tab" data-thesis-outer="map">Signal map</button>
@@ -1342,12 +1382,12 @@
         </section>
 
         <section class="view terminal-view" id="view-trade">
-          <div class="page-header">
-            <div>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1>Account</h1>
-              <p>Holdings, orders, cash balance, and audit log in one place. Every signed-in user starts with $100,000 of simulated cash.</p>
+              <p class="dash-view-purpose">Paper holdings, order entry, and audit log — every user starts with $100,000 simulated cash.</p>
             </div>
-            <div class="page-header-actions">
+            <div class="page-header-actions dash-view-header-rail">
               <div id="trade-mode-toggle" aria-label="Trade view mode"></div>
               <span class="status-pill" id="account-source">Loading</span>
             </div>
@@ -1599,12 +1639,12 @@
 
         <!-- ════════════ TRACK RECORD ════════════ -->
         <section class="view" id="view-track-record">
-          <div class="tr-header">
-            <div>
+          <div class="tr-header dash-view-header">
+            <div class="dash-view-header-copy">
               <h1 class="tr-title">Track Record</h1>
-              <p class="tr-lead">Every signal TradeSimple surfaces becomes a timestamped, falsifiable prediction — scored against the real market move versus the S&amp;P 500. No cherry-picking: the ledger is append-only and hash-chained, so wins and misses are both permanent and publicly verifiable.</p>
+              <p class="tr-lead dash-view-purpose">Timestamped predictions scored against SPY — append-only ledger, wins and misses both permanent.</p>
             </div>
-            <a class="tr-verify-badge" id="tr-verify-badge" href="/api/predictions/verify" target="_blank" rel="noopener" title="Verify the hash chain yourself">
+            <a class="tr-verify-badge dash-view-header-rail" id="tr-verify-badge" href="/api/predictions/verify" target="_blank" rel="noopener" title="Verify the hash chain yourself">
               <span class="tr-verify-dot"></span><span id="tr-verify-text">Verifying chain…</span>
             </a>
           </div>
@@ -1639,9 +1679,11 @@
 
         <!-- ── SETTINGS ───────────────────────────────────────────────── -->
         <section class="view" id="view-settings">
-          <div class="page-header">
-            <h1>Settings</h1>
-            <p class="page-sub">Configure API keys, model preferences, and account details.</p>
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
+              <h1>Settings</h1>
+              <p class="dash-view-purpose">API keys, live feed status, and account details.</p>
+            </div>
           </div>
 
           <div class="settings-grid">

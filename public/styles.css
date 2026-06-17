@@ -6276,14 +6276,29 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
 .ham-btn:hover { background: rgba(255,255,255,0.05); border-color: var(--line-2); }
 
 @media (max-width: 760px) {
-  .ham-btn { display: flex; align-items: center; justify-content: center; }
+  .ham-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
   .side-nav { display: none !important; }
   .sidebar.nav-open .side-nav { display: grid !important; grid-template-columns: repeat(3, minmax(0,1fr)); padding: 8px 10px 4px; }
+  .sidebar.nav-open .nav-item { min-height: 44px; }
   .sidebar-footer-actions { display: none !important; }
   .sidebar.nav-open .sidebar-footer-actions { display: flex !important; }
   #methodology-open-btn { display: none; }
   .research-drawer-btn,
-  .analysis-ticker-ai-btn { bottom: 14px; right: 14px; font-size: 10px; padding: 7px 12px; }
+  .analysis-ticker-ai-btn {
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 12px;
+    padding: 10px 16px;
+  }
   .research-drawer-global { height: 72vh; width: 100vw; border-left: 0; }
 }
 
@@ -6292,7 +6307,12 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   /* Topbar */
   .topbar { padding: 0 10px; gap: 8px; min-height: 48px; }
   .topbar-brand { font-size: 13px; }
-  #terminal-search { font-size: 13px; max-width: 140px; }
+  #terminal-search {
+    font-size: 16px;
+    max-width: none;
+    width: 100%;
+    min-height: 44px;
+  }
 
   /* Sidebar nav grid — 2 columns on phones */
   .sidebar.nav-open .side-nav {
@@ -6369,7 +6389,7 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .legis-card-footer-actions .button,
   .research-drawer-global .button,
   .range-chip,
-  .filter-row .button { min-height: 40px; }
+  .filter-row .button { min-height: 44px; }
   .research-form button[type="submit"] { min-height: 44px; }
 }
 
@@ -7013,14 +7033,12 @@ html[data-theme="light"] .sk-block {
 }
 @media (max-width: 480px) {
   .ts-focus-bar-inner { padding: 8px 12px; gap: 8px; }
+  .ts-focus-clear { min-height: 44px; }
   .ts-filter-bar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    flex-wrap: wrap;
+    overflow-x: visible;
     padding: 10px 12px;
-    scrollbar-width: none;
   }
-  .ts-filter-bar::-webkit-scrollbar { display: none; }
   .ts-filter-chips { flex-wrap: nowrap; }
   .ts-filter-context {
     flex: 0 0 auto;

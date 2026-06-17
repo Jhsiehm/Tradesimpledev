@@ -316,12 +316,43 @@ function renderFocusBar() {
 
 function renderTabFilterContexts() {
   const sym = state.focusSymbol;
-  const focusLine = sym ? `Showing results for ${sym}` : "";
-  for (const id of ["bills-filter-context", "contracts-filter-context", "lobby-filter-context", "signals-filter-context"]) {
-    const el = $(`#${id}`);
-    if (!el) continue;
-    el.hidden = !sym;
-    el.textContent = focusLine;
+  const focusSuffix = sym ? ` · focus ${sym}` : "";
+
+  const billsCtx = $("#bills-filter-context");
+  if (billsCtx && billsGuidedMode() !== "guided") {
+    const n = filteredBillsRows().length;
+    const stage = state.billsStageFilter || "all";
+    const stageLbl = stage === "all" ? "" : ` · ${stage}`;
+    billsCtx.hidden = false;
+    billsCtx.textContent = `${n} bill${n === 1 ? "" : "s"}${stageLbl}${focusSuffix}`;
+  }
+
+  const contractsCtx = $("#contracts-filter-context");
+  if (contractsCtx) {
+    const n = (state.contracts || []).filter(contractMatchesTabFilters).length;
+    contractsCtx.hidden = false;
+    contractsCtx.textContent = `${n} compan${n === 1 ? "y" : "ies"}${focusSuffix}`;
+  }
+
+  const lobbyCtx = $("#lobby-filter-context");
+  if (lobbyCtx) {
+    const n = (state.lobbying || []).filter(lobbyingMatchesTabFilters).length;
+    const kw = String(state.lobbyKeyword || "").trim();
+    lobbyCtx.hidden = false;
+    lobbyCtx.textContent = `${n} filing${n === 1 ? "" : "s"}${kw ? ` · "${kw}"` : ""}${focusSuffix}`;
+  }
+
+  const signalsCtx = $("#signals-filter-context");
+  if (signalsCtx) {
+    const type = state.signalsTypeFilter || "all";
+    const typeLbl = type === "all" ? "All types" : type.charAt(0).toUpperCase() + type.slice(1);
+    let count = 0;
+    if (type !== "contracts") count += policyBills().filter((b) => !state.focusSymbol || billMatchesFocusFilter(b)).length;
+    if (type === "all" || type === "contracts" || type === "trending") {
+      count += (state.trending || []).filter(trendingMatchesSignalsFilter).length;
+    }
+    signalsCtx.hidden = false;
+    signalsCtx.textContent = `${typeLbl} · ${count} item${count === 1 ? "" : "s"}${focusSuffix}`;
   }
 }
 
@@ -372,6 +403,19 @@ function billMatchesFocusFilter(bill) {
   if (!state.focusSymbol) return true;
   const tickers = [...(bill.affected || []), ...(bill.portfolioTickers || [])];
   return rowMatchesFocusSymbol(tickers);
+}
+
+function filteredBillsRows() {
+  const query = ($("#bill-filter")?.value || "").toLowerCase();
+  return policyBills({ includeUnmapped: Boolean(query || state.focusSymbol) }).filter((bill) => {
+    if (!billMatchesStageFilter(bill)) return false;
+    if (!billMatchesFocusFilter(bill)) return false;
+    if (!query) return true;
+    return [bill.id, bill.title, bill.shortTitle, bill.status, bill.signal, ...(bill.affected || []), ...(bill.tags || [])]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
 }
 
 function contractAgencyHaystack(row) {
@@ -920,13 +964,33 @@ function updateMarketsTableMeta() {
   const meta = $("#market-table-meta");
   if (!meta) return;
   const total = marketsCatalogRows().length;
-  const shown = filteredMarketsRows().length;
+  const rows = filteredMarketsRows();
+  const shown = rows.length;
   const filter = state.marketsFilter || "all";
   const label = marketsFilterLabel(filter);
   const focus = state.focusSymbol ? ` · focus ${state.focusSymbol}` : "";
+  let live = 0;
+  let ref = 0;
+  let pending = 0;
+  for (const row of rows) {
+    const quote = quoteFor(row.symbol);
+    if (!quote?.price) pending += 1;
+    else if (quote.source === "fallback" || quote.placeholder) ref += 1;
+    else live += 1;
+  }
+  const feedHint = pending ? ` · ${pending} loading` : ref ? ` · ${ref} ref · ${live} live` : ` · ${live} live`;
   meta.textContent = shown === total
-    ? `Showing ${shown} symbols · ${label}${focus}`
-    : `Showing ${shown} of ${total} · ${label}${focus}`;
+    ? `Showing ${shown} symbols · ${label}${focus}${feedHint}`
+    : `Showing ${shown} of ${total} · ${label}${focus}${feedHint}`;
+
+  const sourcePill = $("#market-source");
+  if (sourcePill) {
+    if (pending && !live && !ref) sourcePill.textContent = "Connecting";
+    else if (ref && live === 0) sourcePill.textContent = "Reference prices";
+    else if (ref && live > 0) sourcePill.textContent = "Mixed feed";
+    else sourcePill.textContent = "Live feed";
+    sourcePill.classList.toggle("amber", ref > 0);
+  }
 }
 
 function mergePickerSymbolRows(extra = []) {
@@ -3161,6 +3225,7 @@ async function initDashboard() {
   setupAnalysisControls();
   setupTradeControls();
   setupRefreshAllControl();
+  setupDashPolishControls();
   setupMethodologyModal();
   setupOnboardingModal();
   setupAppConfirmModal();
@@ -3539,6 +3604,32 @@ function setupRefreshAllControl() {
       btn.disabled = false;
       btn.textContent = label;
     }
+  });
+}
+
+function setupDashPolishControls() {
+  $("#markets-refresh-inline")?.addEventListener("click", () => {
+    void refreshMarketFeed({ render: true });
+  });
+  $("#thesis-header-start")?.addEventListener("click", () => {
+    if (typeof thesisReset === "function") thesisReset();
+    document.querySelector('[data-thesis-outer="build"]')?.click();
+    document.getElementById("tc-ticker")?.focus();
+    thesisSyncEmptyGuide();
+  });
+  $("#thesis-empty-example")?.addEventListener("click", () => {
+    const ticker = document.getElementById("tc-ticker");
+    const thesis = document.getElementById("tc-thesis");
+    const dir = document.getElementById("tc-direction");
+    if (ticker) ticker.value = "PLTR";
+    if (dir) dir.value = "bull";
+    if (thesis) {
+      thesis.value =
+        "PLTR wins more federal AI and defense software contracts as agencies modernize data systems.";
+    }
+    thesisState.ticker = "PLTR";
+    thesisSyncIntakeState({ renderSummary: true });
+    ticker?.focus();
   });
 }
 
@@ -4966,6 +5057,7 @@ function renderContracts() {
       ? `No contract exposure for <strong>${escapeHtml(state.focusSymbol)}</strong> with these filters.`
       : "No contracts match these filters.";
     tbody.innerHTML = `<tr><td colspan="7"><div class="guided-empty-state">${focusMsg} <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button> or adjust agency/amount chips.</div></td></tr>`;
+    renderTabFilterContexts();
     return;
   }
 
@@ -5019,6 +5111,13 @@ function renderContracts() {
       }
     });
   });
+  const headerSource = $("#contracts-header-source");
+  if (headerSource) {
+    headerSource.textContent = state.contractsLoadedAt
+      ? `${filtered.length} exposed · USASpending`
+      : "Connecting";
+  }
+  renderTabFilterContexts();
 }
 
 function renderContractDetailPanel(row) {
@@ -5095,15 +5194,7 @@ function renderBills() {
   if (billsGuidedMode() === "guided") return;
   clearSkeleton("#bill-feed");
   const query = ($("#bill-filter")?.value || "").toLowerCase();
-  const bills = policyBills({ includeUnmapped: Boolean(query || state.focusSymbol) }).filter((bill) => {
-    if (!billMatchesStageFilter(bill)) return false;
-    if (!billMatchesFocusFilter(bill)) return false;
-    if (!query) return true;
-    return [bill.id, bill.title, bill.shortTitle, bill.status, bill.signal, ...(bill.affected || []), ...(bill.tags || [])]
-      .join(" ")
-      .toLowerCase()
-      .includes(query);
-  });
+  const bills = filteredBillsRows();
   renderBillAlertCards();
   const feed = $("#bill-feed");
   if (!feed) return;
@@ -5193,6 +5284,7 @@ function renderBills() {
   }).join("");
   renderBillStakeholders();
   renderPolicyCatalysts();
+  renderTabFilterContexts();
 }
 
 /* Bill alert spotlight — renders the two highest-momentum tracked bills as
@@ -5231,6 +5323,7 @@ function renderLobbying() {
         emptyEl.innerHTML = `<strong>No lobbying filings for ${escapeHtml(state.focusSymbol)} yet.</strong> Try clearing focus or broadening the issue keyword. <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button>`;
       }
     }
+    renderTabFilterContexts();
     return;
   }
   if (emptyEl) emptyEl.hidden = true;
@@ -5283,6 +5376,7 @@ function renderLobbying() {
       </article>
     `;
   }).join("");
+  renderTabFilterContexts();
 }
 
 function renderAccount() {
@@ -7622,14 +7716,21 @@ function normalizeText(value) {
 function signalCard(bill) {
   const m = billMomentum(bill);
   const conf = billConfidenceLabel(bill);
+  const status = billStatusInfo(bill);
+  const tickers = (bill.affected || []).slice(0, 4);
   return `
-    <article class="signal-card actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
-      <h3>${escapeHtml(bill.title)}</h3>
-      <p>${escapeHtml(bill.impact || bill.signal || "")}</p>
-      <div class="meta-line">
-        <span class="mini-pill ${m >= 67 ? "green" : m < 35 ? "red" : "amber"}">Legislative momentum ${m}/100</span>
-        <span class="mini-pill">Confidence ${escapeHtml(conf)}</span>
-        ${(bill.affected || []).slice(0, 4).map((ticker) => `<span class="mini-pill">${ticker}</span>`).join("")}
+    <article class="sc-card sc-card--bill sc-card-conviction actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
+      <div class="sc-card-header">
+        <span class="sc-type-badge">Bill</span>
+        <span class="score-badge ${m >= 67 ? "high" : m < 35 ? "low" : "medium"}">${m}/100</span>
+        <span class="mini-pill muted">${escapeHtml(conf)}</span>
+      </div>
+      <h3 class="sc-title">${escapeHtml(bill.title)}</h3>
+      <p class="sc-sub">${escapeHtml(bill.impact || bill.signal || status.label || "")}</p>
+      <div class="sc-tickers">
+        ${tickers.length
+          ? tickers.map((ticker) => `<span class="sc-ticker-pill">${escapeHtml(ticker)}</span>`).join("")
+          : `<span class="muted">No tickers mapped</span>`}
       </div>
     </article>
   `;
@@ -9631,6 +9732,15 @@ function thesisEnsureResultPanelVisibility() {
     for (let i = 0; i < 4; i++) document.getElementById("tscreen-" + i)?.classList.remove("active");
     document.getElementById("thesisStepBar")?.setAttribute("hidden", "");
   }
+  thesisSyncEmptyGuide();
+}
+
+function thesisSyncEmptyGuide() {
+  const guide = document.getElementById("thesis-empty-guide");
+  const buildPane = document.getElementById("thesis-pane-build");
+  if (!guide || !buildPane) return;
+  const onBuildTab = buildPane.classList.contains("active");
+  guide.hidden = thesisState.built || !onBuildTab;
 }
 
 function thesisRenderCommandSummary() {
@@ -9735,6 +9845,7 @@ function setupThesisLab() {
         thesisBuildTimeline();
         if (thesisCurrentMapSymbol()) void thesisLoadRelationshipMap();
       }
+      thesisSyncEmptyGuide();
     });
   });
 
