@@ -266,6 +266,7 @@ function setFocusSymbol(symbol, { persist = true, render = true, syncAnalysis = 
   }
   if (render) {
     renderFocusBar();
+    renderMobileContextBar();
     syncResearchFabLabel();
     renderTabFilterContexts();
     renderMarkets();
@@ -582,10 +583,18 @@ function applySignalsDeskVisibility() {
   };
   setHidden("#trending-panel", ["trending"]);
   setHidden("#contract-watch-panel", ["contracts"]);
-  setHidden("#signal-chain-panel", ["bills", "contracts"]);
-  setHidden("#signals-tape-panel", ["bills"]);
-  setHidden("#policy-catalyst-panel", ["bills"]);
-  setHidden("#signals-conviction-panel", ["bills"]);
+  setHidden("#signal-chain-fold", ["bills", "contracts", "all"]);
+  setHidden("#signals-tape-fold", ["bills", "all"]);
+  setHidden("#policy-catalyst-fold", ["bills", "all"]);
+  setHidden("#contract-watch-evidence-fold", ["contracts", "all"]);
+  setHidden("#signals-conviction-panel", ["bills", "all"]);
+  const evidenceFold = $("#signals-evidence-fold");
+  if (evidenceFold) evidenceFold.hidden = type === "trending" || type === "contracts";
+  const primaryLane = $("#signals-primary-lane");
+  if (primaryLane) {
+    primaryLane.classList.toggle("signals-primary-lane--trending", type === "trending");
+    primaryLane.classList.toggle("signals-primary-lane--contracts", type === "contracts");
+  }
   const top = $("#signals-top-signal");
   if (top && type !== "all" && type !== "bills") top.hidden = true;
 }
@@ -3434,6 +3443,9 @@ async function initDashboard() {
   setupMarketsFilters();
   setupFocusBar();
   setupTabFilters();
+  setupFeedHealthDrawer();
+  setupMobileBottomNav();
+  setupGuidedDemo();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -3472,8 +3484,11 @@ async function initDashboard() {
     if (orderSelect) setSymbolPickerValue(orderSelect, initialSymbol, { notify: false });
   }
   renderFocusBar();
+  renderMobileContextBar();
   syncResearchFabLabel();
   renderTabFilterContexts();
+
+  initGuidedDemoSession(session);
 
   const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
   const rawView = params.get("view") || defaultView;
@@ -3755,26 +3770,195 @@ function portfolioPolicyRisk() {
 }
 
 function renderLiveFeedStatus() {
-  const el = $("#live-feed-status");
+  renderTrustFeedChip();
+}
+
+function countLiveQuotes() {
+  const quotes = state.quotes || [];
+  const live = quotes.filter((q) => {
+    const src = String(q.source || "").toLowerCase();
+    return src && !src.includes("fallback") && !q.isStale;
+  }).length;
+  const total = quotes.length || tradableSymbolRows().length || 0;
+  return { live, total };
+}
+
+function buildTrustFeedChipText() {
+  const billsMeta = state.dataMeta.bills || {};
+  const contractsMeta = state.dataMeta.contracts || {};
+  const congressWhen = billsMeta.updatedAt ? freshnessText(billsMeta.updatedAt) : "…";
+  const contractsWhen = contractsMeta.updatedAt ? freshnessText(contractsMeta.updatedAt) : "…";
+  const { live, total } = countLiveQuotes();
+  const quotesPart = total ? `Quotes ${live}/${total} live` : "Quotes …";
+  const congressSrc = sourceLabel(billsMeta.source || "Congress");
+  const congressLabel = String(congressSrc).split(" ")[0] || "Congress";
+  return `Feeds · ${congressLabel} ${congressWhen} · ${quotesPart} · Contracts ${contractsWhen}`;
+}
+
+function renderTrustFeedChip() {
+  const el = $("#trust-feed-chip") || $("#live-feed-status");
   if (!el) return;
-  const market = state.dataMeta.market;
-  const policy = state.dataMeta.bills;
   const fallback = feedsUseFallbackQuotes();
-  const parts = [
-    market ? `markets ${freshnessText(market.updatedAt)}` : "markets…",
-    policy ? `policy ${freshnessText(policy.updatedAt)}` : "policy…"
-  ];
-  let text = fallback ? `Fallback prices · ${parts.join(" · ")}` : parts.join(" · ");
-  if (state.quoteFeedError) text = state.quoteFeedError;
-  el.className = `topbar-status-chip${
-    state.quoteFeedError ? " status-warn" : fallback ? " status-warn" : market?.updatedAt ? " status-live" : ""
-  }`;
+  const text = buildTrustFeedChipText();
+  if (state.quoteFeedError) {
+    el.className = "topbar-status-chip trust-feed-chip status-warn";
+    el.textContent = state.quoteFeedError;
+    el.title = state.quoteFeedError;
+    return;
+  }
+  el.className = `topbar-status-chip trust-feed-chip${fallback ? " status-warn" : state.dataMeta.market?.updatedAt ? " status-live" : ""}`;
   el.innerHTML = `<span class="live-dot" aria-hidden="true"></span>${escapeHtml(text)}`;
-  el.title = state.quoteFeedError
-    ? state.quoteFeedError
-    : fallback
-      ? "Quote feed is modeled or mixed — set FINNHUB_API_KEY for live marks"
-      : "Feed freshness from market and policy polls";
+  el.title = fallback
+    ? "Quote feed is modeled or mixed — tap for per-provider status"
+    : "Tap for per-provider feed health";
+}
+
+function renderFeedHealthDrawer() {
+  const grid = $("#feed-health-grid");
+  if (!grid) return;
+  const health = state.dataHealth;
+  const feeds = health?.feeds || {};
+  const rows = [
+    ["Markets", state.dataMeta.market, feeds.market],
+    ["Bills", state.dataMeta.bills, feeds.bills],
+    ["Lobbying", state.dataMeta.lobbying, feeds.lobbying],
+    ["Contracts", state.dataMeta.contracts, feeds.contracts],
+    ["Crypto", state.dataMeta.crypto, feeds.crypto]
+  ];
+  grid.innerHTML = rows
+    .map(([label, meta, serverFeed]) => {
+      const src = meta?.source || serverFeed?.source || "—";
+      const isLive =
+        serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback");
+      const isFallback = String(src).includes("fallback") || serverFeed?.fallback;
+      const pillClass = isLive ? "green" : isFallback ? "amber" : "";
+      const pill = isLive ? "Live" : isFallback ? "Fallback" : "Connecting";
+      const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
+      const extra =
+        label === "Bills" && meta?.liveBillCount != null
+          ? `${meta.liveBillCount} live · ${meta.scenarioBillCount ?? 0} modeled`
+          : label === "Markets"
+            ? (() => {
+                const { live, total } = countLiveQuotes();
+                return total ? `${live}/${total} symbols live` : "";
+              })()
+            : "";
+      return `
+        <article class="feed-health-row">
+          <div class="feed-health-row-head">
+            <strong>${escapeHtml(label)}</strong>
+            <span class="mini-pill ${pillClass}">${escapeHtml(pill)}</span>
+          </div>
+          <span class="muted">${escapeHtml(sourceLabel(src))} · ${escapeHtml(when)}</span>
+          ${extra ? `<span class="muted">${escapeHtml(extra)}</span>` : ""}
+        </article>`;
+    })
+    .join("");
+}
+
+function openFeedHealthDrawer() {
+  const drawer = $("#feed-health-drawer");
+  if (!drawer) return;
+  renderFeedHealthDrawer();
+  drawer.hidden = false;
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  $("#trust-feed-chip")?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("feed-health-open");
+}
+
+function closeFeedHealthDrawer() {
+  const drawer = $("#feed-health-drawer");
+  if (!drawer) return;
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
+  $("#trust-feed-chip")?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("feed-health-open");
+  setTimeout(() => {
+    if (!drawer.classList.contains("open")) drawer.hidden = true;
+  }, 220);
+}
+
+function setupFeedHealthDrawer() {
+  $("#trust-feed-chip")?.addEventListener("click", () => openFeedHealthDrawer());
+  $("#feed-health-close")?.addEventListener("click", () => closeFeedHealthDrawer());
+  $("#feed-health-backdrop")?.addEventListener("click", () => closeFeedHealthDrawer());
+  $("#feed-health-settings-link")?.addEventListener("click", () => {
+    closeFeedHealthDrawer();
+    showView("settings");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("#feed-health-drawer")?.classList.contains("open")) closeFeedHealthDrawer();
+  });
+}
+
+function setupMobileBottomNav() {
+  const nav = $("#mobile-bottom-nav");
+  if (!nav || nav.dataset.bound === "true") return;
+  nav.dataset.bound = "true";
+  nav.querySelectorAll("[data-mobile-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.mobileView;
+      if (!isViewEnabled(view)) return;
+      showView(view);
+    });
+  });
+}
+
+function syncMobileBottomNav(view) {
+  const nav = $("#mobile-bottom-nav");
+  if (!nav) return;
+  nav.querySelectorAll("[data-mobile-view]").forEach((btn) => {
+    const active = btn.dataset.mobileView === view;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-current", active ? "page" : "false");
+  });
+}
+
+function focusContextCounts(sym) {
+  const bills = policyBills().filter((bill) => billMatchesFocusFilter(bill)).length;
+  const contracts = (state.contracts || []).filter((row) => normalizeWatchSymbol(row.symbol) === sym).length
+    + (state.contractWatch || []).filter(contractWatchMatchesTabFilters).length;
+  const lobby = (state.lobbying || []).filter(lobbyingMatchesTabFilters).length;
+  return { bills, contracts, lobby };
+}
+
+function renderMobileContextBar() {
+  const bar = $("#mobile-context-bar");
+  const inner = $("#mobile-context-inner");
+  if (!bar || !inner) return;
+  const sym = state.focusSymbol;
+  if (!sym) {
+    bar.hidden = true;
+    inner.innerHTML = "";
+    return;
+  }
+  const counts = focusContextCounts(sym);
+  bar.hidden = false;
+  inner.innerHTML = `
+    <button type="button" class="mobile-context-seg" data-mobile-context-view="analysis" aria-label="Analysis for ${escapeHtml(sym)}">
+      <strong>${escapeHtml(sym)}</strong>
+    </button>
+    <button type="button" class="mobile-context-seg" data-mobile-context-view="bills" aria-label="Bills for ${escapeHtml(sym)}">
+      Bills (${counts.bills})
+    </button>
+    <button type="button" class="mobile-context-seg" data-mobile-context-view="contracts" aria-label="Contracts for ${escapeHtml(sym)}">
+      Contracts (${counts.contracts})
+    </button>
+    <button type="button" class="mobile-context-seg" data-mobile-context-view="lobbying" aria-label="Lobbying for ${escapeHtml(sym)}">
+      Lobby (${counts.lobby})
+    </button>`;
+  inner.querySelectorAll("[data-mobile-context-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.mobileContextView;
+      if (view === "analysis") {
+        state.activeAnalysisSymbol = sym;
+        const sel = $("#analysis-symbol");
+        if (sel) setSymbolPickerValue(sel, sym, { notify: false });
+      }
+      showView(view);
+    });
+  });
 }
 
 function freshnessText(value) {
@@ -4449,8 +4633,10 @@ function renderOverview() {
 
   renderPortfolioDashboard(positions, equity, returnPct, dayChange);
   renderWatchlistStrip();
+  renderMorningBrief();
   renderMarketMood();
   renderResearchJourney();
+  renderGuidedDemoChecklist();
 }
 
 function renderSignalsConvictionList() {
@@ -4495,6 +4681,7 @@ function renderSignalsDesk() {
   renderSignalsConvictionList();
   renderLiveAlerts();
   renderTabFilterContexts();
+  renderMorningBrief();
 }
 
 const TRENDING_TYPE_LABELS = {
@@ -4536,6 +4723,9 @@ function renderTrendingCard(topic) {
   const contract = (topic.contractMatches || [])[0];
   const freshness = topic.freshness?.label || topic.freshness?.status || "";
   const subline = headline?.headline || bill?.title || contract?.description || topic.keywords?.join(" · ") || "";
+  const tickers = topic.tickers || [];
+  const scanSource = trendingTypeLabel(type);
+  const scanDate = topic.updatedAt || headline?.publishedAt || "";
   const linkAttrs = link
     ? `href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer"`
     : `data-show-view="signals" role="button" tabindex="0"`;
@@ -4549,7 +4739,7 @@ function renderTrendingCard(topic) {
           ${freshness ? `<span class="trending-freshness muted">${escapeHtml(freshness)}</span>` : ""}
         </div>
         <h3 class="sc-title">${escapeHtml(topic.title || topic.id)}</h3>
-        <p class="trending-ticker-line">${escapeHtml(trendingTickerLine(topic))}</p>
+        ${signalScanLineHtml({ source: scanSource, date: scanDate, tickers: trendingTickerLine(topic).includes("No public") ? [] : tickers, band: freshness || "Topic" })}
         ${subline ? `<p class="sc-sub muted">${escapeHtml(String(subline).slice(0, 120))}</p>` : ""}
         <p class="trending-card-foot muted">${escapeHtml(topic.disclaimer || "Monitoring topic · not investment advice")}</p>
       </a>
@@ -4632,7 +4822,12 @@ function renderContractWatchCard(award) {
         <span class="trending-freshness muted">${escapeHtml(freshness)}</span>
       </div>
       <h3 class="sc-title">${escapeHtml(compactMoney(award.amount))} → ${escapeHtml(award.recipient || "Recipient")}</h3>
-      <p class="trending-ticker-line">${escapeHtml(tickers)}</p>
+      ${signalScanLineHtml({
+        source: "USASpending.gov",
+        date: award.awardDate || award.firstSeenAt,
+        tickers: (award.mappedTickers || []).slice(0, 4),
+        band: award.isNew ? "New award" : "Recent"
+      })}
       <p class="sc-sub muted">${escapeHtml(award.agency || "Federal agency")}${award.descriptionSnippet ? ` · ${escapeHtml(String(award.descriptionSnippet).slice(0, 100))}` : ""}</p>
       ${meta ? `<p class="contract-watch-meta muted">${escapeHtml(meta)}</p>` : ""}
       <div class="contract-watch-actions">
@@ -4647,6 +4842,7 @@ function renderContractWatchSection() {
   const feed = $("#contract-watch-feed");
   const source = $("#contract-watch-source");
   const summary = $("#contract-watch-summary");
+  const evidenceSummary = $("#contract-watch-evidence-summary");
   const disclaimer = $("#contract-watch-disclaimer");
   const moreWrap = $("#contract-watch-more-wrap");
   const moreBtn = $("#contract-watch-more-btn");
@@ -4667,6 +4863,7 @@ function renderContractWatchSection() {
   if (!filtered.length) {
     const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
     if (summary) summary.hidden = true;
+    if (evidenceSummary) evidenceSummary.textContent = `No significant awards${focusMsg} in the last 7 days.`;
     if (disclaimer) disclaimer.hidden = false;
     feed.hidden = false;
     feed.innerHTML = `<div class="sc-empty muted">No significant awards${escapeHtml(focusMsg)} in the last 7 days. TradeSimple polls USASpending every ~30 minutes.</div>`;
@@ -4684,6 +4881,9 @@ function renderContractWatchSection() {
         _contractWatchDeskExpanded = true;
         renderContractWatchSection();
       });
+    }
+    if (evidenceSummary) {
+      evidenceSummary.innerHTML = `${filtered.length} recent award${filtered.length === 1 ? "" : "s"} · latest ${escapeHtml(topSym)} ${escapeHtml(topAmt)} · ${escapeHtml(freshnessText(top?.firstSeenAt || top?.lastModifiedDate))}`;
     }
     if (disclaimer) disclaimer.hidden = true;
     feed.hidden = true;
@@ -7742,7 +7942,6 @@ function renderFeaturedSignal(sig) {
   const typeLabel = sig.type === "lobbying" ? "Lobby" : sig.type === "contract" ? "Contract" : "Bill";
   const typeClass = `signal-type--${sig.type}`;
   const source = signalSourceLabel(sig);
-  const confidence = signalConfidenceFor(sig);
 
   return `
     <article class="signal-featured ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
@@ -7752,9 +7951,8 @@ function renderFeaturedSignal(sig) {
       </header>
       <div class="signal-featured-body">
         <div class="signal-featured-main">
-          ${renderSignalTickerRow(sig.tickers, false)}
           <p class="signal-plain">${escapeHtml(signalPlainEnglish(sig))}</p>
-          <p class="signal-meta-mono">${escapeHtml(source)} · Confidence ${escapeHtml(confidence)}</p>
+          ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
         </div>
         <div class="signal-ranges-col" aria-label="Predicted ranges">
           ${renderSignalRanges(sig)}
@@ -7767,6 +7965,7 @@ function renderFeaturedSignal(sig) {
 function renderSecondarySignal(sig) {
   const typeLabel = sig.type === "lobbying" ? "Lobby" : sig.type === "contract" ? "Contract" : "Bill";
   const typeClass = `signal-type--${sig.type}`;
+  const source = signalSourceLabel(sig);
 
   return `
     <article class="signal-secondary ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
@@ -7775,7 +7974,7 @@ function renderSecondarySignal(sig) {
         <span class="signal-secondary-title">${escapeHtml(sig.title)}</span>
         <span class="signal-score-mono">${sig.score}/100</span>
       </div>
-      ${renderSignalTickerRow(sig.tickers, true)}
+      ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
     </article>
   `;
 }
@@ -7989,6 +8188,7 @@ function signalCard(bill) {
   const conf = billConfidenceLabel(bill);
   const status = billStatusInfo(bill);
   const tickers = (bill.affected || []).slice(0, 4);
+  const source = bill.exactCongressRecord ? "Congress.gov" : bill.id || "Policy feed";
   return `
     <article class="sc-card sc-card--bill sc-card-conviction actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
       <div class="sc-card-header">
@@ -7997,12 +8197,8 @@ function signalCard(bill) {
         <span class="mini-pill muted">${escapeHtml(conf)}</span>
       </div>
       <h3 class="sc-title">${escapeHtml(bill.title)}</h3>
+      ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: momentumBandLabel(m) })}
       <p class="sc-sub">${escapeHtml(bill.impact || bill.signal || status.label || "")}</p>
-      <div class="sc-tickers">
-        ${tickers.length
-          ? tickers.map((ticker) => `<span class="sc-ticker-pill">${escapeHtml(ticker)}</span>`).join("")
-          : `<span class="muted">No tickers mapped</span>`}
-      </div>
     </article>
   `;
 }
@@ -8141,6 +8337,10 @@ function showView(view, updateUrl = true) {
   }
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
   document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active", section.id === `view-${view}`));
+  syncMobileBottomNav(view);
+  if (view === "overview" || view === "signals") markGuidedDemoStep("brief");
+  if (view === "bills" || view === "contracts") markGuidedDemoStep("bill");
+  if (view === "trade") markGuidedDemoStep("trade");
   if (updateUrl && view) {
     const params = new URLSearchParams(window.location.search);
     params.set("view", view);
@@ -9183,7 +9383,212 @@ function methodologyModalEscape(e) {
 
 const ONBOARDING_STORAGE_KEY = "ts_onboarding_v3";
 const ONBOARDING_COMPLETE_KEY = "ts_onboarding_complete";
+const GUIDED_DEMO_KEY = "ts_guided_demo";
+const GUIDED_DEMO_DISMISS_KEY = "ts_guided_demo_dismiss";
+const GUIDED_DEMO_FOCUS = "PLTR";
+const GUIDED_DEMO_STEP_KEYS = {
+  brief: "ts_guided_step_brief",
+  bill: "ts_guided_step_bill",
+  trade: "ts_guided_step_trade"
+};
 let appConfirmResolver = null;
+
+function isDemoSession(session = state.session) {
+  const user = session?.user;
+  if (!user) return false;
+  if (user.provider === "demo") return true;
+  return String(user.id || "").startsWith("demo-");
+}
+
+function guidedDemoActive() {
+  try {
+    if (sessionStorage.getItem(GUIDED_DEMO_DISMISS_KEY) === "1") return false;
+    if (sessionStorage.getItem(GUIDED_DEMO_KEY) === "done") return false;
+  } catch (_) {}
+  return isDemoSession();
+}
+
+function guidedDemoStepDone(step) {
+  try {
+    return sessionStorage.getItem(GUIDED_DEMO_STEP_KEYS[step]) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function markGuidedDemoStep(step) {
+  if (!guidedDemoActive()) return;
+  try {
+    sessionStorage.setItem(GUIDED_DEMO_STEP_KEYS[step], "1");
+  } catch (_) {}
+  renderGuidedDemoChecklist();
+}
+
+function initGuidedDemoSession(session) {
+  if (!isDemoSession(session)) return;
+  try {
+    if (sessionStorage.getItem(GUIDED_DEMO_KEY)) return;
+    sessionStorage.setItem(GUIDED_DEMO_KEY, "active");
+  } catch (_) {}
+  if (!state.focusSymbol && !state._symbolFromUrl) {
+    setFocusSymbol(GUIDED_DEMO_FOCUS, { persist: true, render: true, syncAnalysis: true });
+  }
+  renderGuidedDemoChecklist();
+}
+
+function setupGuidedDemo() {
+  $("#guided-demo-dismiss")?.addEventListener("click", () => {
+    try {
+      sessionStorage.setItem(GUIDED_DEMO_DISMISS_KEY, "1");
+      sessionStorage.setItem(GUIDED_DEMO_KEY, "done");
+    } catch (_) {}
+    const panel = $("#guided-demo-checklist");
+    if (panel) panel.hidden = true;
+  });
+}
+
+function renderGuidedDemoChecklist() {
+  const panel = $("#guided-demo-checklist");
+  const list = $("#guided-demo-steps");
+  if (!panel || !list) return;
+  if (!guidedDemoActive()) {
+    panel.hidden = true;
+    return;
+  }
+  const steps = [
+    {
+      id: "brief",
+      label: "Read morning brief signal",
+      done: guidedDemoStepDone("brief"),
+      action: () => showView("overview")
+    },
+    {
+      id: "bill",
+      label: "Open linked bill or contract",
+      done: guidedDemoStepDone("bill"),
+      action: () => {
+        const top = policyBills().slice().sort((a, b) => billMomentum(b) - billMomentum(a))[0];
+        if (top?.id) {
+          showView("bills");
+          state.billsFilter = top.id;
+          renderBills();
+        } else {
+          showView("contracts");
+        }
+      }
+    },
+    {
+      id: "trade",
+      label: "Optional: preview paper trade",
+      done: guidedDemoStepDone("trade"),
+      action: () => showView("trade")
+    }
+  ];
+  const allDone = steps.every((s) => s.done);
+  panel.hidden = false;
+  panel.classList.toggle("is-collapsed", allDone);
+  list.innerHTML = steps
+    .map(
+      (step, i) => `
+    <li class="guided-demo-step${step.done ? " is-done" : ""}">
+      <span class="guided-demo-step-num" aria-hidden="true">${step.done ? "✓" : i + 1}</span>
+      <span>${escapeHtml(step.label)}${step.done ? "" : ` · <button type="button" class="link-button guided-demo-go" data-guided-step="${step.id}">Go</button>`}</span>
+    </li>`
+    )
+    .join("");
+  list.querySelectorAll("[data-guided-step]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const step = steps.find((s) => s.id === btn.dataset.guidedStep);
+      step?.action();
+    });
+  });
+}
+
+function momentumBandLabel(score) {
+  const n = Number(score);
+  if (n >= 67) return "High";
+  if (n >= 35) return "Medium";
+  return "Low";
+}
+
+function signalScanLineHtml({ source, date, tickers, band }) {
+  const parts = [];
+  if (source) parts.push(source);
+  if (date) parts.push(formatSignalDate(date));
+  if (tickers?.length) parts.push(tickers.slice(0, 4).join(", "));
+  else if (tickers === "") parts.push("No ticker");
+  if (band) parts.push(band);
+  if (!parts.length) return "";
+  return `<p class="signal-scan-line">${escapeHtml(parts.join(" · "))}</p>`;
+}
+
+function formatSignalDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return String(value);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function pickMorningBriefSignal() {
+  const feed = buildSignalFeed().filter((sig) => signalMatchesFocusFilter(sig));
+  if (feed.length) return { kind: "signal", data: feed[0] };
+  const bills = policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a));
+  if (bills.length) return { kind: "bill", data: bills[0] };
+  return null;
+}
+
+function renderMorningBrief() {
+  const card = $("#morning-brief-card");
+  const inner = $("#morning-brief-inner");
+  if (!card || !inner) return;
+  const pick = pickMorningBriefSignal();
+  if (!pick) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  if (pick.kind === "signal") {
+    const sig = pick.data;
+    const source = signalSourceLabel(sig);
+    const band = `${sig.score}/100 · ${momentumBandLabel(sig.score)}`;
+    inner.innerHTML = `
+      <div class="morning-brief-eyebrow">
+        <span class="top-signal-dot" aria-hidden="true"></span>
+        <span>Morning brief</span>
+        <span class="mini-pill">${escapeHtml(band)}</span>
+      </div>
+      <h2 class="morning-brief-title">${escapeHtml(sig.title || "Top signal")}</h2>
+      ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
+      <p class="morning-brief-why">${escapeHtml(twelveWordSummary(sig.chain?.[1] || sig.title || ""))}</p>
+      <div class="morning-brief-actions">
+        <button type="button" class="button button-primary compact" data-view-jump="signals">Open in Signals</button>
+        ${sig._billId ? `<button type="button" class="button button-secondary compact" data-drill-action="bills" data-bill-id="${escapeHtml(sig._billId)}" role="link" tabindex="0">View bill</button>` : ""}
+      </div>`;
+  } else {
+    const bill = pick.data;
+    const m = billMomentum(bill);
+    const tickers = (bill.affected || []).slice(0, 4);
+    const source = bill.exactCongressRecord ? "Congress.gov" : "Policy feed";
+    inner.innerHTML = `
+      <div class="morning-brief-eyebrow">
+        <span class="top-signal-dot" aria-hidden="true"></span>
+        <span>Morning brief</span>
+        <span class="mini-pill">${m}/100 · ${escapeHtml(billConfidenceLabel(bill))}</span>
+      </div>
+      <h2 class="morning-brief-title">${escapeHtml(bill.shortTitle || bill.title)}</h2>
+      ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: momentumBandLabel(m) })}
+      <p class="morning-brief-why">${escapeHtml(bill.whyMarketsCare || bill.plainEnglish || bill.signal || bill.impact || "")}</p>
+      <div class="morning-brief-actions">
+        <button type="button" class="button button-primary compact" data-view-jump="signals">Open in Signals</button>
+        <button type="button" class="button button-secondary compact" data-drill-action="bills" data-bill-id="${escapeHtml(bill.id)}" role="link" tabindex="0">View bill</button>
+      </div>`;
+  }
+  inner.querySelectorAll("[data-view-jump]").forEach((btn) => {
+    btn.addEventListener("click", () => showView(btn.dataset.viewJump));
+  });
+}
 
 function isOnboardingComplete() {
   try {

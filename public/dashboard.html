@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=anti-vibe-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=anti-vibe-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=sprint-feed-nav-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -104,7 +104,7 @@
           </label>
           <div class="topbar-end">
             <span id="quote-fallback-badge" class="mini-pill amber quote-fallback-prominent" hidden aria-hidden="true"></span>
-            <span id="live-feed-status" class="topbar-status-chip" role="status">Connecting feeds…</span>
+            <button type="button" id="trust-feed-chip" class="topbar-status-chip trust-feed-chip" aria-haspopup="dialog" aria-controls="feed-health-drawer" aria-expanded="false">Connecting feeds…</button>
             <button type="button" class="button-icon-only" id="methodology-open-btn" title="How scores are calculated" aria-label="Explain metrics">?</button>
             <div class="theme-toggle" role="group" aria-label="Color theme">
               <button type="button" class="theme-toggle-btn" data-theme-set="dark" aria-pressed="true">Dark</button>
@@ -119,9 +119,19 @@
             <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
           </div>
         </div>
+        <div id="mobile-context-bar" class="mobile-context-bar" hidden role="navigation" aria-label="Ticker context">
+          <div class="mobile-context-inner" id="mobile-context-inner"></div>
+        </div>
       </div>
 
       <div class="dash-chrome-rail" aria-label="Terminal status">
+        <aside id="guided-demo-checklist" class="guided-demo-checklist" hidden aria-label="60-second demo path">
+          <div class="guided-demo-head">
+            <span class="guided-demo-title">Demo path · ~60s</span>
+            <button type="button" class="guided-demo-dismiss button button-ghost compact" id="guided-demo-dismiss" aria-label="Dismiss demo checklist">✕</button>
+          </div>
+          <ol class="guided-demo-steps" id="guided-demo-steps"></ol>
+        </aside>
         <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
           <div class="ts-focus-bar-inner">
             <span class="ts-focus-label">Focus</span>
@@ -159,32 +169,12 @@
               <button type="button" class="button button-primary compact" data-view-jump="thesis">Start in Thesis Lab</button>
             </div>
           </header>
-          <section class="portfolio-command portfolio-command-hero">
-            <div class="portfolio-command-copy">
-              <div class="watchlist-strip-wrap">
-                <span class="watchlist-strip-label">Watchlist</span>
-                <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
-              </div>
-              <section class="research-journey-strip" id="research-journey-strip" aria-label="Recommended research path"></section>
-              <details class="dash-meta-fold overview-share-fold">
-                <summary class="dash-meta-fold-summary">Share briefs</summary>
-                <p class="dashboard-brief-share-note muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
-              </details>
-            </div>
-            <div class="portfolio-terminal-card portfolio-terminal-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
-              <div class="portfolio-terminal-head">
-                <span>Portfolio value</span>
-                <strong id="portfolio-hero-value">$0</strong>
-              </div>
-              <div id="portfolio-sparkline" class="portfolio-sparkline" aria-label="Portfolio trend chart"></div>
-              <div class="portfolio-terminal-foot">
-                <span id="portfolio-hero-change">Calculating</span>
-                <button class="link-button portfolio-terminal-cta" data-view-jump="trade">Open account</button>
-              </div>
-            </div>
+
+          <section class="morning-brief-card panel panel-emphasis" id="morning-brief-card" aria-label="Morning brief" hidden>
+            <div class="morning-brief-inner" id="morning-brief-inner"></div>
           </section>
 
-          <div class="overview-metrics-wrap">
+          <div class="overview-metrics-wrap overview-metrics-wrap--hero">
             <div class="overview-metrics-strip" role="list" aria-label="Portfolio metrics">
               <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
                 <span class="overview-metric-label">Policy heat</span>
@@ -212,6 +202,34 @@
               <button type="button" class="link-button overview-score-link" data-view-jump="track-record">How we score →</button>
             </div>
           </div>
+
+          <section class="portfolio-command portfolio-command-hero">
+            <div class="portfolio-command-copy">
+              <div class="watchlist-strip-wrap">
+                <span class="watchlist-strip-label">Watchlist</span>
+                <div id="watchlist-strip" class="watchlist-strip" aria-label="Watchlist tickers"></div>
+              </div>
+              <details class="dash-meta-fold overview-journey-fold">
+                <summary class="dash-meta-fold-summary">Research path</summary>
+                <section class="research-journey-strip" id="research-journey-strip" aria-label="Recommended research path"></section>
+              </details>
+              <details class="dash-meta-fold overview-share-fold">
+                <summary class="dash-meta-fold-summary">Share briefs</summary>
+                <p class="dashboard-brief-share-note muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
+              </details>
+            </div>
+            <div class="portfolio-terminal-card portfolio-terminal-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
+              <div class="portfolio-terminal-head">
+                <span>Portfolio value</span>
+                <strong id="portfolio-hero-value">$0</strong>
+              </div>
+              <div id="portfolio-sparkline" class="portfolio-sparkline" aria-label="Portfolio trend chart"></div>
+              <div class="portfolio-terminal-foot">
+                <span id="portfolio-hero-change">Calculating</span>
+                <button class="link-button portfolio-terminal-cta" data-view-jump="trade">Open account</button>
+              </div>
+            </div>
+          </section>
 
           <details class="panel-fold overview-signals-fold">
             <summary class="panel-fold-summary">Signals desk shortcut</summary>
@@ -328,60 +346,82 @@
             </div>
             <span class="ts-filter-context muted" id="signals-filter-context" hidden></span>
           </div>
-          <section class="panel panel-compact trending-panel" id="trending-panel">
-            <div class="panel-head">
-              <h2>Trending</h2>
-              <span id="trending-source">Monitoring topics</span>
+          <div class="signals-primary-lane" id="signals-primary-lane">
+            <section class="panel panel-emphasis signals-feed-primary" id="signals-conviction-panel">
+              <div class="panel-head panel-head-quiet">
+                <h2>Signal feed</h2>
+                <span class="muted">Highest conviction · scan one line per card</span>
+              </div>
+              <div id="signal-list" class="stack-list stack-list--conviction sc-card-grid"></div>
+            </section>
+            <section class="panel panel-compact trending-panel signals-primary-alt" id="trending-panel">
+              <div class="panel-head">
+                <h2>Trending</h2>
+                <span id="trending-source">Monitoring topics</span>
+              </div>
+              <p class="trending-disclaimer muted">Monitoring topic · not investment advice</p>
+              <div id="trending-feed" class="trending-feed"></div>
+              <div class="ts-desk-more-wrap" id="trending-more-wrap" hidden>
+                <button type="button" class="link-button ts-desk-more-btn" id="trending-more-btn">Show more trending</button>
+              </div>
+            </section>
+            <section class="panel panel-compact contract-watch-panel contract-watch-panel--signals signals-primary-alt" id="contract-watch-panel">
+              <div class="panel-head">
+                <h2>Contract Watch</h2>
+                <span id="contract-watch-source">Polling USASpending</span>
+              </div>
+              <div id="contract-watch-summary" class="contract-watch-summary muted" hidden></div>
+              <p class="contract-watch-disclaimer muted" id="contract-watch-disclaimer">Significant federal awards from USASpending.gov · not investment advice · DoD may lag ~90 days</p>
+              <div id="contract-watch-feed" class="contract-watch-feed trending-feed"></div>
+              <div class="ts-desk-more-wrap" id="contract-watch-more-wrap" hidden>
+                <button type="button" class="link-button ts-desk-more-btn" id="contract-watch-more-btn">Show more awards</button>
+              </div>
+            </section>
+          </div>
+          <details class="signals-evidence-fold" id="signals-evidence-fold">
+            <summary class="signals-evidence-summary">Evidence · chain, tape, catalysts</summary>
+            <div class="signals-evidence-body">
+              <details class="signals-evidence-section" id="signal-chain-fold">
+                <summary class="signals-evidence-section-summary">Signal chain</summary>
+                <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
+                  <div class="panel-head panel-head-quiet">
+                    <h2>Signal chain</h2>
+                    <span>Featured policy path · bills and contracts</span>
+                  </div>
+                  <div id="signal-chain-feed" class="signal-chain-feed"></div>
+                  <div class="signal-chain-footer" id="signal-chain-footer" hidden>
+                    <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
+                  </div>
+                </section>
+              </details>
+              <details class="signals-evidence-section" id="signals-tape-fold">
+                <summary class="signals-evidence-section-summary">Live signal tape</summary>
+                <section class="panel panel-compact live-alert-panel" id="signals-tape-panel" aria-live="polite">
+                  <div class="panel-head">
+                    <h2>Live signal tape</h2>
+                    <span id="live-alert-updated">Waiting for feeds</span>
+                  </div>
+                  <div id="live-alerts" class="live-alerts"></div>
+                </section>
+              </details>
+              <details class="signals-evidence-section" id="policy-catalyst-fold">
+                <summary class="signals-evidence-section-summary">Congress catalyst queue</summary>
+                <section class="panel panel-compact policy-catalyst-panel" id="policy-catalyst-panel">
+                  <div class="panel-head">
+                    <h2>Congress catalyst queue</h2>
+                    <span id="policy-catalyst-source">Waiting</span>
+                  </div>
+                  <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
+                </section>
+              </details>
+              <details class="signals-evidence-section" id="contract-watch-evidence-fold">
+                <summary class="signals-evidence-section-summary">Contract watch summary</summary>
+                <div class="panel panel-compact contract-watch-evidence-wrap">
+                  <div id="contract-watch-evidence-summary" class="contract-watch-summary muted"></div>
+                </div>
+              </details>
             </div>
-            <p class="trending-disclaimer muted">Monitoring topic · not investment advice</p>
-            <div id="trending-feed" class="trending-feed"></div>
-            <div class="ts-desk-more-wrap" id="trending-more-wrap" hidden>
-              <button type="button" class="link-button ts-desk-more-btn" id="trending-more-btn">Show more trending</button>
-            </div>
-          </section>
-          <section class="panel panel-compact contract-watch-panel contract-watch-panel--signals" id="contract-watch-panel">
-            <div class="panel-head">
-              <h2>Contract Watch</h2>
-              <span id="contract-watch-source">Polling USASpending</span>
-            </div>
-            <div id="contract-watch-summary" class="contract-watch-summary muted" hidden></div>
-            <p class="contract-watch-disclaimer muted" id="contract-watch-disclaimer">Significant federal awards from USASpending.gov · not investment advice · DoD may lag ~90 days</p>
-            <div id="contract-watch-feed" class="contract-watch-feed trending-feed"></div>
-            <div class="ts-desk-more-wrap" id="contract-watch-more-wrap" hidden>
-              <button type="button" class="link-button ts-desk-more-btn" id="contract-watch-more-btn">Show more awards</button>
-            </div>
-          </section>
-          <section class="panel panel-emphasis signal-chain-panel" id="signal-chain-panel">
-            <div class="panel-head panel-head-quiet">
-              <h2>Signal chain</h2>
-              <span>Featured policy path · bills and contracts</span>
-            </div>
-            <div id="signal-chain-feed" class="signal-chain-feed"></div>
-            <div class="signal-chain-footer" id="signal-chain-footer" hidden>
-              <button type="button" class="link-button" id="signal-chain-more">Show more signals</button>
-            </div>
-          </section>
-          <section class="panel panel-compact live-alert-panel" id="signals-tape-panel" aria-live="polite">
-            <div class="panel-head">
-              <h2>Live signal tape</h2>
-              <span id="live-alert-updated">Waiting for feeds</span>
-            </div>
-            <div id="live-alerts" class="live-alerts"></div>
-          </section>
-          <section class="panel panel-compact policy-catalyst-panel" id="policy-catalyst-panel">
-            <div class="panel-head">
-              <h2>Congress catalyst queue</h2>
-              <span id="policy-catalyst-source">Waiting</span>
-            </div>
-            <div id="policy-catalyst-feed" class="policy-catalyst-list"></div>
-          </section>
-          <section class="panel" id="signals-conviction-panel">
-            <div class="panel-head">
-              <h2>Highest-conviction signals</h2>
-              <button type="button" class="link-button" data-view-jump="bills">Browse all bills</button>
-            </div>
-            <div id="signal-list" class="stack-list stack-list--conviction sc-card-grid"></div>
-          </section>
+          </details>
         </section>
 
         <section class="view terminal-view" id="view-markets">
@@ -1851,6 +1891,37 @@
     </div>
 
     <button type="button" class="research-drawer-btn" id="research-drawer-btn">Ask AI</button>
+
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Primary navigation">
+      <button type="button" class="mobile-bottom-nav-item is-active" data-mobile-view="overview" aria-current="page">
+        <span class="mobile-bottom-nav-label">Home</span>
+      </button>
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="signals">
+        <span class="mobile-bottom-nav-label">Signals</span>
+      </button>
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="markets">
+        <span class="mobile-bottom-nav-label">Markets</span>
+      </button>
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="trade">
+        <span class="mobile-bottom-nav-label">Account</span>
+      </button>
+    </nav>
+
+    <aside id="feed-health-drawer" class="feed-health-drawer" aria-label="Feed health" aria-hidden="true" hidden>
+      <div class="feed-health-backdrop" id="feed-health-backdrop" tabindex="-1"></div>
+      <div class="feed-health-panel" role="dialog" aria-modal="true" aria-labelledby="feed-health-title">
+        <header class="feed-health-head">
+          <h2 id="feed-health-title">Feed health</h2>
+          <button type="button" class="button button-ghost compact" id="feed-health-close" aria-label="Close feed health">✕</button>
+        </header>
+        <div class="feed-health-body">
+          <p class="muted feed-health-lede">Source freshness and connection status — same data as Settings.</p>
+          <div id="feed-health-grid" class="feed-health-grid"></div>
+          <button type="button" class="link-button" id="feed-health-settings-link">Open Settings →</button>
+        </div>
+      </div>
+    </aside>
+
     <aside class="research-drawer research-drawer-global" aria-label="AI research drawer">
       <div class="research-drawer-head">
         <span>AI Research</span>
@@ -1918,7 +1989,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=usability-audit-2" defer></script>
+    <script src="/assets/app.js?v=sprint-feed-nav-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
