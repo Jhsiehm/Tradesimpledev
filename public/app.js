@@ -202,6 +202,14 @@ const SIGNALS_TYPE_FILTER_KEY = "ts_signals_type_filter";
 const CONTRACTS_AGENCY_FILTER_KEY = "ts_contracts_agency_filter";
 const CONTRACTS_MIN_AMOUNT_KEY = "ts_contracts_min_amount";
 const LOBBY_KEYWORD_KEY = "ts_lobby_keyword";
+const LOBBY_TOPIC_KEY = "ts_lobby_topic";
+const BILLS_MODE_SESSION_KEY = "ts_bills_mode";
+
+const LOBBY_TOPIC_KEYWORDS = {
+  defense: ["defense", "military", "armed", "dod", "weapon", "aerospace", "national security"],
+  pharma: ["pharma", "drug", "prescription", "medicare", "fda", "health", "biotech"],
+  tech: ["tech", "software", "semiconductor", "artificial intelligence", "data privacy", "cyber", "cloud"]
+};
 const SIGNALS_DESK_PREVIEW = 3;
 let _trendingDeskExpanded = false;
 let _contractWatchDeskExpanded = false;
@@ -258,6 +266,7 @@ function setFocusSymbol(symbol, { persist = true, render = true, syncAnalysis = 
   }
   if (render) {
     renderFocusBar();
+    syncResearchFabLabel();
     renderTabFilterContexts();
     renderMarkets();
     if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
@@ -338,8 +347,10 @@ function renderTabFilterContexts() {
   if (lobbyCtx) {
     const n = (state.lobbying || []).filter(lobbyingMatchesTabFilters).length;
     const kw = String(state.lobbyKeyword || "").trim();
+    const topic = state.lobbyTopicFilter || "";
+    const topicLbl = topic ? ` · ${topic.charAt(0).toUpperCase()}${topic.slice(1)}` : "";
     lobbyCtx.hidden = false;
-    lobbyCtx.textContent = `${n} filing${n === 1 ? "" : "s"}${kw ? ` · "${kw}"` : ""}${focusSuffix}`;
+    lobbyCtx.textContent = `${n} filing${n === 1 ? "" : "s"}${topicLbl}${kw ? ` · "${kw}"` : ""}${focusSuffix}`;
   }
 
   const signalsCtx = $("#signals-filter-context");
@@ -350,6 +361,23 @@ function renderTabFilterContexts() {
     signalsCtx.hidden = false;
     signalsCtx.textContent = `${typeLbl} · ${count} item${count === 1 ? "" : "s"}${focusSuffix}`;
   }
+
+  const marketsCtx = $("#markets-filter-context");
+  if (marketsCtx) {
+    const rows = filteredMarketsRows();
+    const filter = state.marketsFilter || "all";
+    const label = marketsFilterLabel(filter);
+    marketsCtx.hidden = false;
+    marketsCtx.textContent = `${rows.length} symbol${rows.length === 1 ? "" : "s"} · ${label}${focusSuffix}`;
+  }
+}
+
+function syncResearchFabLabel() {
+  const btn = $("#research-drawer-btn") || document.querySelector(".research-drawer-btn");
+  if (!btn) return;
+  const sym = state.focusSymbol || state.activeAnalysisSymbol;
+  btn.textContent = sym ? `Ask about ${sym}` : "Ask AI";
+  btn.setAttribute("aria-label", sym ? `Ask AI about ${sym}` : "Ask AI research assistant");
 }
 
 function focusNoLinkageHtml(view) {
@@ -459,6 +487,16 @@ function contractWatchMatchesTabFilters(award) {
 }
 
 function lobbyingMatchesTabFilters(filing) {
+  const topic = state.lobbyTopicFilter || "";
+  if (topic) {
+    const keywords = LOBBY_TOPIC_KEYWORDS[topic] || [];
+    const hay = [filing.client, filing.registrant, filing.issue].join(" ").toLowerCase();
+    const keywordHit = keywords.some((word) => hay.includes(word));
+    const connection = relatedBillForFiling(filing);
+    const tickers = connection?.bill?.affected || [];
+    const tagHit = (MARKETS_TOPIC_TAGS[topic] && tickers.some((sym) => MARKETS_TOPIC_TAGS[topic].has(normalizeWatchSymbol(sym))));
+    if (!keywordHit && !tagHit) return false;
+  }
   const keyword = String(state.lobbyKeyword || "").trim().toLowerCase();
   if (keyword) {
     const hay = [filing.client, filing.registrant, filing.issue].join(" ").toLowerCase();
@@ -2001,8 +2039,10 @@ function setupTabFilters() {
   state.contractsMinAmount = getStoredTabFilter(CONTRACTS_MIN_AMOUNT_KEY, new Set(["0", "1000000", "10000000", "50000000"]), "0");
   try {
     state.lobbyKeyword = sessionStorage.getItem(LOBBY_KEYWORD_KEY) || localStorage.getItem(LOBBY_KEYWORD_KEY) || "";
+    state.lobbyTopicFilter = sessionStorage.getItem(LOBBY_TOPIC_KEY) || localStorage.getItem(LOBBY_TOPIC_KEY) || "";
   } catch (_) {
     state.lobbyKeyword = "";
+    state.lobbyTopicFilter = "";
   }
 
   const billsBar = $("#bills-filter-bar");
@@ -2074,6 +2114,23 @@ function setupTabFilters() {
         } catch (_) {}
         renderLobbying();
       }, 200);
+    });
+  }
+
+  const lobbyBar = $("#lobby-filter-bar");
+  if (lobbyBar && lobbyBar.dataset.topicReady !== "true") {
+    lobbyBar.dataset.topicReady = "true";
+    syncFilterChipGroup(lobbyBar, "data-lobby-topic", state.lobbyTopicFilter || "");
+    lobbyBar.querySelectorAll("[data-lobby-topic]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        state.lobbyTopicFilter = chip.dataset.lobbyTopic || "";
+        try {
+          sessionStorage.setItem(LOBBY_TOPIC_KEY, state.lobbyTopicFilter);
+          localStorage.setItem(LOBBY_TOPIC_KEY, state.lobbyTopicFilter);
+        } catch (_) {}
+        syncFilterChipGroup(lobbyBar, "data-lobby-topic", state.lobbyTopicFilter || "");
+        renderLobbying();
+      });
     });
   }
 
@@ -2708,6 +2765,8 @@ const state = {
   contractsAgencyFilter: "all",
   contractsMinAmount: "0",
   lobbyKeyword: "",
+  lobbyTopicFilter: "",
+  lastOrderSymbol: null,
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
   tradeSymbol: "NVDA",
@@ -2768,6 +2827,8 @@ function defaultTradeGuidedMode() {
 
 function defaultBillsGuidedMode() {
   try {
+    const sessionMode = sessionStorage.getItem(BILLS_MODE_SESSION_KEY);
+    if (sessionMode === "full" || sessionMode === "guided") return sessionMode;
     const stored = localStorage.getItem(BILLS_GUIDED_KEY);
     if (stored === "full" || stored === "guided") return stored;
     const opened = localStorage.getItem("ts_bill_brief_opened");
@@ -2775,6 +2836,15 @@ function defaultBillsGuidedMode() {
   } catch (_) {
     return "guided";
   }
+}
+
+function seedBillsGuidedModeForNewUsers() {
+  try {
+    if (sessionStorage.getItem(BILLS_MODE_SESSION_KEY)) return;
+    if (localStorage.getItem(BILLS_GUIDED_KEY)) return;
+    if (localStorage.getItem("ts_bill_brief_opened")) return;
+    sessionStorage.setItem(BILLS_MODE_SESSION_KEY, "guided");
+  } catch (_) {}
 }
 
 function tradeGuidedMode() {
@@ -2795,6 +2865,9 @@ function persistTradeGuidedMode(mode) {
 function persistBillsGuidedMode(mode) {
   state.billsGuidedMode = BriefShell.persistMode(BILLS_GUIDED_KEY, mode);
   state.billsGuidedStep = 0;
+  try {
+    sessionStorage.setItem(BILLS_MODE_SESSION_KEY, mode);
+  } catch (_) {}
 }
 
 function tradeSymbolUniverse() {
@@ -3248,6 +3321,7 @@ function setupWaitlistForm() {
 
 async function initDashboard() {
   bumpSessionCount();
+  seedBillsGuidedModeForNewUsers();
   const params = new URLSearchParams(window.location.search);
   markOnboardingCompleteFromUrl(params);
   const initialSymbol = String(params.get("symbol") || "").toUpperCase().replace(/[^A-Z.]/g, "");
@@ -3319,6 +3393,7 @@ async function initDashboard() {
     if (orderSelect) setSymbolPickerValue(orderSelect, initialSymbol, { notify: false });
   }
   renderFocusBar();
+  syncResearchFabLabel();
   renderTabFilterContexts();
 
   const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
@@ -4304,7 +4379,16 @@ function renderSignalsConvictionList() {
   if (!el) return;
   const type = state.signalsTypeFilter || "all";
   if (type === "contracts" || type === "trending") {
-    el.innerHTML = `<div class="sc-empty muted">Conviction scans are bill-driven — switch type to All or Bills.</div>`;
+    const hint = type === "contracts"
+      ? `<div class="sc-empty guided-empty-state"><strong>Conviction scans are bill-driven.</strong> Switch to All or Bills to see ranked catalysts, or browse contract awards below. <button type="button" class="button button-secondary compact" data-signals-filter-hint="bills">Show bill signals</button> <button type="button" class="link-button" data-view-jump="contracts">View all in Contracts</button></div>`
+      : `<div class="sc-empty muted">Conviction scans are bill-driven — switch type to All or Bills.</div>`;
+    el.innerHTML = hint;
+    el.querySelector("[data-signals-filter-hint]")?.addEventListener("click", () => {
+      state.signalsTypeFilter = "bills";
+      const bar = $("#signals-filter-bar");
+      syncFilterChipGroup(bar, "data-signals-filter", "bills");
+      renderSignalsDesk();
+    });
     clearSkeleton("#signal-list");
     return;
   }
@@ -4483,6 +4567,10 @@ function renderContractWatchCard(award) {
 function renderContractWatchSection() {
   const feed = $("#contract-watch-feed");
   const source = $("#contract-watch-source");
+  const summary = $("#contract-watch-summary");
+  const disclaimer = $("#contract-watch-disclaimer");
+  const moreWrap = $("#contract-watch-more-wrap");
+  const moreBtn = $("#contract-watch-more-btn");
   if (!feed) return;
   const awards = (state.contractWatch || []).slice().sort((a, b) => {
     const aTs = Date.parse(a.firstSeenAt || a.lastModifiedDate || 0);
@@ -4496,19 +4584,41 @@ function renderContractWatchSection() {
       : "Polling USASpending";
   }
   const filtered = awards.filter(contractWatchMatchesTabFilters);
+  const signalsSummaryMode = !_contractWatchDeskExpanded;
   if (!filtered.length) {
     const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
+    if (summary) summary.hidden = true;
+    if (disclaimer) disclaimer.hidden = false;
+    feed.hidden = false;
     feed.innerHTML = `<div class="sc-empty muted">No significant awards${escapeHtml(focusMsg)} in the last 7 days. TradeSimple polls USASpending every ~30 minutes.</div>`;
-    const moreWrap = $("#contract-watch-more-wrap");
     if (moreWrap) moreWrap.hidden = true;
     return;
   }
-  const preview = _contractWatchDeskExpanded ? filtered : filtered.slice(0, SIGNALS_DESK_PREVIEW);
+  if (signalsSummaryMode) {
+    const top = filtered[0];
+    const topAmt = top?.amount ? compactMoney(top.amount) : "—";
+    const topSym = (top?.mappedTickers || top?.relatedTickers || [])[0] || "—";
+    if (summary) {
+      summary.hidden = false;
+      summary.innerHTML = `${filtered.length} recent award${filtered.length === 1 ? "" : "s"} · latest ${escapeHtml(topSym)} ${escapeHtml(topAmt)} · <button type="button" class="link-button" data-view-jump="contracts">View all in Contracts</button> <button type="button" class="link-button" id="contract-watch-expand-inline">Expand here</button>`;
+      summary.querySelector("#contract-watch-expand-inline")?.addEventListener("click", () => {
+        _contractWatchDeskExpanded = true;
+        renderContractWatchSection();
+      });
+    }
+    if (disclaimer) disclaimer.hidden = true;
+    feed.hidden = true;
+    feed.innerHTML = "";
+    if (moreWrap) moreWrap.hidden = true;
+    return;
+  }
+  if (summary) summary.hidden = true;
+  if (disclaimer) disclaimer.hidden = false;
+  feed.hidden = false;
+  const preview = filtered.slice(0, SIGNALS_DESK_PREVIEW);
   feed.innerHTML = preview.map(renderContractWatchCard).join("");
-  const moreWrap = $("#contract-watch-more-wrap");
-  const moreBtn = $("#contract-watch-more-btn");
   if (moreWrap && moreBtn) {
-    const hasMore = filtered.length > SIGNALS_DESK_PREVIEW && !_contractWatchDeskExpanded;
+    const hasMore = filtered.length > SIGNALS_DESK_PREVIEW;
     moreWrap.hidden = !hasMore;
     if (hasMore) moreBtn.textContent = `Show ${filtered.length - SIGNALS_DESK_PREVIEW} more awards`;
   }
@@ -4692,6 +4802,13 @@ function renderMarketMood() {
   summary += `Lobbying reads ${lobbyIntensity}/100 on recent filings — informational, not a timing signal.`;
   const sumEl = $("#market-mood-summary");
   if (sumEl) sumEl.textContent = summary;
+
+  const moodChip = $("#overview-mood-chip");
+  if (moodChip) {
+    const chipLbl = fearGreed >= 58 ? "Tape risk-on" : fearGreed <= 42 ? "Tape defensive" : "Tape balanced";
+    moodChip.hidden = false;
+    moodChip.textContent = `${chipLbl} · policy ${policyLbl.toLowerCase()} · lobby ${lobbyLbl.toLowerCase()}`;
+  }
 }
 
 function renderLiveAlerts() {
@@ -4930,6 +5047,7 @@ function renderMarkets() {
       : "No symbols match this filter.";
     tbody.innerHTML = `<tr><td colspan="7" class="markets-empty-row">${focusHint} Try <strong>All</strong> or <button type="button" class="link-button" id="markets-clear-focus-inline">clear focus</button>.</td></tr>`;
     $("#markets-clear-focus-inline")?.addEventListener("click", () => clearFocusSymbol());
+    renderTabFilterContexts();
     return;
   }
 
@@ -4961,6 +5079,7 @@ function renderMarkets() {
       </tr>
     `;
   }).join("");
+  renderTabFilterContexts();
 }
 
 function renderCrypto() {
@@ -5362,9 +5481,16 @@ function renderLobbying() {
   const feedEl = $("#lobby-feed");
   const emptyEl = $("#lobby-feed-empty");
   const sourceEl = $("#lobby-source");
+  const badgeEl = $("#lobby-data-badge");
+  const meta = state.feedMeta?.lobbying;
+  const isLive = meta?.source === "senate_lda";
+  const isSample = meta?.source === "fallback";
   if (sourceEl) {
-    const meta = state.feedMeta?.lobbying;
-    sourceEl.textContent = meta?.source === "senate_lda" ? "Senate LDA" : meta?.source === "fallback" ? "Sample filings" : "Connecting";
+    sourceEl.textContent = isLive ? "Senate LDA" : isSample ? "Sample filings" : "Connecting";
+  }
+  if (badgeEl) {
+    badgeEl.textContent = isLive ? "Live LDA" : isSample ? "Sample filings" : "Connecting";
+    badgeEl.className = `mini-pill ${isLive ? "green" : isSample ? "amber" : ""}`;
   }
   if (!feedEl) return;
   const filtered = (state.lobbying || []).filter(lobbyingMatchesTabFilters);
@@ -5374,6 +5500,10 @@ function renderLobbying() {
       emptyEl.hidden = false;
       if (state.focusSymbol) {
         emptyEl.innerHTML = `<strong>No lobbying filings for ${escapeHtml(state.focusSymbol)} yet.</strong> Try clearing focus or broadening the issue keyword. <button type="button" class="link-button" data-view-jump="markets">Browse Markets</button>`;
+      } else if (isSample) {
+        emptyEl.innerHTML = `<strong>Showing sample filings.</strong> Live Senate LDA data is not configured — browse the sample feed or refresh to retry.`;
+      } else if (!isLive) {
+        emptyEl.innerHTML = `<strong>No lobbying filings loaded.</strong> The feed is still connecting — use Refresh in the top bar.`;
       }
     }
     renderTabFilterContexts();
@@ -5452,7 +5582,7 @@ function renderAccount() {
 
   $("#paper-positions-body").innerHTML = (state.account?.positions || []).length
     ? state.account.positions.map((position) => `
-      <tr>
+      <tr class="${state.lastOrderSymbol && normalizeWatchSymbol(position.symbol) === state.lastOrderSymbol ? "position-row-highlight" : ""}">
         <td>${escapeHtml(position.symbol)}</td>
         <td>${fmt(position.qty)}</td>
         <td>${money(position.avgCost)}</td>
@@ -6558,6 +6688,7 @@ function renderConnections() {
       <span class="mini-pill ${ok ? "green" : "red"}">${ok ? "Configured" : "Needs key"}</span>
       <strong>${name}</strong>
       <p class="muted">${env}</p>
+      <p class="connection-env-hint muted">Configure in Railway or <code>.env.local</code></p>
     </article>
   `).join("");
 }
@@ -8313,6 +8444,29 @@ function renderPaperOrderPreview() {
     <p class="paper-order-preview-copy muted">${escapeHtml(cashLine)}${pctLine ? ` · ${escapeHtml(pctLine)}` : ""}</p>`;
 }
 
+function setOrderStatus(message, { tone = "neutral" } = {}) {
+  const el = $("#order-result");
+  if (!el) return;
+  el.className = `order-status-line order-status-line--${tone}`;
+  if (typeof message === "string" && message.includes("<")) el.innerHTML = message;
+  else el.textContent = message;
+}
+
+function highlightOrderPosition(symbol) {
+  const sym = normalizeWatchSymbol(symbol);
+  if (!sym) return;
+  state.lastOrderSymbol = sym;
+  renderAccount();
+  const row = document.querySelector(`#paper-positions-body tr.position-row-highlight`);
+  row?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  setTimeout(() => {
+    if (state.lastOrderSymbol === sym) {
+      state.lastOrderSymbol = null;
+      renderAccount();
+    }
+  }, 4000);
+}
+
 function setupPaperOrderPreview() {
   const form = $("#order-form");
   if (!form || form.dataset.previewReady === "true") return;
@@ -8338,7 +8492,7 @@ function setupForms() {
     event.preventDefault();
     const preview = paperOrderPreviewLines();
     if (!preview) {
-      $("#order-result").textContent = "Enter a valid symbol and quantity.";
+      setOrderStatus("Enter a valid symbol and quantity.", { tone: "error" });
       return;
     }
     const sideLbl = preview.side === "buy" ? "Buy" : "Sell";
@@ -8354,11 +8508,11 @@ function setupForms() {
       lines: confirmLines
     });
     if (!ok) {
-      $("#order-result").textContent = "Order cancelled.";
+      setOrderStatus("Order cancelled.", { tone: "neutral" });
       return;
     }
     const form = new FormData(event.currentTarget);
-    $("#order-result").textContent = "Submitting paper order...";
+    setOrderStatus("Submitting paper order…", { tone: "pending" });
     try {
       const response = await fetchJson("/api/trading/orders", {
         method: "POST",
@@ -8377,7 +8531,9 @@ function setupForms() {
         void thesisRefreshSavedOutcome();
         state.pendingThesisId = null;
       }
-      $("#order-result").innerHTML = `${orderSuccessMessage(response)} New buying power: ${money(response.account.buyingPower)}.`;
+      const orderSym = normalizeWatchSymbol(response?.order?.symbol || form.get("symbol"));
+      setOrderStatus(`${orderSuccessMessage(response)} New buying power: ${money(response.account.buyingPower)}.`, { tone: "success" });
+      highlightOrderPosition(orderSym);
     } catch (error) {
       let msg = "Paper order rejected. Check the symbol and quantity.";
       try {
@@ -8394,7 +8550,7 @@ function setupForms() {
       if (msg === "Paper order rejected. Check the symbol and quantity." && error.message.includes("insufficient")) {
         msg = "Paper order rejected: not enough cash or shares for that order.";
       }
-      $("#order-result").textContent = msg;
+      setOrderStatus(msg, { tone: "error" });
     }
   });
 

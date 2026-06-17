@@ -2645,6 +2645,23 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
 }
 .trade-form input, .trade-form select { height: 36px; padding: 0 10px; }
 .order-result { min-height: 96px; margin: 0; padding: 14px 16px; border-top: 1px solid var(--line); overflow: auto; color: var(--muted); font-family: var(--mono); font-size: 11px; white-space: pre-wrap; }
+.order-status-line {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.order-status-line--success { color: var(--green); background: rgba(91, 191, 130, 0.06); }
+.order-status-line--error { color: var(--red); background: rgba(224, 92, 92, 0.06); }
+.order-status-line--pending { color: var(--amber); }
+.order-status-line .order-success-links a { color: inherit; }
+.position-row-highlight { background: rgba(91, 191, 130, 0.12); outline: 1px solid rgba(91, 191, 130, 0.35); }
+html[data-theme="light"] .position-row-highlight { background: rgba(46, 125, 82, 0.08); }
+.contract-watch-summary { padding: 10px 16px 0; font-size: 13px; line-height: 1.5; }
+.connection-env-hint { font-size: 11px; margin-top: 6px; }
+.connection-env-hint code { font-size: 10px; }
 
 .paper-stat-grid {
   display: grid;

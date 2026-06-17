@@ -19,10 +19,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=usability-audit-2" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=usability-audit-2" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -170,11 +170,6 @@
                 <summary class="dash-meta-fold-summary">Share briefs</summary>
                 <p class="dashboard-brief-share-note muted">Share briefs are public — copy link from any bill card. Example: <a href="/bill/S.2-119">/bill/S.2-119</a></p>
               </details>
-              <div class="portfolio-command-actions">
-                <button class="button button-secondary" data-view-jump="signals">Scan signals</button>
-                <button class="button button-ghost" data-view-jump="analysis">Analyze holdings</button>
-                <button class="button button-ghost" data-view-jump="trade">Paper trade</button>
-              </div>
             </div>
             <div class="portfolio-terminal-card portfolio-terminal-hero actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading account">
               <div class="portfolio-terminal-head">
@@ -189,36 +184,42 @@
             </div>
           </section>
 
-          <div class="overview-metrics-strip" role="list" aria-label="Portfolio metrics">
-            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
-              <span class="overview-metric-label">Policy heat</span>
-              <strong class="overview-metric-value amber" id="stat-policy-exposure">—</strong>
-              <small class="overview-metric-sub" id="stat-policy-exposure-sub">Legislative momentum vs holdings</small>
-            </article>
-            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
-              <span class="overview-metric-label">Mapped bills</span>
-              <strong class="overview-metric-value" id="stat-bill-count">—</strong>
-              <small class="overview-metric-sub" id="stat-bill-momentum">Legislative momentum (max /100)</small>
-            </article>
-            <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open lobbying and bill pressure">
-              <span class="overview-metric-label">Lobbying</span>
-              <strong class="overview-metric-value down" id="stat-lobby-pressure">—/100</strong>
-              <small class="overview-metric-sub" id="stat-lobby-confidence">Top filing score · Confidence</small>
-            </article>
-            <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading mode">
-              <span class="overview-metric-label">Trading mode</span>
-              <strong class="overview-metric-value" id="trade-mode">Paper</strong>
-              <small class="overview-metric-sub" id="trade-mode-sub">Live locked by default</small>
-            </article>
+          <div class="overview-metrics-wrap">
+            <div class="overview-metrics-strip" role="list" aria-label="Portfolio metrics">
+              <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
+                <span class="overview-metric-label">Policy heat</span>
+                <strong class="overview-metric-value amber" id="stat-policy-exposure">—</strong>
+                <small class="overview-metric-sub" id="stat-policy-exposure-sub">Legislative momentum vs holdings</small>
+              </article>
+              <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="signals" role="link" tabindex="0" aria-label="Open signals desk">
+                <span class="overview-metric-label">Mapped bills</span>
+                <strong class="overview-metric-value" id="stat-bill-count">—</strong>
+                <small class="overview-metric-sub" id="stat-bill-momentum">Legislative momentum (max /100)</small>
+              </article>
+              <article class="overview-metric-cell actionable-card" data-drill-action="bills" role="link" tabindex="0" aria-label="Open lobbying and bill pressure">
+                <span class="overview-metric-label">Lobbying</span>
+                <strong class="overview-metric-value down" id="stat-lobby-pressure">—/100</strong>
+                <small class="overview-metric-sub" id="stat-lobby-confidence">Top filing score · Confidence</small>
+              </article>
+              <article class="overview-metric-cell actionable-card" data-drill-action="view" data-view-name="trade" role="link" tabindex="0" aria-label="Open paper trading mode">
+                <span class="overview-metric-label">Trading mode</span>
+                <strong class="overview-metric-value" id="trade-mode">Paper</strong>
+                <small class="overview-metric-sub" id="trade-mode-sub">Live locked by default</small>
+              </article>
+            </div>
+            <div class="overview-metrics-meta">
+              <span class="overview-mood-chip muted" id="overview-mood-chip" hidden></span>
+              <button type="button" class="link-button overview-score-link" data-view-jump="track-record">How we score →</button>
+            </div>
           </div>
 
-          <section class="panel panel-compact signals-desk-cta" id="overview-signals-cta">
-            <div class="panel-head">
-              <h2>Signals desk</h2>
-              <button type="button" class="link-button" data-view-jump="signals">Open signals →</button>
+          <details class="panel-fold overview-signals-fold">
+            <summary class="panel-fold-summary">Signals desk shortcut</summary>
+            <div class="panel-fold-body">
+              <p class="help-copy muted">Policy catalysts, conviction scans, and the live alert tape live on a dedicated page.</p>
+              <button type="button" class="button button-secondary compact" data-view-jump="signals">Open signals →</button>
             </div>
-            <p class="help-copy muted">Policy catalysts, conviction scans, and the live alert tape live on a dedicated page — separate from portfolio Home.</p>
-          </section>
+          </details>
 
           <details class="panel-fold overview-mood-fold">
             <summary class="panel-fold-summary">Market mood readout</summary>
@@ -338,12 +339,13 @@
               <button type="button" class="link-button ts-desk-more-btn" id="trending-more-btn">Show more trending</button>
             </div>
           </section>
-          <section class="panel panel-compact contract-watch-panel" id="contract-watch-panel">
+          <section class="panel panel-compact contract-watch-panel contract-watch-panel--signals" id="contract-watch-panel">
             <div class="panel-head">
               <h2>Contract Watch</h2>
               <span id="contract-watch-source">Polling USASpending</span>
             </div>
-            <p class="contract-watch-disclaimer muted">Significant federal awards from USASpending.gov · not investment advice · DoD may lag ~90 days</p>
+            <div id="contract-watch-summary" class="contract-watch-summary muted" hidden></div>
+            <p class="contract-watch-disclaimer muted" id="contract-watch-disclaimer">Significant federal awards from USASpending.gov · not investment advice · DoD may lag ~90 days</p>
             <div id="contract-watch-feed" class="contract-watch-feed trending-feed"></div>
             <div class="ts-desk-more-wrap" id="contract-watch-more-wrap" hidden>
               <button type="button" class="link-button ts-desk-more-btn" id="contract-watch-more-btn">Show more awards</button>
@@ -416,6 +418,7 @@
                 <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="tech">Tech</button>
                 <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="pharma">Pharma</button>
               </div>
+              <span class="ts-filter-context muted" id="markets-filter-context" hidden></span>
             </div>
             <div class="table-wrap">
               <table class="terminal-table terminal-table--markets terminal-table--scan">
@@ -791,17 +794,25 @@
               <span class="sr-only">Issue keyword</span>
               <input type="search" id="lobby-keyword-filter" class="ts-filter-search" placeholder="Issue keyword…" autocomplete="off" />
             </label>
+            <span class="ts-filter-bar-label">Topic</span>
+            <div class="ts-filter-chips ts-filter-chips--segmented" role="group" aria-label="Filter lobbying by topic">
+              <button type="button" class="ts-filter-chip is-active" data-lobby-topic="">All</button>
+              <button type="button" class="ts-filter-chip" data-lobby-topic="defense">Defense</button>
+              <button type="button" class="ts-filter-chip" data-lobby-topic="pharma">Pharma</button>
+              <button type="button" class="ts-filter-chip" data-lobby-topic="tech">Tech</button>
+            </div>
             <span class="ts-filter-context muted" id="lobby-filter-context" hidden></span>
           </div>
           <section class="panel panel-emphasis">
             <div class="panel-head panel-head-quiet">
               <h2>Filing feed</h2>
               <span data-freshness="lobbying">Pending</span>
+              <span class="mini-pill" id="lobby-data-badge">Connecting</span>
             </div>
             <div id="lobby-feed" class="lobby-feed-grid"></div>
             <p id="lobby-feed-empty" class="guided-empty-state" hidden>
               <strong>No lobbying filings loaded.</strong>
-              Set <code>SENATE_LDA_API_KEY</code> for live LDA data, or use Refresh. Sample filings appear when the API is unavailable.
+              Sample filings appear when live Senate LDA is unavailable. Use Refresh to retry the feed.
             </p>
           </section>
           <aside class="panel mt">
@@ -876,7 +887,12 @@
           </section>
 
           <!-- ── CONTRACT CAUSALITY PANEL ───────────────────────── -->
-          <section class="panel causality-panel" id="causality-panel">
+          <details class="panel causality-panel causality-panel-fold" id="causality-panel">
+            <summary class="causality-panel-summary">
+              <span class="causality-panel-summary-title">Contract causality chain</span>
+              <span class="causality-panel-summary-hint muted">Budget → agency → award → revenue → scenario</span>
+            </summary>
+            <div class="causality-panel-body">
             <div class="panel-head panel-head-quiet">
               <div>
                 <h2>Contract causality</h2>
@@ -897,6 +913,8 @@
             <div id="causality-loading" style="padding:24px 18px;color:var(--text-muted);font-size:13px">Loading…</div>
             <div id="causality-body" hidden>
 
+              <details class="causality-hero-fold">
+                <summary class="causality-hero-fold-summary">Plain-English summary &amp; scores</summary>
               <!-- HERO ROW -->
               <div class="causality-hero-row">
                 <div class="causality-hero-copy">
@@ -932,6 +950,7 @@
                   </div>
                 </div>
               </div>
+              </details>
 
               <!-- CAUSAL MAP -->
               <div class="panel-head" style="margin-top:0;border-top:1px solid var(--border)">
@@ -971,7 +990,8 @@
 
               <p class="muted" style="padding:12px 18px 16px;font-family:var(--mono);font-size:11px">CRS v2 · calibrated on 282 USASpending.gov events (LMT, BAH, LDOS, SAIC, PLTR, 2015–2024). Directional signal only. Not investment advice.</p>
             </div>
-          </section>
+            </div>
+          </details>
         </section>
 
         <section class="view terminal-view" id="view-thesis">
@@ -1425,7 +1445,7 @@
                 <strong>Paper mode</strong>
                 <p>This fills at the latest quote in your simulated account. It does not send real money or real shares anywhere.</p>
               </div>
-              <pre class="order-result" id="order-result">No order submitted.</pre>
+              <div class="order-status-line" id="order-result" role="status" aria-live="polite">No order submitted.</div>
             </section>
 
             <section class="panel">
@@ -1819,7 +1839,7 @@
       </div>
     </div>
 
-    <button type="button" class="research-drawer-btn">Ask AI</button>
+    <button type="button" class="research-drawer-btn" id="research-drawer-btn">Ask AI</button>
     <aside class="research-drawer research-drawer-global" aria-label="AI research drawer">
       <div class="research-drawer-head">
         <span>AI Research</span>
@@ -1887,7 +1907,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=usability-audit-1" defer></script>
+    <script src="/assets/app.js?v=usability-audit-2" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
