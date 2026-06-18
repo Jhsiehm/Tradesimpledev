@@ -22,8 +22,8 @@
     <link rel="stylesheet" href="/assets/styles.css?v=premium-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=premium-elev-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=premium-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=mobile-sprint-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=mobile-sprint-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -160,7 +160,12 @@
       </div>
 
       <main class="workspace" id="workspace-main">
+        <div id="workspace-ptr" class="workspace-ptr" aria-hidden="true" hidden>
+          <span class="workspace-ptr-spinner" aria-hidden="true"></span>
+          <span class="workspace-ptr-label">Pull to refresh</span>
+        </div>
         <section class="view active dashboard-overview-view" id="view-overview">
+          <div id="since-last-visit-strip" class="since-last-visit-strip" role="status" aria-live="polite" hidden></div>
           <header class="dash-view-header dash-view-header--overview">
             <div class="dash-view-header-copy">
               <h1 class="overview-hero-title">Holdings &amp; policy exposure</h1>
@@ -350,8 +355,8 @@
           <div class="signals-primary-lane" id="signals-primary-lane">
             <section class="panel panel-emphasis signals-feed-primary" id="signals-conviction-panel">
               <div class="panel-head panel-head-quiet">
-                <h2>Signal feed</h2>
-                <span class="muted">Highest conviction · scan one line per card</span>
+                <h2><span class="signals-title-desktop">Signal feed</span><span class="signals-title-mobile">Today&rsquo;s signals</span></h2>
+                <span class="muted signals-conviction-sub">Highest conviction · scan one line per card</span>
               </div>
               <div id="signal-list" class="stack-list stack-list--conviction sc-card-grid"></div>
             </section>
@@ -446,6 +451,7 @@
             <div class="panel-head panel-head-quiet">
               <h2>Equities &amp; ETFs</h2>
               <span id="market-table-meta">Live quotes</span>
+              <button type="button" class="link-button markets-desk-toggle" id="markets-desk-toggle" hidden>Desk view</button>
             </div>
             <div class="markets-toolbar ts-filter-bar" id="markets-filter-bar">
               <label class="markets-search-wrap">

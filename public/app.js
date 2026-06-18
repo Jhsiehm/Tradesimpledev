@@ -167,6 +167,9 @@ function symbolSourceBadgeLabel(source) {
 }
 
 const MARKETS_FILTER_STORAGE_KEY = "ts_markets_filter";
+const MARKETS_MOBILE_DESK_KEY = "ts_markets_mobile_desk";
+const LAST_VISIT_AT_KEY = "ts_last_visit_at";
+const LAST_VISIT_SNAPSHOT_KEY = "ts_last_visit_snapshot";
 const MARKETS_INDEX_ETFS = new Set([
   "SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "ARKK", "XLE", "XLF", "XLK", "XLV", "XLI", "XLP", "XLY", "XLU", "XLB", "KBE"
 ]);
@@ -589,7 +592,10 @@ function applySignalsDeskVisibility() {
   setHidden("#contract-watch-evidence-fold", ["contracts", "all"]);
   setHidden("#signals-conviction-panel", ["bills", "all"]);
   const evidenceFold = $("#signals-evidence-fold");
-  if (evidenceFold) evidenceFold.hidden = type === "trending" || type === "contracts";
+  if (evidenceFold) {
+    evidenceFold.hidden = type === "trending" || type === "contracts";
+    if (evidenceFold.open) evidenceFold.open = false;
+  }
   const primaryLane = $("#signals-primary-lane");
   if (primaryLane) {
     primaryLane.classList.toggle("signals-primary-lane--trending", type === "trending");
@@ -2039,7 +2045,51 @@ function resolveDefaultMarketsFilter() {
       return getStoredMarketsFilter();
     }
   } catch (_) {}
+  const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+  if (isMobile) return "watchlist";
   return state.watchlistSymbols?.length ? "watchlist" : "all";
+}
+
+function isMarketsMobileDeskView() {
+  try {
+    return sessionStorage.getItem(MARKETS_MOBILE_DESK_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function setMarketsMobileDeskView(enabled) {
+  try {
+    if (enabled) sessionStorage.setItem(MARKETS_MOBILE_DESK_KEY, "1");
+    else sessionStorage.removeItem(MARKETS_MOBILE_DESK_KEY);
+  } catch (_) {}
+  document.body.classList.toggle("markets-mobile-desk", Boolean(enabled));
+  const btn = $("#markets-desk-toggle");
+  if (btn) {
+    btn.textContent = enabled ? "Card feed" : "Desk view";
+    btn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  }
+}
+
+function syncMarketsDeskToggleVisibility() {
+  const btn = $("#markets-desk-toggle");
+  if (!btn) return;
+  const isMobile = window.matchMedia("(max-width: 760px)").matches;
+  btn.hidden = !isMobile;
+  if (isMobile) setMarketsMobileDeskView(isMarketsMobileDeskView());
+  else document.body.classList.remove("markets-mobile-desk");
+}
+
+function setupMarketsDeskToggle() {
+  const btn = $("#markets-desk-toggle");
+  if (!btn || btn.dataset.bound === "true") return;
+  btn.dataset.bound = "true";
+  btn.addEventListener("click", () => {
+    setMarketsMobileDeskView(!isMarketsMobileDeskView());
+    renderMarkets();
+  });
+  syncMarketsDeskToggleVisibility();
+  window.matchMedia("(max-width: 760px)").addEventListener("change", syncMarketsDeskToggleVisibility);
 }
 
 function getStoredMarketsSubTab() {
@@ -3441,6 +3491,7 @@ async function initDashboard() {
   setupMarketsWatchToggle();
   setupMarketsSubTabs();
   setupMarketsFilters();
+  setupMarketsDeskToggle();
   setupFocusBar();
   setupTabFilters();
   setupFeedHealthDrawer();
@@ -3448,6 +3499,8 @@ async function initDashboard() {
   setupDashChromeMetrics();
   setupClassbarScrollHide();
   setupGuidedDemo();
+  setupSinceLastVisit();
+  setupPullToRefresh();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -3492,11 +3545,14 @@ async function initDashboard() {
 
   initGuidedDemoSession(session);
 
-  const defaultView = isViewEnabled("thesis") ? "thesis" : "overview";
+  const isDemo = isDemoSession(session);
+  const hasViewParam = Boolean(params.get("view"));
+  const defaultView = isDemo && !hasViewParam ? "overview" : isViewEnabled("thesis") ? "thesis" : "overview";
   const rawView = params.get("view") || defaultView;
   const requestedView = rawView === "home" ? "overview" : rawView;
   const initialView = isViewEnabled(requestedView) ? requestedView : disabledFeatureFallbackView();
   showView(initialView, false);
+  if (isDemo && initialView === "overview") renderMorningBrief();
 
   if (params.get("welcome") === "1") {
     openOnboardingModal({ force: true });
@@ -3892,6 +3948,220 @@ function setupFeedHealthDrawer() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("#feed-health-drawer")?.classList.contains("open")) closeFeedHealthDrawer();
   });
+}
+
+function sinceLastVisitScopeTickers() {
+  const set = new Set();
+  if (state.focusSymbol) set.add(state.focusSymbol);
+  for (const row of watchlistRows()) {
+    const sym = normalizeWatchSymbol(row.symbol);
+    if (sym) set.add(sym);
+  }
+  return [...set];
+}
+
+function visitTickerPayload(sym) {
+  const signalIds = [];
+  for (const sig of buildSignalFeed()) {
+    const tickers = (sig.tickers || []).map(normalizeWatchSymbol);
+    if (!tickers.includes(sym)) continue;
+    const id = sig._billId
+      ? `bill:${sig._billId}`
+      : sig._contractSymbol
+        ? `contract:${sig._contractSymbol}`
+        : `sig:${sig.type}:${String(sig.title || "").slice(0, 48)}`;
+    signalIds.push(id);
+  }
+  const billIds = policyBills()
+    .filter((bill) => (bill.affected || []).map(normalizeWatchSymbol).includes(sym))
+    .map((bill) => bill.id)
+    .filter(Boolean);
+  const contractIds = (state.contractWatch || [])
+    .filter((award) => (award.mappedTickers || []).map(normalizeWatchSymbol).includes(sym))
+    .map((award) => award.awardId || `${award.recipient}:${award.amount}`)
+    .filter(Boolean);
+  return { signalIds, billIds, contractIds };
+}
+
+function collectVisitSnapshot() {
+  const tickers = {};
+  for (const sym of sinceLastVisitScopeTickers()) {
+    tickers[sym] = visitTickerPayload(sym);
+  }
+  return { tickers, at: new Date().toISOString() };
+}
+
+function loadVisitSnapshot() {
+  try {
+    const raw = sessionStorage.getItem(LAST_VISIT_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function persistVisitSnapshot(snapshot = collectVisitSnapshot()) {
+  try {
+    sessionStorage.setItem(LAST_VISIT_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    sessionStorage.setItem(LAST_VISIT_AT_KEY, snapshot.at || new Date().toISOString());
+  } catch (_) {}
+}
+
+function sinceLastVisitTimeLabel(iso) {
+  if (!iso) return "your last visit";
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return "your last visit";
+  if (ms >= 86400000) return "yesterday";
+  if (ms >= 3600000) return `${Math.round(ms / 3600000)} hours ago`;
+  return "your last visit";
+}
+
+function diffVisitSnapshots(prev, current) {
+  const parts = [];
+  const prevTickers = prev?.tickers || {};
+  const curTickers = current.tickers || {};
+  const symbols = sinceLastVisitScopeTickers();
+  for (const sym of symbols) {
+    const before = prevTickers[sym] || { signalIds: [], billIds: [], contractIds: [] };
+    const now = curTickers[sym] || { signalIds: [], billIds: [], contractIds: [] };
+    const prevSignals = new Set([...(before.signalIds || []), ...(before.billIds || []).map((id) => `bill:${id}`)]);
+    const newSignals = [...new Set([...(now.signalIds || []), ...(now.billIds || []).map((id) => `bill:${id}`)])].filter(
+      (id) => !prevSignals.has(id)
+    ).length;
+    const prevContracts = new Set(before.contractIds || []);
+    const newContracts = (now.contractIds || []).filter((id) => !prevContracts.has(id)).length;
+    if (newSignals) parts.push(`${newSignals} new signal${newSignals === 1 ? "" : "s"} on ${sym}`);
+    if (newContracts) parts.push(`${newContracts} contract${newContracts === 1 ? "" : "s"} on ${sym}`);
+  }
+  return parts;
+}
+
+function renderSinceLastVisitStrip() {
+  const strip = $("#since-last-visit-strip");
+  if (!strip) return;
+  const overviewActive = $("#view-overview")?.classList.contains("active");
+  if (!overviewActive) {
+    strip.hidden = true;
+    return;
+  }
+  const current = collectVisitSnapshot();
+  const prev = loadVisitSnapshot();
+  const lastAt = (() => {
+    try {
+      return sessionStorage.getItem(LAST_VISIT_AT_KEY);
+    } catch (_) {
+      return null;
+    }
+  })();
+  if (!prev || !lastAt) {
+    strip.hidden = true;
+    persistVisitSnapshot(current);
+    return;
+  }
+  const parts = diffVisitSnapshots(prev, current);
+  const when = sinceLastVisitTimeLabel(lastAt);
+  if (!parts.length) {
+    strip.className = "since-last-visit-strip since-last-visit-strip--quiet";
+    strip.innerHTML = `<span class="since-last-visit-text">No new signals since ${escapeHtml(when)}</span>`;
+    strip.hidden = false;
+  } else {
+    strip.className = "since-last-visit-strip since-last-visit-strip--active intel-card";
+    strip.innerHTML = `<span class="since-last-visit-dot" aria-hidden="true"></span><span class="since-last-visit-text">${escapeHtml(parts.join(" · "))}</span>`;
+    strip.hidden = false;
+  }
+  persistVisitSnapshot(current);
+}
+
+function setupSinceLastVisit() {
+  window.addEventListener("beforeunload", () => {
+    try {
+      persistVisitSnapshot(collectVisitSnapshot());
+    } catch (_) {}
+  });
+}
+
+function setupPullToRefresh() {
+  const workspace = document.querySelector(".workspace");
+  const ptr = $("#workspace-ptr");
+  if (!workspace || !ptr || workspace.dataset.ptrBound === "true") return;
+  workspace.dataset.ptrBound = "true";
+  const mq = window.matchMedia("(max-width: 760px)");
+  const motionMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const label = ptr.querySelector(".workspace-ptr-label");
+  let startY = 0;
+  let pulling = false;
+  let pullDist = 0;
+  const threshold = 72;
+
+  const ptrActiveView = () => {
+    const active = document.querySelector(".view.active");
+    return active?.id === "view-overview" || active?.id === "view-signals";
+  };
+
+  const resetPtr = () => {
+    pulling = false;
+    pullDist = 0;
+    workspace.classList.remove("is-ptr-pulling", "is-ptr-ready", "is-ptr-refreshing");
+    workspace.style.removeProperty("--ptr-offset");
+    ptr.hidden = true;
+    ptr.setAttribute("aria-hidden", "true");
+  };
+
+  workspace.addEventListener(
+    "touchstart",
+    (e) => {
+      if (!mq.matches || !ptrActiveView() || workspace.classList.contains("is-ptr-refreshing")) return;
+      if (workspace.scrollTop > 2) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+    },
+    { passive: true }
+  );
+
+  workspace.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!pulling || !mq.matches) return;
+      pullDist = Math.max(0, e.touches[0].clientY - startY);
+      if (pullDist <= 0 || workspace.scrollTop > 2) {
+        if (pullDist <= 0) resetPtr();
+        return;
+      }
+      workspace.classList.add("is-ptr-pulling");
+      ptr.hidden = false;
+      ptr.setAttribute("aria-hidden", "false");
+      const ready = pullDist >= threshold;
+      workspace.classList.toggle("is-ptr-ready", ready);
+      if (label) label.textContent = ready ? "Release to refresh" : "Pull to refresh";
+      if (!motionMq.matches) {
+        workspace.style.setProperty("--ptr-offset", `${Math.min(pullDist * 0.4, 52)}px`);
+      }
+    },
+    { passive: true }
+  );
+
+  workspace.addEventListener("touchend", async () => {
+    if (!pulling || !mq.matches) return;
+    const shouldRefresh = pullDist >= threshold;
+    if (!shouldRefresh) {
+      resetPtr();
+      return;
+    }
+    workspace.classList.add("is-ptr-refreshing");
+    workspace.classList.remove("is-ptr-ready");
+    if (label) label.textContent = "Refreshing…";
+    try {
+      await refreshTerminalData();
+      if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
+      renderSinceLastVisitStrip();
+    } finally {
+      setTimeout(resetPtr, motionMq.matches ? 0 : 380);
+    }
+  });
+
+  workspace.addEventListener("touchcancel", resetPtr);
 }
 
 function setupClassbarScrollHide() {
@@ -4717,6 +4987,7 @@ function renderOverview() {
   renderPortfolioDashboard(positions, equity, returnPct, dayChange);
   renderWatchlistStrip();
   renderMorningBrief();
+  renderSinceLastVisitStrip();
   renderMarketMood();
   renderResearchJourney();
   renderGuidedDemoChecklist();
@@ -5400,6 +5671,7 @@ function renderMarkets() {
   const tbody = $("#market-body");
   if (!tbody) return;
   updateMarketsTableMeta();
+  syncMarketsDeskToggleVisibility();
 
   const rows = filteredMarketsRows();
   if (!rows.length) {
@@ -5425,7 +5697,7 @@ function renderMarkets() {
     const watching = isOnWatchlist(sym);
     const policyHtml = marketsPolicySignalHtml(sym);
     return `
-      <tr class="markets-row clickable-row${focusMatch ? " is-focus-match" : ""}" data-symbol="${escapeHtml(sym)}">
+      <tr class="markets-row markets-card-row clickable-row${focusMatch ? " is-focus-match" : ""}" data-symbol="${escapeHtml(sym)}">
         <td class="mono ticker-link-cell markets-ticker-cell">
           <a class="markets-ticker-link" href="${escapeHtml(stockPageUrl(sym))}" onclick="event.stopPropagation()">${escapeHtml(sym)}</a>
           <span class="markets-ticker-name">${escapeHtml(row.name || sym)}</span>
@@ -8448,6 +8720,9 @@ function showView(view, updateUrl = true) {
       showSkeleton("#market-body", 8, "row");
       void loadMarketsData().finally(() => clearSkeleton("#market-body"));
     }
+  }
+  if (view === "overview" || view === "signals") {
+    renderSinceLastVisitStrip();
   }
   if (view === "signals" && isViewEnabled("signals")) {
     if (!state.bills?.length && !state.trending?.length) showSkeleton("#signal-list", 4, "card");
