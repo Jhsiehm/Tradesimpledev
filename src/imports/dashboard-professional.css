@@ -2895,6 +2895,7 @@ body[data-page="dashboard"] {
      · sidebar overlay 50 · research drawer 200 · FAB 600 · bottom nav 800 · feed drawer 1000 */
   --dash-z-classbar: 10;
   --dash-z-topbar: 20;
+  --dash-z-chrome-rail: 19;
   --dash-z-context: 30;
   --dash-z-sticky-filter: 40;
   --dash-z-sidebar-overlay: 50;
@@ -2904,7 +2905,8 @@ body[data-page="dashboard"] {
   --dash-z-feed-drawer: 1000;
   --dash-classbar-h: 24px;
   --dash-topbar-stack-h: 82px;
-  --dash-sticky-filter-top: calc(var(--dash-classbar-h) + var(--dash-topbar-stack-h));
+  --dash-chrome-rail-h: 0px;
+  --dash-sticky-filter-top: calc(var(--dash-classbar-h) + var(--dash-topbar-stack-h) + var(--dash-chrome-rail-h));
   --dash-bottom-nav-h: 56px;
   --dash-fab-gap: 12px;
   overflow-x: hidden;
@@ -3100,6 +3102,9 @@ body[data-page="dashboard"] .dash-chrome-rail {
   display: flex;
   flex-direction: column;
   gap: 0;
+  position: sticky;
+  top: calc(var(--dash-classbar-h, 24px) + var(--dash-topbar-stack-h, 82px));
+  z-index: var(--dash-z-chrome-rail);
   border-bottom: 1px solid var(--gotham-line);
   background: color-mix(in srgb, var(--bg) 92%, var(--bg-2));
 }
@@ -4623,6 +4628,10 @@ body[data-page="dashboard"] .guided-demo-checklist {
   background: color-mix(in srgb, var(--green) 6%, var(--bg-2));
 }
 
+body[data-page="dashboard"] .guided-demo-checklist[hidden] {
+  display: none !important;
+}
+
 body[data-page="dashboard"] .guided-demo-checklist.is-collapsed {
   padding: 8px 14px;
 }
@@ -5785,10 +5794,14 @@ body[data-page="dashboard"] .ts-book-summary {
 }
 
 body[data-page="dashboard"] .feed-scope-bar {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 6px 12px 0;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--gotham-line);
+  background: color-mix(in srgb, var(--bg) 92%, var(--bg-2));
 }
 
 body[data-page="dashboard"] .feed-scope-chip {

@@ -4466,11 +4466,14 @@ function syncDashChromeHeights() {
   const root = document.documentElement;
   const classbar = document.querySelector(".dash-classbar");
   const stack = document.querySelector(".topbar-stack");
+  const chromeRail = document.querySelector(".dash-chrome-rail");
   const classH = classbar?.offsetHeight || 24;
   const stackH = stack?.offsetHeight || 82;
+  const railH = chromeRail?.offsetHeight || 0;
   root.style.setProperty("--dash-classbar-h", `${classH}px`);
   root.style.setProperty("--dash-topbar-stack-h", `${stackH}px`);
-  root.style.setProperty("--dash-sticky-filter-top", `${classH + stackH}px`);
+  root.style.setProperty("--dash-chrome-rail-h", `${railH}px`);
+  root.style.setProperty("--dash-sticky-filter-top", `${classH + stackH + railH}px`);
 }
 
 function closeMobileSidebarNav() {
@@ -4488,10 +4491,10 @@ function setupDashChromeMetrics() {
   window.addEventListener("resize", syncDashChromeHeights, { passive: true });
   if (typeof ResizeObserver !== "undefined") {
     const stack = document.querySelector(".topbar-stack");
-    if (stack) {
-      const ro = new ResizeObserver(() => syncDashChromeHeights());
-      ro.observe(stack);
-    }
+    const chromeRail = document.querySelector(".dash-chrome-rail");
+    const ro = new ResizeObserver(() => syncDashChromeHeights());
+    if (stack) ro.observe(stack);
+    if (chromeRail) ro.observe(chromeRail);
   }
 }
 
@@ -10542,6 +10545,7 @@ const GUIDED_DEMO_STEP_KEYS = {
   bill: "ts_guided_step_bill",
   trade: "ts_guided_step_trade"
 };
+let guidedDemoDismissedMemory = false;
 let appConfirmResolver = null;
 
 function isDemoSession(session = state.session) {
@@ -10552,6 +10556,7 @@ function isDemoSession(session = state.session) {
 }
 
 function guidedDemoActive() {
+  if (guidedDemoDismissedMemory) return false;
   try {
     if (sessionStorage.getItem(GUIDED_DEMO_DISMISS_KEY) === "1") return false;
     if (sessionStorage.getItem(GUIDED_DEMO_KEY) === "done") return false;
@@ -10595,6 +10600,9 @@ function maybeScrollDemoMorningBrief() {
 function initGuidedDemoSession(session) {
   if (!isDemoSession(session)) return;
   try {
+    if (sessionStorage.getItem(GUIDED_DEMO_DISMISS_KEY) === "1") {
+      guidedDemoDismissedMemory = true;
+    }
     if (sessionStorage.getItem(GUIDED_DEMO_KEY)) return;
     sessionStorage.setItem(GUIDED_DEMO_KEY, "active");
   } catch (_) {}
@@ -10604,15 +10612,18 @@ function initGuidedDemoSession(session) {
   renderGuidedDemoChecklist();
 }
 
+function dismissGuidedDemo() {
+  guidedDemoDismissedMemory = true;
+  try {
+    sessionStorage.setItem(GUIDED_DEMO_DISMISS_KEY, "1");
+    sessionStorage.setItem(GUIDED_DEMO_KEY, "done");
+  } catch (_) {}
+  renderGuidedDemoChecklist();
+  syncDashChromeHeights();
+}
+
 function setupGuidedDemo() {
-  $("#guided-demo-dismiss")?.addEventListener("click", () => {
-    try {
-      sessionStorage.setItem(GUIDED_DEMO_DISMISS_KEY, "1");
-      sessionStorage.setItem(GUIDED_DEMO_KEY, "done");
-    } catch (_) {}
-    const panel = $("#guided-demo-checklist");
-    if (panel) panel.hidden = true;
-  });
+  $("#guided-demo-dismiss")?.addEventListener("click", dismissGuidedDemo);
 }
 
 function renderGuidedDemoChecklist() {
@@ -10621,6 +10632,7 @@ function renderGuidedDemoChecklist() {
   if (!panel || !list) return;
   if (!guidedDemoActive()) {
     panel.hidden = true;
+    syncDashChromeHeights();
     return;
   }
   const steps = [
@@ -10670,6 +10682,7 @@ function renderGuidedDemoChecklist() {
       step?.action();
     });
   });
+  syncDashChromeHeights();
 }
 
 function momentumBandLabel(score) {
@@ -10901,6 +10914,7 @@ function closeWatchlistPromptModal({ markSeen = true } = {}) {
       sessionStorage.setItem(WATCHLIST_PROMPT_SEEN_KEY, "1");
     } catch (_) {}
   }
+  syncDashChromeHeights();
 }
 
 function maybeOpenWatchlistPrompt() {
@@ -10924,6 +10938,9 @@ function setupWatchlistPromptModal() {
     setWatchlist(symbols);
     closeWatchlistPromptModal();
     refreshPolicyScopedViews();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal && !modal.hidden) closeWatchlistPromptModal();
   });
 }
 
