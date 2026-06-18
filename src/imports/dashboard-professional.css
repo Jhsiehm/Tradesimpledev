@@ -4868,6 +4868,7 @@ body[data-page="dashboard"] .sc-card--lobbying::before {
 body[data-page="dashboard"] .intel-card:hover,
 body[data-page="dashboard"] .sc-card.intel-card:hover {
   border-color: color-mix(in srgb, var(--line-2) 80%, transparent);
+  border-left-color: transparent;
   box-shadow: var(--elev-shadow), 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
