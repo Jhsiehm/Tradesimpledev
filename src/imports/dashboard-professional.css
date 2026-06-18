@@ -5318,6 +5318,10 @@ body[data-page="dashboard"] .dash-classbar {
   body[data-page="dashboard"] .workspace.is-ptr-refreshing {
     --ptr-offset: 0px !important;
   }
+
+  body[data-page="dashboard"] .view.feed-refreshed {
+    animation: none;
+  }
 }
 
 /* ── Mobile Addiction Sprint ── */
@@ -5407,9 +5411,28 @@ body[data-page="dashboard"] .workspace.is-ptr-refreshing .workspace-ptr-spinner 
   to { transform: rotate(360deg); }
 }
 
-body[data-page="dashboard"] .workspace.is-ptr-pulling .view.active {
-  transform: translateY(var(--ptr-offset, 0px));
+@keyframes feed-refreshed-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  40% {
+    background-color: color-mix(in srgb, var(--green) 11%, transparent);
+  }
 }
+
+body[data-page="dashboard"] .view.feed-refreshed {
+  animation: feed-refreshed-flash 0.58s ease;
+}
+
+  body[data-page="dashboard"] .workspace.is-ptr-pulling .view.active {
+    transform: translateY(var(--ptr-offset, 0px));
+  }
+
+  body[data-page="dashboard"] .signals-evidence-fold:not([open]) .signals-evidence-body {
+    display: none;
+  }
 
 body[data-page="dashboard"] #signals-conviction-panel .signals-title-mobile {
   display: none;

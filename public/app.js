@@ -3571,6 +3571,8 @@ async function initDashboard() {
     loadTradeHistory(state.tradeSymbol, state.tradeRange)
   ]);
   if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) void refreshContractsFeed();
+  renderSinceLastVisitStrip();
+  if (isDemo && initialView === "overview") maybeScrollDemoMorningBrief();
   setupEdgarControls();
   startLiveFeeds();
 }
@@ -4038,14 +4040,7 @@ function diffVisitSnapshots(prev, current) {
   return parts;
 }
 
-function renderSinceLastVisitStrip() {
-  const strip = $("#since-last-visit-strip");
-  if (!strip) return;
-  const overviewActive = $("#view-overview")?.classList.contains("active");
-  if (!overviewActive) {
-    strip.hidden = true;
-    return;
-  }
+function sinceLastVisitStripContent() {
   const current = collectVisitSnapshot();
   const prev = loadVisitSnapshot();
   const lastAt = (() => {
@@ -4056,22 +4051,56 @@ function renderSinceLastVisitStrip() {
     }
   })();
   if (!prev || !lastAt) {
-    strip.hidden = true;
     persistVisitSnapshot(current);
-    return;
+    return {
+      className: "since-last-visit-strip since-last-visit-strip--quiet",
+      html: `<span class="since-last-visit-text">First brief today</span>`,
+      hidden: false
+    };
   }
   const parts = diffVisitSnapshots(prev, current);
   const when = sinceLastVisitTimeLabel(lastAt);
-  if (!parts.length) {
-    strip.className = "since-last-visit-strip since-last-visit-strip--quiet";
-    strip.innerHTML = `<span class="since-last-visit-text">No new signals since ${escapeHtml(when)}</span>`;
-    strip.hidden = false;
-  } else {
-    strip.className = "since-last-visit-strip since-last-visit-strip--active intel-card";
-    strip.innerHTML = `<span class="since-last-visit-dot" aria-hidden="true"></span><span class="since-last-visit-text">${escapeHtml(parts.join(" · "))}</span>`;
-    strip.hidden = false;
-  }
   persistVisitSnapshot(current);
+  if (!parts.length) {
+    return {
+      className: "since-last-visit-strip since-last-visit-strip--quiet",
+      html: `<span class="since-last-visit-text">No new signals since ${escapeHtml(when)}</span>`,
+      hidden: false
+    };
+  }
+  return {
+    className: "since-last-visit-strip since-last-visit-strip--active intel-card",
+    html: `<span class="since-last-visit-dot" aria-hidden="true"></span><span class="since-last-visit-text">${escapeHtml(parts.join(" · "))}</span>`,
+    hidden: false
+  };
+}
+
+function renderSinceLastVisitStrip() {
+  const overviewActive = $("#view-overview")?.classList.contains("active");
+  const signalsActive = $("#view-signals")?.classList.contains("active");
+  const content = sinceLastVisitStripContent();
+  const targets = [
+    { el: $("#since-last-visit-strip"), show: overviewActive },
+    { el: $("#since-last-visit-strip-signals"), show: signalsActive }
+  ];
+  for (const { el, show } of targets) {
+    if (!el) continue;
+    if (!show) {
+      el.hidden = true;
+      continue;
+    }
+    el.className = content.className;
+    el.innerHTML = content.html;
+    el.hidden = content.hidden;
+  }
+}
+
+function flashFeedRefreshed() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const active = document.querySelector(".view.active");
+  if (!active) return;
+  active.classList.add("feed-refreshed");
+  window.setTimeout(() => active.classList.remove("feed-refreshed"), 620);
 }
 
 function setupSinceLastVisit() {
@@ -4155,7 +4184,10 @@ function setupPullToRefresh() {
     try {
       await refreshTerminalData();
       if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
+      if ($("#view-signals")?.classList.contains("active")) renderSignalsDesk();
+      else if ($("#view-overview")?.classList.contains("active")) renderOverview();
       renderSinceLastVisitStrip();
+      flashFeedRefreshed();
     } finally {
       setTimeout(resetPtr, motionMq.matches ? 0 : 380);
     }
@@ -9744,6 +9776,7 @@ const ONBOARDING_STORAGE_KEY = "ts_onboarding_v3";
 const ONBOARDING_COMPLETE_KEY = "ts_onboarding_complete";
 const GUIDED_DEMO_KEY = "ts_guided_demo";
 const GUIDED_DEMO_DISMISS_KEY = "ts_guided_demo_dismiss";
+const GUIDED_DEMO_BRIEF_SCROLL_KEY = "ts_guided_brief_scrolled";
 const GUIDED_DEMO_FOCUS = "PLTR";
 const GUIDED_DEMO_STEP_KEYS = {
   brief: "ts_guided_step_brief",
@@ -9781,6 +9814,23 @@ function markGuidedDemoStep(step) {
     sessionStorage.setItem(GUIDED_DEMO_STEP_KEYS[step], "1");
   } catch (_) {}
   renderGuidedDemoChecklist();
+}
+
+function scrollMorningBriefIntoView() {
+  const card = $("#morning-brief-card");
+  if (!card || card.hidden) return;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  card.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+}
+
+function maybeScrollDemoMorningBrief() {
+  if (!isDemoSession()) return;
+  try {
+    if (sessionStorage.getItem(GUIDED_DEMO_BRIEF_SCROLL_KEY) === "1") return;
+    sessionStorage.setItem(GUIDED_DEMO_BRIEF_SCROLL_KEY, "1");
+  } catch (_) {}
+  renderMorningBrief();
+  requestAnimationFrame(() => scrollMorningBriefIntoView());
 }
 
 function initGuidedDemoSession(session) {
