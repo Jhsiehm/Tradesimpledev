@@ -3753,7 +3753,7 @@ html[data-theme="light"] body[data-page="dashboard"] tbody tr:hover td {
   }
 
   body[data-page="dashboard"] .search-box {
-    flex: 1 1 calc(100% - 52px);
+    flex: 1 1 0;
     min-width: 0;
   }
 
