@@ -30,7 +30,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=premium-elev-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=ticker-dock-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -580,32 +580,6 @@ footer nav a:hover{color:var(--text)}
     </div>
   </nav>
 
-  <div class="ts-ticker-tape" aria-label="Market ticker">
-    <span style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);font-size:0.65rem;opacity:0.55;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;z-index:10">Source-tagged</span>
-    <div class="ts-ticker-track">
-      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
-    </div>
-  </div>
-
   <div class="ts-hero-content">
     <div class="ts-hero-copy">
       <p class="ts-kicker"><span></span>Congress.gov · Senate LDA · USASpending</p>
@@ -728,6 +702,32 @@ footer nav a:hover{color:var(--text)}
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="ts-ticker-tape" aria-label="Market ticker">
+    <span style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);font-size:0.65rem;opacity:0.55;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;z-index:10">Source-tagged</span>
+    <div class="ts-ticker-track">
+      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
     </div>
   </div>
 </section>

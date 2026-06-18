@@ -3210,7 +3210,7 @@ html[data-theme="light"] .signal-editorial-context {
   }
 
   .landing-cinematic .ts-ticker-tape {
-    top: 96px;
+    margin-top: 24px;
   }
 
   .landing-cinematic .ts-hero-content {
@@ -3315,8 +3315,26 @@ html[data-theme="light"] .signal-editorial-context {
   display: none;
 }
 
+.landing-cinematic .ts-hero {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-cinematic .ts-hero-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .landing-cinematic .ts-ticker-tape {
-  display: none;
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 4;
+  flex-shrink: 0;
+  width: 100%;
+  margin-top: clamp(18px, 2.5vh, 32px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .hero-reference-row {
