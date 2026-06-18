@@ -91,6 +91,147 @@ function normalizeWatchSymbol(value) {
   return String(value || "").trim().toUpperCase().replace(/[^A-Z.]/g, "").slice(0, 12);
 }
 
+const WATCHLIST_STORAGE_KEY = "ts_watchlist";
+const FEED_SCOPE_STORAGE_KEY = "ts_feed_scope";
+const WATCHLIST_PROMPT_SEEN_KEY = "ts_watchlist_prompt_seen";
+const DEFAULT_WATCHLIST_SYMBOLS = ["PLTR", "NVDA", "LMT", "TSM", "JPM"];
+const WATCHLIST_SUGGESTED_CHIPS = ["PLTR", "NVDA", "TSM", "LMT", "JPM", "TSLA", "SOFI", "AMD"];
+
+function watchlistUserKey(userId) {
+  const id = String(userId || state.session?.user?.id || "").trim();
+  return id ? `${WATCHLIST_STORAGE_KEY}_${id.replace(/[^a-zA-Z0-9_.:-]/g, "_")}` : WATCHLIST_STORAGE_KEY;
+}
+
+function getWatchlist() {
+  return [...state.watchlistSymbols];
+}
+
+function readWatchlistFromStorage(userId) {
+  try {
+    const keys = [watchlistUserKey(userId), WATCHLIST_STORAGE_KEY];
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const rows = Array.isArray(parsed) ? parsed : parsed?.symbols;
+      if (Array.isArray(rows) && rows.length) {
+        return rows.map(normalizeWatchSymbol).filter(Boolean);
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function writeWatchlistToStorage(symbols, userId) {
+  try {
+    const payload = JSON.stringify(symbols);
+    localStorage.setItem(watchlistUserKey(userId), payload);
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, payload);
+  } catch (_) {}
+}
+
+function getFeedScope() {
+  try {
+    const stored = sessionStorage.getItem(FEED_SCOPE_STORAGE_KEY);
+    if (stored === "all" || stored === "watchlist") return stored;
+  } catch (_) {}
+  return state.watchlistSymbols.length ? "watchlist" : "all";
+}
+
+function isWatchlistScope() {
+  return getFeedScope() === "watchlist" && state.watchlistSymbols.length > 0;
+}
+
+function setFeedScope(scope) {
+  const next = scope === "all" ? "all" : "watchlist";
+  try {
+    sessionStorage.setItem(FEED_SCOPE_STORAGE_KEY, next);
+  } catch (_) {}
+  state.feedScope = next;
+  renderFeedScopeToggle();
+  refreshPolicyScopedViews();
+}
+
+function itemMatchesWatchlist(tickers) {
+  const list = (tickers || []).map(normalizeWatchSymbol).filter(Boolean);
+  if (!list.length) return false;
+  return list.some((sym) => isOnWatchlist(sym));
+}
+
+function rowMatchesPolicyScope(tickers = []) {
+  if (state.focusSymbol) return rowMatchesFocusSymbol(tickers);
+  if (!isWatchlistScope()) return true;
+  return itemMatchesWatchlist(tickers);
+}
+
+function watchlistEmptyStateHtml() {
+  return `<div class="guided-empty-state"><strong>No policy catalysts found for your watchlist today.</strong> <button type="button" class="link-button" data-feed-scope-set="all">View all policy</button></div>`;
+}
+
+function watchlistNewSinceVisitCount() {
+  const current = collectVisitSnapshot();
+  const prev = loadVisitSnapshot();
+  if (!prev) return 0;
+  let total = 0;
+  const prevTickers = prev?.tickers || {};
+  const curTickers = current.tickers || {};
+  for (const sym of sinceLastVisitScopeTickers()) {
+    const before = prevTickers[sym] || { signalIds: [], billIds: [], contractIds: [] };
+    const now = curTickers[sym] || { signalIds: [], billIds: [], contractIds: [] };
+    const prevSignals = new Set([...(before.signalIds || []), ...(before.billIds || []).map((id) => `bill:${id}`)]);
+    total += [...new Set([...(now.signalIds || []), ...(now.billIds || []).map((id) => `bill:${id}`)])].filter(
+      (id) => !prevSignals.has(id)
+    ).length;
+    const prevContracts = new Set(before.contractIds || []);
+    total += (now.contractIds || []).filter((id) => !prevContracts.has(id)).length;
+  }
+  const fecIds = new Set(prev?.fecPulseIds || []);
+  for (const pulse of state.fecPulse?.pulses || []) {
+    const id = pulse.clusterKey || pulse.committee;
+    if (!id || fecIds.has(id)) continue;
+    if (isWatchlistScope() && !itemMatchesWatchlist(pulse.tickers || [])) continue;
+    total += 1;
+  }
+  return total;
+}
+
+function renderBookSummaryHeader() {
+  const el = $("#ts-book-summary");
+  if (!el) return;
+  const count = state.watchlistSymbols.length;
+  if (!count) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const fresh = watchlistNewSinceVisitCount();
+  const freshPart = fresh ? ` · ${fresh} new this week` : "";
+  el.textContent = `Your book · ${count} name${count === 1 ? "" : "s"}${freshPart}`;
+}
+
+function renderFeedScopeToggle() {
+  const bar = $("#feed-scope-bar");
+  if (!bar) return;
+  const scope = getFeedScope();
+  bar.querySelectorAll("[data-feed-scope]").forEach((chip) => {
+    chip.classList.toggle("is-active", chip.dataset.feedScope === scope);
+  });
+}
+
+function refreshPolicyScopedViews() {
+  renderBookSummaryHeader();
+  renderTabFilterContexts();
+  if ($("#view-overview")?.classList.contains("active")) renderOverview();
+  if ($("#view-signals")?.classList.contains("active")) renderSignalsDesk();
+  if ($("#view-bills")?.classList.contains("active") && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
+  if ($("#view-fec")?.classList.contains("active")) renderFecView();
+  renderSinceLastVisitStrip();
+}
+
+function setWatchlist(symbols, options = {}) {
+  setWatchlistSymbols(symbols, options);
+}
+
 let watchlistPersistTimer = null;
 
 function scheduleWatchlistPersist() {
@@ -103,6 +244,7 @@ function scheduleWatchlistPersist() {
 
 async function persistWatchlist() {
   const symbols = [...state.watchlistSymbols];
+  writeWatchlistToStorage(symbols, state.session?.user?.id);
   try {
     await fetchJson("/api/watchlist", {
       method: "PATCH",
@@ -126,8 +268,11 @@ function setWatchlistSymbols(symbols, { persist = true } = {}) {
     if (next.length >= 50) break;
   }
   state.watchlistSymbols = next;
+  if (!state.feedScope && next.length) state.feedScope = "watchlist";
   renderWatchlistStrip();
   populateSymbolSelects();
+  renderBookSummaryHeader();
+  renderFeedScopeToggle();
   if (persist) scheduleWatchlistPersist();
 }
 
@@ -330,6 +475,7 @@ function renderFocusBar() {
 
 function renderTabFilterContexts() {
   const sym = state.focusSymbol;
+  const scopeSuffix = isWatchlistScope() && !sym ? " · watchlist" : "";
   const focusSuffix = sym ? ` · focus ${sym}` : "";
 
   const billsCtx = $("#bills-filter-context");
@@ -338,7 +484,7 @@ function renderTabFilterContexts() {
     const stage = state.billsStageFilter || "all";
     const stageLbl = stage === "all" ? "" : ` · ${stage}`;
     billsCtx.hidden = false;
-    billsCtx.textContent = `${n} bill${n === 1 ? "" : "s"}${stageLbl}${focusSuffix}`;
+    billsCtx.textContent = `${n} bill${n === 1 ? "" : "s"}${stageLbl}${scopeSuffix}${focusSuffix}`;
   }
 
   const contractsCtx = $("#contracts-filter-context");
@@ -364,7 +510,7 @@ function renderTabFilterContexts() {
     const typeLbl = type === "all" ? "All types" : type.charAt(0).toUpperCase() + type.slice(1);
     const count = countSignalsDeskItems(type);
     signalsCtx.hidden = false;
-    signalsCtx.textContent = `${typeLbl} · ${count} item${count === 1 ? "" : "s"}${focusSuffix}`;
+    signalsCtx.textContent = `${typeLbl} · ${count} item${count === 1 ? "" : "s"}${scopeSuffix}${focusSuffix}`;
   }
 
   const marketsCtx = $("#markets-filter-context");
@@ -436,9 +582,8 @@ function rowMatchesFocusSymbol(tickers = []) {
 }
 
 function billMatchesFocusFilter(bill) {
-  if (!state.focusSymbol) return true;
   const tickers = [...(bill.affected || []), ...(bill.portfolioTickers || [])];
-  return rowMatchesFocusSymbol(tickers);
+  return rowMatchesPolicyScope(tickers);
 }
 
 function filteredBillsRows() {
@@ -536,8 +681,7 @@ function signalMatchesTypeFilter(sig) {
 }
 
 function signalMatchesFocusFilter(sig) {
-  if (!state.focusSymbol) return true;
-  return rowMatchesFocusSymbol(sig.tickers || []);
+  return rowMatchesPolicyScope(sig.tickers || []);
 }
 
 function trendingMatchesSignalsFilter(topic) {
@@ -1483,14 +1627,24 @@ function renderCausalityTickerRow() {
 
 async function loadDashboardBootstrap() {
   try {
-    const [boot, wl] = await Promise.all([
-      fetchJson("/api/dashboard/bootstrap"),
-      fetchJson("/api/watchlist").catch(() => ({ symbols: [] }))
-    ]);
+    const boot = await fetchJson("/api/dashboard/bootstrap");
     state.dashboardBootstrap = boot;
-    const fromDb = Array.isArray(wl.symbols) ? wl.symbols.map((s) => String(s).toUpperCase()).filter(Boolean) : [];
-    const fromDefault = (boot.watchlistDefault || []).map((w) => w.symbol).filter(Boolean);
-    state.watchlistSymbols = fromDb.length ? fromDb : fromDefault;
+    const userId = state.session?.user?.id;
+    const fromStorage = readWatchlistFromStorage(userId);
+    let fromDb = [];
+    if (!fromStorage?.length) {
+      try {
+        const wl = await fetchJson("/api/watchlist");
+        fromDb = Array.isArray(wl.symbols) ? wl.symbols.map((s) => String(s).toUpperCase()).filter(Boolean) : [];
+      } catch (_) {}
+    }
+    const fromDefault = DEFAULT_WATCHLIST_SYMBOLS.length
+      ? DEFAULT_WATCHLIST_SYMBOLS
+      : (boot.watchlistDefault || []).map((w) => w.symbol).filter(Boolean);
+    const resolved = fromStorage?.length ? fromStorage : fromDb.length ? fromDb : fromDefault;
+    state.watchlistSymbols = resolved.map(normalizeWatchSymbol).filter(Boolean);
+    if (!fromStorage?.length) writeWatchlistToStorage(state.watchlistSymbols, userId);
+    state.feedScope = getFeedScope();
     if (!state._symbolFromUrl) {
       const defaultSym =
         boot.defaultAnalysisSymbol ||
@@ -1747,12 +1901,16 @@ function momentumDriversHtml(bill, opts = {}) {
 
 function catalystCandidates() {
   const fromServer = Array.isArray(state.policyCatalysts) ? state.policyCatalysts : [];
-  if (fromServer.length) return fromServer;
-  return policyBills()
-    .map((bill) => bill.catalyst)
-    .filter(Boolean)
-    .sort((a, b) => Number(b.urgency || 0) - Number(a.urgency || 0))
-    .slice(0, 6);
+  let rows = fromServer.length
+    ? fromServer
+    : policyBills()
+        .map((bill) => bill.catalyst)
+        .filter(Boolean)
+        .sort((a, b) => Number(b.urgency || 0) - Number(a.urgency || 0));
+  if (isWatchlistScope() && !state.focusSymbol) {
+    rows = rows.filter((item) => itemMatchesWatchlist(item.tickers || []));
+  }
+  return rows.slice(0, 6);
 }
 
 function renderPolicyCatalysts() {
@@ -1788,9 +1946,14 @@ function renderPolicyCatalysts() {
           </article>
         `;
       }).join("")
-    : `<article class="empty-state">No near-term Congress catalysts loaded yet. Refresh bills or try a ticker filter.</article>`;
+    : isWatchlistScope() && !state.focusSymbol
+      ? watchlistEmptyStateHtml()
+      : `<article class="empty-state">No near-term Congress catalysts loaded yet. Refresh bills or try a ticker filter.</article>`;
   targets.forEach((target) => {
     target.innerHTML = html;
+    target.querySelectorAll("[data-feed-scope-set]").forEach((btn) => {
+      btn.addEventListener("click", () => setFeedScope(btn.dataset.feedScopeSet || "all"));
+    });
   });
   const source = $("#policy-catalyst-source");
   if (source) source.textContent = catalysts.length ? `${catalysts.length} active watches` : "Waiting";
@@ -2949,6 +3112,7 @@ const state = {
   relationshipMapPayload: null,
   dashboardBootstrap: null,
   watchlistSymbols: [],
+  feedScope: null,
   dataHealth: null,
   _symbolFromUrl: false,
   billSort: "recent",
@@ -3524,6 +3688,8 @@ async function initDashboard() {
   setupClassbarScrollHide();
   setupGuidedDemo();
   setupSinceLastVisit();
+  setupFeedScopeToggle();
+  setupWatchlistPromptModal();
   setupPullToRefresh();
   setupFecControls();
   setupFecDetailDrawer();
@@ -3555,6 +3721,9 @@ async function initDashboard() {
   if (focusSym) {
     setFocusSymbol(focusSym, { persist: Boolean(initialSymbol), render: false, syncAnalysis: true });
   }
+  if (initialSymbol && !isOnWatchlist(initialSymbol)) {
+    setWatchlistSymbols([...state.watchlistSymbols, initialSymbol], { persist: true });
+  }
   if (initialSymbol) {
     state.activeAnalysisSymbol = initialSymbol;
     state.tradeSymbol = initialSymbol;
@@ -3568,6 +3737,8 @@ async function initDashboard() {
   renderMobileContextBar();
   syncResearchFabLabel();
   renderTabFilterContexts();
+  renderBookSummaryHeader();
+  renderFeedScopeToggle();
 
   initGuidedDemoSession(session);
 
@@ -3599,6 +3770,7 @@ async function initDashboard() {
   if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) void refreshContractsFeed();
   renderSinceLastVisitStrip();
   if (isDemo && initialView === "overview") maybeScrollDemoMorningBrief();
+  maybeOpenWatchlistPrompt();
   setupEdgarControls();
   startLiveFeeds();
 }
@@ -3840,8 +4012,10 @@ function skeletonFeedMarkup(count = 2) {
 
 function portfolioPolicyRisk() {
   const holdingSyms = paperPositionSymbols();
+  const watchSyms = isWatchlistScope() && !state.focusSymbol ? state.watchlistSymbols : [];
+  const targetSyms = holdingSyms.length ? holdingSyms : watchSyms;
   const bills = policyBills();
-  const relevant = bills.filter((b) => (b.affected || []).some((t) => holdingSyms.includes(t)));
+  const relevant = bills.filter((b) => (b.affected || []).some((t) => targetSyms.includes(normalizeWatchSymbol(t))));
   let score = 0;
   if (relevant.length) {
     score = Math.round(relevant.reduce((m, b) => Math.max(m, billMomentum(b)), 0));
@@ -3852,10 +4026,12 @@ function portfolioPolicyRisk() {
   }
   const label = score >= 67 ? "Elevated" : score >= 40 ? "Medium" : "Contained";
   const sub = relevant.length
-    ? `${relevant.length} bill${relevant.length === 1 ? "" : "s"} touch your holdings`
+    ? `${relevant.length} bill${relevant.length === 1 ? "" : "s"} touch ${holdingSyms.length ? "your holdings" : "your watchlist"}`
     : holdingSyms.length
       ? "Benchmark-level policy heat"
-      : "Add holdings to personalize";
+      : watchSyms.length
+        ? "No mapped bills on watchlist yet"
+        : "Add holdings to personalize";
   return { score, label, sub };
 }
 
@@ -4133,6 +4309,7 @@ function renderSinceLastVisitStrip() {
     el.innerHTML = content.html;
     el.hidden = content.hidden;
   }
+  renderBookSummaryHeader();
 }
 
 function flashFeedRefreshed() {
@@ -4853,8 +5030,9 @@ function filteredFecPulses() {
   const pulses = state.fecPulse?.pulses || [];
   return pulses.filter((pulse) => {
     if (!fecPulseMatchesTopic(pulse, topic)) return false;
-    if (!state.focusSymbol) return true;
-    return (pulse.tickers || []).includes(state.focusSymbol);
+    if (state.focusSymbol) return (pulse.tickers || []).map(normalizeWatchSymbol).includes(state.focusSymbol);
+    if (isWatchlistScope()) return itemMatchesWatchlist(pulse.tickers || []);
+    return true;
   });
 }
 
@@ -4863,12 +5041,12 @@ function renderFecPulseStrip() {
   const inner = $("#fec-pulse-strip-inner");
   if (!strip || !inner) return;
   const payload = state.fecPulse;
-  const pulses = payload?.pulses || [];
-  if (!pulses.length) {
+  const filtered = filteredFecPulses();
+  if (!filtered.length) {
     strip.hidden = true;
     return;
   }
-  const top = pulses[0];
+  const top = filtered[0];
   const badge = fecSourceBadge(payload.source);
   strip.hidden = false;
   inner.innerHTML = `
@@ -4911,18 +5089,22 @@ function renderFecView() {
   if (ctxEl) {
     const topic = state.fecTopicFilter || "";
     const topicLbl = topic ? ` · ${topic.charAt(0).toUpperCase()}${topic.slice(1)}` : "";
+    const scopeLbl = isWatchlistScope() && !state.focusSymbol ? " · watchlist" : "";
     const focusSuffix = state.focusSymbol ? ` · focus ${state.focusSymbol}` : "";
     ctxEl.hidden = false;
-    ctxEl.textContent = `${filtered.length} pulse${filtered.length === 1 ? "" : "s"}${topicLbl}${focusSuffix}`;
+    ctxEl.textContent = `${filtered.length} pulse${filtered.length === 1 ? "" : "s"}${topicLbl}${scopeLbl}${focusSuffix}`;
   }
   if (!filtered.length) {
     feedEl.innerHTML = "";
     if (emptyEl) {
       emptyEl.hidden = false;
       emptyEl.innerHTML =
-        payload?.source === "sample"
-          ? `<strong>Showing illustrative FEC pulses.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
-          : `<strong>No pulses match this filter.</strong> Try another sector or clear focus.`;
+        isWatchlistScope() && !state.focusSymbol
+          ? watchlistEmptyStateHtml()
+          : payload?.source === "sample"
+            ? `<strong>Showing illustrative FEC pulses.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
+            : `<strong>No pulses match this filter.</strong> Try another sector or clear focus.`;
+      emptyEl.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     }
     return;
   }
@@ -5427,12 +5609,20 @@ function renderOverview() {
       : "PAPER MODE // SIMULATED CAPITAL";
   }
 
-  const bills = policyBills();
+  const bills = (isWatchlistScope() && !state.focusSymbol
+    ? policyBills().filter(billMatchesFocusFilter)
+    : policyBills());
   const maxMom = bills.reduce((max, b) => Math.max(max, billMomentum(b)), 0);
   const statBillCount = $("#stat-bill-count");
   const statBillMomentum = $("#stat-bill-momentum");
   if (statBillCount) statBillCount.textContent = String(bills.length);
-  if (statBillMomentum) statBillMomentum.textContent = bills.length ? `Max legislative momentum ${maxMom}/100` : "No bills loaded yet";
+  if (statBillMomentum) {
+    statBillMomentum.textContent = bills.length
+      ? `Max legislative momentum ${maxMom}/100${isWatchlistScope() && !state.focusSymbol ? " · watchlist" : ""}`
+      : isWatchlistScope() && !state.focusSymbol
+        ? "No watchlist bills today"
+        : "No bills loaded yet";
+  }
 
   const filings = state.lobbying || [];
   const topFiling = filings.length
@@ -5452,6 +5642,8 @@ function renderOverview() {
 
   renderPortfolioDashboard(positions, equity, returnPct, dayChange);
   renderWatchlistStrip();
+  renderBookSummaryHeader();
+  renderFeedScopeToggle();
   renderMorningBrief();
   renderFecPulseStrip();
   renderSinceLastVisitStrip();
@@ -5479,11 +5671,14 @@ function renderSignalsConvictionList() {
     return;
   }
   let bills = policyBills().slice().sort((a, b) => billMomentum(b) - billMomentum(a));
-  if (state.focusSymbol) bills = bills.filter(billMatchesFocusFilter);
+  bills = bills.filter(billMatchesFocusFilter);
   if (!bills.length) {
     el.innerHTML = state.focusSymbol
       ? `<div class="sc-empty muted">No conviction signals for ${escapeHtml(state.focusSymbol)} yet.</div>`
-      : `<div class="sc-empty muted">No conviction signals loaded yet.</div>`;
+      : isWatchlistScope()
+        ? watchlistEmptyStateHtml()
+        : `<div class="sc-empty muted">No conviction signals loaded yet.</div>`;
+    el.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     clearSkeleton("#signal-list");
     return;
   }
@@ -5577,9 +5772,17 @@ function renderTrendingSection() {
       ? `Updated ${new Date(state.trendingLoadedAt).toLocaleTimeString()}`
       : "Monitoring topics";
   }
-  const filtered = topics.filter(trendingMatchesSignalsFilter);
+  let filtered = topics.filter(trendingMatchesSignalsFilter);
+  if (isWatchlistScope() && !state.focusSymbol) {
+    filtered = filtered.filter((topic) =>
+      itemMatchesWatchlist([...(topic.tickers || []), ...(topic.relatedTickers || [])])
+    );
+  }
   if (!filtered.length) {
-    feed.innerHTML = `<div class="sc-empty muted">No trending topics match this filter${state.focusSymbol ? ` for ${escapeHtml(state.focusSymbol)}` : ""}.</div>`;
+    feed.innerHTML = isWatchlistScope() && !state.focusSymbol
+      ? watchlistEmptyStateHtml()
+      : `<div class="sc-empty muted">No trending topics match this filter${state.focusSymbol ? ` for ${escapeHtml(state.focusSymbol)}` : ""}.</div>`;
+    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     const moreWrap = $("#trending-more-wrap");
     if (moreWrap) moreWrap.hidden = true;
     return;
@@ -6478,9 +6681,12 @@ function renderBills() {
       : "";
     feed.innerHTML = focusMsg
       ? `<tr><td colspan="8"><div class="guided-empty-state">${focusMsg}</div></td></tr>`
-      : query
-        ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
-        : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
+      : isWatchlistScope()
+        ? `<tr><td colspan="8">${watchlistEmptyStateHtml()}</td></tr>`
+        : query
+          ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
+          : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
+    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     return;
   }
   feed.innerHTML = sortBillsForTable(bills).map((bill) => {
@@ -7705,8 +7911,15 @@ function renderTopSignal() {
     el.hidden = true;
     return;
   }
-  const bills = policyBills().filter((b) => !b.scenarioOnly && b.affected?.length);
-  if (!bills.length) return;
+  const bills = policyBills().filter((b) => !b.scenarioOnly && b.affected?.length && billMatchesFocusFilter(b));
+  if (!bills.length) {
+    if (isWatchlistScope() && !state.focusSymbol) {
+      el.hidden = false;
+      el.innerHTML = watchlistEmptyStateHtml();
+      el.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
+    }
+    return;
+  }
 
   // Pick the bill with the highest legislative momentum score
   const top = bills.slice().sort((a, b) => billMomentum(b) - billMomentum(a))[0];
@@ -9025,7 +9238,10 @@ function renderSignalFeed() {
 
   if (!signals.length) {
     const focusMsg = state.focusSymbol ? ` for ${state.focusSymbol}` : "";
-    feed.innerHTML = `<div class="sc-empty muted">No signals${escapeHtml(focusMsg)} match this filter — waiting for bills and contract data.</div>`;
+    feed.innerHTML = isWatchlistScope() && !state.focusSymbol
+      ? watchlistEmptyStateHtml()
+      : `<div class="sc-empty muted">No signals${escapeHtml(focusMsg)} match this filter — waiting for bills and contract data.</div>`;
+    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     if (footer) footer.hidden = true;
     return;
   }
@@ -10482,9 +10698,9 @@ function formatSignalDate(value) {
 }
 
 function pickMorningBriefSignal() {
-  const fecPulses = state.fecPulse?.pulses || [];
-  if (fecPulses.length && (state.fecPulse?.source === "fec" || Math.random() < 0.35)) {
-    const pulse = fecPulses[0];
+  const scopedFec = filteredFecPulses();
+  if (scopedFec.length && (state.fecPulse?.source === "fec" || Math.random() < 0.35)) {
+    const pulse = scopedFec[0];
     return {
       kind: "fec",
       data: {
@@ -10501,6 +10717,7 @@ function pickMorningBriefSignal() {
   const feed = buildSignalFeed().filter((sig) => signalMatchesFocusFilter(sig));
   if (feed.length) return { kind: "signal", data: feed[0] };
   const bills = policyBills()
+    .filter(billMatchesFocusFilter)
     .slice()
     .sort((a, b) => billMomentum(b) - billMomentum(a));
   if (bills.length) return { kind: "bill", data: bills[0] };
@@ -10513,7 +10730,10 @@ function renderMorningBrief() {
   if (!card || !inner) return;
   const pick = pickMorningBriefSignal();
   if (!pick) {
-    card.hidden = true;
+    card.hidden = false;
+    inner.innerHTML = isWatchlistScope() && !state.focusSymbol ? watchlistEmptyStateHtml() : "";
+    if (!inner.innerHTML) card.hidden = true;
+    inner.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     return;
   }
   card.hidden = false;
@@ -10618,6 +10838,93 @@ function markOnboardingCompleteFromUrl(params) {
   params.delete("onboarded");
   const clean = params.toString();
   window.history.replaceState({}, "", clean ? `${window.location.pathname}?${clean}` : window.location.pathname);
+}
+
+function setupFeedScopeToggle() {
+  const bar = $("#feed-scope-bar");
+  if (!bar || bar.dataset.bound === "true") return;
+  bar.dataset.bound = "true";
+  bar.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-feed-scope]");
+    if (!chip) return;
+    setFeedScope(chip.dataset.feedScope || "watchlist");
+  });
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-feed-scope-set]");
+    if (btn) setFeedScope(btn.dataset.feedScopeSet || "all");
+  });
+  renderFeedScopeToggle();
+}
+
+let watchlistPromptDraft = new Set();
+
+function renderWatchlistPromptChips() {
+  const host = $("#watchlist-prompt-chips");
+  const countEl = $("#watchlist-prompt-count");
+  const saveBtn = $("#watchlist-prompt-save");
+  if (!host) return;
+  host.innerHTML = WATCHLIST_SUGGESTED_CHIPS.map((sym) => {
+    const active = watchlistPromptDraft.has(sym);
+    return `<button type="button" class="watchlist-prompt-chip${active ? " is-active" : ""}" data-watchlist-chip="${escapeHtml(sym)}">${escapeHtml(sym)}</button>`;
+  }).join("");
+  host.querySelectorAll("[data-watchlist-chip]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sym = normalizeWatchSymbol(btn.dataset.watchlistChip);
+      if (!sym) return;
+      if (watchlistPromptDraft.has(sym)) watchlistPromptDraft.delete(sym);
+      else if (watchlistPromptDraft.size < 10) watchlistPromptDraft.add(sym);
+      renderWatchlistPromptChips();
+    });
+  });
+  const n = watchlistPromptDraft.size;
+  if (countEl) countEl.textContent = `${n} selected · ${n < 3 ? "need at least 3" : "ready to save"}`;
+  if (saveBtn) saveBtn.disabled = n < 3 || n > 10;
+}
+
+function openWatchlistPromptModal() {
+  const modal = $("#watchlist-prompt-modal");
+  if (!modal) return;
+  watchlistPromptDraft = new Set(getWatchlist().slice(0, 10));
+  if (!watchlistPromptDraft.size) DEFAULT_WATCHLIST_SYMBOLS.forEach((sym) => watchlistPromptDraft.add(sym));
+  renderWatchlistPromptChips();
+  modal.hidden = false;
+  document.body.classList.add("methodology-modal-open");
+}
+
+function closeWatchlistPromptModal({ markSeen = true } = {}) {
+  const modal = $("#watchlist-prompt-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.classList.remove("methodology-modal-open");
+  if (markSeen) {
+    try {
+      sessionStorage.setItem(WATCHLIST_PROMPT_SEEN_KEY, "1");
+    } catch (_) {}
+  }
+}
+
+function maybeOpenWatchlistPrompt() {
+  try {
+    if (sessionStorage.getItem(WATCHLIST_PROMPT_SEEN_KEY) === "1") return;
+  } catch (_) {}
+  openWatchlistPromptModal();
+}
+
+function setupWatchlistPromptModal() {
+  const modal = $("#watchlist-prompt-modal");
+  if (!modal || modal.dataset.bound === "true") return;
+  modal.dataset.bound = "true";
+  $("#ts-book-summary")?.addEventListener("click", () => openWatchlistPromptModal());
+  modal.querySelectorAll("[data-close-watchlist-prompt]").forEach((el) => {
+    el.addEventListener("click", () => closeWatchlistPromptModal());
+  });
+  $("#watchlist-prompt-save")?.addEventListener("click", () => {
+    const symbols = [...watchlistPromptDraft];
+    if (symbols.length < 3) return;
+    setWatchlist(symbols);
+    closeWatchlistPromptModal();
+    refreshPolicyScopedViews();
+  });
 }
 
 function setupOnboardingModal() {

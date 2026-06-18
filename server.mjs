@@ -833,11 +833,11 @@ const DASHBOARD_MARKET_SYMBOLS = Object.keys(MARKET_FALLBACK);
 const DASHBOARD_MARKETS_DEFAULT = ["SPY", "QQQ", "NVDA", "AAPL", "TSLA", "LLY", "AMZN", "MSFT", "AMD", "META"];
 const DASHBOARD_TAPE_DEFAULT = ["SPY", "QQQ", "NVDA", "LLY", "TSLA"];
 const DASHBOARD_WATCHLIST_DEFAULT = [
-  { symbol: "MSFT", color: "#a78bfa" },
-  { symbol: "AMD", color: "#fb923c" },
-  { symbol: "GOOGL", color: "#60a5fa" },
-  { symbol: "META", color: "#e879f9" },
-  { symbol: "COIN", color: "#4ade80" }
+  { symbol: "PLTR", color: "#5eead4" },
+  { symbol: "NVDA", color: "#93c5fd" },
+  { symbol: "LMT", color: "#fcd34d" },
+  { symbol: "TSM", color: "#f87171" },
+  { symbol: "JPM", color: "#c4b5fd" }
 ];
 const DASHBOARD_POLICY_BLURBS = {
   NVDA: "CHIPS tailwind; export-control risk",
@@ -2911,7 +2911,10 @@ async function route(req, res) {
   if (pathname === "/dashboard") {
     const session = getSession(req);
     if (!session) {
-      const nextPath = `/dashboard${url.search || "?view=thesis"}`;
+      const nextPath = `/dashboard${url.search || "?view=home"}`;
+      if (process.env.DEMO_AUTH !== "false") {
+        return redirect(res, `/auth/demo?next=${encodeURIComponent(nextPath)}`);
+      }
       return redirect(res, `/signup?next=${encodeURIComponent(nextPath)}`);
     }
     return sendStatic(res, "dashboard.html");
