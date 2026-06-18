@@ -460,6 +460,25 @@ section{position:relative;z-index:1}
 .landing-trending-item span{font-size:10px;color:var(--amber);white-space:nowrap}
 .landing-trending-note{margin:8px 0 0;font-size:10px;color:var(--faint);font-family:var(--mono)}
 
+/* ── FEC MARKETING STRIP ─────────────────────────────── */
+.fec-marketing-strip{padding:clamp(2rem,5vw,3.5rem) 0;background:var(--bg-2)}
+.fec-marketing-wrap{display:grid;gap:1.25rem}
+.fec-marketing-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem}
+.fec-marketing-title{margin:.35rem 0 .5rem;font-size:clamp(1.35rem,2.5vw,1.85rem);line-height:1.15;font-weight:600}
+.fec-marketing-lede{max-width:42rem;margin:0;font-size:.92rem;line-height:1.5}
+.fec-marketing-rail{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem}
+.fec-marketing-badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.fec-marketing-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.75rem}
+.fec-marketing-card{
+  padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  display:grid;gap:.45rem;
+}
+.fec-marketing-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
+.fec-marketing-card-head span{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.fec-marketing-card p{margin:0;font-size:.88rem;line-height:1.45}
+.fec-marketing-card em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--faint)}
+.fec-marketing-note{margin:0;font-size:10px;font-family:var(--mono)}
+
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
   border-top:1px solid var(--line);
@@ -582,10 +601,10 @@ footer nav a:hover{color:var(--text)}
 
   <div class="ts-hero-content">
     <div class="ts-hero-copy">
-      <p class="ts-kicker"><span></span>Congress.gov · Senate LDA · USASpending</p>
+      <p class="ts-kicker"><span></span>Congress.gov · Senate LDA · USASpending · FEC.gov</p>
       <h1>Markets<br><em>move</em> when<br>bills <i>pass.</i></h1>
       <p class="ts-subcopy">
-        Congressional activity, lobbying filings, federal contracts, and market data —
+        Congressional activity, lobbying filings, federal contracts, and live PAC filings from FEC.gov —
         traced to your tickers before consensus forms.
       </p>
       <div class="ts-hero-ctas">
@@ -732,6 +751,25 @@ footer nav a:hover{color:var(--text)}
   </div>
 </section>
 
+<section class="fec-marketing-strip div-line" id="fec-marketing-strip" aria-label="Live FEC campaign finance" hidden>
+  <div class="wrap fec-marketing-wrap">
+    <div class="fec-marketing-head">
+      <div>
+        <p class="chapter-eyebrow">Live from FEC</p>
+        <h2 class="fec-marketing-title">PAC filings mapped to tickers.</h2>
+        <p class="fec-marketing-lede muted">Committee receipts and recent filings from FEC.gov — labeled live or illustrative before you open the terminal.</p>
+      </div>
+      <div class="fec-marketing-rail">
+        <span class="fec-marketing-badge mini-pill" id="fec-marketing-badge">Connecting</span>
+        <a class="ts-secondary-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dfec">Enter terminal → FEC</a>
+        <a class="ts-secondary-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Signals →</a>
+      </div>
+    </div>
+    <div class="fec-marketing-cards" id="fec-marketing-cards"></div>
+    <p class="fec-marketing-note muted">Campaign finance context only — not investment advice. Source: FEC.gov via Open FEC API.</p>
+  </div>
+</section>
+
 <!-- MANIFESTO -->
 <section class="ts-manifesto-section div-line" id="manifesto">
   <div class="manifesto-watermark" aria-hidden="true">
@@ -744,7 +782,7 @@ footer nav a:hover{color:var(--text)}
         <h2>Public records<br>mapped to<br><em>exposed tickers.</em></h2>
       </div>
       <div class="manifesto-copy">
-        <p class="manifesto-quote">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, and quote snapshots from market feeds — each labeled live, modeled, or fallback before you act.</p>
+        <p class="manifesto-quote">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, PAC filings from FEC.gov, and quote snapshots from market feeds — each labeled live, modeled, or fallback before you act.</p>
         <p>TradeSimple does not report news. We document lobbying spend, legislative draft alignments, source freshness, market movement, and paper-trade outcomes so each thesis can be tested against public records.</p>
       </div>
     </div>
@@ -841,6 +879,7 @@ footer nav a:hover{color:var(--text)}
         <article><span>Congress.gov</span><b>Bill stage</b><em>Committee + floor watch</em></article>
         <article><span>Senate LDA</span><b>Lobbying filings</b><em>Disclosure pressure</em></article>
         <article><span>USASpending</span><b>Contract awards</b><em>Agency/vendor lineage</em></article>
+        <article><span>FEC.gov</span><b>PAC filings</b><em>Committee → ticker map</em></article>
       </div>
     </div>
 
@@ -869,6 +908,7 @@ footer nav a:hover{color:var(--text)}
       <div class="source-chain-row"><b>Congress.gov</b><span>Bill stage tracking, committee votes, floor schedules</span><em>Bill advances → affected tickers surface</em></div>
       <div class="source-chain-row"><b>Senate LDA</b><span>Lobbying disclosures, registrants, issue-area spend</span><em>Filing detected → pressure score updated</em></div>
       <div class="source-chain-row"><b>USASpending</b><span>Federal contracts, agencies, vendors, award size</span><em>Award notice → contract exposure mapped</em></div>
+      <div class="source-chain-row"><b>FEC.gov</b><span>PAC receipts, committee filings, sponsor totals</span><em>Filing detected → policy cluster tickers surfaced</em></div>
       <div class="source-chain-row"><b>Market + broker rails</b><span>Quote snapshots, crypto pricing, paper trading</span><em>Thesis → simulated order → outcome review</em></div>
     </div>
   </div>
@@ -1251,11 +1291,36 @@ function hydrateLandingSignal(){
     }
     if(d.fecPulse&&d.fecPulse.plainEnglish){
       var fecLine=d.fecPulse.plainEnglish;
-      var fecSrc=d.fecSource==='fec'?'FEC live':'FEC sample';
+      var fecSrc=d.fecSource==='fec'?'Live FEC':'Illustrative';
       if(fresh) fresh.textContent=(fecLine.slice(0,96)+(fecLine.length>96?'…':''))+' · '+fecSrc+(fresh.textContent?(' · '+fresh.textContent):'');
       if(label&&!d.editorial) label.textContent='FEC pulse · '+(d.fecPulse.committee||'Committee');
     }
+    updateFecMarketingStrip(d.fecPulse,d.fecSource);
     updateTrendingStrip(d.trending||[]);
+  }
+  function escHtml(s){
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function updateFecMarketingStrip(pulse,source){
+    updateFecMarketingFromPayload({source:source||'sample',pulses:pulse?[pulse]:[]});
+  }
+  function updateFecMarketingFromPayload(payload){
+    var strip=document.getElementById('fec-marketing-strip');
+    var cards=document.getElementById('fec-marketing-cards');
+    var badge=document.getElementById('fec-marketing-badge');
+    if(!strip||!cards)return;
+    var pulses=(payload&&payload.pulses)||[];
+    if(!pulses.length){strip.hidden=true;cards.innerHTML='';return;}
+    strip.hidden=false;
+    var isLive=payload.source==='fec';
+    if(badge){
+      badge.textContent=isLive?'Live FEC':'Illustrative';
+      badge.style.color=isLive?'var(--green)':'var(--amber)';
+    }
+    cards.innerHTML=pulses.slice(0,3).map(function(p){
+      var tick=(p.tickers||[]).slice(0,3).join(', ')||'—';
+      return '<article class="fec-marketing-card"><div class="fec-marketing-card-head"><strong>'+escHtml(p.label||p.committee||'Committee')+'</strong><span>'+escHtml(p.committee||'')+' · '+escHtml(p.chamber||'')+'</span></div><p>'+escHtml((p.plainEnglish||'').slice(0,160))+((p.plainEnglish||'').length>160?'…':'')+'</p><em>'+escHtml(tick)+' · '+escHtml(p.filingDate||'')+'</em></article>';
+    }).join('');
   }
   function updateTrendingStrip(items){
     var strip=document.getElementById('landing-trending-strip');
@@ -1277,25 +1342,33 @@ function hydrateLandingSignal(){
       .then(updateSignal);
   }
   function fetchFecPulse(){
-    fetch(tsApiUrl('/api/fec/pulse'))
+    fetch(tsApiUrl('/api/landing-fec-pulse'))
       .then(function(r){return r.ok?r.json():null})
       .catch(function(){return null})
       .then(function(payload){
         if(!payload||!payload.pulses||!payload.pulses.length)return;
         var fresh=document.getElementById('terminal-signal-freshness');
         var label=document.getElementById('terminal-signal-label');
-        var top=payload.pulses[0];
-        if(fresh&&!document.getElementById('terminal-signal-freshness').dataset.fecSet){
+        var idx=Math.floor(Date.now()/480000)%payload.pulses.length;
+        var top=payload.pulses[idx];
+        var srcLabel=payload.source==='fec'?'Live FEC':'Illustrative';
+        if(fresh&&!fresh.dataset.fecSet){
           fresh.dataset.fecSet='1';
-          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · '+(payload.source==='fec'?'FEC live':'FEC sample');
+          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · '+srcLabel;
         }
         if(label) label.textContent='FEC pulse · '+(top.committee||'Committee');
+        var rotStart=Math.floor(Date.now()/480000)%payload.pulses.length;
+        var rot=[];
+        for(var i=0;i<Math.min(3,payload.pulses.length);i++){
+          rot.push(payload.pulses[(rotStart+i)%payload.pulses.length]);
+        }
+        updateFecMarketingFromPayload({source:payload.source,pulses:rot});
       });
   }
   fetchSignal();
   fetchFecPulse();
   setInterval(fetchSignal, 30000);
-  setInterval(fetchFecPulse, 900000);
+  setInterval(fetchFecPulse, 480000);
 }
 
 function bootLandingScripts(){

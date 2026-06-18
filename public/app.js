@@ -26,6 +26,7 @@ const VIEW_FEATURE_GATES = {
   bills: "BILLS_EXPLORER_ENABLED",
   contracts: "CONTRACTS_ANALYZER_ENABLED",
   lobbying: "LOBBYING_EXPLORER_ENABLED",
+  fec: "BILLS_EXPLORER_ENABLED",
   analysis: "ANALYSIS_LAB_ENABLED",
   markets: "MARKETS_ENABLED",
   "track-record": "ADVANCED_ANALYTICS_ENABLED",
@@ -1248,6 +1249,7 @@ const LIVE_FEED_INTERVALS = {
   cryptoMs: 30000,
   accountMs: 15000,
   policyMs: 300000,
+  fecMs: 480000,
   contractsMs: 600000,
   tradeHistoryMs: 12000,
   analysisChartMs: 12000,
@@ -2904,6 +2906,7 @@ const state = {
   contractsMinAmount: "0",
   lobbyKeyword: "",
   lobbyTopicFilter: "",
+  fecTopicFilter: "",
   lastOrderSymbol: null,
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
@@ -3502,6 +3505,8 @@ async function initDashboard() {
   setupGuidedDemo();
   setupSinceLastVisit();
   setupPullToRefresh();
+  setupFecControls();
+  setupFecDetailDrawer();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
   setupSignalChainInteraction();
@@ -3584,6 +3589,7 @@ function startLiveFeeds() {
     setInterval(() => runFeed("market", refreshMarketFeed), LIVE_FEED_INTERVALS.marketMs),
     setInterval(() => runFeed("account", refreshAccountFeed), LIVE_FEED_INTERVALS.accountMs),
     setInterval(() => runFeed("policy", refreshPolicyFeed), LIVE_FEED_INTERVALS.policyMs),
+    setInterval(() => runFeed("fec", refreshFecPulse), LIVE_FEED_INTERVALS.fecMs),
     setInterval(() => runFeed("trending", refreshTrendingFeed), LIVE_FEED_INTERVALS.policyMs),
     setInterval(() => runFeed("contractWatch", refreshContractWatchFeed), LIVE_FEED_INTERVALS.contractsMs),
     setInterval(() => runFeed("tradeHistory", refreshActiveTradeHistory), LIVE_FEED_INTERVALS.tradeHistoryMs),
@@ -3605,6 +3611,7 @@ function startLiveFeeds() {
           refreshMarketFeed(),
           refreshAccountFeed(),
           refreshPolicyFeed(),
+          refreshFecPulse(),
           refreshTrendingFeed(),
           refreshContractWatchFeed()
         ];
@@ -3697,6 +3704,7 @@ function renderDataAccuracyBanner() {
   if (!configured.congress) parts.push("Set CONGRESS_API_KEY for live bill status.");
   if (!configured.finnhub) parts.push("Set FINNHUB_API_KEY for live equity quotes.");
   if (!configured.senateLda) parts.push("Set SENATE_LDA_API_KEY for live lobbying dollars.");
+  if (!configured.fec) parts.push("Set FEC_API_KEY for live campaign finance pulse.");
   if (warnings.length) parts.push(warnings[0]);
 
   el.hidden = false;
@@ -3746,12 +3754,12 @@ function renderSourceFreshnessBar() {
 
 function feedFreshnessChip(label, meta, serverFeed, { extra = "" } = {}) {
   const src = meta?.source || serverFeed?.source || "—";
-  const isLive =
-    serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback");
-  const isFallback = String(src).includes("fallback") || serverFeed?.fallback;
+  const isLive = src === "fec" || (serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback") && src !== "sample");
+  const isFallback = src === "sample" || String(src).includes("fallback") || serverFeed?.fallback;
   const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
   const detail = extra ? ` · ${extra}` : "";
-  return `<span class="source-freshness-chip ${isLive ? "is-live" : isFallback ? "is-fallback" : ""}" title="${escapeHtml(sourceLabel(src))}">
+  const srcLabel = label === "FEC" ? (isLive ? "Live FEC" : isFallback ? "Sample FEC" : sourceLabel(src)) : sourceLabel(src);
+  return `<span class="source-freshness-chip ${isLive ? "is-live" : isFallback ? "is-fallback" : ""}" title="${escapeHtml(srcLabel)}">
     <span class="dot" aria-hidden="true"></span>
     <span>${escapeHtml(label)} · ${escapeHtml(when)}${escapeHtml(detail)}</span>
   </span>`;
@@ -3891,11 +3899,10 @@ function renderFeedHealthDrawer() {
   grid.innerHTML = rows
     .map(([label, meta, serverFeed]) => {
       const src = meta?.source || serverFeed?.source || "—";
-      const isLive =
-        serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback");
-      const isFallback = String(src).includes("fallback") || serverFeed?.fallback;
+      const isLive = src === "fec" || (serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback") && src !== "sample");
+      const isFallback = src === "sample" || String(src).includes("fallback") || serverFeed?.fallback;
       const pillClass = isLive ? "green" : isFallback ? "amber" : "";
-      const pill = isLive ? "Live" : isFallback ? "Fallback" : "Connecting";
+      const pill = isLive ? "Live" : isFallback || src === "sample" ? (label === "FEC" ? "Sample FEC" : "Fallback") : "Connecting";
       const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
       const extra =
         label === "Bills" && meta?.liveBillCount != null
@@ -4139,7 +4146,11 @@ function setupPullToRefresh() {
 
   const ptrActiveView = () => {
     const active = document.querySelector(".view.active");
-    return active?.id === "view-overview" || active?.id === "view-signals";
+    return (
+      active?.id === "view-overview" ||
+      active?.id === "view-signals" ||
+      active?.id === "view-fec"
+    );
   };
 
   const resetPtr = () => {
@@ -4719,6 +4730,7 @@ async function refreshFecPulse({ render = true } = {}) {
     if (render) {
       renderSourceBadges();
       renderFecPulseStrip();
+      renderFecView();
       renderOverview();
       renderSignalsDesk();
       renderBillStakeholders();
@@ -4732,6 +4744,48 @@ async function refreshFecPulse({ render = true } = {}) {
   }
 }
 
+const FEC_TOPIC_FILTERS = {
+  defense: ["defense", "national security", "military", "foreign affairs", "ndaa", "armed"],
+  energy: ["energy", "climate", "utilities", "telecom", "grid", "oil", "gas"],
+  finance: ["banking", "finance", "financial", "fintech", "payments", "capital", "stablecoin"],
+  health: ["health", "pharma", "medicare", "medicaid", "drug", "hospital"],
+  tech: ["tech", "semiconductor", "ai", "cyber", "software", "digital", "chips"]
+};
+
+function fecSourceBadge(source) {
+  const isLive = source === "fec";
+  return {
+    label: isLive ? "Live FEC" : "Sample FEC",
+    className: isLive ? "green" : "amber"
+  };
+}
+
+function fecPulseMatchesTopic(pulse, topic) {
+  if (!topic) return true;
+  const keywords = FEC_TOPIC_FILTERS[topic] || [];
+  const haystack = [
+    ...(pulse.policyTags || []),
+    pulse.label,
+    pulse.committee,
+    pulse.plainEnglish,
+    pulse.clusterKey
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return keywords.some((kw) => haystack.includes(kw));
+}
+
+function filteredFecPulses() {
+  const topic = state.fecTopicFilter || "";
+  const pulses = state.fecPulse?.pulses || [];
+  return pulses.filter((pulse) => {
+    if (!fecPulseMatchesTopic(pulse, topic)) return false;
+    if (!state.focusSymbol) return true;
+    return (pulse.tickers || []).includes(state.focusSymbol);
+  });
+}
+
 function renderFecPulseStrip() {
   const strip = $("#fec-pulse-strip");
   const inner = $("#fec-pulse-strip-inner");
@@ -4743,46 +4797,182 @@ function renderFecPulseStrip() {
     return;
   }
   const top = pulses[0];
-  const badge = payload.source === "sample" ? "Sample" : "FEC";
-  const badgeClass = payload.source === "sample" ? "amber" : "green";
+  const badge = fecSourceBadge(payload.source);
   strip.hidden = false;
   inner.innerHTML = `
     <article class="fec-pulse-card intel-card intel-card--fec">
       <div class="fec-pulse-head">
-        <span class="mini-pill ${badgeClass}">${escapeHtml(badge)}</span>
+        <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
         <span class="fec-pulse-committee">${escapeHtml(top.committee || "Committee")} · ${escapeHtml(top.chamber || "")}</span>
       </div>
       <p class="fec-pulse-line">${escapeHtml(top.plainEnglish || top.label || "")}</p>
       ${signalScanLineHtml({ source: "FEC", date: top.filingDate, tickers: top.tickers, band: top.period || payload.cycle })}
       <div class="fec-pulse-actions">
+        <button type="button" class="link-button" data-view-jump="fec">View all filings →</button>
         <button type="button" class="link-button" data-view-jump="signals">Signals →</button>
-        ${top.fecUrl ? `<a class="link-button" href="${escapeHtml(top.fecUrl)}" target="_blank" rel="noopener noreferrer">Source: FEC</a>` : ""}
+        ${top.fecUrl ? `<a class="link-button" href="${escapeHtml(top.fecUrl)}" target="_blank" rel="noopener noreferrer">FEC.gov →</a>` : ""}
       </div>
     </article>`;
-  inner.querySelector("[data-view-jump]")?.addEventListener("click", () => showView("signals"));
+}
+
+function renderFecView() {
+  const feedEl = $("#fec-feed");
+  const emptyEl = $("#fec-feed-empty");
+  const sourceEl = $("#fec-source");
+  const badgeEl = $("#fec-data-badge");
+  const payload = state.fecPulse;
+  const badge = fecSourceBadge(payload?.source || "sample");
+  if (sourceEl) {
+    sourceEl.textContent = badge.label;
+    sourceEl.classList.toggle("source-live", badge.className === "green");
+    sourceEl.classList.toggle("source-fallback", badge.className === "amber");
+  }
+  if (badgeEl) {
+    badgeEl.textContent = badge.label;
+    badgeEl.className = `mini-pill ${badge.className}`;
+  }
+  if (!feedEl) return;
+  const filtered = filteredFecPulses();
+  const ctxEl = $("#fec-filter-context");
+  if (ctxEl) {
+    const topic = state.fecTopicFilter || "";
+    const topicLbl = topic ? ` · ${topic.charAt(0).toUpperCase()}${topic.slice(1)}` : "";
+    const focusSuffix = state.focusSymbol ? ` · focus ${state.focusSymbol}` : "";
+    ctxEl.hidden = false;
+    ctxEl.textContent = `${filtered.length} pulse${filtered.length === 1 ? "" : "s"}${topicLbl}${focusSuffix}`;
+  }
+  if (!filtered.length) {
+    feedEl.innerHTML = "";
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.innerHTML =
+        payload?.source === "sample"
+          ? `<strong>Showing illustrative FEC pulses.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
+          : `<strong>No pulses match this filter.</strong> Try another sector or clear focus.`;
+    }
+    return;
+  }
+  if (emptyEl) emptyEl.hidden = true;
+  feedEl.innerHTML = filtered
+    .map((pulse, index) => {
+      const pulseKey = pulse.clusterKey || `${pulse.committee}-${index}`;
+      const tickers = (pulse.tickers || []).slice(0, 6);
+      return `
+      <article class="fec-feed-card intel-card intel-card--fec" data-fec-pulse-key="${escapeHtml(pulseKey)}">
+        <div class="fec-pulse-head">
+          <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
+          <span class="fec-pulse-committee">${escapeHtml(pulse.committee || "Committee")} · ${escapeHtml(pulse.chamber || "")}</span>
+        </div>
+        <h3 class="fec-feed-title">${escapeHtml(pulse.label || pulse.committee || "Committee cluster")}</h3>
+        <p class="fec-pulse-line">${escapeHtml(pulse.plainEnglish || "")}</p>
+        <div class="fec-feed-meta muted">
+          <span>${escapeHtml(pulse.amountSummary || "—")}</span>
+          <span>Filed ${escapeHtml(pulse.filingDate || "—")}</span>
+          ${pulse.recentFilings ? `<span>${escapeHtml(String(pulse.recentFilings))} recent filing${pulse.recentFilings === 1 ? "" : "s"}</span>` : ""}
+        </div>
+        ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers, band: pulse.period })}
+        <div class="fec-pulse-actions">
+          <button type="button" class="button button-secondary compact" data-fec-open="${escapeHtml(pulseKey)}">Details</button>
+          ${pulse.fecUrl ? `<a class="link-button" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
+        </div>
+      </article>`;
+    })
+    .join("");
+}
+
+function openFecDetailDrawer(pulseKey) {
+  const pulse = (state.fecPulse?.pulses || []).find(
+    (row, index) => (row.clusterKey || `${row.committee}-${index}`) === pulseKey
+  );
+  if (!pulse) return;
+  const drawer = $("#fec-detail-drawer");
+  const body = $("#fec-detail-body");
+  const title = $("#fec-detail-title");
+  if (!drawer || !body) return;
+  const badge = fecSourceBadge(state.fecPulse?.source || "sample");
+  if (title) title.textContent = pulse.label || pulse.committee || "Filing detail";
+  body.innerHTML = `
+    <div class="fec-detail-head">
+      <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
+      <span class="muted">${escapeHtml(pulse.committee || "")} · ${escapeHtml(pulse.chamber || "")}</span>
+    </div>
+    <p class="fec-pulse-line">${escapeHtml(pulse.plainEnglish || "")}</p>
+    <ul class="money-context-bullets">
+      <li>${escapeHtml(pulse.amountSummary || "Amount unavailable")} · ${escapeHtml(pulse.period || String(state.fecPulse?.cycle || ""))}</li>
+      <li>Mapped tickers: ${(pulse.tickers || []).slice(0, 8).map((t) => escapeHtml(t)).join(", ") || "—"}</li>
+      <li>FEC receipts track political committees — correlation with stock prices is not causation.</li>
+    </ul>
+    ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers: pulse.tickers, band: pulse.period })}
+    <div class="fec-pulse-actions">
+      ${pulse.fecUrl ? `<a class="button button-primary compact" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
+      <button type="button" class="button button-ghost compact" data-view-jump="signals">Open Signals</button>
+    </div>`;
+  drawer.hidden = false;
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  body.querySelector("[data-view-jump]")?.addEventListener("click", () => {
+    closeFecDetailDrawer();
+    showView("signals");
+  });
+}
+
+function closeFecDetailDrawer() {
+  const drawer = $("#fec-detail-drawer");
+  if (!drawer) return;
+  drawer.classList.remove("open");
+  drawer.hidden = true;
+  drawer.setAttribute("aria-hidden", "true");
+}
+
+function setupFecDetailDrawer() {
+  $("#fec-detail-close")?.addEventListener("click", closeFecDetailDrawer);
+  $("#fec-detail-backdrop")?.addEventListener("click", closeFecDetailDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("#fec-detail-drawer")?.classList.contains("open")) closeFecDetailDrawer();
+  });
+}
+
+function setupFecControls() {
+  document.querySelectorAll("[data-fec-topic]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-fec-topic]").forEach((chip) => chip.classList.toggle("is-active", chip === btn));
+      state.fecTopicFilter = btn.dataset.fecTopic || "";
+      renderFecView();
+    });
+  });
+  document.getElementById("fec-feed")?.addEventListener("click", (e) => {
+    const openBtn = e.target.closest("[data-fec-open]");
+    if (openBtn) {
+      e.preventDefault();
+      openFecDetailDrawer(openBtn.dataset.fecOpen || "");
+    }
+  });
 }
 
 function renderBillFecBlock(bill) {
   const ctx = bill?.moneyContext || bill?._fecContext;
   if (!ctx) return "";
   if (!ctx.matched) {
-    return `<section class="fec-stakeholder-block money-context"><h4>Money context</h4><p class="muted">${escapeHtml(ctx.message || "No committee money match for this bill yet.")}</p></section>`;
+    return `<details class="fec-stakeholder-block money-context money-context-expand">
+      <summary>Money context · no match yet</summary>
+      <p class="muted">${escapeHtml(ctx.message || "No committee money match for this bill yet.")}</p>
+    </details>`;
   }
-  const sourceBadge = ctx.source === "sample" ? `<span class="mini-pill amber">Sample</span>` : `<span class="mini-pill green">FEC</span>`;
+  const badge = fecSourceBadge(ctx.source);
   return `
-    <section class="fec-stakeholder-block money-context">
-      <div class="money-context-head">
-        <h4>Money context</h4>
-        ${sourceBadge}
-      </div>
+    <details class="fec-stakeholder-block money-context money-context-expand">
+      <summary>Money context · <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span></summary>
       <p class="fec-pulse-line">${escapeHtml(ctx.plainEnglish || "")}</p>
       <ul class="money-context-bullets">
         ${(ctx.marketBullets || []).slice(0, 3).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ul>
       ${ctx.sponsorSummary ? `<p class="muted">Sponsor: ${escapeHtml(ctx.sponsorSummary.name)} · ${escapeHtml(compactMoney(ctx.sponsorSummary.receipts || 0))} ${escapeHtml(String(ctx.cycle || ""))} cycle receipts</p>` : ""}
       <div class="money-context-tickers">${(ctx.tickers || []).slice(0, 4).map((t) => `<span class="mini-pill green">${escapeHtml(t)}</span>`).join(" ")}</div>
-      ${ctx.fecUrl ? `<a class="link-button" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "Source: FEC")}</a>` : ""}
-    </section>`;
+      <div class="fec-pulse-actions">
+        ${ctx.fecUrl ? `<a class="link-button" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
+        <button type="button" class="link-button" data-view-jump="fec">Related FEC pulses →</button>
+      </div>
+    </details>`;
 }
 
 function renderBillFecBlockFromPulse(bill) {
@@ -4795,7 +4985,10 @@ function renderBillFecBlockFromPulse(bill) {
     return haystack.split(/\s+/).some((word) => word.length > 4 && label.includes(word));
   });
   if (!pulse) {
-    return `<section class="fec-stakeholder-block money-context"><h4>Money context</h4><p class="muted">No committee money match for this bill yet.</p></section>`;
+    return `<details class="fec-stakeholder-block money-context money-context-expand">
+      <summary>Money context · no match yet</summary>
+      <p class="muted">No committee money match for this bill yet.</p>
+    </details>`;
   }
   return renderBillFecBlock({
     matched: true,
@@ -4855,6 +5048,7 @@ function renderTerminalData() {
   renderCrypto();
   renderBills();
   renderLobbying();
+  renderFecView();
   renderAccount();
   renderContracts();
   renderLiveAlerts();
@@ -8276,7 +8470,7 @@ function renderBillStakeholders() {
     <section class="fec-stakeholder-block money-context">
       <div class="money-context-head">
         <h4>Campaign finance lens</h4>
-        <span class="mini-pill ${state.fecPulse?.source === "sample" ? "amber" : "green"}">${state.fecPulse?.source === "sample" ? "Sample" : "FEC"}</span>
+        <span class="mini-pill ${fecSourceBadge(state.fecPulse?.source).className}">${escapeHtml(fecSourceBadge(state.fecPulse?.source).label)}</span>
       </div>
       ${fecPulses.slice(0, 2).map((pulse) => `
         <article class="fec-pulse-card fec-pulse-card--compact">
@@ -8287,6 +8481,7 @@ function renderBillStakeholders() {
         <li>What this means for markets: PAC filing spikes can precede committee markup — not a price forecast.</li>
         <li>Mapped tickers above share a policy cluster with this feed — verify against your holdings.</li>
       </ul>
+      <button type="button" class="link-button" data-view-jump="fec">View all filings →</button>
     </section>`
     : "";
   if (!network?.stakeholderMap && !fecHtml) {
@@ -8771,6 +8966,7 @@ function buildNavigation() {
     { id: "trade", label: "Account", enabled: isViewEnabled("trade") },
     { id: "bills", label: "Bills", enabled: isViewEnabled("bills") },
     { id: "lobbying", label: "Lobbying", enabled: isViewEnabled("lobbying") },
+    { id: "fec", label: "FEC Filings", enabled: isViewEnabled("fec") },
     { id: "contracts", label: "Contracts", enabled: isViewEnabled("contracts") },
     { id: "analysis", label: "Analysis", enabled: isViewEnabled("analysis") },
     { id: "markets", label: "Markets", enabled: isViewEnabled("markets") },
@@ -8950,6 +9146,12 @@ function showView(view, updateUrl = true) {
       showSkeleton("#lobby-feed", 4, "card");
       void refreshPolicyFeed().finally(() => clearSkeleton("#lobby-feed"));
     } else renderLobbying();
+  }
+  if (view === "fec" && isViewEnabled("fec")) {
+    if (!state.fecPulse?.pulses?.length) {
+      showSkeleton("#fec-feed", 4, "card");
+      void refreshFecPulse().finally(() => clearSkeleton("#fec-feed"));
+    } else renderFecView();
   }
   if (view === "track-record" && isFeatureEnabled("ADVANCED_ANALYTICS_ENABLED")) void loadTrackRecord();
   if (view === "thesis") {
@@ -9751,7 +9953,10 @@ function setDisabled(link, title) {
 }
 
 function sourceLabel(source) {
-  return String(source || "unknown").replaceAll("_", " ");
+  const s = String(source || "unknown");
+  if (s === "fec") return "Live FEC";
+  if (s === "sample") return "Sample FEC";
+  return s.replaceAll("_", " ");
 }
 
 function money(value) {

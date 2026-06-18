@@ -417,7 +417,7 @@ let landingQuotesCache = null;
 let landingQuotesCachedAt = 0;
 
 const FEC_API_BASE = "https://api.open.fec.gov/v1";
-const FEC_PULSE_CACHE_TTL_MS = Number(process.env.FEC_PULSE_CACHE_TTL_MS || 15 * 60 * 1000);
+const FEC_PULSE_CACHE_TTL_MS = Number(process.env.FEC_PULSE_CACHE_TTL_MS || 8 * 60 * 1000);
 const FEC_COMMITTEE_MAP_FILE = join(DATA_DIR, "fec-committee-map.json");
 const FEC_PULSE_SEED_FILE = join(DATA_DIR, "fec-pulse-seed.json");
 let fecCommitteeMap = { clusters: [], cycle: 2024 };
@@ -2654,6 +2654,11 @@ server.listen(PORT, "0.0.0.0", async () => {
   if (!process.env.FINNHUB_API_KEY) {
     console.warn("[data] FINNHUB_API_KEY not set — equity quotes may use Yahoo or modeled fallback.");
   }
+  if (!process.env.FEC_API_KEY) {
+    console.warn("[data] FEC_API_KEY not set — campaign finance pulse uses illustrative sample data (api.open.fec.gov).");
+  } else {
+    console.log("[data] FEC Open API configured — live PAC filings enabled.");
+  }
 
   const production = productionReadiness(process.env);
   if (isStrictDataMode()) {
@@ -2668,7 +2673,8 @@ server.listen(PORT, "0.0.0.0", async () => {
 
   startBackgroundRefresh({
     refreshCongress: refreshCongressLiveCache,
-    refreshLobbying: refreshLdaLobbyingCache
+    refreshLobbying: refreshLdaLobbyingCache,
+    refreshFec: () => getFecPulsePayload({ forceRefresh: true })
   });
 
   // ── Prediction ledger lifecycle ──────────────────────────────────────────
@@ -2699,6 +2705,11 @@ server.listen(PORT, "0.0.0.0", async () => {
   }
   if (process.env.SENATE_LDA_API_KEY) {
     refreshLdaLobbyingCache().catch((err) => console.warn("[data] Initial LDA refresh failed:", err.message));
+  }
+  if (process.env.FEC_API_KEY) {
+    getFecPulsePayload({ forceRefresh: true }).catch((err) =>
+      console.warn("[data] Initial FEC pulse refresh failed:", err.message)
+    );
   }
   setTimeout(() => {
     refreshContractWatch()
@@ -5097,7 +5108,10 @@ function fecSamplePulsePayload() {
     updatedAt: seed.updatedAt || new Date().toISOString(),
     cycle: seed.cycle || fecElectionCycle(),
     configured: Boolean(process.env.FEC_API_KEY),
-    pulses: (seed.pulses || []).map((row) => ({ ...row, source: "sample" }))
+    pulses: (seed.pulses || []).map((row) => {
+      const cluster = (fecCommitteeMap.clusters || []).find((c) => c.key === row.clusterKey);
+      return { ...row, source: "sample", policyTags: cluster?.policy_tags || [] };
+    })
   };
   noteFeedSuccess("fec", { source: "sample", recordCount: payload.pulses.length });
   return payload;
@@ -5215,6 +5229,7 @@ async function buildLiveFecPulsePayload() {
       filingDate: metrics.latestFilingDate || new Date().toISOString().slice(0, 10),
       plainEnglish: buildFecPulsePlainEnglish(cluster, amount, period, tickers, metrics.recentFilings),
       clusterKey: cluster.key,
+      policyTags: cluster.policy_tags || [],
       recentFilings: metrics.recentFilings,
       fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,
       source: "fec"
@@ -5378,8 +5393,19 @@ async function fecBillContextHandler(res, url) {
 function pickLandingFecPulseLine(payload) {
   const pulses = payload?.pulses || [];
   if (!pulses.length) return null;
-  const idx = Math.floor(Date.now() / (15 * 60 * 1000)) % pulses.length;
+  const idx = Math.floor(Date.now() / FEC_PULSE_CACHE_TTL_MS) % pulses.length;
   return pulses[idx];
+}
+
+function pickLandingFecPulseSlice(payload, count = 3) {
+  const pulses = payload?.pulses || [];
+  if (!pulses.length) return [];
+  const start = Math.floor(Date.now() / FEC_PULSE_CACHE_TTL_MS) % pulses.length;
+  const out = [];
+  for (let i = 0; i < Math.min(count, pulses.length); i++) {
+    out.push(pulses[(start + i) % pulses.length]);
+  }
+  return out;
 }
 
 async function landingQuotesHandler(res) {

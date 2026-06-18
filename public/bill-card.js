@@ -734,26 +734,27 @@ function moneyContextSection(ctx) {
   if (!ctx) return "";
   if (!ctx.matched) {
     return `
-      <section class="bill-card-panel money-context">
-        <h2>Money context</h2>
+      <details class="bill-card-panel money-context money-context-expand">
+        <summary>Money context · no committee match</summary>
         <p class="muted">${escapeHtml(ctx.message || "No committee money match for this bill yet.")}</p>
-      </section>`;
+      </details>`;
   }
-  const badge = ctx.source === "sample" ? "Sample" : "FEC";
+  const badge = ctx.source === "sample" ? "Sample FEC" : "Live FEC";
+  const badgeClass = ctx.source === "sample" ? "amber" : "green";
   return `
-    <section class="bill-card-panel money-context">
-      <div class="money-context-head">
-        <h2>Money context</h2>
-        <span class="mini-pill ${ctx.source === "sample" ? "amber" : "green"}">${escapeHtml(badge)}</span>
-      </div>
+    <details class="bill-card-panel money-context money-context-expand" open>
+      <summary>Money context · <span class="mini-pill ${badgeClass}">${escapeHtml(badge)}</span></summary>
       <p>${escapeHtml(ctx.plainEnglish || "")}</p>
       <ul class="money-context-bullets">
         ${(ctx.marketBullets || []).slice(0, 3).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ul>
       ${ctx.sponsorSummary ? `<p class="muted">Sponsor ${escapeHtml(ctx.sponsorSummary.name)} · ${money(ctx.sponsorSummary.receipts || 0)} · ${escapeHtml(String(ctx.cycle || ""))} cycle</p>` : ""}
       <div class="bill-ticker-row">${(ctx.tickers || []).slice(0, 6).map((t) => `<span class="ticker-chip-link">${escapeHtml(t)}</span>`).join("")}</div>
-      ${ctx.fecUrl ? `<a class="card-button ghost" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "Source: FEC")}</a>` : ""}
-    </section>`;
+      <div class="money-context-actions">
+        ${ctx.fecUrl ? `<a class="card-button ghost" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
+        <a class="card-button ghost" href="/dashboard?view=fec">Related FEC pulses →</a>
+      </div>
+    </details>`;
 }
 
 function lobbyingFirmCell(row) {

@@ -21,7 +21,8 @@ export function noteFeedSuccess(name, { source, recordCount = 0, liveCount = 0, 
   const fallback =
     String(source || "").includes("fallback") ||
     source === "policy_seed_model" ||
-    source === "fallback";
+    source === "fallback" ||
+    source === "sample";
   feedState[name] = {
     status: fallback ? "fallback" : "connected",
     fallback,
@@ -99,6 +100,13 @@ export function startBackgroundRefresh(handlers = {}) {
     setInterval(() => {
       handlers.refreshLobbying().catch((err) => noteFeedError("lobbying", err));
     }, ldaMs);
+  }
+
+  const fecMs = Number(process.env.FEC_REFRESH_MS || process.env.FEC_PULSE_CACHE_TTL_MS || 480_000);
+  if (typeof handlers.refreshFec === "function") {
+    setInterval(() => {
+      handlers.refreshFec().catch((err) => noteFeedError("fec", err));
+    }, fecMs);
   }
 }
 

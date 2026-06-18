@@ -4,6 +4,23 @@
   line-height: 1.5;
 }
 
+.money-context-expand summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.money-context-expand summary::-webkit-details-marker {
+  display: none;
+}
+
+.money-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
 .money-context-head {
   display: flex;
   align-items: center;

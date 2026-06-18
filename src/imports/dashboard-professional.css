@@ -4938,6 +4938,61 @@ html[data-theme="light"] body[data-page="dashboard"] .fec-stakeholder-block {
   background: color-mix(in srgb, var(--panel) 96%, #fff);
 }
 
+body[data-page="dashboard"] .fec-feed-grid {
+  display: grid;
+  gap: var(--elev-gap-card);
+}
+
+body[data-page="dashboard"] .fec-feed-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--elev-radius-sm);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+
+body[data-page="dashboard"] .fec-feed-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+body[data-page="dashboard"] .fec-feed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
+
+body[data-page="dashboard"] .money-context-expand summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+body[data-page="dashboard"] .money-context-expand summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-page="dashboard"] .money-context-expand[open] summary {
+  margin-bottom: 0.55rem;
+}
+
+body[data-page="dashboard"] .fec-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .fec-feed-card {
+  background: color-mix(in srgb, var(--panel) 96%, #fff);
+}
+
 body[data-page="dashboard"] .intel-card:hover,
 body[data-page="dashboard"] .sc-card.intel-card:hover {
   border-color: color-mix(in srgb, var(--line-2) 80%, transparent);

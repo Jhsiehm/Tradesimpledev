@@ -67,6 +67,7 @@
           <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
           <button class="nav-item" data-view="lobbying">Lobbying</button>
+          <button class="nav-item" data-view="fec">FEC Filings</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
           <button class="nav-item" data-view="analysis">Analysis</button>
           <span class="nav-section-label">Markets</span>
@@ -885,6 +886,41 @@
             </div>
             <div id="lobby-bill-bridge" class="lobby-bridge-list"></div>
           </aside>
+        </section>
+
+        <section class="view terminal-view" id="view-fec">
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
+              <h1>Campaign finance pulse</h1>
+              <p class="dash-view-purpose">PAC and committee filings from FEC.gov — mapped to policy clusters and tickers. Context only, not a price signal.</p>
+            </div>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" id="fec-source">Connecting</span>
+            </div>
+          </div>
+          <div class="ts-filter-bar ts-filter-bar--sticky" id="fec-filter-bar" role="group" aria-label="Filter FEC filings">
+            <span class="ts-filter-bar-label">Sector</span>
+            <div class="ts-filter-chips ts-filter-chips--segmented" role="group" aria-label="Filter FEC by sector">
+              <button type="button" class="ts-filter-chip is-active" data-fec-topic="">All</button>
+              <button type="button" class="ts-filter-chip" data-fec-topic="defense">Defense</button>
+              <button type="button" class="ts-filter-chip" data-fec-topic="energy">Energy</button>
+              <button type="button" class="ts-filter-chip" data-fec-topic="finance">Finance</button>
+              <button type="button" class="ts-filter-chip" data-fec-topic="health">Health</button>
+              <button type="button" class="ts-filter-chip" data-fec-topic="tech">Tech</button>
+            </div>
+            <span class="ts-filter-context muted" id="fec-filter-context" hidden></span>
+          </div>
+          <section class="panel panel-emphasis">
+            <div class="panel-head panel-head-quiet">
+              <h2>Filing pulse feed</h2>
+              <span data-freshness="fec">Pending</span>
+              <span class="mini-pill" id="fec-data-badge">Connecting</span>
+            </div>
+            <div id="fec-feed" class="fec-feed-grid"></div>
+            <p id="fec-feed-empty" class="guided-empty-state" hidden>
+              <strong>No FEC pulses loaded.</strong> Sample filings appear when FEC_API_KEY is unset — use Refresh to retry.
+            </p>
+          </section>
         </section>
 
         <section class="view terminal-view" id="view-contracts">
@@ -1922,6 +1958,17 @@
         <span class="mobile-bottom-nav-label">Account</span>
       </button>
     </nav>
+
+    <aside id="fec-detail-drawer" class="feed-health-drawer fec-detail-drawer" aria-label="FEC filing detail" aria-hidden="true" hidden>
+      <div class="feed-health-backdrop" id="fec-detail-backdrop" tabindex="-1"></div>
+      <div class="feed-health-panel" role="dialog" aria-modal="true" aria-labelledby="fec-detail-title">
+        <header class="feed-health-head">
+          <h2 id="fec-detail-title">Filing detail</h2>
+          <button type="button" class="button button-ghost compact" id="fec-detail-close" aria-label="Close FEC detail">✕</button>
+        </header>
+        <div class="feed-health-body" id="fec-detail-body"></div>
+      </div>
+    </aside>
 
     <aside id="feed-health-drawer" class="feed-health-drawer" aria-label="Feed health" aria-hidden="true" hidden>
       <div class="feed-health-backdrop" id="feed-health-backdrop" tabindex="-1"></div>
