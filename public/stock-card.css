@@ -21,7 +21,7 @@
   --blue: #7fb2df;
   --mono: "IBM Plex Mono", Consolas, monospace;
   --sans: "Outfit", system-ui, sans-serif;
-  --serif: "DM Serif Display", Georgia, serif;
+  --serif: "Cormorant Garamond", "DM Serif Display", Georgia, serif;
 }
 
 html[data-theme="light"] {
@@ -54,9 +54,8 @@ body {
   background:
     linear-gradient(var(--grid-line-a) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line-b) 1px, transparent 1px),
-    radial-gradient(circle at 20% 0%, rgba(200, 255, 0, 0.14), transparent 34rem),
     var(--bg);
-  background-size: 38px 38px, 38px 38px, auto, auto;
+  background-size: 38px 38px, 38px 38px, auto;
   color: var(--ink);
 }
 
@@ -64,6 +63,22 @@ a { color: inherit; }
 button { font: inherit; color: inherit; }
 
 .stock-card-root { min-height: 100vh; }
+.bill-card-root {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+.bill-card-root > .intelligence-file,
+.bill-card-root > .bill-guided {
+  max-width: none;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.bill-card-root > .intelligence-file {
+  border-left: 4px solid var(--brief-accent, var(--green, #c8ff00));
+  padding-left: 1.15rem;
+}
 #stock-card-root > .bill-guided {
   max-width: 920px;
   margin: 0 auto;

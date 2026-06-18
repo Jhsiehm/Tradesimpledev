@@ -205,12 +205,21 @@ function rulesExplanationHtml(data) {
     </section>`;
 }
 
-function classifyBarHtml(bill) {
+function classifyBarHtml(bill, opts = {}) {
+  const fileType = opts.fileType || "BILL";
+  const fileId = (bill.displayId || bill.id || state.billId || "").toUpperCase();
   return `
     <div class="dossier-classify mono" aria-hidden="true">
-      <span class="dossier-classify-id">TRADESIMPLE INTELLIGENCE BRIEF&ensp;//&ensp;${escapeHtml((bill.displayId || bill.id || state.billId || "").toUpperCase())}</span>
+      <span class="dossier-classify-id"><span class="dossier-ts-mark">TS//</span>INTEL&ensp;//&ensp;${escapeHtml(fileType)}&ensp;//&ensp;${escapeHtml(fileId)}</span>
       <span class="dossier-classify-note">RESEARCH CONTEXT&ensp;·&ensp;NOT INVESTMENT ADVICE</span>
     </div>`;
+}
+
+function convictionAccentClass(confidence) {
+  const label = String(confidence || "").toLowerCase();
+  if (/high|strong|verified/.test(label)) return "brief-accent--high";
+  if (/low|weak|illustrative/.test(label)) return "brief-accent--low";
+  return "brief-accent--medium";
 }
 
 function dossierMetaHtml(data) {
@@ -221,9 +230,9 @@ function dossierMetaHtml(data) {
   const confidence = breakdown.billSignalConfidence?.label || bill.signalConfidence || "—";
   const dateLabel = formatShortDate(data.updatedAt || Date.now());
   const rows = [
-    ["Date", dateLabel],
+    ["File ID", bill.displayId || bill.id || state.billId],
     ["Source", prov.text],
-    ["Status", status.label || bill.status || "—"],
+    ["Date", dateLabel],
     ["Confidence", confidence]
   ];
   return `
@@ -547,59 +556,68 @@ function renderFullBrief(data) {
   const tickers = (data.relatedTickers || bill.affected || []).slice(0, 12);
   const catalyst = bill.catalyst || {};
   const leg = bill.legislativeContext || {};
+  const accentClass = convictionAccentClass(breakdown.billSignalConfidence?.label || bill.signalConfidence);
+  const oneLiner = bill.plainEnglish || bill.signal || data.liveAnalysis?.explanation?.whyMarketsCare || "";
 
   return `
-    <article class="bill-card-page stock-card-shell">
+    <article class="bill-card-page intelligence-file stock-card-shell ${accentClass}">
       ${classifyBarHtml(bill)}
       <header class="bill-card-hero">
         <div class="bill-card-hero-top">
           ${modeToggleHtml()}
           ${heroActionsHtml()}
         </div>
+        ${dossierMetaHtml(data)}
         <p class="bill-card-id mono">${escapeHtml(bill.displayId || bill.id || state.billId)}</p>
         <h1>${escapeHtml(bill.shortTitle || bill.title || state.billId)}</h1>
         ${bill.title && bill.shortTitle && bill.title !== bill.shortTitle ? `<p class="bill-card-long-title muted">${escapeHtml(bill.title)}</p>` : ""}
         <div class="freshness-chip-row">${freshnessChipHtml(data)}</div>
-        <div class="bill-card-badges">
-          <span class="bill-prov-pill ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
-          <span class="status-stage-chip">${escapeHtml(status.label || bill.status || "Status")}</span>
-          ${bill.chamber ? `<span class="mini-pill">${escapeHtml(bill.chamber)}</span>` : ""}
+        <div class="intelligence-meta-strip">
+          <span class="dossier-stamp ${escapeHtml(prov.cls)}">${escapeHtml(prov.text)}</span>
+          <span class="dossier-chip mono">${escapeHtml(status.label || bill.status || "Status")}</span>
+          ${bill.chamber ? `<span class="dossier-chip mono">${escapeHtml(bill.chamber)}</span>` : ""}
         </div>
+        ${oneLiner ? `<p class="intelligence-lede">${escapeHtml(oneLiner)}</p>` : ""}
         <p class="bill-card-disclaimer muted">${escapeHtml(data.share?.disclaimer || data.methodologyDisclaimer || "")}</p>
       </header>
-      ${rulesExplanationHtml(data)}
-      ${data.aiSummary?.text ? `<section class="bill-card-panel bill-ai-summary"><h2>Plain-English summary</h2>${BriefShell.aiAnalysisBulletsHtml(data.aiSummary.text, escapeHtml)}<p class="muted">AI synthesis from live bill data</p></section>` : ""}
-      ${liveAnalysisPanelHtml(data)}
 
-      ${legislativeTimelineSection(leg, bill, status)}
-      <section class="bill-card-grid">
-        <div class="bill-card-panel">
-          <h2>Legislative posture</h2>
-          <p class="bill-next-step">${escapeHtml(status.nextStep || "Watch the next official action.")}</p>
-          <p class="muted">${escapeHtml(status.marketMeaning || "")}</p>
-          ${stagePathHtml(stagePath, status.key)}
-          <dl class="bill-meta-dl">
-            <div><dt>Sponsor</dt><dd>${escapeHtml(formatSponsor(bill.sponsor))}</dd></div>
-            <div><dt>Cosponsors</dt><dd class="mono">${escapeHtml(String(bill.cosponsors ?? "—"))}</dd></div>
-            <div><dt>Latest action</dt><dd>${escapeHtml(bill.latestAction || "—")}</dd></div>
-            <div><dt>Date</dt><dd class="mono">${escapeHtml(bill.latestActionDate || "—")}</dd></div>
-          </dl>
-        </div>
-        <div class="bill-card-panel">
-          <h2>Scores</h2>
-          <div class="bill-score-row">
-            <div><span class="score-label">Momentum</span><strong class="mono">${escapeHtml(String(momentum))}/100</strong></div>
-            <div><span class="score-label">Lobbying pressure</span><strong class="mono">${escapeHtml(String(lobby))}/100</strong></div>
-            <div><span class="score-label">Signal confidence</span><strong>${escapeHtml(breakdown.billSignalConfidence?.label || bill.signalConfidence || "—")}</strong></div>
+      ${rulesExplanationHtml(data) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX A · RECORDS</p>${rulesExplanationHtml(data).replace('class="bill-card-panel bill-rules-summary"', 'class="bill-rules-summary"')}</section>` : ""}
+      ${data.aiSummary?.text ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX B · PLAIN ENGLISH</p><h2 class="intelligence-annex-title">Summary</h2>${BriefShell.aiAnalysisBulletsHtml(data.aiSummary.text, escapeHtml)}<p class="muted">AI synthesis from live bill data</p></section>` : ""}
+      ${liveAnalysisPanelHtml(data) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX C · LIVE ANALYSIS</p>${liveAnalysisPanelHtml(data).replace('class="bill-card-panel bill-live-analysis"', 'class="bill-live-analysis"')}</section>` : ""}
+
+      ${legislativeTimelineSection(leg, bill, status) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX D · LEGISLATIVE CALENDAR</p>${legislativeTimelineSection(leg, bill, status).replace('class="bill-card-panel bill-legislative-timeline-panel"', 'class="bill-legislative-timeline-panel"')}</section>` : ""}
+
+      <section class="intelligence-annex">
+        <p class="intelligence-annex-id mono">ANNEX E · POSTURE &amp; SCORES</p>
+        <div class="bill-card-grid">
+          <div class="bill-card-panel">
+            <h2 class="intelligence-annex-title">Legislative posture</h2>
+            <p class="bill-next-step">${escapeHtml(status.nextStep || "Watch the next official action.")}</p>
+            <p class="muted">${escapeHtml(status.marketMeaning || "")}</p>
+            ${stagePathHtml(stagePath, status.key)}
+            <dl class="bill-meta-dl">
+              <div><dt>Sponsor</dt><dd>${escapeHtml(formatSponsor(bill.sponsor))}</dd></div>
+              <div><dt>Cosponsors</dt><dd class="mono">${escapeHtml(String(bill.cosponsors ?? "—"))}</dd></div>
+              <div><dt>Latest action</dt><dd>${escapeHtml(bill.latestAction || "—")}</dd></div>
+              <div><dt>Date</dt><dd class="mono">${escapeHtml(bill.latestActionDate || "—")}</dd></div>
+            </dl>
           </div>
-          ${catalyst.label ? `<p class="muted">Catalyst: ${escapeHtml(catalyst.label)} · ${escapeHtml(catalyst.dateLabel || bill.latestActionDate || "")}</p>` : ""}
-          <p class="muted">${escapeHtml(bill.plainEnglish || bill.signal || "")}</p>
+          <div class="bill-card-panel">
+            <h2 class="intelligence-annex-title">Scores</h2>
+            <div class="bill-score-row">
+              <div><span class="score-label">Momentum</span><strong class="mono">${escapeHtml(String(momentum))}/100</strong></div>
+              <div><span class="score-label">Lobbying pressure</span><strong class="mono">${escapeHtml(String(lobby))}/100</strong></div>
+              <div><span class="score-label">Signal confidence</span><strong>${escapeHtml(breakdown.billSignalConfidence?.label || bill.signalConfidence || "—")}</strong></div>
+            </div>
+            ${catalyst.label ? `<p class="muted">Catalyst: ${escapeHtml(catalyst.label)} · ${escapeHtml(catalyst.dateLabel || bill.latestActionDate || "")}</p>` : ""}
+          </div>
         </div>
       </section>
 
       ${tickers.length ? `
-      <section class="bill-card-panel">
-        <h2>Related tickers</h2>
+      <section class="intelligence-annex">
+        <p class="intelligence-annex-id mono">ANNEX F · RELATED TICKERS</p>
+        <h2 class="intelligence-annex-title">Market exposure</h2>
         <div class="bill-ticker-row">
           ${tickers.map((t) => {
             const href = (data.mapping?.traceUrls || {})[t] || `/stock/${encodeURIComponent(t)}`;
@@ -610,8 +628,9 @@ function renderFullBrief(data) {
       </section>` : ""}
 
       ${(data.relatedContracts || []).length ? `
-      <section class="bill-card-panel">
-        <h2>Related contracts</h2>
+      <section class="intelligence-annex">
+        <p class="intelligence-annex-id mono">ANNEX G · CONTRACTS</p>
+        <h2 class="intelligence-annex-title">Related awards</h2>
         <div class="brief-related-bill-cards">
           ${(data.relatedContracts || [])
             .slice(0, 6)
@@ -628,13 +647,14 @@ function renderFullBrief(data) {
         </div>
       </section>` : ""}
 
-      ${impactSection("If it passes", data.passImpacts || bill.passImpacts)}
-      ${impactSection("If it stalls or fails", data.failImpacts || bill.failImpacts)}
+      ${impactSection("If it passes", data.passImpacts || bill.passImpacts) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX H · SCENARIOS · PASS</p>${impactSection("If it passes", data.passImpacts || bill.passImpacts).replace('<section class="bill-card-panel">', '<div class="bill-card-panel">').replace('</section>', '</div>')}</section>` : ""}
+      ${impactSection("If it stalls or fails", data.failImpacts || bill.failImpacts) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX H · SCENARIOS · STALL</p>${impactSection("If it stalls or fails", data.failImpacts || bill.failImpacts).replace('<section class="bill-card-panel">', '<div class="bill-card-panel">').replace('</section>', '</div>')}</section>` : ""}
 
-      ${moneyContextSection(data.moneyContext)}
+      ${moneyContextAnnex(data.moneyContext)}
 
-      <section class="bill-card-panel">
-        <h2>Lobbying & stakeholders</h2>
+      <section class="intelligence-annex">
+        <p class="intelligence-annex-id mono">ANNEX I · STAKEHOLDERS</p>
+        <h2 class="intelligence-annex-title">Lobbying &amp; pressure</h2>
         ${lobbyingTable(bill)}
         ${bill.lobbyingSource === "senate_lda"
           ? `<p class="muted">Senate LDA: ${escapeHtml(String(bill.lobbyingFilingsCount || 0))} matched filing(s) · against $${escapeHtml(String(bill.lobbyingAgainst ?? "—"))}M · for $${escapeHtml(String(bill.lobbyingFor ?? "—"))}M</p>`
@@ -643,9 +663,9 @@ function renderFullBrief(data) {
 
       ${momentumBreakdownHtml(breakdown)}
       ${historicalBlock(data.historicalAnalog || bill.historicalAnalog)}
-      ${watchList(bill)}
+      ${watchList(bill) ? `<section class="intelligence-annex"><p class="intelligence-annex-id mono">ANNEX J · FORWARD WATCH</p>${watchList(bill).replace('<section class="bill-card-panel">', '<div>').replace('</section>', '</div>')}</section>` : ""}
 
-      <footer class="bill-card-footer">
+      <footer class="bill-card-footer intelligence-file-footer">
         <p class="muted">${escapeHtml(sourceNote(bill))}</p>
         <div class="bill-card-footer-links">
           ${bill.congressUrl || bill.sourceUrl
@@ -653,7 +673,7 @@ function renderFullBrief(data) {
             : ""}
           <a class="card-button ghost" href="/dashboard?view=bills&bill=${encodeURIComponent(bill.id || state.billId)}">Back to bills table</a>
         </div>
-        <p class="bill-updated muted">Updated ${escapeHtml(freshnessText(data.updatedAt))}</p>
+        <p class="bill-updated muted mono">END OF BRIEF&ensp;//&ensp;${escapeHtml((bill.displayId || bill.id || state.billId).toUpperCase())}&ensp;//&ensp;UPDATED ${escapeHtml(freshnessText(data.updatedAt).toUpperCase())}</p>
       </footer>
     </article>`;
 }
@@ -727,6 +747,42 @@ function impactSection(title, impacts) {
           .join("")}
       </ul>
       <p class="muted">Scenario ranges are illustrative models, not price targets or investment advice.</p>
+    </section>`;
+}
+
+function moneyContextAnnex(ctx) {
+  if (!ctx) return "";
+  if (!ctx.matched) {
+    return `
+      <section class="intelligence-annex">
+        <p class="intelligence-annex-id mono">ANNEX K · MONEY CONTEXT</p>
+        <p class="muted">${escapeHtml(ctx.message || "No committee money match for this bill yet.")}</p>
+      </section>`;
+  }
+  const badge = ctx.source === "sample" ? "Sample FEC" : "Live FEC";
+  const badgeClass = ctx.source === "sample" ? "amber" : "green";
+  const linkSummary = ctx.linkCounts
+    ? [
+        ctx.linkCounts.bills ? `${ctx.linkCounts.bills} bill${ctx.linkCounts.bills === 1 ? "" : "s"}` : "",
+        ctx.linkCounts.lobbyingFilings ? `${ctx.linkCounts.lobbyingFilings} lobby` : "",
+        ctx.linkCounts.contracts ? `${ctx.linkCounts.contracts} contract${ctx.linkCounts.contracts === 1 ? "" : "s"}` : ""
+      ].filter(Boolean).join(" · ")
+    : "";
+  return `
+    <section class="intelligence-annex">
+      <p class="intelligence-annex-id mono">ANNEX K · MONEY CONTEXT · <span class="mini-pill ${badgeClass}">${escapeHtml(badge)}</span></p>
+      <h2 class="intelligence-annex-title">Campaign finance trail</h2>
+      <p class="intelligence-lede">${escapeHtml(ctx.plainEnglish || "")}</p>
+      <ul class="money-context-bullets">
+        ${(ctx.marketBullets || []).slice(0, 4).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+      </ul>
+      ${linkSummary ? `<p class="provenance-line muted">Cross-links: ${escapeHtml(linkSummary)}</p>` : ""}
+      ${ctx.sponsorSummary ? `<p class="muted">Sponsor ${escapeHtml(ctx.sponsorSummary.name)} · ${money(ctx.sponsorSummary.receipts || 0)} · ${escapeHtml(String(ctx.cycle || ""))} cycle</p>` : ""}
+      <div class="bill-ticker-row">${(ctx.tickers || []).slice(0, 6).map((t) => `<span class="ticker-chip-link">${escapeHtml(t)}</span>`).join("")}</div>
+      <div class="money-context-actions">
+        ${ctx.fecUrl ? `<a class="card-button ghost" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
+        ${ctx.clusterKey ? `<a class="card-button ghost" href="/fec/${encodeURIComponent(ctx.clusterKey)}">Read FEC brief →</a>` : `<a class="card-button ghost" href="/dashboard?view=fec">Money Trail →</a>`}
+      </div>
     </section>`;
 }
 

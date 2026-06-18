@@ -2940,6 +2940,12 @@ async function route(req, res) {
     if (!checkFeaturePage("LOBBYING_EXPLORER_ENABLED", res, "Lobbying Explorer", { head: req.method === "HEAD" })) return;
     return publicLobbyCard(res, pathname, { head: req.method === "HEAD" });
   }
+  if (pathname === "/fec") {
+    return redirect(res, "/dashboard?view=fec");
+  }
+  if (pathname.startsWith("/fec/") && (req.method === "GET" || req.method === "HEAD")) {
+    return publicFecCard(req, res, pathname, { head: req.method === "HEAD" });
+  }
   if (pathname === "/stock") return redirect(res, "/stock/NVDA");
   if (pathname.startsWith("/stock/") && (req.method === "GET" || req.method === "HEAD")) {
     return publicStockCard(res, pathname, { head: req.method === "HEAD" });
@@ -2968,6 +2974,9 @@ async function route(req, res) {
   if (pathname === "/api/share/lobby" && req.method === "GET") {
     if (!checkFeature("LOBBYING_EXPLORER_ENABLED", res)) return;
     return shareLobbySnapshot(req, res, url);
+  }
+  if (pathname === "/api/share/fec" && req.method === "GET") {
+    return shareFecSnapshot(req, res, url);
   }
   if (pathname === "/api/ai/scorecard" && req.method === "POST") {
     if (!FEATURE_GATES.AI_RESEARCH_ENABLED || !serverAiProviderEnabled()) {
@@ -5878,6 +5887,7 @@ async function buildBillMoneyContext(bill) {
   return {
     matched: true,
     source: key ? "fec" : "sample",
+    clusterKey: cluster.key,
     cycle,
     committee: cluster.committee,
     chamber: cluster.chamber,
@@ -7168,9 +7178,9 @@ async function publicBillCard(req, res, pathname, { head = false } = {}) {
     ${billOgHeadHtml({ title: pageTitle, description, canonicalUrl, ogImage })}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/stock-card.css?v=bill-page-2" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-2" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=bill-intel-3" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=bill-intel-3" />
   </head>
   <body data-bill-id="${escapeHtmlText(billId)}">
     <main id="bill-card-root" class="bill-card-root" aria-live="polite">
@@ -7180,11 +7190,133 @@ async function publicBillCard(req, res, pathname, { head = false } = {}) {
         <p>Loading bill details.</p>
       </section>
     </main>
-    <script src="/assets/brief-shell.js?v=brief-shell-2" defer></script>
-    <script src="/assets/bill-card.js?v=bill-dossier-2" defer></script>
+    <script src="/assets/brief-shell.js?v=brief-shell-3" defer></script>
+    <script src="/assets/bill-card.js?v=bill-intel-3" defer></script>
   </body>
 </html>`;
   sendHtml(res, bill || validFormat ? 200 : 404, html, { head });
+}
+
+function knownFecClusterKeys(limit = 12) {
+  return (fecCommitteeMap.clusters || []).slice(0, limit).map((c) => c.key);
+}
+
+async function buildFecSharePayload(clusterKey) {
+  const key = String(clusterKey || "").trim();
+  if (!key) {
+    const err = new Error("Missing cluster key.");
+    err.code = "missing_cluster_key";
+    err.userMessage = "Provide a clusterKey query parameter.";
+    throw err;
+  }
+  const cluster = (fecCommitteeMap.clusters || []).find((c) => c.key === key);
+  if (!cluster) {
+    const err = new Error("Unknown FEC cluster.");
+    err.code = "unknown_cluster";
+    err.userMessage = "FEC cluster not found.";
+    throw err;
+  }
+  const payload = await getFecPulsePayload();
+  const pulse =
+    payload.pulses.find((p) => p.clusterKey === key) ||
+    buildFecPulseWithLinks(
+      { clusterKey: key, committee: cluster.committee, chamber: cluster.chamber, label: cluster.label },
+      cluster
+    );
+  const enriched = buildFecPulseWithLinks(pulse, cluster);
+  const canonicalUrl = `${APP_URL}/fec/${encodeURIComponent(key)}`;
+  return {
+    clusterKey: key,
+    cluster: {
+      key: cluster.key,
+      label: cluster.label,
+      committee: cluster.committee,
+      chamber: cluster.chamber,
+      policyTags: clusterPolicyTags(cluster),
+      policyTag: cluster.policyTag || null
+    },
+    pulse: enriched,
+    source: payload.source,
+    cycle: payload.cycle,
+    updatedAt: payload.updatedAt,
+    share: {
+      title: `${cluster.label || cluster.committee} | TradeSimple FEC brief`,
+      canonicalUrl,
+      disclaimer: "Campaign finance context only. Not investment advice."
+    },
+    methodologyDisclaimer: "Campaign finance context only. Not investment advice."
+  };
+}
+
+async function shareFecSnapshot(req, res, url) {
+  if (enforceShareRateLimit(req, res)) return;
+  const clusterKey = url.searchParams.get("clusterKey") || url.searchParams.get("key") || "";
+  try {
+    const payload = await buildFecSharePayload(clusterKey);
+    sendJson(res, 200, { ...payload, public: true });
+  } catch (err) {
+    const code = err.code === "unknown_cluster" || err.code === "missing_cluster_key" ? 404 : 502;
+    sendJson(res, code, {
+      error: err.code || "share_fec_unavailable",
+      message: err.userMessage || err.message || "Could not load FEC filing.",
+      knownClusterKeys: err.code === "unknown_cluster" ? knownFecClusterKeys() : undefined,
+      dashboardUrl: "/dashboard?view=fec"
+    });
+  }
+}
+
+function buildFecOgDescription(payload) {
+  const pulse = payload?.pulse || {};
+  const cluster = payload?.cluster || {};
+  const why = pulse.plainEnglish || `${cluster.label || cluster.committee || "FEC cluster"} campaign finance filing.`;
+  return truncateOgDescription(`${why} Research context only.`);
+}
+
+async function publicFecCard(req, res, pathname, { head = false } = {}) {
+  const raw = decodeURIComponent(pathname.slice("/fec/".length).split(/[/?#]/)[0]);
+  const clusterKey = String(raw || "").trim();
+  let payload = null;
+  try {
+    if (clusterKey) payload = await buildFecSharePayload(clusterKey);
+  } catch {
+    payload = null;
+  }
+  const cluster = payload?.cluster || (fecCommitteeMap.clusters || []).find((c) => c.key === clusterKey) || null;
+  const pageTitle = cluster
+    ? `${cluster.label || cluster.committee || clusterKey} | TradeSimple FEC brief`
+    : clusterKey
+      ? `${clusterKey} | TradeSimple FEC brief`
+      : `FEC brief not found | TradeSimple`;
+  const description = payload ? buildFecOgDescription(payload) : "FEC campaign finance filing linked to bills, lobbying, contracts, and tickers.";
+  const canonicalUrl = `${APP_URL}/fec/${encodeURIComponent(cluster?.key || clusterKey)}`;
+  const ogImage = `${APP_URL}/media/og-image.png`;
+  const html = `<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    ${billOgHeadHtml({ title: pageTitle, description, canonicalUrl, ogImage })}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/stock-card.css?v=fec-intel-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=fec-intel-1" />
+  </head>
+  <body data-fec-cluster-key="${escapeHtmlText(clusterKey)}">
+    <main id="fec-card-root" class="bill-card-root" aria-live="polite">
+      <section class="stock-card-loading">
+        <span class="mini-label">TradeSimple FEC brief</span>
+        <h1>${escapeHtmlText(cluster?.label || clusterKey || "FEC filing")}</h1>
+        <p>Loading filing details.</p>
+      </section>
+    </main>
+    <script src="/assets/brief-shell.js?v=brief-shell-3" defer></script>
+    <script src="/assets/fec-card.js?v=fec-intel-1" defer></script>
+  </body>
+</html>`;
+  sendHtml(res, payload || cluster ? 200 : 404, html, { head });
 }
 
 function contractCausalitySnapshot(symbol) {

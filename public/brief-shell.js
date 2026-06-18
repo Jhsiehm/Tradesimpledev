@@ -383,6 +383,11 @@
     return id ? `/lobby/${encodeURIComponent(id)}` : "/dashboard?view=lobbying";
   }
 
+  function fecPageUrl(clusterKey) {
+    const key = String(clusterKey || "").trim();
+    return key ? `/fec/${encodeURIComponent(key)}` : "/dashboard?view=fec";
+  }
+
   function traceTickerCtaHtml(symbol, escapeHtml, opts = {}) {
     const esc = escapeHtml || ((value) => String(value ?? ""));
     const sym = String(symbol || "")
@@ -456,6 +461,7 @@
     resolveStepHtml,
     stockPageUrl,
     lobbyPageUrl,
+    fecPageUrl,
     traceTickerCtaHtml,
     freshnessChipHtml,
     parseAiBulletItems,

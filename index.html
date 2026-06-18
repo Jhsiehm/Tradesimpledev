@@ -1334,7 +1334,7 @@ function hydrateLandingSignal(){
       if(counts.lobbyingFilings)links.push(counts.lobbyingFilings+' lobby');
       if(counts.contracts)links.push(counts.contracts+' contract'+(counts.contracts===1?'':'s'));
       var linkLine=links.length?(' · Linked: '+links.join(' · ')):'';
-      return '<article class="fec-marketing-card"><div class="fec-marketing-card-head"><strong>'+escHtml(p.label||p.committee||'Committee')+'</strong><span>'+escHtml(p.committee||'')+' · '+escHtml(p.chamber||'')+'</span></div><p>'+escHtml((p.plainEnglish||'').slice(0,160))+((p.plainEnglish||'').length>160?'…':'')+'</p><em>'+escHtml(tick)+' · '+escHtml(p.filingDate||'')+escHtml(linkLine)+'</em></article>';
+      return '<article class="fec-marketing-card"><div class="fec-marketing-card-head"><strong>'+escHtml(p.label||p.committee||'Committee')+'</strong><span>'+escHtml(p.committee||'')+' · '+escHtml(p.chamber||'')+'</span></div><p>'+escHtml((p.plainEnglish||'').slice(0,160))+((p.plainEnglish||'').length>160?'…':'')+'</p><em>'+escHtml(tick)+' · '+escHtml(p.filingDate||'')+escHtml(linkLine)+'</em><a class="ts-secondary-cta" style="margin-top:.65rem;display:inline-block" href="/fec/'+encodeURIComponent(p.clusterKey||p.committee||'')+'">Read brief →</a></article>';
     }).join('');
     var hero=pulses[0];
     if(trail&&trailSteps&&hero){

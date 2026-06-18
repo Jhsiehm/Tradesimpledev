@@ -41,9 +41,10 @@ body {
 }
 
 .bill-card-hero h1 {
-  font-family: "DM Serif Display", Georgia, serif;
-  font-size: clamp(1.75rem, 4vw, 2.35rem);
-  line-height: 1.15;
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-size: clamp(1.85rem, 4vw, 2.55rem);
+  font-weight: 600;
+  line-height: 1.12;
   margin: 0.35rem 0 0.75rem;
 }
 
@@ -1581,6 +1582,208 @@ html[data-theme="light"] .bill-ai-lede-wrap .ai-analysis-bullets {
   .ai-analysis-bullets {
     padding-left: 1rem;
     font-size: 0.9rem;
+  }
+}
+
+/* ── Intelligence file — full-page brief layout ───────── */
+
+.intelligence-file {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 0 3rem;
+  border-left: 4px solid var(--brief-accent, var(--green, #c8ff00));
+  padding-left: 1.15rem;
+}
+
+.brief-accent--high {
+  --brief-accent: var(--green, #c8ff00);
+}
+
+.brief-accent--medium {
+  --brief-accent: var(--amber, #efb45a);
+}
+
+.brief-accent--low {
+  --brief-accent: var(--blue, #7fb2df);
+}
+
+.dossier-ts-mark {
+  color: var(--green, #c8ff00);
+  font-weight: 700;
+}
+
+.intelligence-lede {
+  font-size: 1.05rem;
+  line-height: 1.72;
+  max-width: 58ch;
+  margin: 0 0 1.25rem;
+}
+
+.intelligence-annex {
+  margin: 0;
+  padding: 1.25rem 0 1.4rem;
+  border-top: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+}
+
+.intelligence-annex:first-of-type {
+  border-top: none;
+  padding-top: 0.5rem;
+}
+
+.intelligence-annex-id {
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.62;
+  margin: 0 0 0.65rem;
+}
+
+.intelligence-annex-title {
+  font-family: var(--serif, "Cormorant Garamond", Georgia, serif);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0 0 0.85rem;
+}
+
+.intelligence-annex .bill-card-panel,
+.intelligence-annex.bill-card-panel {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+.intelligence-link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.intelligence-link-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line, rgba(241, 238, 230, 0.1));
+}
+
+.intelligence-link-item:last-child {
+  border-bottom: none;
+}
+
+.intelligence-link-label {
+  display: block;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 0.2rem;
+}
+
+.intelligence-link-label a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.intelligence-link-label a:hover {
+  color: var(--green, #c8ff00);
+}
+
+.intelligence-link-reason {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.intelligence-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.65rem 0 1rem;
+}
+
+.intelligence-file-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+}
+
+.intelligence-file-footer .bill-card-footer-links {
+  margin-top: 0.85rem;
+}
+
+.bill-card-page.intelligence-file .bill-card-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+  margin-bottom: 0;
+}
+
+.bill-card-page.intelligence-file .bill-card-grid {
+  display: block;
+  margin: 0;
+  gap: 0;
+}
+
+.bill-card-page.intelligence-file .bill-card-grid .bill-card-panel {
+  margin: 0;
+}
+
+.bill-card-page.intelligence-file .money-context-expand {
+  border: none;
+  background: transparent;
+  padding: 1.25rem 0;
+}
+
+.bill-card-page.intelligence-file .money-context-expand summary {
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.62;
+  font-weight: 600;
+}
+
+.bill-card-page.intelligence-file .bill-collapse {
+  border: none;
+  background: transparent;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--line, rgba(241, 238, 230, 0.12));
+}
+
+@media print {
+  .bill-mode-toggle,
+  .bill-card-actions,
+  .bill-step-controls,
+  .bill-share-toast {
+    display: none !important;
+  }
+
+  .intelligence-file,
+  .bill-guided {
+    border-left: 3px solid #333;
+    max-width: 100%;
+    padding: 0 0 1rem 0.75rem;
+  }
+
+  .bill-step-viewport {
+    border: none;
+    background: #fff;
+  }
+
+  .dossier-classify {
+    border-color: #333;
+  }
+
+  body {
+    background: #fff;
+    color: #111;
   }
 }
 

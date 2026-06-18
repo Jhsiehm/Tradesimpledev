@@ -1851,6 +1851,12 @@ function lobbyPageUrl(filing) {
   return `/lobby/${encodeURIComponent(id)}`;
 }
 
+function fecPageUrl(clusterKey) {
+  const key = String(clusterKey || "").trim();
+  if (!key) return "/dashboard?view=fec";
+  return `/fec/${encodeURIComponent(key)}`;
+}
+
 function billSourceUrl(bill) {
   if (bill?.congressUrl) return bill.congressUrl;
   const id = String(bill?.id || "");
@@ -2310,6 +2316,14 @@ function setupDashboardDrilldowns() {
   document.body.dataset.drilldownsReady = "true";
 
   document.addEventListener("click", (event) => {
+    const fecBrief = event.target.closest("[data-fec-brief]");
+    if (fecBrief) {
+      const nested = event.target.closest("a, button, input, select, textarea, label");
+      if (nested && nested !== fecBrief) return;
+      event.preventDefault();
+      window.location.href = fecPageUrl(fecBrief.dataset.fecBrief || "");
+      return;
+    }
     const target = event.target.closest("[data-drill-action]");
     if (!target) return;
     const nestedControl = event.target.closest("a, button, input, select, textarea, label");
@@ -2320,6 +2334,12 @@ function setupDashboardDrilldowns() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
+    const fecBrief = event.target.closest("[data-fec-brief]");
+    if (fecBrief && fecBrief === event.target) {
+      event.preventDefault();
+      window.location.href = fecPageUrl(fecBrief.dataset.fecBrief || "");
+      return;
+    }
     const target = event.target.closest("[data-drill-action]");
     if (!target || target !== event.target) return;
     event.preventDefault();
@@ -4861,6 +4881,7 @@ function renderFecPulseStrip() {
       ${renderFecLinkChips(top, { compact: true })}
       ${signalScanLineHtml({ source: "FEC", date: top.filingDate, tickers: top.tickers, band: top.period || payload.cycle })}
       <div class="fec-pulse-actions">
+        <a class="link-button" href="${escapeHtml(fecPageUrl(top.clusterKey || top.committee))}">Read brief →</a>
         <button type="button" class="link-button" data-view-jump="fec">View all filings →</button>
         <button type="button" class="link-button" data-view-jump="signals">Signals →</button>
         ${top.fecUrl ? `<a class="link-button" href="${escapeHtml(top.fecUrl)}" target="_blank" rel="noopener noreferrer">FEC.gov →</a>` : ""}
@@ -4927,6 +4948,7 @@ function renderFecView() {
         </div>
         ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers, band: pulse.period })}
         <div class="fec-pulse-actions">
+          <a class="button button-primary compact" href="${escapeHtml(fecPageUrl(pulseKey))}">Read brief</a>
           <button type="button" class="button button-secondary compact" data-fec-open="${escapeHtml(pulseKey)}">Explain links</button>
           ${pulse.fecUrl ? `<a class="link-button" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
         </div>
@@ -4960,7 +4982,8 @@ function openFecDetailDrawer(pulseKey) {
     </div>
     ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers: pulse.tickers, band: pulse.period })}
     <div class="fec-pulse-actions">
-      ${pulse.fecUrl ? `<a class="button button-primary compact" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
+      <a class="button button-primary compact" href="${escapeHtml(fecPageUrl(clusterKey))}">Read brief →</a>
+      ${pulse.fecUrl ? `<a class="button button-secondary compact" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
       <button type="button" class="button button-ghost compact" data-view-jump="signals">Open Signals</button>
     </div>`;
   drawer.hidden = false;
@@ -5069,6 +5092,7 @@ function renderBillFecBlock(bill) {
       <div class="money-context-tickers">${(ctx.tickers || []).slice(0, 4).map((t) => `<span class="mini-pill green">${escapeHtml(t)}</span>`).join(" ")}</div>
       ${ctx.linkCounts ? renderFecLinkChips({ linkCounts: ctx.linkCounts }, { compact: true }) : ""}
       <div class="fec-pulse-actions">
+        ${ctx.clusterKey ? `<a class="link-button" href="${escapeHtml(fecPageUrl(ctx.clusterKey))}">Read FEC brief →</a>` : ""}
         ${ctx.fecUrl ? `<a class="link-button" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
         <button type="button" class="link-button" data-view-jump="fec">Related FEC pulses →</button>
       </div>
@@ -8773,8 +8797,8 @@ function signalDrillAttrs(sig) {
   if (sig._billId) {
     return drilldownAttrs("bills", { billId: sig._billId }, `Open ${sig._billId} in Bills`);
   }
-  if (sig._fecUrl) {
-    return `data-external-link="${escapeHtml(sig._fecUrl)}" tabindex="0" role="link"`;
+  if (sig._fecKey) {
+    return `data-fec-brief="${escapeHtml(sig._fecKey)}" tabindex="0" role="link" aria-label="Open FEC brief for ${escapeHtml(sig._fecKey)}"`;
   }
   if (sig._contractSymbol) {
     return drilldownAttrs("view", { viewName: "contracts" }, "Open contracts view");
