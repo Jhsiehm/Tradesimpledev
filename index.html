@@ -477,7 +477,10 @@ section{position:relative;z-index:1}
 .fec-marketing-card-head span{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .fec-marketing-card p{margin:0;font-size:.88rem;line-height:1.45}
 .fec-marketing-card em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--faint)}
-.fec-marketing-note{margin:0;font-size:10px;font-family:var(--mono)}
+.fec-marketing-trail{margin-top:.35rem;padding:.85rem;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--panel) 92%,transparent)}
+.fec-marketing-trail-steps{display:grid;gap:.45rem;margin:.55rem 0 0;font-size:.82rem;line-height:1.45}
+.fec-marketing-trail-step{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fec-marketing-trail-step strong{color:var(--text);font-weight:600}
 
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
@@ -756,8 +759,8 @@ footer nav a:hover{color:var(--text)}
     <div class="fec-marketing-head">
       <div>
         <p class="chapter-eyebrow">Live from FEC</p>
-        <h2 class="fec-marketing-title">PAC filings mapped to tickers.</h2>
-        <p class="fec-marketing-lede muted">Committee receipts and recent filings from FEC.gov — labeled live or illustrative before you open the terminal.</p>
+        <h2 class="fec-marketing-title">See how a PAC filing connects to a bill, lobbyist, and ticker.</h2>
+        <p class="fec-marketing-lede muted">Every link shows why — committee maps, LDA crosswalks, and contract recipients. Live when FEC_API_KEY is set; illustrative otherwise.</p>
       </div>
       <div class="fec-marketing-rail">
         <span class="fec-marketing-badge mini-pill" id="fec-marketing-badge">Connecting</span>
@@ -766,6 +769,10 @@ footer nav a:hover{color:var(--text)}
       </div>
     </div>
     <div class="fec-marketing-cards" id="fec-marketing-cards"></div>
+    <div class="fec-marketing-trail" id="fec-marketing-trail" hidden>
+      <p class="chapter-eyebrow">Example money trail</p>
+      <div class="fec-marketing-trail-steps" id="fec-marketing-trail-steps"></div>
+    </div>
     <p class="fec-marketing-note muted">Campaign finance context only — not investment advice. Source: FEC.gov via Open FEC API.</p>
   </div>
 </section>
@@ -1308,9 +1315,11 @@ function hydrateLandingSignal(){
     var strip=document.getElementById('fec-marketing-strip');
     var cards=document.getElementById('fec-marketing-cards');
     var badge=document.getElementById('fec-marketing-badge');
+    var trail=document.getElementById('fec-marketing-trail');
+    var trailSteps=document.getElementById('fec-marketing-trail-steps');
     if(!strip||!cards)return;
     var pulses=(payload&&payload.pulses)||[];
-    if(!pulses.length){strip.hidden=true;cards.innerHTML='';return;}
+    if(!pulses.length){strip.hidden=true;cards.innerHTML='';if(trail)trail.hidden=true;return;}
     strip.hidden=false;
     var isLive=payload.source==='fec';
     if(badge){
@@ -1319,8 +1328,27 @@ function hydrateLandingSignal(){
     }
     cards.innerHTML=pulses.slice(0,3).map(function(p){
       var tick=(p.tickers||[]).slice(0,3).join(', ')||'—';
-      return '<article class="fec-marketing-card"><div class="fec-marketing-card-head"><strong>'+escHtml(p.label||p.committee||'Committee')+'</strong><span>'+escHtml(p.committee||'')+' · '+escHtml(p.chamber||'')+'</span></div><p>'+escHtml((p.plainEnglish||'').slice(0,160))+((p.plainEnglish||'').length>160?'…':'')+'</p><em>'+escHtml(tick)+' · '+escHtml(p.filingDate||'')+'</em></article>';
+      var counts=p.linkCounts||{};
+      var links=[];
+      if(counts.bills)links.push(counts.bills+' bill'+(counts.bills===1?'':'s'));
+      if(counts.lobbyingFilings)links.push(counts.lobbyingFilings+' lobby');
+      if(counts.contracts)links.push(counts.contracts+' contract'+(counts.contracts===1?'':'s'));
+      var linkLine=links.length?(' · Linked: '+links.join(' · ')):'';
+      return '<article class="fec-marketing-card"><div class="fec-marketing-card-head"><strong>'+escHtml(p.label||p.committee||'Committee')+'</strong><span>'+escHtml(p.committee||'')+' · '+escHtml(p.chamber||'')+'</span></div><p>'+escHtml((p.plainEnglish||'').slice(0,160))+((p.plainEnglish||'').length>160?'…':'')+'</p><em>'+escHtml(tick)+' · '+escHtml(p.filingDate||'')+escHtml(linkLine)+'</em></article>';
     }).join('');
+    var hero=pulses[0];
+    if(trail&&trailSteps&&hero){
+      trail.hidden=false;
+      var tk=(hero.tickers||[])[0]||'LMT';
+      var billN=(hero.linkCounts&&hero.linkCounts.bills)||2;
+      var lobbyN=(hero.linkCounts&&hero.linkCounts.lobbyingFilings)||1;
+      trailSteps.innerHTML=[
+        '<div class="fec-marketing-trail-step"><strong>FEC</strong> · '+escHtml(hero.committee||'Committee')+' PAC cluster · '+(isLive?'Live FEC':'Illustrative')+'</div>',
+        '<div class="fec-marketing-trail-step"><strong>Bill</strong> · '+billN+' linked bill'+(billN===1?'':'s')+' via committee map</div>',
+        '<div class="fec-marketing-trail-step"><strong>Lobby</strong> · '+lobbyN+' LDA filing'+(lobbyN===1?'':'s')+' via client crosswalk</div>',
+        '<div class="fec-marketing-trail-step"><strong>Ticker</strong> · '+escHtml(tk)+' via explicit fec-committee-map.json</div>'
+      ].join('');
+    }
   }
   function updateTrendingStrip(items){
     var strip=document.getElementById('landing-trending-strip');

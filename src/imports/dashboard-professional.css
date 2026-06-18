@@ -4967,6 +4967,135 @@ body[data-page="dashboard"] .fec-feed-meta {
   font-family: var(--mono);
 }
 
+body[data-page="dashboard"] .money-trail-card {
+  border-radius: var(--elev-radius-md);
+  padding: 1rem 1rem 1rem 1.1rem;
+  background: color-mix(in srgb, var(--panel) 94%, var(--accent) 6%);
+  box-shadow: var(--elev-shadow);
+}
+
+body[data-page="dashboard"] .money-trail-linked-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0.35rem 0 0.25rem;
+}
+
+body[data-page="dashboard"] .link-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.55rem;
+}
+
+body[data-page="dashboard"] .link-chip-row--compact {
+  margin: 0.25rem 0 0.45rem;
+}
+
+body[data-page="dashboard"] .link-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line-2) 70%, transparent);
+  background: color-mix(in srgb, var(--panel-2) 88%, transparent);
+  color: var(--text);
+}
+
+body[data-page="dashboard"] .link-chip--bill { border-color: color-mix(in srgb, var(--green) 35%, var(--line-2)); }
+body[data-page="dashboard"] .link-chip--lobby { border-color: color-mix(in srgb, #c084fc 35%, var(--line-2)); }
+body[data-page="dashboard"] .link-chip--contract { border-color: color-mix(in srgb, var(--amber) 35%, var(--line-2)); }
+body[data-page="dashboard"] .link-chip--ticker { border-color: color-mix(in srgb, var(--accent) 35%, var(--line-2)); }
+
+body[data-page="dashboard"] .provenance-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0.15rem 0 0;
+}
+
+body[data-page="dashboard"] .explain-panel {
+  margin: 0.85rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--elev-radius-sm);
+  background: color-mix(in srgb, var(--panel-2) 90%, transparent);
+}
+
+body[data-page="dashboard"] .explain-panel-title {
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+body[data-page="dashboard"] .explain-panel-lede {
+  font-size: 0.82rem;
+  margin: 0 0 0.65rem;
+}
+
+body[data-page="dashboard"] .explain-panel-section {
+  margin-top: 0.65rem;
+}
+
+body[data-page="dashboard"] .explain-panel-section h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] .explain-link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+body[data-page="dashboard"] .explain-link-item {
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--elev-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--line-2) 65%, transparent);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+
+body[data-page="dashboard"] .explain-link-item[role="button"] {
+  cursor: pointer;
+}
+
+body[data-page="dashboard"] .explain-link-item[role="button"]:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line-2));
+}
+
+body[data-page="dashboard"] .explain-link-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+body[data-page="dashboard"] .analysis-unified-trail {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--elev-radius-md);
+}
+
+@media (max-width: 760px) {
+  body[data-page="dashboard"] .fec-feed-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  body[data-page="dashboard"] .money-trail-card {
+    width: 100%;
+  }
+}
+
 body[data-page="dashboard"] .money-context-expand summary {
   cursor: pointer;
   font-weight: 600;

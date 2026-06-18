@@ -741,18 +741,26 @@ function moneyContextSection(ctx) {
   }
   const badge = ctx.source === "sample" ? "Sample FEC" : "Live FEC";
   const badgeClass = ctx.source === "sample" ? "amber" : "green";
+  const linkSummary = ctx.linkCounts
+    ? [
+        ctx.linkCounts.bills ? `${ctx.linkCounts.bills} bill${ctx.linkCounts.bills === 1 ? "" : "s"}` : "",
+        ctx.linkCounts.lobbyingFilings ? `${ctx.linkCounts.lobbyingFilings} lobby` : "",
+        ctx.linkCounts.contracts ? `${ctx.linkCounts.contracts} contract${ctx.linkCounts.contracts === 1 ? "" : "s"}` : ""
+      ].filter(Boolean).join(" · ")
+    : "";
   return `
     <details class="bill-card-panel money-context money-context-expand" open>
       <summary>Money context · <span class="mini-pill ${badgeClass}">${escapeHtml(badge)}</span></summary>
       <p>${escapeHtml(ctx.plainEnglish || "")}</p>
       <ul class="money-context-bullets">
-        ${(ctx.marketBullets || []).slice(0, 3).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+        ${(ctx.marketBullets || []).slice(0, 4).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ul>
+      ${linkSummary ? `<p class="provenance-line muted">Cross-links: ${escapeHtml(linkSummary)}</p>` : ""}
       ${ctx.sponsorSummary ? `<p class="muted">Sponsor ${escapeHtml(ctx.sponsorSummary.name)} · ${money(ctx.sponsorSummary.receipts || 0)} · ${escapeHtml(String(ctx.cycle || ""))} cycle</p>` : ""}
       <div class="bill-ticker-row">${(ctx.tickers || []).slice(0, 6).map((t) => `<span class="ticker-chip-link">${escapeHtml(t)}</span>`).join("")}</div>
       <div class="money-context-actions">
         ${ctx.fecUrl ? `<a class="card-button ghost" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
-        <a class="card-button ghost" href="/dashboard?view=fec">Related FEC pulses →</a>
+        <a class="card-button ghost" href="/dashboard?view=fec">Money Trail →</a>
       </div>
     </details>`;
 }

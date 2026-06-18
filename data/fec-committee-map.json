@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "cycle": 2024,
   "clusters": [
     {
@@ -7,180 +7,1189 @@
       "committee": "Armed Services",
       "chamber": "House",
       "label": "Defense industry PACs",
-      "policy_tags": ["defense", "national security", "military", "foreign affairs", "ndaa"],
-      "bill_keywords": ["defense", "military", "armed forces", "national security", "pentagon", "ndaa", "weapons"],
-      "fec_committee_ids": ["C00129559", "C00088591", "C00281212", "C00010603"],
-      "tickers": ["LMT", "RTX", "NOC", "GD", "PLTR"]
+      "policy_tags": [
+        "defense",
+        "national security",
+        "military",
+        "foreign affairs",
+        "ndaa"
+      ],
+      "bill_keywords": [
+        "defense",
+        "military",
+        "armed forces",
+        "national security",
+        "pentagon",
+        "ndaa",
+        "weapons"
+      ],
+      "fec_committee_ids": [
+        "C00129559",
+        "C00088591",
+        "C00281212",
+        "C00010603"
+      ],
+      "tickers": [
+        "LMT",
+        "RTX",
+        "NOC",
+        "GD",
+        "PLTR"
+      ],
+      "pacCommitteeIds": [
+        "C00129559",
+        "C00088591",
+        "C00281212",
+        "C00010603"
+      ],
+      "policyTags": [
+        "defense",
+        "national security",
+        "military",
+        "foreign affairs",
+        "ndaa"
+      ],
+      "billCommitteeKeys": [
+        "armed services",
+        "house armed services",
+        "ndaa",
+        "national defense authorization"
+      ],
+      "lobbyingClientAliases": [
+        "Lockheed Martin",
+        "Raytheon Technologies",
+        "RTX",
+        "Northrop Grumman",
+        "General Dynamics",
+        "Palantir Technologies",
+        "Booz Allen Hamilton"
+      ],
+      "contractRecipientKeys": [
+        "LOCKHEED",
+        "RAYTHEON",
+        "NORTHROP",
+        "GENERAL DYNAMICS",
+        "PALANTIR",
+        "BOOZ ALLEN",
+        "LEIDOS",
+        "SAIC"
+      ],
+      "registrantNames": [
+        "Lockheed Martin Corporation PAC"
+      ],
+      "policyTag": "defense",
+      "explainTemplate": {
+        "ticker": "{ticker} via Armed Services PAC cluster · explicit map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "armed-services-senate",
       "committee": "Armed Services",
       "chamber": "Senate",
       "label": "Senate defense PAC cluster",
-      "policy_tags": ["defense", "national security", "military"],
-      "bill_keywords": ["defense authorization", "senate armed", "military construction"],
-      "fec_committee_ids": ["C00129559", "C00088591", "C00281212"],
-      "tickers": ["LMT", "RTX", "NOC", "GD"]
+      "policy_tags": [
+        "defense",
+        "national security",
+        "military"
+      ],
+      "bill_keywords": [
+        "defense authorization",
+        "senate armed",
+        "military construction"
+      ],
+      "fec_committee_ids": [
+        "C00129559",
+        "C00088591",
+        "C00281212"
+      ],
+      "tickers": [
+        "LMT",
+        "RTX",
+        "NOC",
+        "GD"
+      ],
+      "pacCommitteeIds": [
+        "C00129559",
+        "C00088591",
+        "C00281212"
+      ],
+      "policyTags": [
+        "defense",
+        "national security",
+        "military"
+      ],
+      "billCommitteeKeys": [
+        "armed services",
+        "senate armed services",
+        "ndaa"
+      ],
+      "lobbyingClientAliases": [
+        "Lockheed Martin",
+        "RTX",
+        "Northrop Grumman",
+        "General Dynamics"
+      ],
+      "contractRecipientKeys": [
+        "LOCKHEED",
+        "RAYTHEON",
+        "NORTHROP",
+        "GENERAL DYNAMICS"
+      ],
+      "policyTag": "defense",
+      "explainTemplate": {
+        "ticker": "{ticker} via Senate defense PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "banking",
       "committee": "Banking",
       "chamber": "Senate",
       "label": "Financial services PACs",
-      "policy_tags": ["banking", "finance", "financial services", "capital markets"],
-      "bill_keywords": ["bank", "financial", "securities", "capital markets", "credit", "mortgage"],
-      "fec_committee_ids": ["C00004530", "C00344686", "C00029447"],
-      "tickers": ["JPM", "BAC", "GS", "MS", "C"]
+      "policy_tags": [
+        "banking",
+        "finance",
+        "financial services",
+        "capital markets"
+      ],
+      "bill_keywords": [
+        "bank",
+        "financial",
+        "securities",
+        "capital markets",
+        "credit",
+        "mortgage"
+      ],
+      "fec_committee_ids": [
+        "C00004530",
+        "C00344686",
+        "C00029447"
+      ],
+      "tickers": [
+        "JPM",
+        "BAC",
+        "GS",
+        "MS",
+        "C"
+      ],
+      "pacCommitteeIds": [
+        "C00004530",
+        "C00344686",
+        "C00029447"
+      ],
+      "policyTags": [
+        "banking",
+        "finance",
+        "financial services",
+        "capital markets"
+      ],
+      "billCommitteeKeys": [
+        "banking",
+        "senate banking",
+        "banking housing and urban affairs"
+      ],
+      "lobbyingClientAliases": [
+        "JPMorgan Chase",
+        "Bank of America",
+        "Goldman Sachs",
+        "Morgan Stanley",
+        "Citigroup"
+      ],
+      "contractRecipientKeys": [
+        "JPMORGAN",
+        "BANK OF AMERICA",
+        "GOLDMAN",
+        "MORGAN STANLEY",
+        "CITIGROUP"
+      ],
+      "policyTag": "fintech",
+      "explainTemplate": {
+        "ticker": "{ticker} via Senate Banking PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "financial-services",
       "committee": "Financial Services",
       "chamber": "House",
       "label": "House finance PAC cluster",
-      "policy_tags": ["banking", "finance", "fintech", "payments"],
-      "bill_keywords": ["financial services", "banking", "payment", "fintech", "stablecoin"],
-      "fec_committee_ids": ["C00004530", "C00344686", "C00431445"],
-      "tickers": ["JPM", "BAC", "V", "MA", "COIN"]
+      "policy_tags": [
+        "banking",
+        "finance",
+        "fintech",
+        "payments"
+      ],
+      "bill_keywords": [
+        "financial services",
+        "banking",
+        "payment",
+        "fintech",
+        "stablecoin"
+      ],
+      "fec_committee_ids": [
+        "C00004530",
+        "C00344686",
+        "C00431445"
+      ],
+      "tickers": [
+        "JPM",
+        "BAC",
+        "V",
+        "MA",
+        "COIN"
+      ],
+      "pacCommitteeIds": [
+        "C00004530",
+        "C00344686",
+        "C00431445"
+      ],
+      "policyTags": [
+        "banking",
+        "finance",
+        "fintech",
+        "payments"
+      ],
+      "billCommitteeKeys": [
+        "financial services",
+        "house financial services"
+      ],
+      "lobbyingClientAliases": [
+        "JPMorgan Chase",
+        "Bank of America",
+        "Visa",
+        "Mastercard",
+        "Coinbase Global"
+      ],
+      "contractRecipientKeys": [
+        "JPMORGAN",
+        "VISA",
+        "MASTERCARD",
+        "COINBASE"
+      ],
+      "policyTag": "fintech",
+      "explainTemplate": {
+        "ticker": "{ticker} via House Financial Services PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "energy-commerce",
       "committee": "Energy & Commerce",
       "chamber": "House",
       "label": "Energy & telecom PACs",
-      "policy_tags": ["energy", "telecom", "utilities", "climate"],
-      "bill_keywords": ["energy", "electric", "grid", "telecom", "broadband", "climate", "permitting"],
-      "fec_committee_ids": ["C00003440", "C00468449", "C00142711"],
-      "tickers": ["XOM", "CVX", "NEE", "ENPH", "FSLR", "TSLA"]
+      "policy_tags": [
+        "energy",
+        "telecom",
+        "utilities",
+        "climate"
+      ],
+      "bill_keywords": [
+        "energy",
+        "electric",
+        "grid",
+        "telecom",
+        "broadband",
+        "climate",
+        "permitting"
+      ],
+      "fec_committee_ids": [
+        "C00003440",
+        "C00468449",
+        "C00142711"
+      ],
+      "tickers": [
+        "XOM",
+        "CVX",
+        "NEE",
+        "ENPH",
+        "FSLR",
+        "TSLA"
+      ],
+      "pacCommitteeIds": [
+        "C00003440",
+        "C00468449",
+        "C00142711"
+      ],
+      "policyTags": [
+        "energy",
+        "telecom",
+        "utilities",
+        "climate"
+      ],
+      "billCommitteeKeys": [
+        "energy and commerce",
+        "energy & commerce",
+        "house energy"
+      ],
+      "lobbyingClientAliases": [
+        "Exxon Mobil",
+        "NextEra Energy",
+        "Enphase Energy",
+        "Tesla"
+      ],
+      "contractRecipientKeys": [
+        "EXXON",
+        "CHEVRON",
+        "NEXTERA",
+        "ENPHASE",
+        "TESLA"
+      ],
+      "policyTag": "energy",
+      "explainTemplate": {
+        "ticker": "{ticker} via Energy & Commerce PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "energy-natural-resources",
       "committee": "Energy & Natural Resources",
       "chamber": "Senate",
       "label": "Senate energy PAC cluster",
-      "policy_tags": ["energy", "oil", "gas", "mining", "public lands"],
-      "bill_keywords": ["energy", "oil", "gas", "mining", "public lands", "permitting"],
-      "fec_committee_ids": ["C00003440", "C00468449", "C00096156"],
-      "tickers": ["XOM", "CVX", "OXY", "COP"]
+      "policy_tags": [
+        "energy",
+        "oil",
+        "gas",
+        "mining",
+        "public lands"
+      ],
+      "bill_keywords": [
+        "energy",
+        "oil",
+        "gas",
+        "mining",
+        "public lands",
+        "permitting"
+      ],
+      "fec_committee_ids": [
+        "C00003440",
+        "C00468449",
+        "C00096156"
+      ],
+      "tickers": [
+        "XOM",
+        "CVX",
+        "OXY",
+        "COP"
+      ],
+      "pacCommitteeIds": [
+        "C00003440",
+        "C00468449",
+        "C00096156"
+      ],
+      "policyTags": [
+        "energy",
+        "oil",
+        "gas",
+        "mining",
+        "public lands"
+      ],
+      "billCommitteeKeys": [
+        "energy and natural resources",
+        "senate energy"
+      ],
+      "lobbyingClientAliases": [
+        "Exxon Mobil",
+        "Chevron",
+        "Occidental Petroleum",
+        "ConocoPhillips"
+      ],
+      "contractRecipientKeys": [
+        "EXXON",
+        "CHEVRON",
+        "OCCIDENTAL",
+        "CONOCOPHILLIPS"
+      ],
+      "policyTag": "energy",
+      "explainTemplate": {
+        "ticker": "{ticker} via Senate energy PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "judiciary",
       "committee": "Judiciary",
       "chamber": "Senate",
       "label": "Big Tech & platform PACs",
-      "policy_tags": ["antitrust", "tech", "platform", "privacy", "content moderation"],
-      "bill_keywords": ["antitrust", "platform", "app store", "privacy", "section 230", "digital market"],
-      "fec_committee_ids": ["C00489269", "C00489761", "C00493072"],
-      "tickers": ["GOOGL", "META", "AAPL", "AMZN", "MSFT"]
+      "policy_tags": [
+        "antitrust",
+        "tech",
+        "platform",
+        "privacy",
+        "content moderation"
+      ],
+      "bill_keywords": [
+        "antitrust",
+        "platform",
+        "app store",
+        "privacy",
+        "section 230",
+        "digital market"
+      ],
+      "fec_committee_ids": [
+        "C00489269",
+        "C00489761",
+        "C00493072"
+      ],
+      "tickers": [
+        "GOOGL",
+        "META",
+        "AAPL",
+        "AMZN",
+        "MSFT"
+      ],
+      "pacCommitteeIds": [
+        "C00489269",
+        "C00489761",
+        "C00493072"
+      ],
+      "policyTags": [
+        "antitrust",
+        "tech",
+        "platform",
+        "privacy",
+        "content moderation"
+      ],
+      "billCommitteeKeys": [
+        "judiciary",
+        "senate judiciary"
+      ],
+      "lobbyingClientAliases": [
+        "Google",
+        "Alphabet",
+        "Meta Platforms",
+        "Apple",
+        "Amazon.com",
+        "Microsoft"
+      ],
+      "contractRecipientKeys": [
+        "GOOGLE",
+        "META",
+        "APPLE",
+        "AMAZON",
+        "MICROSOFT"
+      ],
+      "policyTag": "tech",
+      "explainTemplate": {
+        "ticker": "{ticker} via Senate Judiciary PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "judiciary-house",
       "committee": "Judiciary",
       "chamber": "House",
       "label": "House tech oversight PACs",
-      "policy_tags": ["antitrust", "tech", "immigration", "intellectual property"],
-      "bill_keywords": ["antitrust", "platform", "copyright", "patent", "immigration"],
-      "fec_committee_ids": ["C00489269", "C00489761", "C00493072"],
-      "tickers": ["GOOGL", "META", "AAPL", "AMZN"]
+      "policy_tags": [
+        "antitrust",
+        "tech",
+        "immigration",
+        "intellectual property"
+      ],
+      "bill_keywords": [
+        "antitrust",
+        "platform",
+        "copyright",
+        "patent",
+        "immigration"
+      ],
+      "fec_committee_ids": [
+        "C00489269",
+        "C00489761",
+        "C00493072"
+      ],
+      "tickers": [
+        "GOOGL",
+        "META",
+        "AAPL",
+        "AMZN"
+      ],
+      "pacCommitteeIds": [
+        "C00489269",
+        "C00489761",
+        "C00493072"
+      ],
+      "policyTags": [
+        "antitrust",
+        "tech",
+        "immigration",
+        "intellectual property"
+      ],
+      "billCommitteeKeys": [
+        "judiciary",
+        "house judiciary"
+      ],
+      "lobbyingClientAliases": [
+        "Google",
+        "Meta Platforms",
+        "Apple",
+        "Amazon.com"
+      ],
+      "contractRecipientKeys": [
+        "GOOGLE",
+        "META",
+        "APPLE",
+        "AMAZON"
+      ],
+      "policyTag": "tech",
+      "explainTemplate": {
+        "ticker": "{ticker} via House Judiciary PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "help",
       "committee": "HELP",
       "chamber": "Senate",
       "label": "Pharma & health PACs",
-      "policy_tags": ["health", "pharma", "medicare", "drug pricing", "fda"],
-      "bill_keywords": ["drug", "medicare", "pharma", "health", "fda", "prescription", "insulin"],
-      "fec_committee_ids": ["C00000934", "C00004227", "C00002989"],
-      "tickers": ["LLY", "MRK", "PFE", "ABBV", "UNH"]
+      "policy_tags": [
+        "health",
+        "pharma",
+        "medicare",
+        "drug pricing",
+        "fda"
+      ],
+      "bill_keywords": [
+        "drug",
+        "medicare",
+        "pharma",
+        "health",
+        "fda",
+        "prescription",
+        "insulin"
+      ],
+      "fec_committee_ids": [
+        "C00000934",
+        "C00004227",
+        "C00002989"
+      ],
+      "tickers": [
+        "LLY",
+        "MRK",
+        "PFE",
+        "ABBV",
+        "UNH"
+      ],
+      "pacCommitteeIds": [
+        "C00000934",
+        "C00004227",
+        "C00002989"
+      ],
+      "policyTags": [
+        "health",
+        "pharma",
+        "medicare",
+        "drug pricing",
+        "fda"
+      ],
+      "billCommitteeKeys": [
+        "help",
+        "health education labor and pensions",
+        "senate help"
+      ],
+      "lobbyingClientAliases": [
+        "Eli Lilly and Company",
+        "Merck",
+        "Pfizer",
+        "AbbVie",
+        "UnitedHealth Group"
+      ],
+      "contractRecipientKeys": [
+        "ELI LILLY",
+        "PFIZER",
+        "MERCK",
+        "ABBVIE",
+        "UNITEDHEALTH"
+      ],
+      "policyTag": "pharma",
+      "explainTemplate": {
+        "ticker": "{ticker} via HELP PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "ways-means",
       "committee": "Ways & Means",
       "chamber": "House",
       "label": "Tax & health finance PACs",
-      "policy_tags": ["tax", "health", "trade", "social security"],
-      "bill_keywords": ["tax", "tariff", "trade", "medicare", "social security", "irs"],
-      "fec_committee_ids": ["C00000934", "C00004227", "C00029447"],
-      "tickers": ["UNH", "CVS", "LLY", "JPM"]
+      "policy_tags": [
+        "tax",
+        "health",
+        "trade",
+        "social security"
+      ],
+      "bill_keywords": [
+        "tax",
+        "tariff",
+        "trade",
+        "medicare",
+        "social security",
+        "irs"
+      ],
+      "fec_committee_ids": [
+        "C00000934",
+        "C00004227",
+        "C00029447"
+      ],
+      "tickers": [
+        "UNH",
+        "CVS",
+        "LLY",
+        "JPM"
+      ],
+      "pacCommitteeIds": [
+        "C00000934",
+        "C00004227",
+        "C00029447"
+      ],
+      "policyTags": [
+        "tax",
+        "health",
+        "trade",
+        "social security"
+      ],
+      "billCommitteeKeys": [
+        "ways and means",
+        "ways & means",
+        "house ways and means"
+      ],
+      "lobbyingClientAliases": [
+        "UnitedHealth Group",
+        "CVS Health",
+        "Eli Lilly",
+        "JPMorgan Chase"
+      ],
+      "contractRecipientKeys": [
+        "UNITEDHEALTH",
+        "CVS",
+        "ELI LILLY",
+        "JPMORGAN"
+      ],
+      "policyTag": "pharma",
+      "explainTemplate": {
+        "ticker": "{ticker} via Ways & Means PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "commerce",
       "committee": "Commerce",
       "chamber": "Senate",
       "label": "Semiconductor & export PACs",
-      "policy_tags": ["chips", "semiconductor", "export controls", "ai"],
-      "bill_keywords": ["chips", "semiconductor", "export", "artificial intelligence", "ai", "supply chain"],
-      "fec_committee_ids": ["C00493072", "C00142711", "C00489761"],
-      "tickers": ["NVDA", "INTC", "TSM", "AMAT", "ASML"]
+      "policy_tags": [
+        "chips",
+        "semiconductor",
+        "export controls",
+        "ai"
+      ],
+      "bill_keywords": [
+        "chips",
+        "semiconductor",
+        "export",
+        "artificial intelligence",
+        "ai",
+        "supply chain"
+      ],
+      "fec_committee_ids": [
+        "C00493072",
+        "C00142711",
+        "C00489761"
+      ],
+      "tickers": [
+        "NVDA",
+        "INTC",
+        "TSM",
+        "AMAT",
+        "ASML"
+      ],
+      "pacCommitteeIds": [
+        "C00493072",
+        "C00142711",
+        "C00489761"
+      ],
+      "policyTags": [
+        "chips",
+        "semiconductor",
+        "export controls",
+        "ai"
+      ],
+      "billCommitteeKeys": [
+        "commerce",
+        "commerce science and transportation",
+        "senate commerce"
+      ],
+      "lobbyingClientAliases": [
+        "NVIDIA Corporation",
+        "Intel Corporation",
+        "Applied Materials",
+        "ASML"
+      ],
+      "contractRecipientKeys": [
+        "NVIDIA",
+        "INTEL",
+        "APPLIED MATERIALS"
+      ],
+      "policyTag": "chips",
+      "explainTemplate": {
+        "ticker": "{ticker} via Commerce PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "foreign-relations",
       "committee": "Foreign Relations",
       "chamber": "Senate",
       "label": "Foreign policy & defense trade PACs",
-      "policy_tags": ["foreign affairs", "sanctions", "defense exports"],
-      "bill_keywords": ["foreign", "sanction", "aid", "ukraine", "israel", "export control"],
-      "fec_committee_ids": ["C00129559", "C00088591", "C00281212"],
-      "tickers": ["LMT", "RTX", "NOC", "GD"]
+      "policy_tags": [
+        "foreign affairs",
+        "sanctions",
+        "defense exports"
+      ],
+      "bill_keywords": [
+        "foreign",
+        "sanction",
+        "aid",
+        "ukraine",
+        "israel",
+        "export control"
+      ],
+      "fec_committee_ids": [
+        "C00129559",
+        "C00088591",
+        "C00281212"
+      ],
+      "tickers": [
+        "LMT",
+        "RTX",
+        "NOC",
+        "GD"
+      ],
+      "pacCommitteeIds": [
+        "C00129559",
+        "C00088591",
+        "C00281212"
+      ],
+      "policyTags": [
+        "foreign affairs",
+        "sanctions",
+        "defense exports"
+      ],
+      "billCommitteeKeys": [
+        "foreign relations",
+        "senate foreign relations"
+      ],
+      "lobbyingClientAliases": [
+        "Lockheed Martin",
+        "RTX",
+        "Northrop Grumman",
+        "General Dynamics"
+      ],
+      "contractRecipientKeys": [
+        "LOCKHEED",
+        "RAYTHEON",
+        "NORTHROP",
+        "GENERAL DYNAMICS"
+      ],
+      "policyTag": "defense",
+      "explainTemplate": {
+        "ticker": "{ticker} via Foreign Relations PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "agriculture",
       "committee": "Agriculture",
       "chamber": "House",
       "label": "Ag & biofuel PACs",
-      "policy_tags": ["agriculture", "farm", "biofuel", "food"],
-      "bill_keywords": ["farm", "agriculture", "crop", "biofuel", "food safety"],
-      "fec_committee_ids": ["C00096156", "C00468449"],
-      "tickers": ["DE", "ADM", "BG", "CF"]
+      "policy_tags": [
+        "agriculture",
+        "farm",
+        "biofuel",
+        "food"
+      ],
+      "bill_keywords": [
+        "farm",
+        "agriculture",
+        "crop",
+        "biofuel",
+        "food safety"
+      ],
+      "fec_committee_ids": [
+        "C00096156",
+        "C00468449"
+      ],
+      "tickers": [
+        "DE",
+        "ADM",
+        "BG",
+        "CF"
+      ],
+      "pacCommitteeIds": [
+        "C00096156",
+        "C00468449"
+      ],
+      "policyTags": [
+        "agriculture",
+        "farm",
+        "biofuel",
+        "food"
+      ],
+      "billCommitteeKeys": [
+        "agriculture",
+        "house agriculture"
+      ],
+      "lobbyingClientAliases": [
+        "Deere & Company",
+        "Archer Daniels Midland",
+        "Bunge"
+      ],
+      "contractRecipientKeys": [
+        "DEERE",
+        "ARCHER DANIELS",
+        "BUNGE"
+      ],
+      "policyTag": "agriculture",
+      "explainTemplate": {
+        "ticker": "{ticker} via Agriculture PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "transportation",
       "committee": "Transportation",
       "chamber": "House",
       "label": "Infrastructure & EV PACs",
-      "policy_tags": ["transportation", "infrastructure", "aviation", "ev"],
-      "bill_keywords": ["infrastructure", "highway", "aviation", "rail", "electric vehicle", "ev"],
-      "fec_committee_ids": ["C00142711", "C00468449"],
-      "tickers": ["TSLA", "F", "GM", "UBER"]
+      "policy_tags": [
+        "transportation",
+        "infrastructure",
+        "aviation",
+        "ev"
+      ],
+      "bill_keywords": [
+        "infrastructure",
+        "highway",
+        "aviation",
+        "rail",
+        "electric vehicle",
+        "ev"
+      ],
+      "fec_committee_ids": [
+        "C00142711",
+        "C00468449"
+      ],
+      "tickers": [
+        "TSLA",
+        "F",
+        "GM",
+        "UBER"
+      ],
+      "pacCommitteeIds": [
+        "C00142711",
+        "C00468449"
+      ],
+      "policyTags": [
+        "transportation",
+        "infrastructure",
+        "aviation",
+        "ev"
+      ],
+      "billCommitteeKeys": [
+        "transportation",
+        "transportation and infrastructure",
+        "house transportation"
+      ],
+      "lobbyingClientAliases": [
+        "Tesla",
+        "Ford Motor",
+        "General Motors",
+        "Uber Technologies"
+      ],
+      "contractRecipientKeys": [
+        "TESLA",
+        "FORD",
+        "GENERAL MOTORS",
+        "UBER"
+      ],
+      "policyTag": "transportation",
+      "explainTemplate": {
+        "ticker": "{ticker} via Transportation PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "homeland",
       "committee": "Homeland Security",
       "chamber": "House",
       "label": "Cyber & border security PACs",
-      "policy_tags": ["homeland security", "cyber", "border", "immigration"],
-      "bill_keywords": ["homeland", "cyber", "border", "immigration", "customs", "dhs"],
-      "fec_committee_ids": ["C00493072", "C00129559", "C00010603"],
-      "tickers": ["PANW", "CRWD", "LDOS", "BAH"]
+      "policy_tags": [
+        "homeland security",
+        "cyber",
+        "border",
+        "immigration"
+      ],
+      "bill_keywords": [
+        "homeland",
+        "cyber",
+        "border",
+        "immigration",
+        "customs",
+        "dhs"
+      ],
+      "fec_committee_ids": [
+        "C00493072",
+        "C00129559",
+        "C00010603"
+      ],
+      "tickers": [
+        "PANW",
+        "CRWD",
+        "LDOS",
+        "BAH"
+      ],
+      "pacCommitteeIds": [
+        "C00493072",
+        "C00129559",
+        "C00010603"
+      ],
+      "policyTags": [
+        "homeland security",
+        "cyber",
+        "border",
+        "immigration"
+      ],
+      "billCommitteeKeys": [
+        "homeland security",
+        "house homeland security"
+      ],
+      "lobbyingClientAliases": [
+        "Palo Alto Networks",
+        "CrowdStrike",
+        "Leidos",
+        "Booz Allen Hamilton"
+      ],
+      "contractRecipientKeys": [
+        "PALO ALTO",
+        "CROWDSTRIKE",
+        "LEIDOS",
+        "BOOZ ALLEN"
+      ],
+      "policyTag": "homeland",
+      "explainTemplate": {
+        "ticker": "{ticker} via Homeland Security PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "veterans",
       "committee": "Veterans' Affairs",
       "chamber": "Senate",
       "label": "Veterans health PACs",
-      "policy_tags": ["veterans", "health care", "va"],
-      "bill_keywords": ["veteran", "va ", "veterans affairs", "military health"],
-      "fec_committee_ids": ["C00002989", "C00004227"],
-      "tickers": ["UNH", "CVS", "HCA", "TDOC"]
+      "policy_tags": [
+        "veterans",
+        "health care",
+        "va"
+      ],
+      "bill_keywords": [
+        "veteran",
+        "va ",
+        "veterans affairs",
+        "military health"
+      ],
+      "fec_committee_ids": [
+        "C00002989",
+        "C00004227"
+      ],
+      "tickers": [
+        "UNH",
+        "CVS",
+        "HCA",
+        "TDOC"
+      ],
+      "pacCommitteeIds": [
+        "C00002989",
+        "C00004227"
+      ],
+      "policyTags": [
+        "veterans",
+        "health care",
+        "va"
+      ],
+      "billCommitteeKeys": [
+        "veterans affairs",
+        "senate veterans"
+      ],
+      "lobbyingClientAliases": [
+        "UnitedHealth Group",
+        "CVS Health",
+        "HCA Healthcare",
+        "Teladoc Health"
+      ],
+      "contractRecipientKeys": [
+        "UNITEDHEALTH",
+        "CVS",
+        "HCA"
+      ],
+      "policyTag": "pharma",
+      "explainTemplate": {
+        "ticker": "{ticker} via Veterans Affairs PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "crypto-digital",
       "committee": "Banking",
       "chamber": "Senate",
       "label": "Digital asset PACs",
-      "policy_tags": ["crypto", "digital asset", "blockchain", "stablecoin"],
-      "bill_keywords": ["crypto", "digital asset", "stablecoin", "blockchain", "sec", "cftc"],
-      "fec_committee_ids": ["C00431445", "C00344686"],
-      "tickers": ["COIN", "BTC", "ETH", "MSTR"]
+      "policy_tags": [
+        "crypto",
+        "digital asset",
+        "blockchain",
+        "stablecoin"
+      ],
+      "bill_keywords": [
+        "crypto",
+        "digital asset",
+        "stablecoin",
+        "blockchain",
+        "sec",
+        "cftc"
+      ],
+      "fec_committee_ids": [
+        "C00431445",
+        "C00344686"
+      ],
+      "tickers": [
+        "COIN",
+        "BTC",
+        "ETH",
+        "MSTR"
+      ],
+      "pacCommitteeIds": [
+        "C00431445",
+        "C00344686"
+      ],
+      "policyTags": [
+        "crypto",
+        "digital asset",
+        "blockchain",
+        "stablecoin"
+      ],
+      "billCommitteeKeys": [
+        "banking",
+        "senate banking",
+        "digital asset"
+      ],
+      "lobbyingClientAliases": [
+        "Coinbase Global",
+        "Crypto Council for Innovation"
+      ],
+      "contractRecipientKeys": [
+        "COINBASE"
+      ],
+      "policyTag": "crypto",
+      "explainTemplate": {
+        "ticker": "{ticker} via Digital asset PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     },
     {
       "key": "intel",
       "committee": "Intelligence",
       "chamber": "House",
       "label": "Intel & surveillance PACs",
-      "policy_tags": ["intelligence", "surveillance", "cyber", "defense tech"],
-      "bill_keywords": ["intelligence", "surveillance", "fisa", "cyber", "classified"],
-      "fec_committee_ids": ["C00493072", "C00129559", "C00010603"],
-      "tickers": ["PLTR", "LDOS", "PANW", "CRWD"]
+      "policy_tags": [
+        "intelligence",
+        "surveillance",
+        "cyber",
+        "defense tech"
+      ],
+      "bill_keywords": [
+        "intelligence",
+        "surveillance",
+        "fisa",
+        "cyber",
+        "classified"
+      ],
+      "fec_committee_ids": [
+        "C00493072",
+        "C00129559",
+        "C00010603"
+      ],
+      "tickers": [
+        "PLTR",
+        "LDOS",
+        "PANW",
+        "CRWD"
+      ],
+      "pacCommitteeIds": [
+        "C00493072",
+        "C00129559",
+        "C00010603"
+      ],
+      "policyTags": [
+        "intelligence",
+        "surveillance",
+        "cyber",
+        "defense tech"
+      ],
+      "billCommitteeKeys": [
+        "intelligence",
+        "permanent select committee on intelligence",
+        "house intelligence"
+      ],
+      "lobbyingClientAliases": [
+        "Palantir Technologies",
+        "Leidos",
+        "Palo Alto Networks",
+        "CrowdStrike"
+      ],
+      "contractRecipientKeys": [
+        "PALANTIR",
+        "LEIDOS",
+        "PALO ALTO",
+        "CROWDSTRIKE"
+      ],
+      "policyTag": "homeland",
+      "explainTemplate": {
+        "ticker": "{ticker} via Intelligence PAC cluster · map {mapKey}",
+        "bill": "Linked because {reason}",
+        "lobbying": "Linked because {reason}",
+        "contract": "Linked because {reason}"
+      }
     }
   ]
 }

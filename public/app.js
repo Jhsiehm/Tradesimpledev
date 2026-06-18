@@ -4436,7 +4436,7 @@ async function refreshTerminalData() {
     refreshMarketFeed({ render: false }),
     isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
     refreshPolicyFeed({ render: false }),
-    refreshFecPulse({ render: false }),
+    refreshFecPulse({ render: false, force: true }),
     refreshTrendingFeed({ render: false }),
     refreshContractWatchFeed({ render: false })
   ]);
@@ -4722,9 +4722,9 @@ async function refreshPolicyFeed({ render = true } = {}) {
   return { bills, lobbying };
 }
 
-async function refreshFecPulse({ render = true } = {}) {
+async function refreshFecPulse({ render = true, force = false } = {}) {
   try {
-    const data = await fetchJson("/api/fec/pulse");
+    const data = await fetchJson(`/api/fec/pulse${force ? "?refresh=1" : ""}`);
     state.fecPulse = data;
     rememberFeedMeta("fec", data, data.source || "fec");
     if (render) {
@@ -4742,6 +4742,58 @@ async function refreshFecPulse({ render = true } = {}) {
     console.warn("[fec] pulse unavailable", err);
     return null;
   }
+}
+
+function fecLinkCountSummary(pulse) {
+  const counts = pulse?.linkCounts || {};
+  const parts = [];
+  if (counts.bills) parts.push(`${counts.bills} bill${counts.bills === 1 ? "" : "s"}`);
+  if (counts.lobbyingFilings) parts.push(`${counts.lobbyingFilings} lobby filing${counts.lobbyingFilings === 1 ? "" : "s"}`);
+  if (counts.contracts) parts.push(`${counts.contracts} contract${counts.contracts === 1 ? "" : "s"}`);
+  if (counts.tickers) parts.push(`${counts.tickers} ticker${counts.tickers === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+
+function renderFecLinkChips(pulse, { compact = false } = {}) {
+  const counts = pulse?.linkCounts || {};
+  const chips = [];
+  if (counts.bills) chips.push({ label: `${counts.bills} bill${counts.bills === 1 ? "" : "s"}`, kind: "bill" });
+  if (counts.lobbyingFilings) chips.push({ label: `${counts.lobbyingFilings} lobby`, kind: "lobby" });
+  if (counts.contracts) chips.push({ label: `${counts.contracts} contract${counts.contracts === 1 ? "" : "s"}`, kind: "contract" });
+  if (counts.tickers) chips.push({ label: `${counts.tickers} ticker${counts.tickers === 1 ? "" : "s"}`, kind: "ticker" });
+  if (!chips.length) return "";
+  return `<div class="link-chip-row${compact ? " link-chip-row--compact" : ""}" aria-label="Linked entities">${chips
+    .map((chip) => `<span class="link-chip link-chip--${escapeHtml(chip.kind)}">${escapeHtml(chip.label)}</span>`)
+    .join("")}</div>`;
+}
+
+function renderProvenanceLine(text) {
+  if (!text) return "";
+  return `<p class="provenance-line muted">${escapeHtml(text)}</p>`;
+}
+
+function renderExplainabilitySection(title, rows, { idKey = "id", labelKey = "title", actionAttr = null } = {}) {
+  if (!rows?.length) {
+    return `<section class="explain-panel-section"><h4>${escapeHtml(title)}</h4><p class="muted">No explicit links in map yet.</p></section>`;
+  }
+  return `
+    <section class="explain-panel-section">
+      <h4>${escapeHtml(title)}</h4>
+      <ul class="explain-link-list">
+        ${rows
+          .map((row) => {
+            const label = row[labelKey] || row.symbol || row.client || row.recipient || row.id;
+            const action = actionAttr && row[idKey]
+              ? ` data-${actionAttr}="${escapeHtml(String(row[idKey]))}" role="button" tabindex="0"`
+              : "";
+            return `<li class="explain-link-item"${action}>
+              <span class="explain-link-label">${escapeHtml(label)}</span>
+              ${renderProvenanceLine(row.linkReason)}
+            </li>`;
+          })
+          .join("")}
+      </ul>
+    </section>`;
 }
 
 const FEC_TOPIC_FILTERS = {
@@ -4806,6 +4858,7 @@ function renderFecPulseStrip() {
         <span class="fec-pulse-committee">${escapeHtml(top.committee || "Committee")} · ${escapeHtml(top.chamber || "")}</span>
       </div>
       <p class="fec-pulse-line">${escapeHtml(top.plainEnglish || top.label || "")}</p>
+      ${renderFecLinkChips(top, { compact: true })}
       ${signalScanLineHtml({ source: "FEC", date: top.filingDate, tickers: top.tickers, band: top.period || payload.cycle })}
       <div class="fec-pulse-actions">
         <button type="button" class="link-button" data-view-jump="fec">View all filings →</button>
@@ -4858,13 +4911,15 @@ function renderFecView() {
       const pulseKey = pulse.clusterKey || `${pulse.committee}-${index}`;
       const tickers = (pulse.tickers || []).slice(0, 6);
       return `
-      <article class="fec-feed-card intel-card intel-card--fec" data-fec-pulse-key="${escapeHtml(pulseKey)}">
+      <article class="money-trail-card fec-feed-card intel-card intel-card--fec" data-fec-pulse-key="${escapeHtml(pulseKey)}">
         <div class="fec-pulse-head">
           <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
           <span class="fec-pulse-committee">${escapeHtml(pulse.committee || "Committee")} · ${escapeHtml(pulse.chamber || "")}</span>
         </div>
         <h3 class="fec-feed-title">${escapeHtml(pulse.label || pulse.committee || "Committee cluster")}</h3>
         <p class="fec-pulse-line">${escapeHtml(pulse.plainEnglish || "")}</p>
+        <div class="money-trail-linked-label muted">Linked to</div>
+        ${renderFecLinkChips(pulse)}
         <div class="fec-feed-meta muted">
           <span>${escapeHtml(pulse.amountSummary || "—")}</span>
           <span>Filed ${escapeHtml(pulse.filingDate || "—")}</span>
@@ -4872,7 +4927,7 @@ function renderFecView() {
         </div>
         ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers, band: pulse.period })}
         <div class="fec-pulse-actions">
-          <button type="button" class="button button-secondary compact" data-fec-open="${escapeHtml(pulseKey)}">Details</button>
+          <button type="button" class="button button-secondary compact" data-fec-open="${escapeHtml(pulseKey)}">Explain links</button>
           ${pulse.fecUrl ? `<a class="link-button" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
         </div>
       </article>`;
@@ -4890,18 +4945,19 @@ function openFecDetailDrawer(pulseKey) {
   const title = $("#fec-detail-title");
   if (!drawer || !body) return;
   const badge = fecSourceBadge(state.fecPulse?.source || "sample");
-  if (title) title.textContent = pulse.label || pulse.committee || "Filing detail";
+  if (title) title.textContent = pulse.label || pulse.committee || "Money trail";
   body.innerHTML = `
     <div class="fec-detail-head">
       <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
       <span class="muted">${escapeHtml(pulse.committee || "")} · ${escapeHtml(pulse.chamber || "")}</span>
     </div>
     <p class="fec-pulse-line">${escapeHtml(pulse.plainEnglish || "")}</p>
-    <ul class="money-context-bullets">
-      <li>${escapeHtml(pulse.amountSummary || "Amount unavailable")} · ${escapeHtml(pulse.period || String(state.fecPulse?.cycle || ""))}</li>
-      <li>Mapped tickers: ${(pulse.tickers || []).slice(0, 8).map((t) => escapeHtml(t)).join(", ") || "—"}</li>
-      <li>FEC receipts track political committees — correlation with stock prices is not causation.</li>
-    </ul>
+    ${renderFecLinkChips(pulse)}
+    <div class="explain-panel" aria-label="Explainability graph">
+      <h3 class="explain-panel-title">Why these links</h3>
+      <p class="muted explain-panel-lede">Every connection uses explicit maps in fec-committee-map.json and policy-crosswalk.json — not keyword guessing.</p>
+      <div class="explain-panel-loading muted">Loading link graph…</div>
+    </div>
     ${signalScanLineHtml({ source: "FEC", date: pulse.filingDate, tickers: pulse.tickers, band: pulse.period })}
     <div class="fec-pulse-actions">
       ${pulse.fecUrl ? `<a class="button button-primary compact" href="${escapeHtml(pulse.fecUrl)}" target="_blank" rel="noopener noreferrer">View on FEC.gov →</a>` : ""}
@@ -4914,6 +4970,49 @@ function openFecDetailDrawer(pulseKey) {
     closeFecDetailDrawer();
     showView("signals");
   });
+  const clusterKey = pulse.clusterKey || pulseKey;
+  fetchJson(`/api/fec/filing/${encodeURIComponent(clusterKey)}`)
+    .then((detail) => {
+      const enriched = detail.pulse || pulse;
+      const links = enriched.links || pulse.links || {};
+      const panel = body.querySelector(".explain-panel");
+      if (!panel) return;
+      panel.innerHTML = `
+        <h3 class="explain-panel-title">Why these links</h3>
+        <p class="muted explain-panel-lede">Map key <span class="mono">${escapeHtml(detail.cluster?.key || clusterKey)}</span> · ${escapeHtml(fecLinkCountSummary(enriched))}</p>
+        ${renderExplainabilitySection("Tickers", links.tickers || [], { idKey: "symbol", labelKey: "symbol" })}
+        ${renderExplainabilitySection("Bills", links.bills || [], { idKey: "id", labelKey: "title", actionAttr: "fec-bill-open" })}
+        ${renderExplainabilitySection("Lobbying filings", links.lobbyingFilings || [], { idKey: "id", labelKey: "client" })}
+        ${renderExplainabilitySection("Contract awards", links.contracts || [], { idKey: "id", labelKey: "recipient" })}
+      `;
+      panel.querySelectorAll("[data-fec-bill-open]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const billId = el.dataset.fecBillOpen;
+          if (billId) {
+            closeFecDetailDrawer();
+            window.location.href = billPageUrl({ id: billId });
+          }
+        });
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            el.click();
+          }
+        });
+      });
+    })
+    .catch(() => {
+      const links = pulse.links || {};
+      const panel = body.querySelector(".explain-panel");
+      if (!panel) return;
+      panel.innerHTML = `
+        <h3 class="explain-panel-title">Why these links</h3>
+        ${renderExplainabilitySection("Tickers", links.tickers || [], { idKey: "symbol", labelKey: "symbol" })}
+        ${renderExplainabilitySection("Bills", links.bills || [], { idKey: "id", labelKey: "title", actionAttr: "fec-bill-open" })}
+        ${renderExplainabilitySection("Lobbying filings", links.lobbyingFilings || [], { idKey: "id", labelKey: "client" })}
+        ${renderExplainabilitySection("Contract awards", links.contracts || [], { idKey: "id", labelKey: "recipient" })}
+      `;
+    });
 }
 
 function closeFecDetailDrawer() {
@@ -4968,6 +5067,7 @@ function renderBillFecBlock(bill) {
       </ul>
       ${ctx.sponsorSummary ? `<p class="muted">Sponsor: ${escapeHtml(ctx.sponsorSummary.name)} · ${escapeHtml(compactMoney(ctx.sponsorSummary.receipts || 0))} ${escapeHtml(String(ctx.cycle || ""))} cycle receipts</p>` : ""}
       <div class="money-context-tickers">${(ctx.tickers || []).slice(0, 4).map((t) => `<span class="mini-pill green">${escapeHtml(t)}</span>`).join(" ")}</div>
+      ${ctx.linkCounts ? renderFecLinkChips({ linkCounts: ctx.linkCounts }, { compact: true }) : ""}
       <div class="fec-pulse-actions">
         ${ctx.fecUrl ? `<a class="link-button" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "View on FEC.gov")}</a>` : ""}
         <button type="button" class="link-button" data-view-jump="fec">Related FEC pulses →</button>
@@ -7792,6 +7892,44 @@ function priceTrendCaption(symbol, charts) {
   return `${symbol} · ${range} · ${priceTrendSourceLabel(charts)}`;
 }
 
+async function loadPolicyTrail(symbol) {
+  if (!symbol) return null;
+  try {
+    const data = await fetchJson(`/api/policy-trail?ticker=${encodeURIComponent(symbol)}`);
+    state.policyTrail = data;
+    renderUnifiedPolicyTrail(data);
+    return data;
+  } catch (err) {
+    console.warn("[policy-trail]", err);
+    state.policyTrail = null;
+    renderUnifiedPolicyTrail(null);
+    return null;
+  }
+}
+
+function renderUnifiedPolicyTrail(data) {
+  const host = $("#analysis-unified-trail");
+  if (!host) return;
+  if (!data?.trail) {
+    host.hidden = true;
+    host.innerHTML = "";
+    return;
+  }
+  host.hidden = false;
+  const { fec, bills, lobbying, contracts } = data.trail;
+  host.innerHTML = `
+    <div class="money-trail-head">
+      <h3>Unified money trail · ${escapeHtml(data.ticker)}</h3>
+      <span class="mini-pill green">Explicit maps</span>
+    </div>
+    <p class="muted">FEC clusters, bills, LDA filings, and contract awards linked via fec-committee-map.json and policy-crosswalk.json.</p>
+    ${renderExplainabilitySection("FEC clusters", fec || [], { idKey: "clusterKey", labelKey: "label" })}
+    ${renderExplainabilitySection("Bills", bills || [], { idKey: "id", labelKey: "title" })}
+    ${renderExplainabilitySection("Lobbying", lobbying || [], { idKey: "id", labelKey: "client" })}
+    ${renderExplainabilitySection("Contracts", contracts || [], { idKey: "id", labelKey: "recipient" })}
+  `;
+}
+
 async function loadAnalysis(symbol) {
   if (!isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
     state.activeAnalysisSymbol = symbol;
@@ -7829,6 +7967,7 @@ async function loadAnalysis(symbol) {
     renderBills();
     renderPolicyCatalysts();
     renderLobbying();
+    void loadPolicyTrail(symbol);
   } catch (error) {
     console.error("[analysis] /api/share/stock failed:", error);
     if (source) source.textContent = "Analysis unavailable";
@@ -8684,6 +8823,7 @@ function renderFeaturedSignal(sig) {
         <div class="signal-featured-main">
           <p class="signal-plain">${escapeHtml(signalPlainEnglish(sig))}</p>
           ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
+          ${sig.type === "fec" && sig._linkCounts ? renderFecLinkChips({ linkCounts: sig._linkCounts }, { compact: true }) : ""}
         </div>
         <div class="signal-ranges-col" aria-label="Predicted ranges">
           ${renderSignalRanges(sig)}
@@ -8707,6 +8847,7 @@ function renderSecondarySignal(sig) {
         <span class="signal-score-mono">${sig.score}/100</span>
       </div>
       ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
+      ${sig.type === "fec" && sig._linkCounts ? renderFecLinkChips({ linkCounts: sig._linkCounts }, { compact: true }) : ""}
     </article>
   `;
 }
@@ -8814,7 +8955,8 @@ function buildSignalFeed() {
       footerDate: pulse.filingDate || "",
       sortKey: score * signalRecencyFactor(date),
       _fecKey: pulse.clusterKey || pulse.committee,
-      _fecUrl: pulse.fecUrl || null
+      _fecUrl: pulse.fecUrl || null,
+      _linkCounts: pulse.linkCounts || null
     });
   }
 

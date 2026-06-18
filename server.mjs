@@ -420,10 +420,14 @@ const FEC_API_BASE = "https://api.open.fec.gov/v1";
 const FEC_PULSE_CACHE_TTL_MS = Number(process.env.FEC_PULSE_CACHE_TTL_MS || 8 * 60 * 1000);
 const FEC_COMMITTEE_MAP_FILE = join(DATA_DIR, "fec-committee-map.json");
 const FEC_PULSE_SEED_FILE = join(DATA_DIR, "fec-pulse-seed.json");
+const POLICY_CROSSWALK_FILE = join(DATA_DIR, "policy-crosswalk.json");
 let fecCommitteeMap = { clusters: [], cycle: 2024 };
 let fecPulseSeed = { source: "sample", pulses: [] };
+let policyCrosswalk = { tags: [] };
 let fecPulseCache = null;
 let fecPulseCachedAt = 0;
+let policyTrailCache = new Map();
+const POLICY_TRAIL_CACHE_TTL_MS = Number(process.env.POLICY_TRAIL_CACHE_TTL_MS || 5 * 60 * 1000);
 
 function loadFecSeedFiles() {
   try {
@@ -435,6 +439,11 @@ function loadFecSeedFiles() {
     fecPulseSeed = JSON.parse(readFileSync(FEC_PULSE_SEED_FILE, "utf8"));
   } catch {
     fecPulseSeed = { source: "sample", pulses: [], updatedAt: new Date().toISOString() };
+  }
+  try {
+    policyCrosswalk = JSON.parse(readFileSync(POLICY_CROSSWALK_FILE, "utf8"));
+  } catch {
+    policyCrosswalk = { tags: [] };
   }
 }
 loadFecSeedFiles();
@@ -3026,7 +3035,15 @@ async function route(req, res) {
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
   if ((pathname === "/api/fec/pulse" || pathname === "/api/landing-fec-pulse") && req.method === "GET") {
-    return fecPulseHandler(res);
+    return fecPulseHandler(res, url);
+  }
+  if (pathname.startsWith("/api/fec/filing/") && req.method === "GET") {
+    const clusterKey = decodeURIComponent(pathname.slice("/api/fec/filing/".length)).trim();
+    return fecPulseDetailHandler(res, clusterKey);
+  }
+  if (pathname.startsWith("/api/fec/pulse/") && req.method === "GET") {
+    const clusterKey = decodeURIComponent(pathname.slice("/api/fec/pulse/".length)).trim();
+    return fecPulseDetailHandler(res, clusterKey);
   }
   if (pathname === "/api/trending" && req.method === "GET") return trendingListHandler(res);
   if (pathname === "/api/contract-watch" && req.method === "GET") return contractWatchListHandler(res);
@@ -3083,6 +3100,7 @@ async function route(req, res) {
       return lobbying(res);
     }
     if (pathname === "/api/fec/bill-context" && req.method === "GET") return fecBillContextHandler(res, url);
+    if (pathname === "/api/policy-trail" && req.method === "GET") return policyTrailHandler(res, url);
     if (pathname === "/api/funds" && req.method === "GET") {
       if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
       return listFunds(res, session);
@@ -5103,16 +5121,16 @@ function fecElectionCycle() {
 
 function fecSamplePulsePayload() {
   const seed = fecPulseSeed?.pulses?.length ? fecPulseSeed : { pulses: [] };
-  const payload = {
+  const payload = enrichFecPulsePayload({
     source: "sample",
     updatedAt: seed.updatedAt || new Date().toISOString(),
     cycle: seed.cycle || fecElectionCycle(),
     configured: Boolean(process.env.FEC_API_KEY),
     pulses: (seed.pulses || []).map((row) => {
       const cluster = (fecCommitteeMap.clusters || []).find((c) => c.key === row.clusterKey);
-      return { ...row, source: "sample", policyTags: cluster?.policy_tags || [] };
+      return { ...row, source: "sample", policyTags: clusterPolicyTags(cluster) };
     })
-  };
+  });
   noteFeedSuccess("fec", { source: "sample", recordCount: payload.pulses.length });
   return payload;
 }
@@ -5131,37 +5149,525 @@ async function fetchFecJson(path, params = {}) {
   }
 }
 
+function clusterPolicyTags(cluster) {
+  return cluster?.policyTags || cluster?.policy_tags || [];
+}
+
+function clusterPacIds(cluster) {
+  return cluster?.pacCommitteeIds || cluster?.fec_committee_ids || [];
+}
+
+function clusterTickers(cluster) {
+  return cluster?.tickers || [];
+}
+
+function getCrosswalkTag(tagKey) {
+  return (policyCrosswalk.tags || []).find((t) => t.key === tagKey) || null;
+}
+
+function normalizeLinkHaystack(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/[^\w\s&]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function haystackIncludes(haystack, needle) {
+  const h = normalizeLinkHaystack(haystack);
+  const n = normalizeLinkHaystack(needle);
+  if (!h || !n) return false;
+  return h.includes(n) || n.includes(h);
+}
+
+function billCommitteeHaystacks(bill) {
+  return [
+    bill.title,
+    bill.shortTitle,
+    ...(bill.committees || []),
+    ...(bill._committeeNames || []),
+    bill.legislativeContext?.primaryCommittee,
+    bill.policyArea,
+    ...(bill.tags || [])
+  ].filter(Boolean);
+}
+
+function billMatchesClusterExplicit(bill, cluster) {
+  if (!bill || !cluster) return null;
+  const committeeKeys = cluster.billCommitteeKeys || [];
+  const policyTags = clusterPolicyTags(cluster);
+  const primaryTag = cluster.policyTag || policyTags[0] || null;
+  const crosswalk = primaryTag ? getCrosswalkTag(primaryTag) : null;
+  const billHaystacks = billCommitteeHaystacks(bill);
+
+  for (const key of committeeKeys) {
+    for (const field of billHaystacks) {
+      if (haystackIncludes(field, key)) {
+        return {
+          reason: `bill assigned to ${cluster.committee} (${cluster.chamber})`,
+          matchType: "committee",
+          matchField: key
+        };
+      }
+    }
+  }
+
+  if (crosswalk) {
+    for (const area of crosswalk.billPolicyAreas || []) {
+      if (haystackIncludes(bill.policyArea, area)) {
+        return {
+          reason: `bill policy area "${bill.policyArea}" matches ${primaryTag} crosswalk`,
+          matchType: "policyArea",
+          matchField: primaryTag
+        };
+      }
+    }
+    for (const kw of crosswalk.billKeywords || []) {
+      for (const field of billHaystacks) {
+        if (haystackIncludes(field, kw)) {
+          return {
+            reason: `bill text matches ${primaryTag} keyword "${kw}" in policy-crosswalk.json`,
+            matchType: "billKeyword",
+            matchField: kw
+          };
+        }
+      }
+    }
+  }
+
+  for (const tagKey of policyTags) {
+    const cw = getCrosswalkTag(tagKey);
+    if (!cw) continue;
+    for (const kw of cw.billKeywords || []) {
+      for (const field of billHaystacks) {
+        if (haystackIncludes(field, kw)) {
+          return {
+            reason: `bill matches ${tagKey} policy tag via crosswalk`,
+            matchType: "policyTag",
+            matchField: tagKey
+          };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function matchFecClusterForBill(bill) {
   const clusters = fecCommitteeMap.clusters || [];
   if (!clusters.length || !bill) return null;
-  const haystack = [
-    bill.title,
-    bill.shortTitle,
-    bill.policyArea,
-    ...(bill.tags || []),
-    ...(bill.committees || []),
-    ...(bill._committeeNames || []),
-    bill.legislativeContext?.primaryCommittee
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
   let best = null;
   let bestScore = 0;
   for (const cluster of clusters) {
-    let score = 0;
-    for (const tag of cluster.policy_tags || []) {
-      if (haystack.includes(String(tag).toLowerCase())) score += 2;
-    }
-    for (const kw of cluster.bill_keywords || []) {
-      if (haystack.includes(String(kw).toLowerCase())) score += 1;
-    }
+    const match = billMatchesClusterExplicit(bill, cluster);
+    if (!match) continue;
+    const score =
+      match.matchType === "committee" ? 4 : match.matchType === "policyArea" ? 3 : match.matchType === "policyTag" ? 2 : 1;
     if (score > bestScore) {
       bestScore = score;
       best = cluster;
     }
   }
-  return bestScore > 0 ? best : null;
+  return best;
+}
+
+function linkTickersForCluster(cluster) {
+  const template =
+    cluster.explainTemplate?.ticker ||
+    "{ticker} via {label} PAC cluster · explicit map {mapKey}";
+  return clusterTickers(cluster).map((symbol) => ({
+    symbol,
+    linkReason: template
+      .replace("{ticker}", symbol)
+      .replace("{mapKey}", cluster.key)
+      .replace("{label}", cluster.label || cluster.committee || cluster.key),
+    provenance: {
+      source: "fec-committee-map.json",
+      mapKey: cluster.key,
+      pacCommitteeIds: clusterPacIds(cluster),
+      policyTag: cluster.policyTag || clusterPolicyTags(cluster)[0] || null
+    }
+  }));
+}
+
+function billSharesPolicyTagWithCluster(bill, cluster) {
+  const primaryTag = cluster.policyTag || clusterPolicyTags(cluster)[0];
+  const cw = primaryTag ? getCrosswalkTag(primaryTag) : null;
+  if (!cw) return false;
+  const haystacks = billCommitteeHaystacks(bill);
+  for (const kw of cw.billKeywords || []) {
+    for (const field of haystacks) {
+      if (haystackIncludes(field, kw)) return true;
+    }
+  }
+  for (const area of cw.billPolicyAreas || []) {
+    if (haystackIncludes(bill.policyArea, area)) return true;
+  }
+  return false;
+}
+
+function linkBillsForCluster(cluster, limit = 8) {
+  const template = cluster.explainTemplate?.bill || "Linked because {reason}";
+  const links = [];
+  const seen = new Set();
+  const clusterTickerSet = new Set(clusterTickers(cluster));
+
+  for (const bill of POLICY_BILLS) {
+    let match = billMatchesClusterExplicit(bill, cluster);
+    if (!match) {
+      const overlap = (bill.affected || []).filter((sym) => clusterTickerSet.has(sym));
+      if (overlap.length && billSharesPolicyTagWithCluster(bill, cluster)) {
+        match = {
+          reason: `bill maps ${overlap.slice(0, 2).join(", ")} in affected tickers and matches ${cluster.policyTag || "cluster"} crosswalk`,
+          matchType: "affectedTickerConfirm",
+          matchField: overlap[0]
+        };
+      }
+    }
+    if (!match || seen.has(bill.id)) continue;
+    seen.add(bill.id);
+    links.push({
+      id: bill.id,
+      title: bill.shortTitle || bill.title,
+      status: bill.status || null,
+      linkReason: template.replace("{reason}", match.reason).replace("{committee}", cluster.committee || ""),
+      provenance: {
+        source: "fec-committee-map.json + policy-crosswalk.json",
+        mapKey: cluster.key,
+        matchType: match.matchType,
+        matchField: match.matchField
+      }
+    });
+    if (links.length >= limit) break;
+  }
+  return links;
+}
+
+function linkLobbyingForCluster(cluster, limit = 6) {
+  const pool = getLobbyFilingsPool();
+  const aliases = [
+    ...(cluster.lobbyingClientAliases || []),
+    ...(cluster.registrantNames || [])
+  ];
+  const policyTags = clusterPolicyTags(cluster);
+  const primaryTag = cluster.policyTag || policyTags[0] || null;
+  const crosswalk = primaryTag ? getCrosswalkTag(primaryTag) : null;
+  const template = cluster.explainTemplate?.lobbying || "Linked because {reason}";
+  const links = [];
+  const seen = new Set();
+
+  for (const filing of pool) {
+    const client = filing.client || filing.name || "";
+    const registrant = filing.registrant || "";
+    const issue = filing.issue || "";
+    let match = null;
+
+    for (const alias of aliases) {
+      if (haystackIncludes(client, alias) || haystackIncludes(registrant, alias)) {
+        match = {
+          reason: `LDA client/registrant "${alias}" listed in cluster map`,
+          matchType: "clientAlias",
+          matchField: alias
+        };
+        break;
+      }
+    }
+
+    if (!match && crosswalk) {
+      for (const kw of crosswalk.ldaIssueKeywords || []) {
+        if (haystackIncludes(issue, kw)) {
+          match = {
+            reason: `LDA issue "${issue}" shares ${primaryTag} tag in policy-crosswalk.json`,
+            matchType: "ldaIssue",
+            matchField: kw
+          };
+          break;
+        }
+      }
+    }
+
+    if (!match) continue;
+    const filingId = filing.filingId || lobbyingFilingId(filing);
+    if (seen.has(filingId)) continue;
+    seen.add(filingId);
+    links.push({
+      id: filingId,
+      client,
+      registrant,
+      amount: filing.amount || null,
+      issue,
+      linkReason: template.replace("{reason}", match.reason),
+      provenance: {
+        source: "policy-crosswalk.json + fec-committee-map.json",
+        mapKey: cluster.key,
+        matchType: match.matchType,
+        matchField: match.matchField
+      }
+    });
+    if (links.length >= limit) break;
+  }
+  return links;
+}
+
+function getContractWatchAwardsPool() {
+  if (contractWatchRuntime.awards?.length) return contractWatchRuntime.awards;
+  if (contractWatchApiCache.payload?.awards?.length) return contractWatchApiCache.payload.awards;
+  return [];
+}
+
+function linkContractsForCluster(cluster, limit = 6) {
+  const awards = getContractWatchAwardsPool();
+  const recipientKeys = [
+    ...(cluster.contractRecipientKeys || []),
+    ...((cluster.policyTag ? getCrosswalkTag(cluster.policyTag)?.contractRecipientKeys : null) || [])
+  ];
+  const policyTags = clusterPolicyTags(cluster);
+  const primaryTag = cluster.policyTag || policyTags[0] || null;
+  const crosswalk = primaryTag ? getCrosswalkTag(primaryTag) : null;
+  const explicitTickers = new Set(clusterTickers(cluster));
+  const template = cluster.explainTemplate?.contract || "Linked because {reason}";
+  const links = [];
+  const seen = new Set();
+
+  for (const award of awards) {
+    const recipient = award.recipient || award.recipientName || "";
+    let match = null;
+
+    for (const key of recipientKeys) {
+      if (haystackIncludes(recipient, key)) {
+        match = {
+          reason: `USASpending recipient matches "${key}" in cluster map`,
+          matchType: "recipientKey",
+          matchField: key
+        };
+        break;
+      }
+    }
+
+    if (!match) {
+      const sym = contractSymbolForCompany(recipient) || inferTickerFromRecipientName(recipient);
+      if (sym && explicitTickers.has(sym)) {
+        match = {
+          reason: `${sym} mapped from recipient "${recipient}" via CONTRACT_PROFILES`,
+          matchType: "contractProfile",
+          matchField: sym
+        };
+      }
+    }
+
+    if (!match && crosswalk) {
+      const mapped = award.mappedTickers || [];
+      for (const sym of mapped) {
+        if (explicitTickers.has(sym)) {
+          match = {
+            reason: `${sym} on award maps to cluster tickers via contract watch`,
+            matchType: "mappedTicker",
+            matchField: sym
+          };
+          break;
+        }
+      }
+      const naics = String(award.naics || award.naicsCode || "").slice(0, 3);
+      if (!match && naics) {
+        for (const prefix of crosswalk.contractNaicsPrefixes || []) {
+          if (naics.startsWith(prefix)) {
+            match = {
+              reason: `contract NAICS ${naics} matches ${primaryTag} bucket in policy-crosswalk.json`,
+              matchType: "naics",
+              matchField: prefix
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    if (!match) continue;
+    const awardId = award.awardId || award.id;
+    if (!awardId || seen.has(awardId)) continue;
+    seen.add(awardId);
+    links.push({
+      id: awardId,
+      recipient,
+      amount: award.amount || award.obligatedAmount || null,
+      agency: award.agency || award.awardingAgency || null,
+      linkReason: template.replace("{reason}", match.reason),
+      provenance: {
+        source: "contract-watch + policy-crosswalk.json",
+        mapKey: cluster.key,
+        matchType: match.matchType,
+        matchField: match.matchField
+      }
+    });
+    if (links.length >= limit) break;
+  }
+  return links;
+}
+
+function buildFecPulseWithLinks(pulse, cluster) {
+  const resolvedCluster =
+    cluster || (fecCommitteeMap.clusters || []).find((c) => c.key === pulse?.clusterKey) || null;
+  if (!resolvedCluster) {
+    return {
+      ...pulse,
+      links: { tickers: [], bills: [], lobbyingFilings: [], contracts: [] },
+      linkCounts: { tickers: 0, bills: 0, lobbyingFilings: 0, contracts: 0 }
+    };
+  }
+  const tickerLinks = linkTickersForCluster(resolvedCluster);
+  const billLinks = linkBillsForCluster(resolvedCluster);
+  const lobbyLinks = linkLobbyingForCluster(resolvedCluster);
+  const contractLinks = linkContractsForCluster(resolvedCluster);
+  return {
+    ...pulse,
+    tickers: tickerLinks.map((row) => row.symbol),
+    policyTags: clusterPolicyTags(resolvedCluster),
+    links: {
+      tickers: tickerLinks,
+      bills: billLinks,
+      lobbyingFilings: lobbyLinks,
+      contracts: contractLinks
+    },
+    linkCounts: {
+      tickers: tickerLinks.length,
+      bills: billLinks.length,
+      lobbyingFilings: lobbyLinks.length,
+      contracts: contractLinks.length
+    }
+  };
+}
+
+function enrichFecPulsePayload(payload) {
+  const pulses = (payload?.pulses || []).map((pulse) => {
+    const cluster = (fecCommitteeMap.clusters || []).find((c) => c.key === pulse.clusterKey);
+    return buildFecPulseWithLinks(pulse, cluster);
+  });
+  return { ...payload, pulses };
+}
+
+async function policyTrailHandler(res, url) {
+  const ticker = String(url.searchParams.get("ticker") || "").toUpperCase();
+  if (!ticker || !VALID_TICKER_PATTERN.test(ticker)) {
+    return sendJson(res, 400, { error: "invalid_ticker", message: "Provide a valid ticker symbol." });
+  }
+  const cacheKey = ticker;
+  const cached = policyTrailCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < POLICY_TRAIL_CACHE_TTL_MS) {
+    return sendJson(res, 200, cached.payload);
+  }
+
+  const clusters = (fecCommitteeMap.clusters || []).filter((c) => clusterTickers(c).includes(ticker));
+  const fecLinks = clusters.map((cluster) => {
+    const tickerLink = linkTickersForCluster(cluster).find((row) => row.symbol === ticker);
+    const pulse = (fecPulseCache?.pulses || []).find((p) => p.clusterKey === cluster.key);
+    return {
+      clusterKey: cluster.key,
+      label: cluster.label,
+      committee: cluster.committee,
+      linkReason: tickerLink?.linkReason || `${ticker} in ${cluster.key} PAC cluster via explicit map`,
+      provenance: tickerLink?.provenance || { source: "fec-committee-map.json", mapKey: cluster.key },
+      pulseSummary: pulse?.plainEnglish || null,
+      linkCounts: buildFecPulseWithLinks(pulse || { clusterKey: cluster.key }, cluster).linkCounts
+    };
+  });
+
+  const bills = POLICY_BILLS.filter((b) => (b.affected || []).includes(ticker)).map((b) => ({
+    id: b.id,
+    title: b.shortTitle || b.title,
+    linkReason: `${ticker} listed in bill affected tickers (verified POLICY_BILLS map)`,
+    provenance: { source: "POLICY_BILLS", matchType: "affected", billId: b.id }
+  }));
+
+  const companyHint = resolveTradableSymbolName(ticker) || ticker;
+  const lobbyPool = getLobbyFilingsPool();
+  const lobbying = [];
+  const lobbySeen = new Set();
+  for (const filing of lobbyPool) {
+    const filingTickers = filing.tickers || [];
+    const client = filing.client || filing.name || "";
+    if (!filingTickers.includes(ticker) && !haystackIncludes(client, companyHint.split(" ")[0])) continue;
+    const filingId = filing.filingId || lobbyingFilingId(filing);
+    if (lobbySeen.has(filingId)) continue;
+    lobbySeen.add(filingId);
+    lobbying.push({
+      id: filingId,
+      client,
+      issue: filing.issue || null,
+      amount: filing.amount || null,
+      linkReason: filingTickers.includes(ticker)
+        ? `LDA filing explicitly tags ${ticker}`
+        : `LDA client name matches ${companyHint}`,
+      provenance: { source: filing.source || "lda", matchType: filingTickers.includes(ticker) ? "ticker" : "client" }
+    });
+    if (lobbying.length >= 8) break;
+  }
+
+  const contractProfile = CONTRACT_PROFILES[ticker] || null;
+  const contracts = [];
+  const contractSeen = new Set();
+  for (const award of getContractWatchAwardsPool()) {
+    const recipient = award.recipient || award.recipientName || "";
+    const mapped = award.mappedTickers || [];
+    const sym = contractSymbolForCompany(recipient) || inferTickerFromRecipientName(recipient);
+    if (sym !== ticker && !mapped.includes(ticker)) continue;
+    const awardId = award.awardId || award.id;
+    if (!awardId || contractSeen.has(awardId)) continue;
+    contractSeen.add(awardId);
+    contracts.push({
+      id: awardId,
+      recipient,
+      amount: award.amount || award.obligatedAmount || null,
+      agency: award.agency || award.awardingAgency || null,
+      linkReason: contractProfile
+        ? `${ticker} via CONTRACT_PROFILES — ${Math.round(contractProfile.governmentRevenuePct * 100)}% government revenue`
+        : `Recipient "${recipient}" maps to ${ticker} via USASpending recipient crosswalk`,
+      provenance: {
+        source: contractProfile ? "CONTRACT_PROFILES" : "contract-watch",
+        matchType: "recipient",
+        mapKey: contractProfile ? ticker : null
+      }
+    });
+    if (contracts.length >= 8) break;
+  }
+
+  const payload = {
+    ticker,
+    trail: { fec: fecLinks, bills, lobbying, contracts },
+    updatedAt: new Date().toISOString()
+  };
+  policyTrailCache.set(cacheKey, { at: Date.now(), payload });
+  return sendJson(res, 200, payload);
+}
+
+async function fecPulseDetailHandler(res, clusterKey) {
+  if (!clusterKey) return sendJson(res, 400, { error: "missing_cluster_key" });
+  try {
+    const payload = await getFecPulsePayload();
+    const cluster = (fecCommitteeMap.clusters || []).find((c) => c.key === clusterKey);
+    if (!cluster) return sendJson(res, 404, { error: "unknown_cluster", message: "FEC cluster not found." });
+    const pulse =
+      payload.pulses.find((p) => p.clusterKey === clusterKey) ||
+      buildFecPulseWithLinks({ clusterKey, committee: cluster.committee, chamber: cluster.chamber, label: cluster.label }, cluster);
+    const enriched = buildFecPulseWithLinks(pulse, cluster);
+    return sendJson(res, 200, {
+      pulse: enriched,
+      cluster: {
+        key: cluster.key,
+        label: cluster.label,
+        committee: cluster.committee,
+        chamber: cluster.chamber,
+        policyTags: clusterPolicyTags(cluster),
+        policyTag: cluster.policyTag || null,
+        pacCommitteeIds: clusterPacIds(cluster)
+      },
+      source: payload.source,
+      updatedAt: payload.updatedAt,
+      cycle: payload.cycle
+    });
+  } catch (err) {
+    return sendJson(res, 502, { error: "fec_detail_failed", message: err.message || "Could not load FEC detail." });
+  }
 }
 
 function buildFecPulsePlainEnglish(cluster, amount, period, tickers, recentFilings = 0) {
@@ -5229,7 +5735,7 @@ async function buildLiveFecPulsePayload() {
       filingDate: metrics.latestFilingDate || new Date().toISOString().slice(0, 10),
       plainEnglish: buildFecPulsePlainEnglish(cluster, amount, period, tickers, metrics.recentFilings),
       clusterKey: cluster.key,
-      policyTags: cluster.policy_tags || [],
+      policyTags: clusterPolicyTags(cluster),
       recentFilings: metrics.recentFilings,
       fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,
       source: "fec"
@@ -5241,17 +5747,21 @@ async function buildLiveFecPulsePayload() {
     .slice(0, 20);
   if (!pulses.length) return fecSamplePulsePayload();
   noteFeedSuccess("fec", { source: "fec", recordCount: pulses.length });
-  return {
+  return enrichFecPulsePayload({
     source: "fec",
     updatedAt: new Date().toISOString(),
     cycle,
     configured: true,
     pulses
-  };
+  });
 }
 
 async function getFecPulsePayload({ forceRefresh = false } = {}) {
   const now = Date.now();
+  if (forceRefresh) {
+    fecPulseCachedAt = 0;
+    policyTrailCache.clear();
+  }
   if (!forceRefresh && fecPulseCache && now - fecPulseCachedAt < FEC_PULSE_CACHE_TTL_MS) {
     return fecPulseCache;
   }
@@ -5267,8 +5777,9 @@ async function getFecPulsePayload({ forceRefresh = false } = {}) {
   }
 }
 
-function fecPulseHandler(res) {
-  getFecPulsePayload()
+function fecPulseHandler(res, url) {
+  const forceRefresh = url?.searchParams?.get("refresh") === "1";
+  getFecPulsePayload({ forceRefresh })
     .then((payload) => sendJson(res, 200, payload))
     .catch((err) => {
       console.error("[fec-pulse]", err.message);
@@ -5329,9 +5840,13 @@ async function buildBillMoneyContext(bill) {
     }
   }
   const sponsorSummary = await fetchFecSponsorSummary(bill, cycle);
-  const tickers = cluster.tickers || [];
+  const tickers = clusterTickers(cluster);
   const amount = metrics.receipts || metrics.disbursements || 0;
   const period = `${cycle} cycle`;
+  const linkBundle = buildFecPulseWithLinks(
+    { clusterKey: cluster.key, committee: cluster.committee, chamber: cluster.chamber, label: cluster.label },
+    cluster
+  );
   const topIndustries = [
     { label: cluster.label, amount: compactMoney(amount) }
   ];
@@ -5342,8 +5857,17 @@ async function buildBillMoneyContext(bill) {
       : "No ticker map on this cluster yet.",
     sponsorSummary
       ? `Sponsor ${sponsorSummary.name} reported ${compactMoney(sponsorSummary.receipts)} in ${cycle} cycle receipts.`
-      : "Sponsor fundraising totals unavailable without a FEC name match."
-  ];
+      : "Sponsor fundraising totals unavailable without a FEC name match.",
+    linkBundle.linkCounts.bills
+      ? `${linkBundle.linkCounts.bills} linked bill(s) via committee crosswalk.`
+      : "No linked bills in explicit committee map yet.",
+    linkBundle.linkCounts.lobbyingFilings
+      ? `${linkBundle.linkCounts.lobbyingFilings} linked LDA filing(s).`
+      : null,
+    linkBundle.linkCounts.contracts
+      ? `${linkBundle.linkCounts.contracts} linked contract award(s).`
+      : null
+  ].filter(Boolean);
   const plainEnglish = buildFecPulsePlainEnglish(
     cluster,
     amount,
@@ -5366,6 +5890,8 @@ async function buildBillMoneyContext(bill) {
     sponsorSummary,
     topIndustries,
     tickers,
+    links: linkBundle.links,
+    linkCounts: linkBundle.linkCounts,
     marketBullets,
     plainEnglish,
     fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,

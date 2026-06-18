@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-17T00:00:00.000Z",
+  "tags": [
+    {
+      "key": "defense",
+      "label": "Defense & national security",
+      "billPolicyAreas": ["Armed Forces and National Security", "Defense", "National Security", "Foreign Affairs and International Security"],
+      "billKeywords": ["defense", "military", "ndaa", "pentagon", "armed forces", "weapons"],
+      "ldaIssueKeywords": ["defense", "military", "ndaa", "national security", "armed forces", "weapons"],
+      "contractNaicsPrefixes": ["336", "541", "928"],
+      "contractPscPrefixes": ["10", "11", "12", "13", "14", "15", "16", "17", "19"],
+      "contractRecipientKeys": ["LOCKHEED", "RAYTHEON", "NORTHROP", "GENERAL DYNAMICS", "PALANTIR", "BOOZ ALLEN", "LEIDOS", "SAIC"],
+      "tickers": ["LMT", "RTX", "NOC", "GD", "PLTR", "BAH", "LDOS", "SAIC"]
+    },
+    {
+      "key": "pharma",
+      "label": "Pharma & drug pricing",
+      "billPolicyAreas": ["Health", "Medicare", "Medicaid", "Drug pricing"],
+      "billKeywords": ["drug", "pharma", "medicare", "prescription", "fda", "insulin"],
+      "ldaIssueKeywords": ["drug pricing", "medicare", "pharma", "prescription", "fda", "health"],
+      "contractNaicsPrefixes": ["325", "621", "622"],
+      "contractRecipientKeys": ["ELI LILLY", "PFIZER", "MERCK", "ABBVIE"],
+      "tickers": ["LLY", "MRK", "PFE", "ABBV", "UNH", "CVS"]
+    },
+    {
+      "key": "fintech",
+      "label": "Banking & payments",
+      "billPolicyAreas": ["Finance and Financial Sector", "Banking", "Financial Services"],
+      "billKeywords": ["bank", "financial", "payment", "stablecoin", "capital markets", "credit"],
+      "ldaIssueKeywords": ["banking", "financial services", "payments", "stablecoin", "capital markets"],
+      "contractNaicsPrefixes": ["522", "523"],
+      "contractRecipientKeys": ["JPMORGAN", "BANK OF AMERICA", "GOLDMAN", "VISA", "MASTERCARD"],
+      "tickers": ["JPM", "BAC", "GS", "MS", "C", "V", "MA"]
+    },
+    {
+      "key": "energy",
+      "label": "Energy & climate",
+      "billPolicyAreas": ["Energy", "Environmental Protection", "Climate", "Public Lands and Natural Resources"],
+      "billKeywords": ["energy", "electric", "grid", "climate", "permitting", "oil", "gas"],
+      "ldaIssueKeywords": ["energy", "climate", "utilities", "oil", "gas", "renewable", "grid"],
+      "contractNaicsPrefixes": ["221", "324", "335"],
+      "contractRecipientKeys": ["EXXON", "CHEVRON", "NEXTERA", "ENPHASE"],
+      "tickers": ["XOM", "CVX", "NEE", "ENPH", "FSLR", "TSLA", "OXY", "COP"]
+    },
+    {
+      "key": "tech",
+      "label": "Big Tech & platforms",
+      "billPolicyAreas": ["Science, Technology, Communications", "Commerce", "Antitrust"],
+      "billKeywords": ["antitrust", "platform", "privacy", "section 230", "app store", "digital market"],
+      "ldaIssueKeywords": ["antitrust", "platform", "privacy", "tech", "digital", "content moderation"],
+      "contractNaicsPrefixes": ["511", "518", "5415"],
+      "contractRecipientKeys": ["GOOGLE", "META", "APPLE", "AMAZON", "MICROSOFT"],
+      "tickers": ["GOOGL", "META", "AAPL", "AMZN", "MSFT"]
+    },
+    {
+      "key": "chips",
+      "label": "Semiconductors & export controls",
+      "billPolicyAreas": ["Science, Technology, Communications", "Commerce", "Foreign Trade and International Finance"],
+      "billKeywords": ["chips", "semiconductor", "export control", "artificial intelligence", "supply chain"],
+      "ldaIssueKeywords": ["semiconductor", "chips", "export control", "ai policy", "supply chain"],
+      "contractNaicsPrefixes": ["334"],
+      "contractRecipientKeys": ["NVIDIA", "INTEL", "APPLIED MATERIALS", "ASML"],
+      "tickers": ["NVDA", "INTC", "TSM", "AMAT", "ASML"]
+    },
+    {
+      "key": "crypto",
+      "label": "Digital assets",
+      "billPolicyAreas": ["Finance and Financial Sector", "Banking"],
+      "billKeywords": ["crypto", "digital asset", "stablecoin", "blockchain", "sec", "cftc"],
+      "ldaIssueKeywords": ["crypto", "digital asset", "stablecoin", "blockchain", "bitcoin"],
+      "contractNaicsPrefixes": ["523"],
+      "contractRecipientKeys": ["COINBASE"],
+      "tickers": ["COIN", "MSTR"]
+    },
+    {
+      "key": "homeland",
+      "label": "Homeland security & cyber",
+      "billPolicyAreas": ["Homeland Security", "Crime and Law Enforcement", "Cybersecurity"],
+      "billKeywords": ["homeland", "cyber", "border", "immigration", "customs", "dhs"],
+      "ldaIssueKeywords": ["homeland security", "cyber", "border", "immigration", "cybersecurity"],
+      "contractNaicsPrefixes": ["541", "561"],
+      "contractRecipientKeys": ["PALO ALTO", "CROWDSTRIKE", "LEIDOS"],
+      "tickers": ["PANW", "CRWD", "LDOS", "BAH"]
+    },
+    {
+      "key": "agriculture",
+      "label": "Agriculture & biofuels",
+      "billPolicyAreas": ["Agriculture and Food", "Public Lands and Natural Resources"],
+      "billKeywords": ["farm", "agriculture", "crop", "biofuel", "food safety"],
+      "ldaIssueKeywords": ["agriculture", "farm", "biofuel", "food"],
+      "contractNaicsPrefixes": ["111", "115"],
+      "contractRecipientKeys": ["DEERE", "ARCHER DANIELS", "BUNGE"],
+      "tickers": ["DE", "ADM", "BG", "CF"]
+    },
+    {
+      "key": "transportation",
+      "label": "Infrastructure & EV",
+      "billPolicyAreas": ["Transportation and Public Works", "Infrastructure"],
+      "billKeywords": ["infrastructure", "highway", "aviation", "rail", "electric vehicle", "ev"],
+      "ldaIssueKeywords": ["transportation", "infrastructure", "aviation", "ev", "highway"],
+      "contractNaicsPrefixes": ["336", "237"],
+      "contractRecipientKeys": ["TESLA", "FORD", "GENERAL MOTORS", "UBER"],
+      "tickers": ["TSLA", "F", "GM", "UBER"]
+    }
+  ]
+}

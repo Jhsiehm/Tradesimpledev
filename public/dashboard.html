@@ -67,7 +67,7 @@
           <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
           <button class="nav-item" data-view="lobbying">Lobbying</button>
-          <button class="nav-item" data-view="fec">FEC Filings</button>
+          <button class="nav-item" data-view="fec">Money Trail</button>
           <button class="nav-item" data-view="contracts">Contracts</button>
           <button class="nav-item" data-view="analysis">Analysis</button>
           <span class="nav-section-label">Markets</span>
@@ -735,6 +735,8 @@
                   <div class="money-trail-limits" id="money-trail-limits"></div>
                 </div>
 
+                <div id="analysis-unified-trail" class="analysis-money-trail analysis-unified-trail" hidden aria-label="Unified policy money trail"></div>
+
                 <!-- Contracts table (live USASpending data + CRS per row) -->
                 <p class="analysis-contracts-lede">
                   Federal contracts can represent meaningful revenue, but not all awards matter equally.
@@ -891,8 +893,8 @@
         <section class="view terminal-view" id="view-fec">
           <div class="page-header dash-view-header">
             <div class="dash-view-header-copy">
-              <h1>Campaign finance pulse</h1>
-              <p class="dash-view-purpose">PAC and committee filings from FEC.gov — mapped to policy clusters and tickers. Context only, not a price signal.</p>
+              <h1>Money Trail</h1>
+              <p class="dash-view-purpose">PAC filings from FEC.gov linked to bills, lobbying, contracts, and tickers — every connection shows why.</p>
             </div>
             <div class="dash-view-header-rail">
               <span class="status-pill" id="fec-source">Connecting</span>
@@ -916,7 +918,7 @@
               <span data-freshness="fec">Pending</span>
               <span class="mini-pill" id="fec-data-badge">Connecting</span>
             </div>
-            <div id="fec-feed" class="fec-feed-grid"></div>
+            <div id="fec-feed" class="fec-feed-grid money-trail-feed"></div>
             <p id="fec-feed-empty" class="guided-empty-state" hidden>
               <strong>No FEC pulses loaded.</strong> Sample filings appear when FEC_API_KEY is unset — use Refresh to retry.
             </p>
