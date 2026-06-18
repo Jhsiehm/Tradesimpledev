@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "cycle": 2024,
+  "clusters": [
+    {
+      "key": "armed-services",
+      "committee": "Armed Services",
+      "chamber": "House",
+      "label": "Defense industry PACs",
+      "policy_tags": ["defense", "national security", "military", "foreign affairs", "ndaa"],
+      "bill_keywords": ["defense", "military", "armed forces", "national security", "pentagon", "ndaa", "weapons"],
+      "fec_committee_ids": ["C00129559", "C00088591", "C00281212", "C00010603"],
+      "tickers": ["LMT", "RTX", "NOC", "GD", "PLTR"]
+    },
+    {
+      "key": "armed-services-senate",
+      "committee": "Armed Services",
+      "chamber": "Senate",
+      "label": "Senate defense PAC cluster",
+      "policy_tags": ["defense", "national security", "military"],
+      "bill_keywords": ["defense authorization", "senate armed", "military construction"],
+      "fec_committee_ids": ["C00129559", "C00088591", "C00281212"],
+      "tickers": ["LMT", "RTX", "NOC", "GD"]
+    },
+    {
+      "key": "banking",
+      "committee": "Banking",
+      "chamber": "Senate",
+      "label": "Financial services PACs",
+      "policy_tags": ["banking", "finance", "financial services", "capital markets"],
+      "bill_keywords": ["bank", "financial", "securities", "capital markets", "credit", "mortgage"],
+      "fec_committee_ids": ["C00004530", "C00344686", "C00029447"],
+      "tickers": ["JPM", "BAC", "GS", "MS", "C"]
+    },
+    {
+      "key": "financial-services",
+      "committee": "Financial Services",
+      "chamber": "House",
+      "label": "House finance PAC cluster",
+      "policy_tags": ["banking", "finance", "fintech", "payments"],
+      "bill_keywords": ["financial services", "banking", "payment", "fintech", "stablecoin"],
+      "fec_committee_ids": ["C00004530", "C00344686", "C00431445"],
+      "tickers": ["JPM", "BAC", "V", "MA", "COIN"]
+    },
+    {
+      "key": "energy-commerce",
+      "committee": "Energy & Commerce",
+      "chamber": "House",
+      "label": "Energy & telecom PACs",
+      "policy_tags": ["energy", "telecom", "utilities", "climate"],
+      "bill_keywords": ["energy", "electric", "grid", "telecom", "broadband", "climate", "permitting"],
+      "fec_committee_ids": ["C00003440", "C00468449", "C00142711"],
+      "tickers": ["XOM", "CVX", "NEE", "ENPH", "FSLR", "TSLA"]
+    },
+    {
+      "key": "energy-natural-resources",
+      "committee": "Energy & Natural Resources",
+      "chamber": "Senate",
+      "label": "Senate energy PAC cluster",
+      "policy_tags": ["energy", "oil", "gas", "mining", "public lands"],
+      "bill_keywords": ["energy", "oil", "gas", "mining", "public lands", "permitting"],
+      "fec_committee_ids": ["C00003440", "C00468449", "C00096156"],
+      "tickers": ["XOM", "CVX", "OXY", "COP"]
+    },
+    {
+      "key": "judiciary",
+      "committee": "Judiciary",
+      "chamber": "Senate",
+      "label": "Big Tech & platform PACs",
+      "policy_tags": ["antitrust", "tech", "platform", "privacy", "content moderation"],
+      "bill_keywords": ["antitrust", "platform", "app store", "privacy", "section 230", "digital market"],
+      "fec_committee_ids": ["C00489269", "C00489761", "C00493072"],
+      "tickers": ["GOOGL", "META", "AAPL", "AMZN", "MSFT"]
+    },
+    {
+      "key": "judiciary-house",
+      "committee": "Judiciary",
+      "chamber": "House",
+      "label": "House tech oversight PACs",
+      "policy_tags": ["antitrust", "tech", "immigration", "intellectual property"],
+      "bill_keywords": ["antitrust", "platform", "copyright", "patent", "immigration"],
+      "fec_committee_ids": ["C00489269", "C00489761", "C00493072"],
+      "tickers": ["GOOGL", "META", "AAPL", "AMZN"]
+    },
+    {
+      "key": "help",
+      "committee": "HELP",
+      "chamber": "Senate",
+      "label": "Pharma & health PACs",
+      "policy_tags": ["health", "pharma", "medicare", "drug pricing", "fda"],
+      "bill_keywords": ["drug", "medicare", "pharma", "health", "fda", "prescription", "insulin"],
+      "fec_committee_ids": ["C00000934", "C00004227", "C00002989"],
+      "tickers": ["LLY", "MRK", "PFE", "ABBV", "UNH"]
+    },
+    {
+      "key": "ways-means",
+      "committee": "Ways & Means",
+      "chamber": "House",
+      "label": "Tax & health finance PACs",
+      "policy_tags": ["tax", "health", "trade", "social security"],
+      "bill_keywords": ["tax", "tariff", "trade", "medicare", "social security", "irs"],
+      "fec_committee_ids": ["C00000934", "C00004227", "C00029447"],
+      "tickers": ["UNH", "CVS", "LLY", "JPM"]
+    },
+    {
+      "key": "commerce",
+      "committee": "Commerce",
+      "chamber": "Senate",
+      "label": "Semiconductor & export PACs",
+      "policy_tags": ["chips", "semiconductor", "export controls", "ai"],
+      "bill_keywords": ["chips", "semiconductor", "export", "artificial intelligence", "ai", "supply chain"],
+      "fec_committee_ids": ["C00493072", "C00142711", "C00489761"],
+      "tickers": ["NVDA", "INTC", "TSM", "AMAT", "ASML"]
+    },
+    {
+      "key": "foreign-relations",
+      "committee": "Foreign Relations",
+      "chamber": "Senate",
+      "label": "Foreign policy & defense trade PACs",
+      "policy_tags": ["foreign affairs", "sanctions", "defense exports"],
+      "bill_keywords": ["foreign", "sanction", "aid", "ukraine", "israel", "export control"],
+      "fec_committee_ids": ["C00129559", "C00088591", "C00281212"],
+      "tickers": ["LMT", "RTX", "NOC", "GD"]
+    },
+    {
+      "key": "agriculture",
+      "committee": "Agriculture",
+      "chamber": "House",
+      "label": "Ag & biofuel PACs",
+      "policy_tags": ["agriculture", "farm", "biofuel", "food"],
+      "bill_keywords": ["farm", "agriculture", "crop", "biofuel", "food safety"],
+      "fec_committee_ids": ["C00096156", "C00468449"],
+      "tickers": ["DE", "ADM", "BG", "CF"]
+    },
+    {
+      "key": "transportation",
+      "committee": "Transportation",
+      "chamber": "House",
+      "label": "Infrastructure & EV PACs",
+      "policy_tags": ["transportation", "infrastructure", "aviation", "ev"],
+      "bill_keywords": ["infrastructure", "highway", "aviation", "rail", "electric vehicle", "ev"],
+      "fec_committee_ids": ["C00142711", "C00468449"],
+      "tickers": ["TSLA", "F", "GM", "UBER"]
+    },
+    {
+      "key": "homeland",
+      "committee": "Homeland Security",
+      "chamber": "House",
+      "label": "Cyber & border security PACs",
+      "policy_tags": ["homeland security", "cyber", "border", "immigration"],
+      "bill_keywords": ["homeland", "cyber", "border", "immigration", "customs", "dhs"],
+      "fec_committee_ids": ["C00493072", "C00129559", "C00010603"],
+      "tickers": ["PANW", "CRWD", "LDOS", "BAH"]
+    },
+    {
+      "key": "veterans",
+      "committee": "Veterans' Affairs",
+      "chamber": "Senate",
+      "label": "Veterans health PACs",
+      "policy_tags": ["veterans", "health care", "va"],
+      "bill_keywords": ["veteran", "va ", "veterans affairs", "military health"],
+      "fec_committee_ids": ["C00002989", "C00004227"],
+      "tickers": ["UNH", "CVS", "HCA", "TDOC"]
+    },
+    {
+      "key": "crypto-digital",
+      "committee": "Banking",
+      "chamber": "Senate",
+      "label": "Digital asset PACs",
+      "policy_tags": ["crypto", "digital asset", "blockchain", "stablecoin"],
+      "bill_keywords": ["crypto", "digital asset", "stablecoin", "blockchain", "sec", "cftc"],
+      "fec_committee_ids": ["C00431445", "C00344686"],
+      "tickers": ["COIN", "BTC", "ETH", "MSTR"]
+    },
+    {
+      "key": "intel",
+      "committee": "Intelligence",
+      "chamber": "House",
+      "label": "Intel & surveillance PACs",
+      "policy_tags": ["intelligence", "surveillance", "cyber", "defense tech"],
+      "bill_keywords": ["intelligence", "surveillance", "fisa", "cyber", "classified"],
+      "fec_committee_ids": ["C00493072", "C00129559", "C00010603"],
+      "tickers": ["PLTR", "LDOS", "PANW", "CRWD"]
+    }
+  ]
+}

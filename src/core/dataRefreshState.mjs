@@ -6,7 +6,8 @@ const feedState = {
   bills: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0, liveCount: 0, scenarioCount: 0 },
   lobbying: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0 },
   contracts: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0 },
-  crypto: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0 }
+  crypto: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0 },
+  fec: { status: "unknown", fallback: true, lastSuccessAt: null, lastError: null, recordCount: 0 }
 };
 
 let congressCacheDir = null;
@@ -108,6 +109,7 @@ export function buildHealthPayload(env = process.env, extra = {}) {
     congress: Boolean(env.CONGRESS_API_KEY),
     senateLda: Boolean(env.SENATE_LDA_API_KEY),
     secEdgar: Boolean(env.SEC_USER_AGENT && !String(env.SEC_USER_AGENT).includes("you@example.com")),
+    fec: Boolean(env.FEC_API_KEY),
     yfinance: env.YFINANCE_ENABLED !== "false"
   };
 

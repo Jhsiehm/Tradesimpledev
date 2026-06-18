@@ -415,6 +415,29 @@ const LANDING_QUOTES_TICKERS = ["GME", "AMZN", "SPCX", "RTX", "PLTR", "NOC", "NV
 const LANDING_QUOTES_TTL_MS = 5 * 60 * 1000;
 let landingQuotesCache = null;
 let landingQuotesCachedAt = 0;
+
+const FEC_API_BASE = "https://api.open.fec.gov/v1";
+const FEC_PULSE_CACHE_TTL_MS = Number(process.env.FEC_PULSE_CACHE_TTL_MS || 15 * 60 * 1000);
+const FEC_COMMITTEE_MAP_FILE = join(DATA_DIR, "fec-committee-map.json");
+const FEC_PULSE_SEED_FILE = join(DATA_DIR, "fec-pulse-seed.json");
+let fecCommitteeMap = { clusters: [], cycle: 2024 };
+let fecPulseSeed = { source: "sample", pulses: [] };
+let fecPulseCache = null;
+let fecPulseCachedAt = 0;
+
+function loadFecSeedFiles() {
+  try {
+    fecCommitteeMap = JSON.parse(readFileSync(FEC_COMMITTEE_MAP_FILE, "utf8"));
+  } catch {
+    fecCommitteeMap = { clusters: [], cycle: 2024 };
+  }
+  try {
+    fecPulseSeed = JSON.parse(readFileSync(FEC_PULSE_SEED_FILE, "utf8"));
+  } catch {
+    fecPulseSeed = { source: "sample", pulses: [], updatedAt: new Date().toISOString() };
+  }
+}
+loadFecSeedFiles();
 // Per-user research request tracking — in-memory, resets on server restart.
 // Map<userId, { count: number, windowStart: number }>
 const researchRateLimit = new Map();
@@ -2991,6 +3014,9 @@ async function route(req, res) {
   if (pathname === "/.well-known/security.txt") return sendStatic(res, ".well-known/security.txt");
   if (pathname === "/api/landing-quotes" && req.method === "GET") return landingQuotesHandler(res);
   if (pathname === "/api/landing-signal" && req.method === "GET") return landingSignalHandler(res);
+  if ((pathname === "/api/fec/pulse" || pathname === "/api/landing-fec-pulse") && req.method === "GET") {
+    return fecPulseHandler(res);
+  }
   if (pathname === "/api/trending" && req.method === "GET") return trendingListHandler(res);
   if (pathname === "/api/contract-watch" && req.method === "GET") return contractWatchListHandler(res);
   if (pathname === "/api/contract-watch/alerts" && req.method === "GET") return contractWatchAlertsHandler(res, url);
@@ -3045,6 +3071,7 @@ async function route(req, res) {
       if (!checkFeature("LOBBYING_EXPLORER_ENABLED", res)) return;
       return lobbying(res);
     }
+    if (pathname === "/api/fec/bill-context" && req.method === "GET") return fecBillContextHandler(res, url);
     if (pathname === "/api/funds" && req.method === "GET") {
       if (!checkFeature("FUNDS_HYPOTHETICALS_ENABLED", res)) return;
       return listFunds(res, session);
@@ -3262,6 +3289,7 @@ function publicConfig() {
       serverAi: serverAiProviderEnabled(),
       supabase: dbReady,
       secEdgar: true,
+      fec: Boolean(process.env.FEC_API_KEY),
       healthEndpoint: "/api/health/data",
       strictDataMode: isStrictDataMode()
     },
@@ -3920,6 +3948,14 @@ async function sendLandingSignalResponse(res, payload) {
   if (payload) {
     payload.trending = await buildLandingTrendingStrip();
     payload.contractAward = pickLandingContractAwardLine();
+    try {
+      const fecPayload = await getFecPulsePayload();
+      payload.fecPulse = pickLandingFecPulseLine(fecPayload);
+      payload.fecSource = fecPayload?.source || "sample";
+    } catch {
+      payload.fecPulse = pickLandingFecPulseLine(fecSamplePulsePayload());
+      payload.fecSource = "sample";
+    }
   }
   return sendJson(res, 200, payload);
 }
@@ -5049,6 +5085,303 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return results;
 }
 
+function fecElectionCycle() {
+  const year = new Date().getFullYear();
+  return year % 2 === 0 ? year : year - 1;
+}
+
+function fecSamplePulsePayload() {
+  const seed = fecPulseSeed?.pulses?.length ? fecPulseSeed : { pulses: [] };
+  const payload = {
+    source: "sample",
+    updatedAt: seed.updatedAt || new Date().toISOString(),
+    cycle: seed.cycle || fecElectionCycle(),
+    configured: Boolean(process.env.FEC_API_KEY),
+    pulses: (seed.pulses || []).map((row) => ({ ...row, source: "sample" }))
+  };
+  noteFeedSuccess("fec", { source: "sample", recordCount: payload.pulses.length });
+  return payload;
+}
+
+async function fetchFecJson(path, params = {}) {
+  const key = process.env.FEC_API_KEY;
+  if (!key) return null;
+  const qs = new URLSearchParams({ ...params, api_key: key });
+  const url = `${FEC_API_BASE}${path}${path.includes("?") ? "&" : "?"}${qs.toString()}`;
+  try {
+    const response = await fetchWithTimeout(url, {}, 10_000);
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
+function matchFecClusterForBill(bill) {
+  const clusters = fecCommitteeMap.clusters || [];
+  if (!clusters.length || !bill) return null;
+  const haystack = [
+    bill.title,
+    bill.shortTitle,
+    bill.policyArea,
+    ...(bill.tags || []),
+    ...(bill.committees || []),
+    ...(bill._committeeNames || []),
+    bill.legislativeContext?.primaryCommittee
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  for (const cluster of clusters) {
+    let score = 0;
+    for (const tag of cluster.policy_tags || []) {
+      if (haystack.includes(String(tag).toLowerCase())) score += 2;
+    }
+    for (const kw of cluster.bill_keywords || []) {
+      if (haystack.includes(String(kw).toLowerCase())) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = cluster;
+    }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+function buildFecPulsePlainEnglish(cluster, amount, period, tickers, recentFilings = 0) {
+  const amt = compactMoney(amount);
+  const tk = (tickers || []).slice(0, 3).join(", ") || "mapped names";
+  const filingBit =
+    recentFilings > 0
+      ? `${recentFilings} fresh filing${recentFilings === 1 ? "" : "s"} over 48 hours`
+      : "cycle totals updated";
+  return `${cluster.label} linked to ${cluster.committee} reported ${amt} in receipts — ${filingBit}. Names in play: ${tk}.`;
+}
+
+async function fetchFecClusterMetrics(cluster, cycle) {
+  const ids = cluster.fec_committee_ids || [];
+  let receipts = 0;
+  let disbursements = 0;
+  let recentFilings = 0;
+  let latestFilingDate = null;
+  const minDate = new Date(Date.now() - 48 * 3600 * 1000).toISOString().slice(0, 10);
+  for (const committeeId of ids.slice(0, 4)) {
+    const totals = await fetchFecJson(`/committee/${encodeURIComponent(committeeId)}/totals/`, {
+      cycle,
+      per_page: 1,
+      sort: "-cycle"
+    });
+    const totalRow = totals?.results?.[0];
+    if (totalRow) {
+      receipts += Number(totalRow.receipts || 0);
+      disbursements += Number(totalRow.disbursements || 0);
+    }
+    const filings = await fetchFecJson("/filings/", {
+      committee_id: committeeId,
+      min_last_modified_date: minDate,
+      per_page: 20,
+      sort: "-receipt_date"
+    });
+    const filingRows = filings?.results || [];
+    recentFilings += filingRows.length;
+    for (const row of filingRows) {
+      const d = row.receipt_date || row.coverage_end_date || row.filed_date;
+      if (d && (!latestFilingDate || d > latestFilingDate)) latestFilingDate = d;
+    }
+  }
+  return { receipts, disbursements, recentFilings, latestFilingDate };
+}
+
+async function buildLiveFecPulsePayload() {
+  const key = process.env.FEC_API_KEY;
+  if (!key) return fecSamplePulsePayload();
+  const cycle = fecCommitteeMap.cycle || fecElectionCycle();
+  const clusters = (fecCommitteeMap.clusters || []).slice(0, 18);
+  const settled = await mapWithConcurrency(clusters, 4, async (cluster) => {
+    const metrics = await fetchFecClusterMetrics(cluster, cycle);
+    const amount = metrics.receipts || metrics.disbursements || 0;
+    if (!amount && !metrics.recentFilings) return null;
+    const tickers = cluster.tickers || [];
+    const period = `${cycle} cycle · last 48h filings`;
+    return {
+      committee: cluster.committee,
+      chamber: cluster.chamber,
+      label: cluster.label,
+      amountSummary: `${compactMoney(amount)} cycle receipts`,
+      period,
+      tickers,
+      filingDate: metrics.latestFilingDate || new Date().toISOString().slice(0, 10),
+      plainEnglish: buildFecPulsePlainEnglish(cluster, amount, period, tickers, metrics.recentFilings),
+      clusterKey: cluster.key,
+      recentFilings: metrics.recentFilings,
+      fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,
+      source: "fec"
+    };
+  });
+  const pulses = settled
+    .filter((row) => row && (row.recentFilings > 0 || Number(String(row.amountSummary || "").replace(/[^\d.]/g, "")) > 0))
+    .sort((a, b) => Number(b.recentFilings || 0) - Number(a.recentFilings || 0))
+    .slice(0, 20);
+  if (!pulses.length) return fecSamplePulsePayload();
+  noteFeedSuccess("fec", { source: "fec", recordCount: pulses.length });
+  return {
+    source: "fec",
+    updatedAt: new Date().toISOString(),
+    cycle,
+    configured: true,
+    pulses
+  };
+}
+
+async function getFecPulsePayload({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && fecPulseCache && now - fecPulseCachedAt < FEC_PULSE_CACHE_TTL_MS) {
+    return fecPulseCache;
+  }
+  try {
+    const payload = await buildLiveFecPulsePayload();
+    fecPulseCache = payload;
+    fecPulseCachedAt = now;
+    return payload;
+  } catch (err) {
+    noteFeedError("fec", err);
+    if (fecPulseCache) return { ...fecPulseCache, stale: true };
+    return fecSamplePulsePayload();
+  }
+}
+
+function fecPulseHandler(res) {
+  getFecPulsePayload()
+    .then((payload) => sendJson(res, 200, payload))
+    .catch((err) => {
+      console.error("[fec-pulse]", err.message);
+      sendJson(res, 200, fecSamplePulsePayload());
+    });
+}
+
+async function fetchFecSponsorSummary(bill, cycle) {
+  const sponsor = bill?.sponsor?.name || bill?.sponsor;
+  if (!sponsor || !process.env.FEC_API_KEY) return null;
+  const lastName = String(sponsor)
+    .replace(/^Rep\.|^Sen\.|^Hon\./i, "")
+    .trim()
+    .split(/[\s,]+/)
+    .pop();
+  if (!lastName || lastName.length < 3) return null;
+  const office = String(bill.chamber || "").toLowerCase().includes("senate") ? "S" : "H";
+  const search = await fetchFecJson("/candidates/search/", { q: lastName, office, per_page: 3 });
+  const candidate = search?.results?.[0];
+  if (!candidate?.candidate_id) return null;
+  const totals = await fetchFecJson(`/candidate/${encodeURIComponent(candidate.candidate_id)}/totals/`, {
+    cycle,
+    per_page: 1
+  });
+  const row = totals?.results?.[0];
+  if (!row) return null;
+  return {
+    name: candidate.name || sponsor,
+    candidateId: candidate.candidate_id,
+    receipts: Number(row.receipts || 0),
+    disbursements: Number(row.disbursements || 0),
+    cycle,
+    fecUrl: `https://www.fec.gov/data/candidate/${encodeURIComponent(candidate.candidate_id)}/`
+  };
+}
+
+async function buildBillMoneyContext(bill) {
+  const cluster = matchFecClusterForBill(bill);
+  if (!cluster) {
+    return {
+      matched: false,
+      source: process.env.FEC_API_KEY ? "fec" : "sample",
+      message: "No committee money match for this bill yet.",
+      updatedAt: new Date().toISOString()
+    };
+  }
+  const cycle = fecCommitteeMap.cycle || fecElectionCycle();
+  const key = process.env.FEC_API_KEY;
+  let metrics = { receipts: 0, disbursements: 0, recentFilings: 0, latestFilingDate: null };
+  if (key) {
+    metrics = await fetchFecClusterMetrics(cluster, cycle);
+  } else {
+    const seedRow = (fecPulseSeed.pulses || []).find((row) => row.clusterKey === cluster.key);
+    if (seedRow) {
+      metrics.receipts = Number(String(seedRow.amountSummary || "").replace(/[^\d.]/g, "")) * 1e6 || 0;
+      metrics.latestFilingDate = seedRow.filingDate;
+      metrics.recentFilings = seedRow.recentFilings || 0;
+    }
+  }
+  const sponsorSummary = await fetchFecSponsorSummary(bill, cycle);
+  const tickers = cluster.tickers || [];
+  const amount = metrics.receipts || metrics.disbursements || 0;
+  const period = `${cycle} cycle`;
+  const topIndustries = [
+    { label: cluster.label, amount: compactMoney(amount) }
+  ];
+  const marketBullets = [
+    `${cluster.committee} (${cluster.chamber}) maps to ${cluster.label} — ${compactMoney(amount)} in ${period} receipts per FEC.`,
+    tickers.length
+      ? `Mapped tickers: ${tickers.slice(0, 4).join(", ")}. Correlation with filings is not causation.`
+      : "No ticker map on this cluster yet.",
+    sponsorSummary
+      ? `Sponsor ${sponsorSummary.name} reported ${compactMoney(sponsorSummary.receipts)} in ${cycle} cycle receipts.`
+      : "Sponsor fundraising totals unavailable without a FEC name match."
+  ];
+  const plainEnglish = buildFecPulsePlainEnglish(
+    cluster,
+    amount,
+    period,
+    tickers,
+    metrics.recentFilings
+  );
+  return {
+    matched: true,
+    source: key ? "fec" : "sample",
+    cycle,
+    committee: cluster.committee,
+    chamber: cluster.chamber,
+    label: cluster.label,
+    committeeTotals: {
+      receipts: metrics.receipts,
+      disbursements: metrics.disbursements,
+      summary: `${compactMoney(amount)} ${period} receipts`
+    },
+    sponsorSummary,
+    topIndustries,
+    tickers,
+    marketBullets,
+    plainEnglish,
+    fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,
+    filingDate: metrics.latestFilingDate || null,
+    updatedAt: new Date().toISOString(),
+    attribution: "Source: FEC"
+  };
+}
+
+async function fecBillContextHandler(res, url) {
+  const billId = url.searchParams.get("billId") || url.searchParams.get("id") || "";
+  try {
+    const bill = await resolvePolicyBillAsync(billId);
+    if (!bill) {
+      return sendJson(res, 404, { error: "unknown_bill_id", message: "Bill not found." });
+    }
+    const merged = decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)));
+    const moneyContext = await buildBillMoneyContext(merged);
+    return sendJson(res, 200, { billId: merged.id, moneyContext });
+  } catch (err) {
+    return sendJson(res, 502, { error: "fec_bill_context_failed", message: err.message || "Could not load FEC context." });
+  }
+}
+
+function pickLandingFecPulseLine(payload) {
+  const pulses = payload?.pulses || [];
+  if (!pulses.length) return null;
+  const idx = Math.floor(Date.now() / (15 * 60 * 1000)) % pulses.length;
+  return pulses[idx];
+}
+
 async function landingQuotesHandler(res) {
   const now = Date.now();
   if (landingQuotesCache && now - landingQuotesCachedAt < LANDING_QUOTES_TTL_MS) {
@@ -6135,6 +6468,7 @@ async function buildBillSharePayload(billIdRaw, req = null) {
     relatedContracts,
     exposureSource: merged.exposureSource || null
   });
+  const moneyContext = await buildBillMoneyContext(merged);
   return {
     billId: canonicalId,
     live: live || liveAnalysis.freshness === "live" || freshness.level === "verified",
@@ -6156,6 +6490,7 @@ async function buildBillSharePayload(billIdRaw, req = null) {
     },
     liveAnalysis,
     freshness,
+    moneyContext,
     whyMarketsCare: liveAnalysis.explanation?.whyMarketsCare || null,
     updatedAt: new Date().toISOString(),
     share: {
@@ -6194,7 +6529,10 @@ function truncateOgDescription(text, max = 200) {
   return `${normalized.slice(0, max - 1).trimEnd()}…`;
 }
 
-function buildBillOgDescription(bill) {
+function buildBillOgDescription(bill, moneyContext = null) {
+  if (moneyContext?.matched && moneyContext.plainEnglish) {
+    return truncateOgDescription(`${moneyContext.plainEnglish} Research context only.`);
+  }
   if (!bill) return "Legislative status, lobbying, and scenario impacts. Research context only.";
   const why =
     bill.whyMarketsCare ||
@@ -6252,12 +6590,20 @@ async function publicBillCard(req, res, pathname, { head = false } = {}) {
   const decorated = bill
     ? decorateBill(mergeCongressLiveIntoBill(applyBillMarketExposure(bill)))
     : null;
+  let moneyContext = null;
+  if (decorated) {
+    try {
+      moneyContext = await buildBillMoneyContext(decorated);
+    } catch {
+      moneyContext = null;
+    }
+  }
   const pageTitle = decorated
     ? `${decorated.shortTitle || decorated.title || billId} | TradeSimple`
     : validFormat
       ? `${canonical || raw} | TradeSimple bill brief`
       : `Bill not found | TradeSimple`;
-  const description = buildBillOgDescription(decorated || bill);
+  const description = buildBillOgDescription(decorated || bill, moneyContext);
   const canonicalUrl = `${APP_URL}/bill/${encodeURIComponent(decorated?.id || billId)}`;
   const ogImage = `${APP_URL}/media/og-image.png`;
   const html = `<!doctype html>

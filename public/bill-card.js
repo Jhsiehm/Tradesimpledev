@@ -631,6 +631,8 @@ function renderFullBrief(data) {
       ${impactSection("If it passes", data.passImpacts || bill.passImpacts)}
       ${impactSection("If it stalls or fails", data.failImpacts || bill.failImpacts)}
 
+      ${moneyContextSection(data.moneyContext)}
+
       <section class="bill-card-panel">
         <h2>Lobbying & stakeholders</h2>
         ${lobbyingTable(bill)}
@@ -725,6 +727,32 @@ function impactSection(title, impacts) {
           .join("")}
       </ul>
       <p class="muted">Scenario ranges are illustrative models, not price targets or investment advice.</p>
+    </section>`;
+}
+
+function moneyContextSection(ctx) {
+  if (!ctx) return "";
+  if (!ctx.matched) {
+    return `
+      <section class="bill-card-panel money-context">
+        <h2>Money context</h2>
+        <p class="muted">${escapeHtml(ctx.message || "No committee money match for this bill yet.")}</p>
+      </section>`;
+  }
+  const badge = ctx.source === "sample" ? "Sample" : "FEC";
+  return `
+    <section class="bill-card-panel money-context">
+      <div class="money-context-head">
+        <h2>Money context</h2>
+        <span class="mini-pill ${ctx.source === "sample" ? "amber" : "green"}">${escapeHtml(badge)}</span>
+      </div>
+      <p>${escapeHtml(ctx.plainEnglish || "")}</p>
+      <ul class="money-context-bullets">
+        ${(ctx.marketBullets || []).slice(0, 3).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+      </ul>
+      ${ctx.sponsorSummary ? `<p class="muted">Sponsor ${escapeHtml(ctx.sponsorSummary.name)} · ${money(ctx.sponsorSummary.receipts || 0)} · ${escapeHtml(String(ctx.cycle || ""))} cycle</p>` : ""}
+      <div class="bill-ticker-row">${(ctx.tickers || []).slice(0, 6).map((t) => `<span class="ticker-chip-link">${escapeHtml(t)}</span>`).join("")}</div>
+      ${ctx.fecUrl ? `<a class="card-button ghost" href="${escapeHtml(ctx.fecUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(ctx.attribution || "Source: FEC")}</a>` : ""}
     </section>`;
 }
 

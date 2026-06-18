@@ -1,0 +1,85 @@
+{
+  "source": "sample",
+  "updatedAt": "2026-06-17T12:00:00.000Z",
+  "cycle": 2024,
+  "pulses": [
+    {
+      "committee": "Armed Services",
+      "chamber": "House",
+      "label": "Defense industry PACs",
+      "amountSummary": "$4.2M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["LMT", "RTX", "NOC"],
+      "filingDate": "2026-06-15",
+      "plainEnglish": "Defense industry PACs reported $4.2M in cycle receipts with fresh filings over 48 hours — names in play: LMT, RTX, NOC.",
+      "clusterKey": "armed-services",
+      "recentFilings": 3,
+      "fecUrl": "https://www.fec.gov/data/committee/C00129559/"
+    },
+    {
+      "committee": "Banking",
+      "chamber": "Senate",
+      "label": "Financial services PACs",
+      "amountSummary": "$2.8M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["JPM", "BAC", "GS"],
+      "filingDate": "2026-06-16",
+      "plainEnglish": "Banking committee-linked PACs filed $2.8M in cycle activity — watch JPM, BAC, GS if stablecoin or capital-markets bills move.",
+      "clusterKey": "banking",
+      "recentFilings": 2,
+      "fecUrl": "https://www.fec.gov/data/committee/C00004530/"
+    },
+    {
+      "committee": "Energy & Commerce",
+      "chamber": "House",
+      "label": "Energy & telecom PACs",
+      "amountSummary": "$3.1M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["XOM", "NEE", "TSLA"],
+      "filingDate": "2026-06-14",
+      "plainEnglish": "Energy & Commerce PAC cluster shows $3.1M in cycle receipts — permitting and grid bills could touch XOM, NEE, TSLA.",
+      "clusterKey": "energy-commerce",
+      "recentFilings": 4,
+      "fecUrl": "https://www.fec.gov/data/committee/C00003440/"
+    },
+    {
+      "committee": "HELP",
+      "chamber": "Senate",
+      "label": "Pharma & health PACs",
+      "amountSummary": "$5.6M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["LLY", "MRK", "PFE"],
+      "filingDate": "2026-06-16",
+      "plainEnglish": "HELP-linked pharma PACs logged $5.6M in cycle receipts — drug-pricing hearings keep LLY, MRK, PFE on the watchlist.",
+      "clusterKey": "help",
+      "recentFilings": 5,
+      "fecUrl": "https://www.fec.gov/data/committee/C00000934/"
+    },
+    {
+      "committee": "Judiciary",
+      "chamber": "Senate",
+      "label": "Big Tech & platform PACs",
+      "amountSummary": "$6.4M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["GOOGL", "META", "AAPL"],
+      "filingDate": "2026-06-15",
+      "plainEnglish": "Judiciary-linked platform PACs reported $6.4M in cycle activity — antitrust markup weeks tend to move GOOGL, META, AAPL.",
+      "clusterKey": "judiciary",
+      "recentFilings": 6,
+      "fecUrl": "https://www.fec.gov/data/committee/C00489269/"
+    },
+    {
+      "committee": "Commerce",
+      "chamber": "Senate",
+      "label": "Semiconductor & export PACs",
+      "amountSummary": "$2.1M cycle receipts",
+      "period": "2024 cycle · last 48h filings",
+      "tickers": ["NVDA", "INTC", "AMAT"],
+      "filingDate": "2026-06-13",
+      "plainEnglish": "Commerce committee PAC cluster filed $2.1M in cycle receipts — export-control bills map to NVDA, INTC, AMAT.",
+      "clusterKey": "commerce",
+      "recentFilings": 2,
+      "fecUrl": "https://www.fec.gov/data/committee/C00493072/"
+    }
+  ]
+}

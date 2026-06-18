@@ -1249,6 +1249,12 @@ function hydrateLandingSignal(){
         else chain.textContent=d.contractAward.line;
       }
     }
+    if(d.fecPulse&&d.fecPulse.plainEnglish){
+      var fecLine=d.fecPulse.plainEnglish;
+      var fecSrc=d.fecSource==='fec'?'FEC live':'FEC sample';
+      if(fresh) fresh.textContent=(fecLine.slice(0,96)+(fecLine.length>96?'…':''))+' · '+fecSrc+(fresh.textContent?(' · '+fresh.textContent):'');
+      if(label&&!d.editorial) label.textContent='FEC pulse · '+(d.fecPulse.committee||'Committee');
+    }
     updateTrendingStrip(d.trending||[]);
   }
   function updateTrendingStrip(items){
@@ -1270,8 +1276,26 @@ function hydrateLandingSignal(){
       .catch(function(){return null})
       .then(updateSignal);
   }
+  function fetchFecPulse(){
+    fetch(tsApiUrl('/api/fec/pulse'))
+      .then(function(r){return r.ok?r.json():null})
+      .catch(function(){return null})
+      .then(function(payload){
+        if(!payload||!payload.pulses||!payload.pulses.length)return;
+        var fresh=document.getElementById('terminal-signal-freshness');
+        var label=document.getElementById('terminal-signal-label');
+        var top=payload.pulses[0];
+        if(fresh&&!document.getElementById('terminal-signal-freshness').dataset.fecSet){
+          fresh.dataset.fecSet='1';
+          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · '+(payload.source==='fec'?'FEC live':'FEC sample');
+        }
+        if(label) label.textContent='FEC pulse · '+(top.committee||'Committee');
+      });
+  }
   fetchSignal();
+  fetchFecPulse();
   setInterval(fetchSignal, 30000);
+  setInterval(fetchFecPulse, 900000);
 }
 
 function bootLandingScripts(){
