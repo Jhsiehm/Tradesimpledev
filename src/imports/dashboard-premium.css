@@ -1,0 +1,255 @@
+/**
+ * Premium elevation layer — dashboard only.
+ * Editorial restraint, mobile luxury, terminal-grade data typography.
+ */
+body[data-page="dashboard"] {
+  --dash-bottom-nav-h: 62px;
+  --dash-radius-sm: 4px;
+  --dash-radius-md: 8px;
+  --dash-radius-lg: 12px;
+}
+
+/* ── Morning brief: magazine layout ── */
+body[data-page="dashboard"] .morning-brief-card.panel-emphasis {
+  border-radius: var(--dash-radius-lg);
+  border-color: color-mix(in srgb, var(--green) 22%, var(--dash-edge));
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--bg-2) 94%, var(--green)) 0%, var(--bg-2) 52%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body[data-page="dashboard"] .morning-brief-inner {
+  padding: var(--space-3, 24px) var(--space-3, 24px) var(--space-2, 16px);
+}
+
+body[data-page="dashboard"] .morning-brief-ticker {
+  font-family: var(--mono);
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--green);
+  margin: 0 0 var(--space-1, 8px);
+}
+
+body[data-page="dashboard"] .morning-brief-eyebrow {
+  margin-bottom: var(--space-1, 8px);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+body[data-page="dashboard"] .morning-brief-rule {
+  border: 0;
+  height: 1px;
+  margin: 0 0 var(--space-2, 16px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--green) 45%, transparent), transparent 72%);
+}
+
+body[data-page="dashboard"] .morning-brief-title {
+  font-family: var(--serif);
+  font-size: clamp(1.25rem, 4.2vw, 1.65rem);
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-1, 8px);
+}
+
+body[data-page="dashboard"] .morning-brief-why {
+  font-size: 14px;
+  line-height: 1.65;
+  max-width: 52ch;
+  margin: 0 0 var(--space-2, 16px);
+}
+
+body[data-page="dashboard"] .morning-brief-actions .button-primary.compact {
+  min-height: 44px;
+  padding: 0 var(--space-2, 16px);
+}
+
+/* ── KPI strip: terminal elegance ── */
+body[data-page="dashboard"] .overview-metrics-strip {
+  border-radius: var(--dash-radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body[data-page="dashboard"] .overview-metric-value {
+  font-size: clamp(14px, 3.2vw, 17px);
+  letter-spacing: -0.01em;
+}
+
+body[data-page="dashboard"] .overview-metric-label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 9px;
+}
+
+/* ── Conviction cards: editorial accent ── */
+body[data-page="dashboard"] .sc-card-conviction {
+  border-left-width: 3px;
+  border-radius: var(--dash-radius-md);
+  padding: 14px 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body[data-page="dashboard"] .sc-card-conviction.sc-card-conviction--high {
+  border-left-color: var(--green);
+}
+
+body[data-page="dashboard"] .sc-card-conviction.sc-card-conviction--medium {
+  border-left-color: var(--amber);
+}
+
+body[data-page="dashboard"] .sc-card-conviction.sc-card-conviction--low {
+  border-left-color: var(--red);
+}
+
+body[data-page="dashboard"] .sc-card-conviction .sc-title {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+body[data-page="dashboard"] .sc-card-conviction:hover {
+  transform: translateY(-1px);
+}
+
+/* ── Markets table polish ── */
+body[data-page="dashboard"] .terminal-table--markets th:last-child,
+body[data-page="dashboard"] .terminal-table--markets td:last-child,
+body[data-page="dashboard"] .terminal-table--markets .markets-price-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+body[data-page="dashboard"] .terminal-table--markets td:first-child {
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+body[data-page="dashboard"] .terminal-table--scan tbody tr:not(.contract-detail-row):hover td {
+  background: color-mix(in srgb, var(--green) 5%, var(--bg-2)) !important;
+}
+
+/* ── Mobile bottom nav: icon + label, top indicator ── */
+@media (max-width: 760px) {
+  body[data-page="dashboard"] .mobile-bottom-nav {
+    align-items: stretch;
+    gap: 0;
+    padding:
+      0
+      max(8px, env(safe-area-inset-left, 0px))
+      env(safe-area-inset-bottom, 0px)
+      max(8px, env(safe-area-inset-right, 0px));
+    background: color-mix(in srgb, var(--bg-2) 96%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 -1px 0 var(--dash-edge);
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: var(--dash-bottom-nav-h);
+    padding: 8px 4px 6px;
+    color: var(--muted);
+    transition: color var(--dur-state, 180ms) var(--ease-premium, cubic-bezier(0.32, 0.72, 0, 1));
+    box-shadow: none;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 18%;
+    right: 18%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--green);
+    transform: scaleX(0);
+    transition: transform var(--dur-state, 180ms) var(--ease-premium, cubic-bezier(0.32, 0.72, 0, 1));
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item.is-active {
+    color: var(--text);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item.is-active::before {
+    transform: scaleX(1);
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--green) 55%, transparent);
+    outline-offset: -2px;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    opacity: 0.72;
+    transition: opacity var(--dur-state, 180ms) var(--ease-premium, cubic-bezier(0.32, 0.72, 0, 1));
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item.is-active .mobile-bottom-nav-icon {
+    opacity: 1;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-label {
+    display: block;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+
+  body[data-page="dashboard"] .research-drawer-btn {
+    min-height: 48px;
+    min-width: 48px;
+    bottom: calc(var(--dash-bottom-nav-h) + var(--dash-fab-gap) + env(safe-area-inset-bottom, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  body[data-page="dashboard"] .morning-brief-inner {
+    padding: var(--space-3, 24px) var(--space-2, 16px) var(--space-2, 16px);
+  }
+
+  body[data-page="dashboard"] .workspace {
+    padding-bottom: calc(var(--dash-bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+
+  body[data-page="dashboard"] .overview-metrics-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="dashboard"] .overview-metric-cell:nth-child(2) {
+    border-right: 0;
+  }
+
+  body[data-page="dashboard"] .overview-metric-cell:nth-child(1),
+  body[data-page="dashboard"] .overview-metric-cell:nth-child(2) {
+    border-bottom: 1px solid var(--dash-glass-edge, var(--dash-edge));
+  }
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .morning-brief-card.panel-emphasis {
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--bg-2) 96%, var(--green-2)) 0%, var(--bg-2) 55%);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .mobile-bottom-nav {
+  background: color-mix(in srgb, var(--bg-2) 98%, transparent);
+  box-shadow: 0 -1px 0 var(--line);
+}

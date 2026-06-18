@@ -30,7 +30,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=anti-vibe-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=premium-1"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -164,14 +164,14 @@ html[data-theme="light"] .nav-inner{
 .btn:active{transform:translateY(0) scale(.98) !important}
 
 /* Directional hover fill */
-.btn-primary{background:var(--green);color:#071004;border:1px solid transparent}
+.btn-primary{background:var(--green);color:#071004;border:1px solid var(--green);border-radius:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
 .btn-primary::after{
   content:"";position:absolute;inset:0;
-  background:rgba(255,255,255,.15);
+  background:rgba(255,255,255,.12);
   clip-path:circle(0% at 50% 50%);
-  transition:clip-path .4s var(--ease);
+  transition:clip-path .35s var(--ease);
 }
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.18)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.15),0 6px 18px color-mix(in srgb,var(--green) 20%,transparent)}
 .btn-primary:hover::after{clip-path:circle(150% at var(--mx,50%) var(--my,50%))}
 .btn-primary:focus-visible{outline:2px solid var(--text);outline-offset:3px}
 .btn-primary:active{transform:translateY(0) scale(.98) !important}

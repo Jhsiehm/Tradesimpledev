@@ -8223,12 +8223,13 @@ function normalizeText(value) {
 
 function signalCard(bill) {
   const m = billMomentum(bill);
+  const convBand = m >= 67 ? "high" : m < 35 ? "low" : "medium";
   const conf = billConfidenceLabel(bill);
   const status = billStatusInfo(bill);
   const tickers = (bill.affected || []).slice(0, 4);
   const source = bill.exactCongressRecord ? "Congress.gov" : bill.id || "Policy feed";
   return `
-    <article class="sc-card sc-card--bill sc-card-conviction actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
+    <article class="sc-card sc-card--bill sc-card-conviction sc-card-conviction--${convBand} actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
       <div class="sc-card-header">
         <span class="sc-type-badge">Bill</span>
         <span class="score-badge ${m >= 67 ? "high" : m < 35 ? "low" : "medium"}">${m}/100</span>
@@ -9591,12 +9592,15 @@ function renderMorningBrief() {
     const sig = pick.data;
     const source = signalSourceLabel(sig);
     const band = `${sig.score}/100 · ${momentumBandLabel(sig.score)}`;
+    const primaryTicker = (sig.tickers && sig.tickers[0]) || "";
     inner.innerHTML = `
+      ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
       <div class="morning-brief-eyebrow">
         <span class="top-signal-dot" aria-hidden="true"></span>
         <span>Morning brief</span>
         <span class="mini-pill">${escapeHtml(band)}</span>
       </div>
+      <hr class="morning-brief-rule" aria-hidden="true">
       <h2 class="morning-brief-title">${escapeHtml(sig.title || "Top signal")}</h2>
       ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
       <p class="morning-brief-why">${escapeHtml(twelveWordSummary(sig.chain?.[1] || sig.title || ""))}</p>
@@ -9609,12 +9613,15 @@ function renderMorningBrief() {
     const m = billMomentum(bill);
     const tickers = (bill.affected || []).slice(0, 4);
     const source = bill.exactCongressRecord ? "Congress.gov" : "Policy feed";
+    const primaryTicker = tickers[0] || "";
     inner.innerHTML = `
+      ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
       <div class="morning-brief-eyebrow">
         <span class="top-signal-dot" aria-hidden="true"></span>
         <span>Morning brief</span>
         <span class="mini-pill">${m}/100 · ${escapeHtml(billConfidenceLabel(bill))}</span>
       </div>
+      <hr class="morning-brief-rule" aria-hidden="true">
       <h2 class="morning-brief-title">${escapeHtml(bill.shortTitle || bill.title)}</h2>
       ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: momentumBandLabel(m) })}
       <p class="morning-brief-why">${escapeHtml(bill.whyMarketsCare || bill.plainEnglish || bill.signal || bill.impact || "")}</p>
