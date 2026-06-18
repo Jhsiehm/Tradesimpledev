@@ -4794,3 +4794,518 @@ body[data-page="dashboard"] .mobile-bottom-nav {
     display: none !important;
   }
 }
+
+/* ═══ PREMIUM ELEVATION — editorial restraint + operational precision ═══ */
+
+body[data-page="dashboard"] {
+  --elev-border: color-mix(in srgb, var(--line) 65%, transparent);
+  --elev-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.22);
+  --elev-radius-sm: 2px;
+  --elev-radius-md: 4px;
+  --elev-gap-section: 32px;
+  --elev-motion: 0.2s cubic-bezier(0, 0, 0.2, 1);
+  --elev-accent-high: color-mix(in srgb, var(--green) 72%, #8a9a6a);
+  --elev-accent-medium: color-mix(in srgb, var(--amber) 55%, var(--muted));
+  --elev-accent-low: color-mix(in srgb, var(--faint) 80%, var(--muted));
+}
+
+html[data-theme="light"] body[data-page="dashboard"] {
+  --elev-shadow: 0 1px 0 rgba(255, 255, 255, 0.95) inset, 0 6px 20px rgba(0, 0, 0, 0.05);
+  --elev-border: color-mix(in srgb, var(--line) 85%, transparent);
+}
+
+/* Unified intelligence brief card */
+body[data-page="dashboard"] .intel-card {
+  position: relative;
+  border: 0.5px solid var(--elev-border);
+  border-radius: var(--elev-radius-md);
+  background: var(--bg-2);
+  box-shadow: var(--elev-shadow);
+  overflow: hidden;
+  transition: border-color var(--elev-motion), box-shadow var(--elev-motion), transform var(--elev-motion);
+}
+
+body[data-page="dashboard"] .intel-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--elev-accent-medium);
+}
+
+body[data-page="dashboard"] .intel-card--high::before,
+body[data-page="dashboard"] .sc-card-conviction--high::before {
+  background: var(--elev-accent-high);
+}
+
+body[data-page="dashboard"] .intel-card--medium::before,
+body[data-page="dashboard"] .sc-card-conviction--medium::before {
+  background: var(--elev-accent-medium);
+}
+
+body[data-page="dashboard"] .intel-card--low::before,
+body[data-page="dashboard"] .sc-card-conviction--low::before {
+  background: var(--elev-accent-low);
+}
+
+body[data-page="dashboard"] .intel-card--bill::before,
+body[data-page="dashboard"] .sc-card--bill::before {
+  background: color-mix(in srgb, var(--amber) 70%, var(--muted));
+}
+
+body[data-page="dashboard"] .intel-card--contract::before,
+body[data-page="dashboard"] .sc-card--contract::before {
+  background: color-mix(in srgb, var(--blue) 65%, var(--muted));
+}
+
+body[data-page="dashboard"] .intel-card--lobbying::before,
+body[data-page="dashboard"] .sc-card--lobbying::before {
+  background: color-mix(in srgb, var(--green) 45%, var(--muted));
+}
+
+body[data-page="dashboard"] .intel-card:hover,
+body[data-page="dashboard"] .sc-card.intel-card:hover {
+  border-color: color-mix(in srgb, var(--line-2) 80%, transparent);
+  box-shadow: var(--elev-shadow), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+body[data-page="dashboard"] .sc-card.intel-card {
+  border-left: 0;
+  border-radius: var(--elev-radius-md);
+  padding: 16px 16px 16px 18px;
+}
+
+body[data-page="dashboard"] .morning-brief-card.intel-card {
+  margin-bottom: var(--elev-gap-section);
+  box-shadow: var(--elev-shadow);
+}
+
+body[data-page="dashboard"] .morning-brief-card.intel-card .morning-brief-inner {
+  padding: 20px 20px 20px 22px;
+}
+
+body[data-page="dashboard"] .morning-brief-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+body[data-page="dashboard"] .signal-featured.intel-card,
+body[data-page="dashboard"] .signal-secondary.intel-card {
+  border-left: 0;
+  padding-left: 18px;
+}
+
+/* Refined skeleton shimmer */
+@keyframes ts-shimmer-premium {
+  0% { background-position: 120% 0; }
+  100% { background-position: -80% 0; }
+}
+
+body[data-page="dashboard"] .skeleton-block,
+body[data-page="dashboard"] .skeleton-line,
+body[data-page="dashboard"] .ticker-tape.is-loading::after,
+body[data-page="dashboard"] .sk-block,
+body[data-page="dashboard"] .sk-line {
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--bg-3) 92%, transparent) 0%,
+    color-mix(in srgb, var(--line) 18%, var(--bg-3)) 42%,
+    color-mix(in srgb, var(--bg-3) 92%, transparent) 84%
+  );
+  background-size: 220% 100%;
+  animation: ts-shimmer-premium 1.8s ease-in-out infinite;
+}
+
+body[data-page="dashboard"] .skeleton-card {
+  border: 0.5px solid var(--elev-border);
+  border-radius: var(--elev-radius-md);
+  background: var(--bg-2);
+  box-shadow: none;
+}
+
+/* View headers — editorial whitespace */
+body[data-page="dashboard"] .dash-view-header,
+body[data-page="dashboard"] .page-header.dash-view-header {
+  padding: 0 0 20px;
+  margin-bottom: 24px;
+  border-bottom: 0.5px solid var(--elev-border);
+}
+
+body[data-page="dashboard"] .dash-view-header-copy h1,
+body[data-page="dashboard"] .overview-hero-title {
+  margin-bottom: 10px;
+  max-width: 22ch;
+}
+
+body[data-page="dashboard"] .dash-view-purpose {
+  font-weight: 300;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  line-height: 1.55;
+}
+
+/* KPI strip — divider lines, not boxes */
+body[data-page="dashboard"] .overview-metrics-strip {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-bottom: 8px;
+}
+
+body[data-page="dashboard"] .overview-metric-cell {
+  padding: 12px 20px;
+  border-right: 0.5px solid var(--elev-border);
+  border-left: none;
+  background: transparent;
+}
+
+body[data-page="dashboard"] .overview-metric-cell:first-child {
+  padding-left: 0;
+}
+
+body[data-page="dashboard"] .overview-metric-cell:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+body[data-page="dashboard"] .overview-metric-cell:hover {
+  background: color-mix(in srgb, var(--bg-3) 35%, transparent);
+}
+
+body[data-page="dashboard"] .overview-metrics-wrap {
+  gap: 8px;
+  margin-bottom: var(--elev-gap-section);
+}
+
+/* Panel heads — mono label + serif title */
+body[data-page="dashboard"] .panel-head > div,
+body[data-page="dashboard"] .panel-head:not(:has(> div)) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+body[data-page="dashboard"] .panel-head h2 {
+  order: 2;
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+body[data-page="dashboard"] .panel-head .muted,
+body[data-page="dashboard"] .panel-head > span.muted {
+  order: 1;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+body[data-page="dashboard"] .panel-head-quiet h2 {
+  font-family: var(--serif);
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
+/* Empty states — museum label */
+body[data-page="dashboard"] .guided-empty-state {
+  padding: 20px 0;
+  margin-top: 12px;
+  border: none;
+  border-top: 0.5px solid var(--elev-border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] .guided-empty-state strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+body[data-page="dashboard"] .guided-empty-state .button,
+body[data-page="dashboard"] .guided-empty-state .link-button {
+  margin-top: 10px;
+}
+
+/* Micro-motion on interactive chrome */
+body[data-page="dashboard"] .nav-item,
+body[data-page="dashboard"] .mobile-bottom-nav-item,
+body[data-page="dashboard"] .ts-filter-chip,
+body[data-page="dashboard"] .panel,
+body[data-page="dashboard"] .feed-health-panel {
+  transition:
+    color var(--elev-motion),
+    background var(--elev-motion),
+    border-color var(--elev-motion),
+    box-shadow var(--elev-motion),
+    transform var(--elev-motion);
+}
+
+body[data-page="dashboard"] .feed-health-panel {
+  transition: transform 0.22s cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Classbar auto-hide (mobile scroll) */
+body[data-page="dashboard"] .dash-classbar {
+  transition:
+    max-height var(--elev-motion),
+    opacity var(--elev-motion),
+    padding var(--elev-motion);
+}
+
+@media (max-width: 760px) {
+  body[data-page="dashboard"].dash-classbar-hidden .dash-classbar {
+    max-height: 0;
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  body[data-page="dashboard"] .morning-brief-card.intel-card {
+    margin-left: -12px;
+    margin-right: -12px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  body[data-page="dashboard"] .morning-brief-card.intel-card::before {
+    width: 4px;
+  }
+
+  body[data-page="dashboard"] .sc-card-grid .intel-card {
+    margin-left: -4px;
+    margin-right: -4px;
+  }
+
+  /* Markets table → card feed */
+  body[data-page="dashboard"] .terminal-table--markets thead {
+    display: none;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row {
+    display: block;
+    border: 0.5px solid var(--elev-border);
+    border-radius: var(--elev-radius-md);
+    background: var(--bg-2);
+    box-shadow: var(--elev-shadow);
+    padding: 14px 14px 14px 17px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: color-mix(in srgb, var(--green) 35%, var(--muted));
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row.is-focus-match::before {
+    background: var(--green);
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border: none;
+    min-height: 0;
+    background: transparent !important;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row td:first-child {
+    padding-top: 0;
+    font-size: 15px;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row td:last-child {
+    padding-bottom: 0;
+    justify-content: flex-end;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets .markets-name-cell {
+    display: none !important;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets .markets-ticker-name {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  body[data-page="dashboard"] .table-wrap:has(.terminal-table--markets) {
+    overflow: visible;
+  }
+
+  body[data-page="dashboard"] table.terminal-table.terminal-table--markets {
+    min-width: 0 !important;
+    border: none;
+  }
+
+  /* Bottom nav — active indicator top line */
+  body[data-page="dashboard"] .mobile-bottom-nav {
+    min-height: 52px;
+    border-top: 0.5px solid var(--elev-border);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item {
+    position: relative;
+    min-height: 48px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    box-shadow: none;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item.is-active {
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-item.is-active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--green);
+    border-radius: 0 0 1px 1px;
+  }
+
+  body[data-page="dashboard"] .mobile-bottom-nav-label {
+    padding: 14px 6px 10px;
+  }
+
+  /* Trust chip — icon-only on xs */
+  body[data-page="dashboard"] .trust-feed-chip {
+    min-width: 36px;
+    max-width: 36px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  body[data-page="dashboard"] .trust-feed-chip .trust-feed-chip-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  body[data-page="dashboard"] .trust-feed-chip .trust-feed-chip-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Search as primary topbar instrument */
+  body[data-page="dashboard"] .topbar .search-box {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  body[data-page="dashboard"] .topbar-end {
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  body[data-page="dashboard"] .topbar .button-icon-only,
+  body[data-page="dashboard"] .topbar .theme-toggle {
+    display: none;
+  }
+
+  body[data-page="dashboard"] .topbar-refresh-btn {
+    padding-inline: 10px;
+    font-size: 11px;
+  }
+
+  /* Pull-to-refresh visual hint on primary feeds */
+  body[data-page="dashboard"] .signals-primary-lane,
+  body[data-page="dashboard"] #view-overview .overview-metrics-wrap {
+    position: relative;
+  }
+
+  body[data-page="dashboard"] .workspace.is-scroll-refresh-hint::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+    opacity: 0.45;
+    z-index: 5;
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 761px) {
+  body[data-page="dashboard"] .trust-feed-chip .trust-feed-chip-icon {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="dashboard"] .skeleton-block,
+  body[data-page="dashboard"] .skeleton-line,
+  body[data-page="dashboard"] .sk-block,
+  body[data-page="dashboard"] .sk-line {
+    animation: none;
+    background: var(--bg-3);
+  }
+
+  body[data-page="dashboard"] .intel-card,
+  body[data-page="dashboard"] .nav-item,
+  body[data-page="dashboard"] .mobile-bottom-nav-item,
+  body[data-page="dashboard"] .dash-classbar {
+    transition: none;
+  }
+}

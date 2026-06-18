@@ -3446,6 +3446,7 @@ async function initDashboard() {
   setupFeedHealthDrawer();
   setupMobileBottomNav();
   setupDashChromeMetrics();
+  setupClassbarScrollHide();
   setupGuidedDemo();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
@@ -3808,7 +3809,7 @@ function renderTrustFeedChip() {
     return;
   }
   el.className = `topbar-status-chip trust-feed-chip${fallback ? " status-warn" : state.dataMeta.market?.updatedAt ? " status-live" : ""}`;
-  el.innerHTML = `<span class="live-dot" aria-hidden="true"></span>${escapeHtml(text)}`;
+  el.innerHTML = `<span class="trust-feed-chip-icon" aria-hidden="true"><span class="live-dot"></span></span><span class="trust-feed-chip-text">${escapeHtml(text)}</span>`;
   el.title = fallback
     ? "Quote feed is modeled or mixed — tap for per-provider status"
     : "Tap for per-provider feed health";
@@ -3891,6 +3892,50 @@ function setupFeedHealthDrawer() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("#feed-health-drawer")?.classList.contains("open")) closeFeedHealthDrawer();
   });
+}
+
+function setupClassbarScrollHide() {
+  if (window.__classbarScrollBound) return;
+  const classbar = document.querySelector(".dash-classbar");
+  const workspace = document.querySelector(".workspace");
+  if (!classbar || !workspace) return;
+  window.__classbarScrollBound = true;
+  let lastY = 0;
+  let ticking = false;
+  const mq = window.matchMedia("(max-width: 760px)");
+  const syncHidden = (hidden) => {
+    document.body.classList.toggle("dash-classbar-hidden", hidden);
+    document.documentElement.style.setProperty("--dash-classbar-h", hidden ? "0px" : `${classbar.offsetHeight || 24}px`);
+    syncDashChromeHeights();
+  };
+  const onScroll = () => {
+    if (!mq.matches) {
+      syncHidden(false);
+      return;
+    }
+    const y = workspace.scrollTop;
+    if (y > lastY + 4 && y > 56) {
+      syncHidden(true);
+    } else if (y < lastY - 4 || y <= 8) {
+      syncHidden(false);
+    }
+    if (y <= 2 && y > 0) workspace.classList.add("is-scroll-refresh-hint");
+    else workspace.classList.remove("is-scroll-refresh-hint");
+    lastY = y;
+  };
+  workspace.addEventListener(
+    "scroll",
+    () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        onScroll();
+        ticking = false;
+      });
+    },
+    { passive: true }
+  );
+  mq.addEventListener("change", () => syncHidden(false));
 }
 
 function syncDashChromeHeights() {
@@ -7982,7 +8027,7 @@ function renderFeaturedSignal(sig) {
   const source = signalSourceLabel(sig);
 
   return `
-    <article class="signal-featured ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
+    <article class="signal-featured intel-card ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
       <header class="signal-featured-head">
         <span class="signal-type-label">${typeLabel}</span>
         <span class="signal-score-mono">${sig.score}/100</span>
@@ -8006,7 +8051,7 @@ function renderSecondarySignal(sig) {
   const source = signalSourceLabel(sig);
 
   return `
-    <article class="signal-secondary ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
+    <article class="signal-secondary intel-card ${typeClass} actionable-card" ${signalDrillAttrs(sig)} tabindex="0" role="button" aria-label="${escapeHtml(sig.title)}">
       <div class="signal-secondary-head">
         <span class="signal-type-label">${typeLabel}</span>
         <span class="signal-secondary-title">${escapeHtml(sig.title)}</span>
@@ -8229,7 +8274,7 @@ function signalCard(bill) {
   const tickers = (bill.affected || []).slice(0, 4);
   const source = bill.exactCongressRecord ? "Congress.gov" : bill.id || "Policy feed";
   return `
-    <article class="sc-card sc-card--bill sc-card-conviction sc-card-conviction--${convBand} actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
+    <article class="sc-card intel-card sc-card--bill sc-card-conviction sc-card-conviction--${convBand} actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
       <div class="sc-card-header">
         <span class="sc-type-badge">Bill</span>
         <span class="score-badge ${m >= 67 ? "high" : m < 35 ? "low" : "medium"}">${m}/100</span>
@@ -9592,6 +9637,8 @@ function renderMorningBrief() {
     const sig = pick.data;
     const source = signalSourceLabel(sig);
     const band = `${sig.score}/100 · ${momentumBandLabel(sig.score)}`;
+    const convBand = sig.score >= 67 ? "high" : sig.score < 35 ? "low" : "medium";
+    card.className = `morning-brief-card intel-card intel-card--${convBand} panel panel-emphasis`;
     const primaryTicker = (sig.tickers && sig.tickers[0]) || "";
     inner.innerHTML = `
       ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
@@ -9611,6 +9658,8 @@ function renderMorningBrief() {
   } else {
     const bill = pick.data;
     const m = billMomentum(bill);
+    const convBand = m >= 67 ? "high" : m < 35 ? "low" : "medium";
+    card.className = `morning-brief-card intel-card intel-card--${convBand} panel panel-emphasis`;
     const tickers = (bill.affected || []).slice(0, 4);
     const source = bill.exactCongressRecord ? "Congress.gov" : "Policy feed";
     const primaryTicker = tickers[0] || "";
