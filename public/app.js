@@ -3445,6 +3445,7 @@ async function initDashboard() {
   setupTabFilters();
   setupFeedHealthDrawer();
   setupMobileBottomNav();
+  setupDashChromeMetrics();
   setupGuidedDemo();
   setupBillsFeedInteraction();
   setupAnalysisBillsInteraction();
@@ -3892,6 +3893,40 @@ function setupFeedHealthDrawer() {
   });
 }
 
+function syncDashChromeHeights() {
+  if (document.body?.dataset?.page !== "dashboard") return;
+  const root = document.documentElement;
+  const classbar = document.querySelector(".dash-classbar");
+  const stack = document.querySelector(".topbar-stack");
+  const classH = classbar?.offsetHeight || 24;
+  const stackH = stack?.offsetHeight || 82;
+  root.style.setProperty("--dash-classbar-h", `${classH}px`);
+  root.style.setProperty("--dash-topbar-stack-h", `${stackH}px`);
+  root.style.setProperty("--dash-sticky-filter-top", `${classH + stackH}px`);
+}
+
+function closeMobileSidebarNav() {
+  const sidebar = $("#main-sidebar");
+  const hamBtn = $("#ham-btn");
+  if (!sidebar?.classList.contains("nav-open")) return;
+  sidebar.classList.remove("nav-open");
+  hamBtn?.setAttribute("aria-expanded", "false");
+}
+
+function setupDashChromeMetrics() {
+  syncDashChromeHeights();
+  if (window.__dashChromeMetricsBound) return;
+  window.__dashChromeMetricsBound = true;
+  window.addEventListener("resize", syncDashChromeHeights, { passive: true });
+  if (typeof ResizeObserver !== "undefined") {
+    const stack = document.querySelector(".topbar-stack");
+    if (stack) {
+      const ro = new ResizeObserver(() => syncDashChromeHeights());
+      ro.observe(stack);
+    }
+  }
+}
+
 function setupMobileBottomNav() {
   const nav = $("#mobile-bottom-nav");
   if (!nav || nav.dataset.bound === "true") return;
@@ -3900,6 +3935,7 @@ function setupMobileBottomNav() {
     btn.addEventListener("click", () => {
       const view = btn.dataset.mobileView;
       if (!isViewEnabled(view)) return;
+      closeMobileSidebarNav();
       showView(view);
     });
   });
@@ -3931,6 +3967,7 @@ function renderMobileContextBar() {
   if (!sym) {
     bar.hidden = true;
     inner.innerHTML = "";
+    syncDashChromeHeights();
     return;
   }
   const counts = focusContextCounts(sym);
@@ -3959,6 +3996,7 @@ function renderMobileContextBar() {
       showView(view);
     });
   });
+  syncDashChromeHeights();
 }
 
 function freshnessText(value) {

@@ -12,7 +12,7 @@
       })();
     </script>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <title>TradeSimple Terminal</title>
@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=anti-vibe-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=sprint-feed-nav-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=mobile-audit-1" />
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
@@ -58,13 +58,6 @@
             <span class="brand-tagline">Policy Signals</span>
           </div>
         </a>
-        <button class="ham-btn" id="ham-btn" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="main-sidebar">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <rect x="2" y="5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-            <rect x="2" y="9.25" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-            <rect x="2" y="13.5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-          </svg>
-        </button>
         </div>
         <nav class="side-nav" aria-label="Terminal sections">
           <span class="nav-section-label">Research</span>
@@ -98,6 +91,13 @@
       <div class="main-column">
       <div class="topbar-stack">
         <header class="topbar">
+          <button class="ham-btn topbar-menu-btn" id="ham-btn" type="button" aria-label="More sections" aria-expanded="false" aria-controls="main-sidebar">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="2" y="5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+              <rect x="2" y="9.25" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+              <rect x="2" y="13.5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
+            </svg>
+          </button>
           <label class="search-box">
             <span>Search</span>
             <input id="terminal-search" placeholder="Ticker, bill, issue area" />
