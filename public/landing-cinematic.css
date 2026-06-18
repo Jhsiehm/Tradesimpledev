@@ -3924,6 +3924,7 @@ html[data-theme="light"] .signal-editorial-context {
   width: 100%;
   align-self: center;
   min-width: 0;
+  overflow: visible;
 }
 
 .landing-cinematic .ts-cinematic-wall {
@@ -3982,13 +3983,15 @@ html[data-theme="light"] .signal-editorial-context {
   grid-column: 2;
   grid-row: 2;
   z-index: 6;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   gap: clamp(8px, 1vh, 12px);
   min-height: 0;
   overflow: visible;
   padding: clamp(16px, 1.5vw, 24px);
+  padding-right: clamp(20px, 2.2vw, 32px);
   padding-bottom: clamp(20px, 2vh, 28px);
   border-left: 1px solid rgba(232, 228, 220, 0.08);
   border-top: 1px solid rgba(232, 228, 220, 0.08);
@@ -4021,22 +4024,33 @@ html[data-theme="light"] .signal-editorial-context {
 }
 
 .landing-cinematic .cinema-stamp {
-  top: 16px;
-  right: 16px;
+  position: relative;
+  top: auto;
+  right: auto;
+  grid-column: 2;
+  grid-row: 1;
   z-index: 6;
-  padding: 5px 12px;
+  align-self: center;
+  justify-self: end;
+  margin-right: 2px;
+  padding: 5px 11px;
   font-size: 8px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
+  transform-origin: center;
+  white-space: nowrap;
 }
 
 .landing-cinematic .cinema-terminal-slot {
   position: relative;
   z-index: 4;
+  grid-column: 1 / -1;
+  grid-row: 2;
   right: auto;
   bottom: auto;
   flex: 1 1 auto;
   width: min(100%, 360px);
   align-self: center;
+  justify-self: center;
   margin: clamp(6px, 1vh, 12px) auto 0;
   pointer-events: auto;
 }
@@ -4044,10 +4058,9 @@ html[data-theme="light"] .signal-editorial-context {
 .landing-cinematic .cinema-live-row {
   position: relative;
   z-index: 2;
-}
-
-.landing-cinematic .cinema-stamp {
-  position: absolute;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
 }
 
 .landing-cinematic .cinema-audio-meter,
@@ -4242,7 +4255,14 @@ html[data-theme="light"] .signal-editorial-context {
   }
 
   .landing-cinematic .cinema-signal-dock {
+    padding-right: clamp(16px, 4vw, 24px);
     padding-bottom: clamp(24px, 3vh, 32px);
+  }
+
+  .landing-cinematic .cinema-stamp {
+    padding: 4px 9px;
+    font-size: 7px;
+    letter-spacing: 0.12em;
   }
 }
 
