@@ -1,0 +1,115 @@
+/*
+ * TradeSimple v1 — Design Tokens
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ZONE: Landing = editorial (Fraunces display, Geist UI, restrained lime)
+ * ZONE: Dashboard = terminal density (Geist Mono data, freshness telemetry)
+ *
+ * LIME RATIONING — DO:
+ *   • Primary CTA buttons (solid lime / black text)
+ *   • Live / active state indicators (dots, pulses, logo mark)
+ *   • Hero headline accent words (one editorial moment allowed elsewhere)
+ *
+ * LIME RATIONING — DON'T:
+ *   • Section eyebrows (use muted gray mono)
+ *   • Body copy, nav links, or decorative borders
+ *   • Dashboard data rows (use semantic green/amber/red only)
+ *
+ * TYPE RULE: If it's a sentence, it's not mono — use var(--font-ui).
+ * Mono (--font-data) is for tickers, timestamps, source IDs, and data tables.
+ */
+
+:root {
+  /* ── Fonts ── */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  /* Legacy aliases (migrate callers to semantic names) */
+  --serif: var(--font-display);
+  --sans: var(--font-ui);
+  --mono: var(--font-data);
+
+  /* ── Type scale ── */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 3rem;
+  --text-hero: clamp(2.75rem, 7.5vw, 6.5rem);
+  --leading-tight: 1.05;
+  --leading-normal: 1.6;
+  --tracking-ui: -0.02em;
+  --tracking-data: 0.06em;
+
+  /* ── Spacing — 8pt grid ── */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 80px;
+  --space-9: 120px;
+  --section-pad-y: clamp(64px, 10vw, 80px);
+  --section-pad-x: clamp(20px, 5vw, 80px);
+
+  /* ── Radius — square chips, 0–4px CTAs ── */
+  --radius-sm: 0px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  /* ── Color ramp ── */
+  --signal-green: #c8ff00;
+  --signal-green-soft: #e0ff6a;
+  --signal-green-dim: rgba(200, 255, 0, 0.14);
+  --warning-amber: #ffa500;
+  --risk-red: #e0524d;
+  --info-blue: #5a9fd4;
+  --text-main: #e8e4dc;
+  --text-muted: #8c8c82;
+  --text-faint: #4a4a4a;
+  --bg-black: #0a0b09;
+  --bg-deep: #070807;
+  --border-soft: rgba(255, 255, 255, 0.12);
+  --border-hairline: rgba(255, 255, 255, 0.08);
+
+  /* Semantic aliases */
+  --green: var(--signal-green);
+  --amber: var(--warning-amber);
+  --red: var(--risk-red);
+  --blue: var(--info-blue);
+  --text: var(--text-main);
+  --muted: var(--text-muted);
+  --faint: var(--text-faint);
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-state: 180ms;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --section-pad-y: 120px;
+  }
+}
+
+html[data-theme="light"] {
+  --signal-green: #1a5c38;
+  --signal-green-soft: #227a4d;
+  --signal-green-dim: rgba(26, 92, 56, 0.12);
+  --warning-amber: #9a5f08;
+  --risk-red: #a83030;
+  --info-blue: #1f5f94;
+  --text-main: #141612;
+  --text-muted: #3f4239;
+  --text-faint: #45483f;
+  --bg-black: #f1eee6;
+  --bg-deep: #faf8f2;
+  --border-soft: rgba(0, 0, 0, 0.12);
+  --border-hairline: rgba(0, 0, 0, 0.08);
+  --green: var(--signal-green);
+}

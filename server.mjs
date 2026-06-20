@@ -6116,7 +6116,8 @@ function publicStockCard(res, pathname, { head = false } = {}) {
     <meta name="twitter:description" content="${escapeHtmlText(description)}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=stock-dossier-2" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=bill-dossier-2" />
   </head>
@@ -7181,7 +7182,8 @@ async function publicBillCard(req, res, pathname, { head = false } = {}) {
     ${billOgHeadHtml({ title: pageTitle, description, canonicalUrl, ogImage })}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=bill-intel-3" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=bill-intel-3" />
   </head>
@@ -7303,7 +7305,8 @@ async function publicFecCard(req, res, pathname, { head = false } = {}) {
     ${billOgHeadHtml({ title: pageTitle, description, canonicalUrl, ogImage })}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=fec-intel-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=fec-intel-1" />
   </head>
@@ -8046,7 +8049,8 @@ function publicContractCard(res, pathname, { head = false } = {}) {
     <meta name="description" content="${escapeHtmlText(description)}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=contract-dossier-2" />
     <link rel="stylesheet" href="/assets/detail-pages.css?v=contract-dossier-2" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=contract-dossier-2" />
@@ -8188,7 +8192,8 @@ function publicLobbyCard(res, pathname, { head = false } = {}) {
     <title>${escapeHtmlText(title)}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/stock-card.css?v=lobby-dossier-2" />
     <link rel="stylesheet" href="/assets/detail-pages.css?v=lobby-dossier-2" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=lobby-dossier-2" />

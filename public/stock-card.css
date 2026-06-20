@@ -19,9 +19,9 @@
   --red: #e05a52;
   --amber: #efb45a;
   --blue: #7fb2df;
-  --mono: "IBM Plex Mono", Consolas, monospace;
-  --sans: "Outfit", system-ui, sans-serif;
-  --serif: "Cormorant Garamond", "DM Serif Display", Georgia, serif;
+  --mono: "Geist Mono", Consolas, monospace;
+  --sans: "Geist", system-ui, sans-serif;
+  --serif: "Fraunces", Georgia, serif;
 }
 
 html[data-theme="light"] {

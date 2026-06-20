@@ -1,6 +1,9 @@
 :root {
   color-scheme: dark;
-  --green: #B8D44A;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-data: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --green: #c8ff00;
   --green-2: #2A3800;
   --amber: #ef9f27;
   --red: #e24b4a;
@@ -15,7 +18,7 @@
   --muted: #8C8C82;
   --faint: #4A4A4A;
   --green-dim: #2A3800;
-  --green-glow: rgba(184, 212, 74, 0.10);
+  --green-glow: rgba(200, 255, 0, 0.10);
   --ivory: #E8E4DC;
   --forest: #2A3800;
   --slate: #3A3A3A;
@@ -24,18 +27,18 @@
   --space-3: 24px;
   --space-4: 32px;
   --space-5: 48px;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 0px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
   --elev-inset: inset 0 1px 0 rgba(255, 255, 255, 0.045);
   --elev-hairline: 0 1px 0 rgba(255, 255, 255, 0.04);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-premium: cubic-bezier(0.32, 0.72, 0, 1);
   --dur-state: 180ms;
-  --mono: "Space Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-  --sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --serif: "Cormorant Garamond", "DM Serif Display", Georgia, "Times New Roman", serif;
+  --mono: var(--font-data);
+  --sans: var(--font-ui);
+  --serif: var(--font-display);
 }
 
 /* ── Theme: light palette (html[data-theme="light"]) ── */

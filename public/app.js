@@ -3708,6 +3708,10 @@ async function initDashboard() {
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
   state.config = config;
   state.session = session;
+  renderDashTelemetryStrip();
+  if (!window.__dashTelemetryTimer) {
+    window.__dashTelemetryTimer = setInterval(renderDashTelemetryStrip, 1000);
+  }
   loadByokFromStorage();
   renderSession();
   renderConnections();
@@ -3913,6 +3917,39 @@ function inferClientDataMode() {
   return "scenario";
 }
 
+function renderDashTelemetryStrip() {
+  const sourcesEl = $("#dash-telemetry-sources");
+  const syncEl = $("#dash-telemetry-sync");
+  if (!sourcesEl && !syncEl) return;
+
+  const cfg = state.config?.data || {};
+  const items = [
+    { label: "CONGRESS.GOV", live: Boolean(cfg.congress) },
+    { label: "SENATE LDA", live: Boolean(cfg.senateLda || cfg.ldaEnabled) },
+    { label: "USASPENDING", live: true },
+    { label: "FEC.GOV", live: Boolean(cfg.fec) }
+  ];
+
+  if (sourcesEl) {
+    sourcesEl.innerHTML = items
+      .map((item, i) => {
+        const dot = `<span class="telemetry-dot${item.live ? " is-live" : ""}" aria-hidden="true">●</span>`;
+        const sep = i < items.length - 1 ? `<span class="telemetry-sep" aria-hidden="true">·</span>` : "";
+        return `<span class="telemetry-source${item.live ? " is-live" : ""}">${dot}${escapeHtml(item.label)}</span>${sep}`;
+      })
+      .join("");
+  }
+
+  if (syncEl) {
+    const timestamps = Object.values(state.dataMeta || {})
+      .map((meta) => Date.parse(meta?.updatedAt || ""))
+      .filter((t) => Number.isFinite(t));
+    const latest = timestamps.length ? Math.max(...timestamps) : Date.now();
+    const sec = Math.max(0, Math.floor((Date.now() - latest) / 1000));
+    syncEl.textContent = `LAST SYNC ${sec}s`;
+  }
+}
+
 function renderSourceFreshnessBar() {
   const bar = $("#source-freshness-bar");
   const grid = $("#source-freshness-grid");
@@ -3934,6 +3971,7 @@ function renderSourceFreshnessBar() {
     feedFreshnessChip("Crypto", state.dataMeta.crypto, feeds.crypto)
   ];
   grid.innerHTML = chips.join("");
+  renderDashTelemetryStrip();
 
   const link = $("#data-health-details-link");
   if (link) {
@@ -5608,8 +5646,8 @@ function renderOverview() {
   const classMode = $("#dash-classbar-mode");
   if (classMode) {
     classMode.textContent = safety?.liveTradingEnabled
-      ? "LIVE MODE // BROKER ENABLED"
-      : "PAPER MODE // SIMULATED CAPITAL";
+      ? "Live mode · broker enabled"
+      : "Paper mode · simulated capital";
   }
 
   const bills = (isWatchlistScope() && !state.focusSymbol
@@ -7387,7 +7425,7 @@ function renderFundRelationshipGraph(attr) {
   ctx.clearRect(0, 0, W, H);
 
   if (!nodes.length) {
-    ctx.font = "12px Outfit, sans-serif";
+    ctx.font = "12px Geist, sans-serif";
     ctx.fillStyle = "#888";
     ctx.fillText("No relationship edges in this window.", 16, 28);
     if (legend) legend.innerHTML = "";
@@ -7431,7 +7469,7 @@ function renderFundRelationshipGraph(attr) {
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = fundGraphNodeColor(node);
     ctx.fill();
-    ctx.font = node.kind === "symbol" ? "10px IBM Plex Mono, monospace" : "9px IBM Plex Mono, monospace";
+    ctx.font = node.kind === "symbol" ? "10px Geist Mono, monospace" : "9px Geist Mono, monospace";
     ctx.fillStyle = "#f4f1ea";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -13019,7 +13057,7 @@ function thesisDrawMap() {
     ctx.fill();
     ctx.restore();
     if (isActive) {
-      ctx.font = "9px IBM Plex Mono, monospace";
+      ctx.font = "9px Geist Mono, monospace";
       ctx.fillStyle = textMuted;
       ctx.textAlign = "center";
       ctx.fillText(e.label, (x1 + x2) / 2 + (y2 - y1) * 0.08, (y1 + y2) / 2 - (x2 - x1) * 0.08);
@@ -13045,7 +13083,7 @@ function thesisDrawMap() {
       ctx.lineWidth = 2 + pulse;
       ctx.stroke();
     }
-    ctx.font = `500 ${r > 18 ? 11 : 10}px IBM Plex Mono, monospace`;
+    ctx.font = `500 ${r > 18 ? 11 : 10}px Geist Mono, monospace`;
     ctx.fillStyle = isDark ? "#e0e0e0" : "#1a1a1a";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

@@ -18,8 +18,9 @@
     <title>TradeSimple Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/assets/styles.css?v=premium-1" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=cd-brief-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=brief-shell-dash-1" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=brief-shell-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=mobile-sprint-2" />
@@ -27,13 +28,9 @@
   </head>
   <body data-page="dashboard">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
-    <div class="dash-classbar" role="presentation" aria-hidden="true">
-      <div class="dash-classbar-left">
-        <span>TS//TRADESIMPLE</span>
-        <span class="dash-classbar-blink" aria-hidden="true">●</span>
-        <span id="dash-classbar-mode">PAPER MODE // SIMULATED CAPITAL</span>
-      </div>
-      <span class="dash-classbar-ref" id="dash-classbar-ref">POLICY INTELLIGENCE TERMINAL</span>
+    <div class="dash-classbar dash-telemetry-strip" role="status" aria-live="polite">
+      <span class="dash-telemetry-sources" id="dash-telemetry-sources">CONGRESS.GOV · SENATE LDA · USASPENDING · FEC.GOV</span>
+      <span class="dash-telemetry-sync" id="dash-telemetry-sync">LAST SYNC …</span>
     </div>
     <div class="terminal-shell">
       <aside class="sidebar" id="main-sidebar">

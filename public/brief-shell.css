@@ -58,7 +58,7 @@
 
 .trade-guided-account-cell span {
   display: block;
-  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-family: var(--mono, "Geist Mono", monospace);
   font-size: 0.66rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
