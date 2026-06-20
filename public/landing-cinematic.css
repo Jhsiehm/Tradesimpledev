@@ -355,7 +355,7 @@ html[data-theme="light"] .ts-nav.is-scrolled {
   display: none;
   margin-left: auto;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-md, 4px);
   border: 1px solid var(--border-soft);
   background: var(--bg-card);
   color: var(--text-muted);
@@ -1284,9 +1284,9 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   max-width: 620px;
   margin: 0;
   color: rgba(232, 228, 220, 0.28);
-  font-family: var(--mono);
+  font-family: var(--font-ui);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.7;
 }
 
@@ -1370,9 +1370,9 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 .severity-card p {
   margin: 0;
   color: rgba(232, 228, 220, 0.3);
-  font-family: var(--mono);
+  font-family: var(--font-ui);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.7;
 }
 
@@ -1717,7 +1717,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 .terminal-row b {
   justify-self: start;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -3195,28 +3195,22 @@ html[data-theme="light"] .signal-editorial-context {
   }
 }
 
-/* Archive reference pass: keep v1 functional, sharpen the landing identity. */
+/* Landing identity — Fraunces display + muted eyebrows (lime rationed to CTA / hero only). */
 .landing-cinematic .ts-section h2,
 .landing-cinematic .s-h,
 .landing-cinematic .wl-h,
 .landing-cinematic .ts-cta-final h2 {
-  font-family: var(--sans, ui-sans-serif, system-ui, sans-serif);
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.landing-cinematic .ts-section h2 em,
-.landing-cinematic .s-h em,
-.landing-cinematic .wl-h em {
-  font-style: normal;
+  font-family: var(--font-display, Georgia, serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  text-transform: none;
 }
 
 .landing-cinematic .chapter-eyebrow,
 .landing-cinematic .s-tag {
-  color: var(--signal-green);
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .landing-cinematic .pipeline-step,
