@@ -543,9 +543,9 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 .ts-subcopy {
   max-width: 600px;
   margin-top: 34px;
-  font-family: var(--serif, Georgia, serif);
-  font-size: 20px;
-  font-style: italic;
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-style: normal;
   line-height: 1.65;
   color: rgba(232, 228, 220, 0.54);
   opacity: 0;
@@ -894,6 +894,9 @@ html[data-theme="light"] .ts-hero-copy h1 em {
   font-size: 11px;
   line-height: 1.35;
   color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .interactive-proof-ledger h2 em {
@@ -4010,13 +4013,15 @@ html[data-theme="light"] .signal-editorial-context {
   }
 }
 
-/* Camera wall + soundtrack pass: align the hero with the archive reference. */
-.landing-cinematic .ts-hero-content {
-  grid-template-columns: minmax(430px, 0.78fr) minmax(720px, 1.22fr);
-  gap: clamp(18px, 2.1vw, 36px);
-  max-width: none;
-  padding-left: clamp(20px, 5vw, 72px);
-  padding-right: clamp(0px, 1.2vw, 20px);
+/* Wide cinematic layout: fr-ratio drives columns, no hard pixel minimums to force overflow. */
+@media (min-width: 1201px) {
+  .landing-cinematic .ts-hero-content {
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+    gap: clamp(18px, 2.1vw, 36px);
+    max-width: none;
+    padding-left: clamp(20px, 5vw, 72px);
+    padding-right: clamp(0px, 1.2vw, 20px);
+  }
 }
 
 .landing-cinematic .ts-hero-visual {
@@ -4293,12 +4298,6 @@ html[data-theme="light"] .signal-editorial-context {
 }
 
 @media (max-width: 1240px) {
-  .landing-cinematic .ts-hero-content {
-    grid-template-columns: minmax(390px, 0.84fr) minmax(590px, 1.16fr);
-    padding-left: clamp(20px, 4vw, 58px);
-    padding-right: clamp(16px, 3vw, 40px);
-  }
-
   .landing-cinematic .ts-hero-copy h1 {
     font-size: 4.9rem;
   }
@@ -4311,12 +4310,6 @@ html[data-theme="light"] .signal-editorial-context {
 }
 
 @media (max-width: 1040px) {
-  .landing-cinematic .ts-hero-content {
-    grid-template-columns: 1fr;
-    min-height: auto;
-    padding-top: 10.25rem;
-  }
-
   .landing-cinematic .ts-hero-copy {
     max-width: 760px;
   }
