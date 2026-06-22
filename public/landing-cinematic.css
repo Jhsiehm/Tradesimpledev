@@ -543,9 +543,9 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 .ts-subcopy {
   max-width: 600px;
   margin-top: 34px;
-  font-family: var(--font-ui);
-  font-size: 18px;
-  font-style: normal;
+  font-family: var(--serif, Georgia, serif);
+  font-size: 20px;
+  font-style: italic;
   line-height: 1.65;
   color: rgba(232, 228, 220, 0.54);
   opacity: 0;
