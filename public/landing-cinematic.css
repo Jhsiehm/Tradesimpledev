@@ -322,7 +322,7 @@ html[data-theme="light"] .ts-nav.is-scrolled {
   margin-left: 18px;
   color: var(--text-faint);
   font-family: var(--serif, Georgia, serif);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
