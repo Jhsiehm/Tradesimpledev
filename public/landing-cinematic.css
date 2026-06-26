@@ -1309,7 +1309,7 @@ html[data-theme="light"] .ts-hero-copy h1 em {
 }
 
 .severity-card {
-  min-height: 280px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -3523,15 +3523,18 @@ html[data-theme="light"] .signal-editorial-context {
   padding: clamp(6rem, 12vh, 10rem) clamp(24px, 5vw, 78px);
 }
 
+.archive-pipeline .archive-wrap {
+  padding-top: clamp(3.5rem, 7vh, 5.5rem);
+  padding-bottom: clamp(3.5rem, 7vh, 5.5rem);
+}
 .archive-pipeline-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(30px, 6vw, 92px);
-  margin-top: 56px;
+  margin-top: 40px;
 }
 
 .archive-step {
-  min-height: 240px;
   padding-top: 4px;
 }
 
