@@ -2719,6 +2719,7 @@ server.listen(PORT, "0.0.0.0", async () => {
     fetchFecJson("/candidates/search/", { q: "smith", per_page: 1 })
       .then((r) => {
         if (r?.results) console.log("[fec] API key verified — authenticated to openFEC.");
+        else if (fecRateLimitedUntil > Date.now()) console.warn("[fec] API key set but rate-limited by openFEC — will retry after cooldown.");
         else console.warn("[fec] API key set but health check returned no results — key may be invalid.");
       })
       .catch((err) => console.warn("[fec] API key health check failed:", err.message));
@@ -5158,13 +5159,21 @@ function fecSamplePulsePayload() {
   return payload;
 }
 
+let fecRateLimitedUntil = 0;
+
 async function fetchFecJson(path, params = {}) {
   const key = process.env.FEC_API_KEY;
   if (!key) return null;
+  if (Date.now() < fecRateLimitedUntil) return null;
   const qs = new URLSearchParams({ ...params, api_key: key });
   const url = `${FEC_API_BASE}${path}${path.includes("?") ? "&" : "?"}${qs.toString()}`;
   try {
     const response = await fetchWithTimeout(url, {}, 10_000);
+    if (response.status === 429) {
+      fecRateLimitedUntil = Date.now() + 10 * 60 * 1000;
+      console.warn("[fec] Rate limited by openFEC — pausing FEC calls for 10 minutes.");
+      return null;
+    }
     if (!response.ok) return null;
     return response.json();
   } catch {
