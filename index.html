@@ -1251,12 +1251,18 @@ function hydrateLandingSignal(){
     var trailSteps=document.getElementById('fec-marketing-trail-steps');
     if(!strip||!cards)return;
     var pulses=(payload&&payload.pulses)||[];
-    if(!pulses.length){strip.hidden=true;cards.innerHTML='';if(trail)trail.hidden=true;return;}
+    var isUnavailable=payload.source==='unavailable';
+    if(!pulses.length&&!isUnavailable){strip.hidden=true;cards.innerHTML='';if(trail)trail.hidden=true;return;}
     strip.hidden=false;
     var isLive=payload.source==='fec';
     if(badge){
-      badge.textContent=isLive?'Live FEC':'Illustrative';
-      badge.style.color=isLive?'var(--green)':'var(--amber)';
+      badge.textContent=isUnavailable?'Unavailable':isLive?'Live FEC':'Illustrative';
+      badge.style.color=isUnavailable?'var(--risk-red, #ff4444)':isLive?'var(--green)':'var(--amber)';
+    }
+    if(isUnavailable){
+      cards.innerHTML='<p style="font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.42);padding:1.5rem 0">FEC data unavailable — API key not configured or openFEC unreachable. No illustrative data shown.</p>';
+      if(trail)trail.hidden=true;
+      return;
     }
     cards.innerHTML=pulses.slice(0,3).map(function(p){
       var tick=(p.tickers||[]).slice(0,3).join(', ')||'—';

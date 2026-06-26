@@ -2716,6 +2716,12 @@ server.listen(PORT, "0.0.0.0", async () => {
     refreshLdaLobbyingCache().catch((err) => console.warn("[data] Initial LDA refresh failed:", err.message));
   }
   if (process.env.FEC_API_KEY) {
+    fetchFecJson("/candidates/search/", { q: "smith", per_page: 1 })
+      .then((r) => {
+        if (r?.results) console.log("[fec] API key verified — authenticated to openFEC.");
+        else console.warn("[fec] API key set but health check returned no results — key may be invalid.");
+      })
+      .catch((err) => console.warn("[fec] API key health check failed:", err.message));
     getFecPulsePayload({ forceRefresh: true }).catch((err) =>
       console.warn("[data] Initial FEC pulse refresh failed:", err.message)
     );
@@ -3991,11 +3997,16 @@ async function sendLandingSignalResponse(res, payload) {
     payload.contractAward = pickLandingContractAwardLine();
     try {
       const fecPayload = await getFecPulsePayload();
-      payload.fecPulse = pickLandingFecPulseLine(fecPayload);
-      payload.fecSource = fecPayload?.source || "sample";
+      if (fecPayload?.source === "fec") {
+        payload.fecPulse = pickLandingFecPulseLine(fecPayload);
+        payload.fecSource = "fec";
+      } else {
+        payload.fecPulse = null;
+        payload.fecSource = "unavailable";
+      }
     } catch {
-      payload.fecPulse = pickLandingFecPulseLine(fecSamplePulsePayload());
-      payload.fecSource = "sample";
+      payload.fecPulse = null;
+      payload.fecSource = "unavailable";
     }
   }
   return sendJson(res, 200, payload);
@@ -5284,20 +5295,30 @@ function matchFecClusterForBill(bill) {
   return best;
 }
 
+function congressGovBillUrl(billId) {
+  const ref = parseBillIdToCongressRef(billId);
+  if (!ref) return null;
+  const TYPE_SLUG = { s: "senate-bill", hr: "house-bill", hjres: "house-joint-resolution", sjres: "senate-joint-resolution", hres: "house-resolution", sres: "senate-resolution" };
+  const slug = TYPE_SLUG[ref.type] || ref.type;
+  return `https://www.congress.gov/bill/${ref.congress}th-congress/${slug}/${ref.number}`;
+}
+
 function linkTickersForCluster(cluster) {
   const template =
     cluster.explainTemplate?.ticker ||
     "{ticker} via {label} PAC cluster · explicit map {mapKey}";
+  const pacIds = clusterPacIds(cluster);
   return clusterTickers(cluster).map((symbol) => ({
     symbol,
     linkReason: template
       .replace("{ticker}", symbol)
       .replace("{mapKey}", cluster.key)
       .replace("{label}", cluster.label || cluster.committee || cluster.key),
+    sourceUrl: pacIds[0] ? `https://www.fec.gov/data/committee/${encodeURIComponent(pacIds[0])}/` : null,
     provenance: {
       source: "fec-committee-map.json",
       mapKey: cluster.key,
-      pacCommitteeIds: clusterPacIds(cluster),
+      pacCommitteeIds: pacIds,
       policyTag: cluster.policyTag || clusterPolicyTags(cluster)[0] || null
     }
   }));
@@ -5343,6 +5364,7 @@ function linkBillsForCluster(cluster, limit = 8) {
       id: bill.id,
       title: bill.shortTitle || bill.title,
       status: bill.status || null,
+      sourceUrl: congressGovBillUrl(bill.id),
       linkReason: template.replace("{reason}", match.reason).replace("{committee}", cluster.committee || ""),
       provenance: {
         source: "fec-committee-map.json + policy-crosswalk.json",
@@ -5409,6 +5431,7 @@ function linkLobbyingForCluster(cluster, limit = 6) {
       registrant,
       amount: filing.amount || null,
       issue,
+      sourceUrl: filing.filingUrl || "https://lda.senate.gov/filings/public/filing/search/",
       linkReason: template.replace("{reason}", match.reason),
       provenance: {
         source: "policy-crosswalk.json + fec-committee-map.json",
@@ -5504,6 +5527,7 @@ function linkContractsForCluster(cluster, limit = 6) {
       recipient,
       amount: award.amount || award.obligatedAmount || null,
       agency: award.agency || award.awardingAgency || null,
+      sourceUrl: award.directUrl || (awardId ? `https://www.usaspending.gov/award/${encodeURIComponent(awardId)}` : null),
       linkReason: template.replace("{reason}", match.reason),
       provenance: {
         source: "contract-watch + policy-crosswalk.json",
@@ -5692,6 +5716,12 @@ function buildFecPulsePlainEnglish(cluster, amount, period, tickers, recentFilin
   return `${cluster.label} linked to ${cluster.committee} reported ${amt} in receipts — ${filingBit}. Names in play: ${tk}.`;
 }
 
+// FEC endpoint split (Phase 2, Task 2.2):
+// - Aggregate receipts/disbursements: /committee/{id}/totals/ (processed, nightly refresh, full cycle)
+// - Recent filing activity (last 48h): /filings/ filtered by min_last_modified_date (processed, nightly)
+// The processed endpoints are coded and stable. The efile schedule endpoints
+// (/schedules/schedule_a/efile/) are real-time but uncoded and only cover ~4 months.
+// For a daily-cadence product the processed endpoints are the right choice.
 async function fetchFecClusterMetrics(cluster, cycle) {
   const ids = cluster.fec_committee_ids || [];
   let receipts = 0;
@@ -5700,6 +5730,7 @@ async function fetchFecClusterMetrics(cluster, cycle) {
   let latestFilingDate = null;
   const minDate = new Date(Date.now() - 48 * 3600 * 1000).toISOString().slice(0, 10);
   for (const committeeId of ids.slice(0, 4)) {
+    // Processed totals endpoint: cycle-aggregate receipts + disbursements
     const totals = await fetchFecJson(`/committee/${encodeURIComponent(committeeId)}/totals/`, {
       cycle,
       per_page: 1,
@@ -5710,6 +5741,7 @@ async function fetchFecClusterMetrics(cluster, cycle) {
       receipts += Number(totalRow.receipts || 0);
       disbursements += Number(totalRow.disbursements || 0);
     }
+    // Processed filings endpoint: recent activity within 48h window
     const filings = await fetchFecJson("/filings/", {
       committee_id: committeeId,
       min_last_modified_date: minDate,
