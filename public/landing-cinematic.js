@@ -764,6 +764,14 @@
           em.className = pct >= 0 ? "up" : "down";
         }
       });
+      qsa(".terminal-watchlist-preview div").forEach(function (row) {
+        var b = row.querySelector("b");
+        var em = row.querySelector("em");
+        if (!b || !em) return;
+        var q = map[b.textContent.trim()];
+        if (!q || q.price == null) return;
+        em.textContent = formatLandingPrice(q.price);
+      });
     }
 
     function fetchLandingQuotes(callback) {
