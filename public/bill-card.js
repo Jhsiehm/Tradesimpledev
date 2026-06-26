@@ -113,7 +113,7 @@ function renderApp() {
           clean.searchParams.delete("onboarding");
           window.history.replaceState({}, "", clean.pathname + (clean.search || ""));
         } catch (_) {}
-        window.location.href = "/dashboard?view=home&onboarded=1";
+        window.location.href = "/dashboard?view=thesis&onboarded=1";
         return;
       }
       window.location.href = `/dashboard?view=bills&bill=${encodeURIComponent(state.billId)}`;
