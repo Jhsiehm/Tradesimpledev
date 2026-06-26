@@ -4013,15 +4013,89 @@ html[data-theme="light"] .signal-editorial-context {
   }
 }
 
-/* Wide cinematic layout: fr-ratio drives columns, no hard pixel minimums to force overflow. */
-@media (min-width: 1201px) {
-  .landing-cinematic .ts-hero-content {
-    grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
-    gap: clamp(18px, 2.1vw, 36px);
-    max-width: none;
-    padding-left: clamp(20px, 5vw, 72px);
-    padding-right: clamp(0px, 1.2vw, 20px);
-  }
+/* Hero: centered single column — visual panel lives in its own section below. */
+.landing-cinematic .ts-hero-content {
+  grid-template-columns: 1fr;
+  max-width: 920px;
+  margin: 0 auto;
+  min-height: 68dvh;
+  padding-left: clamp(24px, 5vw, 72px);
+  padding-right: clamp(24px, 5vw, 72px);
+  padding-bottom: clamp(4rem, 8vh, 6rem);
+}
+
+.landing-cinematic .ts-hero-copy {
+  text-align: center;
+  max-width: 100%;
+}
+
+.landing-cinematic .ts-kicker {
+  justify-content: center;
+}
+
+.landing-cinematic .ts-hero-ctas {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.landing-cinematic .hero-reference-row {
+  justify-content: center;
+}
+
+/* ── SIGNAL SECTION ─────────────────────────────────── */
+.ts-signal-section {
+  border-top: 1px solid rgba(232, 228, 220, 0.11);
+}
+
+.ts-signal-panel {
+  margin-top: 36px;
+}
+
+.ts-signal-intel-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 20px;
+  border-bottom: 1px solid rgba(232, 228, 220, 0.07);
+  margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ts-signal-intel-bar::-webkit-scrollbar { display: none; }
+
+.ts-signal-intel-bar .cinema-intel-label {
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 220, 0.32);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ts-signal-intel-bar button {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: rgba(232, 228, 220, 0.45);
+  background: none;
+  border: 1px solid rgba(232, 228, 220, 0.1);
+  border-radius: 2px;
+  padding: 5px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ts-signal-intel-bar button:hover {
+  color: var(--signal-green, #c8ff00);
+  border-color: rgba(200, 255, 0, 0.28);
+}
+
+.ts-signal-panel .ts-terminal-card {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 .landing-cinematic .ts-hero-visual {

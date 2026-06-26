@@ -624,107 +624,6 @@ footer nav a:hover{color:var(--text)}
       </div>
     </div>
 
-    <div class="ts-hero-visual">
-      <div class="ts-cinematic-wall" aria-label="Cinematic intelligence wall">
-        <figure class="cinema-frame frame-bridge">
-          <video autoplay loop muted playsinline webkit-playsinline>
-            <source src="https://assets.mixkit.co/videos/22953/22953-720.mp4" type="video/mp4"/>
-          </video>
-          <figcaption>CAM-01_NYC_TRANSIT</figcaption>
-        </figure>
-        <figure class="cinema-frame frame-city">
-          <video autoplay loop muted playsinline webkit-playsinline>
-            <source src="https://assets.mixkit.co/videos/11712/11712-720.mp4" type="video/mp4"/>
-          </video>
-          <figcaption>CAM-02_NYC_SKYLINE</figcaption>
-        </figure>
-        <figure class="cinema-frame frame-street">
-          <video autoplay loop muted playsinline webkit-playsinline>
-            <source src="https://assets.mixkit.co/videos/4194/4194-720.mp4" type="video/mp4"/>
-          </video>
-          <figcaption>CAM-03_NYC_STREET</figcaption>
-        </figure>
-        <div class="cinema-signal-dock">
-          <div class="cinema-live-row"><span></span>Policy source feed</div>
-          <div class="cinema-stamp">CRS band</div>
-          <div class="cinema-audio-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="cinema-intel-ticker" aria-label="Live intelligence briefings">
-            <span class="cinema-intel-label">Intel queue</span>
-            <div class="cinema-intel-track">
-              <button type="button" data-briefing="dod-mesh">DOD tactical intel mesh award</button>
-              <button type="button" data-briefing="semiconductor-export">Semiconductor export restrictions</button>
-              <button type="button" data-briefing="faa-drone">FAA drone delivery votes</button>
-              <button type="button" data-briefing="sec-custody">SEC crypto custody amendments</button>
-              <button type="button" data-briefing="ai-procurement-transparency">AI defense procurement hearings</button>
-              <button type="button" data-briefing="ftc-defense">FTC defense-sector merger probe</button>
-              <button type="button" data-briefing="doe-nuclear">DOE nuclear grid integration</button>
-            </div>
-          </div>
-          <div class="cinema-terminal-slot">
-            <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
-              <div class="terminal-topbar">
-                <div class="traffic-lights"><span></span><span></span><span></span></div>
-                <p>TradeSimple // Signal card</p>
-                <div class="terminal-meta">
-                  <span class="verified">System active</span>
-                  <span id="terminal-updated" aria-live="polite">Updated 9s ago</span>
-                </div>
-              </div>
-              <div class="terminal-status-strip" aria-label="Signal model inputs">
-                <span>CRS active</span>
-                <span>Watchlist linked</span>
-                <span>Not financial advice</span>
-              </div>
-              <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
-                <div class="terminal-table-header" aria-hidden="true">
-                  <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
-                </div>
-                <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
-                  <strong>NVDA</strong><span>NVIDIA Corp</span><span>$208.19</span><em class="up">+1.42%</em><b>CHIPS</b>
-                </button>
-                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
-                  <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
-                </button>
-                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
-                  <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
-                </button>
-                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
-                  <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
-                </button>
-              </div>
-              <div class="terminal-signal" id="terminal-signal-panel">
-                <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
-                <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
-                <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
-                <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
-                <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
-                <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
-                <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
-                <div class="confidence-row">
-                  <span>Confidence</span>
-                  <span id="terminal-confidence-text">82/100</span>
-                </div>
-                <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
-                <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
-              </div>
-              <div class="landing-trending-strip" id="landing-trending-strip" hidden>
-                <div class="landing-trending-head">
-                  <span class="landing-trending-label">Policy topics</span>
-                  <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
-                </div>
-                <div class="landing-trending-items" id="landing-trending-items"></div>
-                <p class="landing-trending-note">Monitoring topic · not investment advice</p>
-              </div>
-            </div>
-          </div>
-          <div class="cinema-alert-overlay" aria-hidden="true">
-            <span>Signal intercept</span>
-            <strong id="cinema-alert-title">Source chain updating</strong>
-            <em>Open dossier for source-backed context</em>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="ts-ticker-tape" aria-label="Market ticker">
@@ -750,6 +649,79 @@ footer nav a:hover{color:var(--text)}
       <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
+    </div>
+  </div>
+</section>
+
+<section class="archive-section ts-signal-section div-line" id="signal-feed">
+  <div class="archive-wrap">
+    <p class="chapter-eyebrow">Policy source feed · Live</p>
+    <div class="ts-signal-panel">
+      <div class="ts-signal-intel-bar" aria-label="Live intelligence briefings">
+        <span class="cinema-intel-label">Intel queue</span>
+        <button type="button" data-briefing="dod-mesh">DOD tactical intel mesh award</button>
+        <button type="button" data-briefing="semiconductor-export">Semiconductor export restrictions</button>
+        <button type="button" data-briefing="faa-drone">FAA drone delivery votes</button>
+        <button type="button" data-briefing="sec-custody">SEC crypto custody amendments</button>
+        <button type="button" data-briefing="ai-procurement-transparency">AI defense procurement hearings</button>
+        <button type="button" data-briefing="ftc-defense">FTC defense-sector merger probe</button>
+        <button type="button" data-briefing="doe-nuclear">DOE nuclear grid integration</button>
+      </div>
+      <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
+        <div class="terminal-topbar">
+          <div class="traffic-lights"><span></span><span></span><span></span></div>
+          <p>TradeSimple // Signal card</p>
+          <div class="terminal-meta">
+            <span class="verified">System active</span>
+            <span id="terminal-updated" aria-live="polite">Updated 9s ago</span>
+          </div>
+        </div>
+        <div class="terminal-status-strip" aria-label="Signal model inputs">
+          <span>CRS active</span>
+          <span>Watchlist linked</span>
+          <span>Not financial advice</span>
+        </div>
+        <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
+          <div class="terminal-table-header" aria-hidden="true">
+            <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
+          </div>
+          <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
+            <strong>NVDA</strong><span>NVIDIA Corp</span><span>$208.19</span><em class="up">+1.42%</em><b>CHIPS</b>
+          </button>
+          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
+            <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
+          </button>
+          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
+            <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
+          </button>
+          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
+            <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
+          </button>
+        </div>
+        <div class="terminal-signal" id="terminal-signal-panel">
+          <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
+          <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
+          <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
+          <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
+          <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
+          <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
+          <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
+          <div class="confidence-row">
+            <span>Confidence</span>
+            <span id="terminal-confidence-text">82/100</span>
+          </div>
+          <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
+          <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
+        <div class="landing-trending-strip" id="landing-trending-strip" hidden>
+          <div class="landing-trending-head">
+            <span class="landing-trending-label">Policy topics</span>
+            <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
+          </div>
+          <div class="landing-trending-items" id="landing-trending-items"></div>
+          <p class="landing-trending-note">Monitoring topic · not investment advice</p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
