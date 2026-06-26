@@ -2723,9 +2723,16 @@ server.listen(PORT, "0.0.0.0", async () => {
         else console.warn("[fec] API key set but health check returned no results — key may be invalid.");
       })
       .catch((err) => console.warn("[fec] API key health check failed:", err.message));
-    getFecPulsePayload({ forceRefresh: true }).catch((err) =>
-      console.warn("[data] Initial FEC pulse refresh failed:", err.message)
-    );
+    // Stagger initial FEC refresh: one cluster every 15s to avoid rate limit burst
+    setTimeout(() => {
+      buildLiveFecPulsePayload({ stagger: true })
+        .then((payload) => {
+          fecPulseCache = payload;
+          fecPulseCachedAt = Date.now();
+          console.log(`[fec] Staggered boot refresh complete — ${payload.pulses?.length || 0} live pulses.`);
+        })
+        .catch((err) => console.warn("[data] Initial FEC pulse refresh failed:", err.message));
+    }, 5_000);
   }
   setTimeout(() => {
     refreshContractWatch()
@@ -5771,18 +5778,22 @@ async function fetchFecClusterMetrics(cluster, cycle) {
   return { receipts, disbursements, recentFilings, latestFilingDate };
 }
 
-async function buildLiveFecPulsePayload() {
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function buildLiveFecPulsePayload({ stagger = false } = {}) {
   const key = process.env.FEC_API_KEY;
   if (!key) return fecSamplePulsePayload();
   const cycle = fecCommitteeMap.cycle || fecElectionCycle();
   const clusters = (fecCommitteeMap.clusters || []).slice(0, 18);
-  const settled = await mapWithConcurrency(clusters, 4, async (cluster) => {
+  const results = [];
+  for (const cluster of clusters) {
+    if (stagger) await sleep(15_000);
     const metrics = await fetchFecClusterMetrics(cluster, cycle);
     const amount = metrics.receipts || metrics.disbursements || 0;
-    if (!amount && !metrics.recentFilings) return null;
+    if (!amount && !metrics.recentFilings) { results.push(null); continue; }
     const tickers = cluster.tickers || [];
     const period = `${cycle} cycle · last 48h filings`;
-    return {
+    results.push({
       committee: cluster.committee,
       chamber: cluster.chamber,
       label: cluster.label,
@@ -5796,9 +5807,9 @@ async function buildLiveFecPulsePayload() {
       recentFilings: metrics.recentFilings,
       fecUrl: `https://www.fec.gov/data/committee/${encodeURIComponent((cluster.fec_committee_ids || [])[0] || "")}/`,
       source: "fec"
-    };
-  });
-  const pulses = settled
+    });
+  }
+  const pulses = results
     .filter((row) => row && (row.recentFilings > 0 || Number(String(row.amountSummary || "").replace(/[^\d.]/g, "")) > 0))
     .sort((a, b) => Number(b.recentFilings || 0) - Number(a.recentFilings || 0))
     .slice(0, 20);
