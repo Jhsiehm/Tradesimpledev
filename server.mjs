@@ -4009,6 +4009,10 @@ async function sendLandingSignalResponse(res, payload) {
       payload.fecPulse = null;
       payload.fecSource = "unavailable";
     }
+    if (process.env.STRIPE_FOUNDING_MEMBER_LINK) {
+      payload.foundingMemberLink = process.env.STRIPE_FOUNDING_MEMBER_LINK;
+      payload.foundingMemberPrice = process.env.FOUNDING_MEMBER_PRICE || "$49/mo";
+    }
   }
   return sendJson(res, 200, payload);
 }

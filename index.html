@@ -482,6 +482,7 @@ section{position:relative;z-index:1}
 .fec-marketing-trail-step{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .fec-marketing-trail-step strong{color:var(--text);font-weight:600}
 .trail-proof-panel{margin-top:12px;padding:14px 16px;border:1px solid rgba(232,228,220,0.11);background:rgba(5,5,5,0.6)}
+.founding-member-card{padding:28px 24px;border:1px solid rgba(91,191,130,0.18);background:rgba(91,191,130,0.03)}
 
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
@@ -867,18 +868,26 @@ footer nav a:hover{color:var(--text)}
         <a href="/login" class="ts-secondary-cta" data-app-path="/login">Log in</a>
       </div>
     </div>
-    <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
-      <label for="access-email">Join the signal list</label>
-      <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
-      <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
-      <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
-      <div class="access-checklist" aria-label="Access path">
-        <span>Open demo terminal</span>
-        <span>Review a source chain</span>
-        <span>Save a thesis</span>
-        <span>Test in paper mode</span>
+    <div class="access-dossier reveal">
+      <div class="founding-member-card" id="founding-member-card" hidden>
+        <span class="chapter-eyebrow" style="color:var(--green,#5bbf82)">Founding member</span>
+        <div style="margin:12px 0 4px;font-family:var(--serif,Georgia,serif);font-size:clamp(2rem,4vw,3rem);font-weight:400;line-height:1" id="founding-price">$49<span style="font-size:14px;font-family:var(--mono,monospace);color:rgba(232,228,220,0.42)">/mo</span></div>
+        <p style="font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.42);line-height:1.6;margin:8px 0 16px">Lock in founding price. Full price will be $99/mo. Cancel anytime.</p>
+        <ul style="list-style:none;padding:0;margin:0 0 20px;font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.62);line-height:2">
+          <li>Live FEC money trail mapped to your tickers</li>
+          <li>Daily policy exposure briefing</li>
+          <li>Bill, lobbying, and contract source chains</li>
+          <li>Thesis lab and paper trading</li>
+        </ul>
+        <a href="#" class="ts-primary-cta" id="founding-checkout-link" target="_blank" rel="noopener">Subscribe →</a>
       </div>
-    </form>
+      <form class="wl-form" onsubmit="handleWL(event)" style="margin-top:20px">
+        <label for="access-email">Or join the signal list (free)</label>
+        <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
+        <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
+        <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
+      </form>
+    </div>
   </div>
 </section>
 
@@ -1237,6 +1246,17 @@ function hydrateLandingSignal(){
     }
     updateFecMarketingStrip(d.fecPulse,d.fecSource);
     updateTrendingStrip(d.trending||[]);
+    if(d.foundingMemberLink){
+      var fmCard=document.getElementById('founding-member-card');
+      var fmLink=document.getElementById('founding-checkout-link');
+      var fmPrice=document.getElementById('founding-price');
+      if(fmCard)fmCard.hidden=false;
+      if(fmLink)fmLink.href=d.foundingMemberLink;
+      if(fmPrice&&d.foundingMemberPrice){
+        var parts=d.foundingMemberPrice.match(/^(\$\d+)(.*)/);
+        if(parts)fmPrice.innerHTML=parts[1]+'<span style="font-size:14px;font-family:var(--mono,monospace);color:rgba(232,228,220,0.42)">'+escHtml(parts[2])+'</span>';
+      }
+    }
   }
   function escHtml(s){
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
