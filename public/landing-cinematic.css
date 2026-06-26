@@ -3157,7 +3157,7 @@ html[data-theme="light"] .signal-editorial-context {
   .ts-terminal-card {
     width: 100%;
     min-width: 0;
-    border-radius: 12px;
+    border-radius: 0;
     font-size: 12px;
   }
   .terminal-row, .terminal-table-header {
@@ -4096,6 +4096,22 @@ html[data-theme="light"] .signal-editorial-context {
   width: 100%;
   max-width: 100%;
   margin: 0;
+  border-radius: 0;
+}
+
+/* Square everything inside the signal panel — match methodology box language */
+.ts-signal-panel .terminal-signal {
+  border-radius: 0;
+  margin: 8px 18px 20px;
+}
+
+.ts-signal-panel .terminal-signal::before {
+  border-radius: 0;
+}
+
+.ts-signal-panel .confidence-bar,
+.ts-signal-panel .confidence-bar span {
+  border-radius: 0;
 }
 
 .landing-cinematic .ts-hero-visual {
