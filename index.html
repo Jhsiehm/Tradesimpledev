@@ -27,11 +27,10 @@
 <meta name="ts-app-origin" content="https://tradesimpledev-production.up.railway.app"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1"/>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=cd-brief-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=signal-dock-3"/>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
@@ -44,9 +43,9 @@
   --line:rgba(255,255,255,.06);--line-2:rgba(255,255,255,.1);--line-3:rgba(255,255,255,.17);
   --text:var(--text-main);--muted:#8C8C82;--faint:#4A4A4A;
   --ivory:var(--text-main);--forest:#1F4A35;--slate:#3F4542;
-  --mono:var(--font-data);
-  --sans:var(--font-ui);
-  --serif:var(--font-display);
+  --mono:"Space Mono","IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  --sans:"Outfit",ui-sans-serif,system-ui,sans-serif;
+  --serif:"Cormorant Garamond",Georgia,"Times New Roman",serif;
   --ease:cubic-bezier(.16,1,.3,1);
   --ease-spring:cubic-bezier(.32,.72,0,1);
   --ease-out:cubic-bezier(0,0,.2,1);
@@ -165,7 +164,7 @@ html[data-theme="light"] .nav-inner{
 .btn:active{transform:translateY(0) scale(.98) !important}
 
 /* Directional hover fill */
-.btn-primary{background:var(--green);color:#0a0a0a;border:1px solid var(--green);border-radius:var(--radius-md,4px);box-shadow:none}
+.btn-primary{background:var(--green);color:#071004;border:1px solid var(--green);border-radius:8px;box-shadow:none}
 .btn-primary::after{display:none}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.14)}
 .btn-primary:hover::after{display:none}
@@ -194,11 +193,11 @@ html[data-theme="light"] .dn{background:rgba(168,48,48,.1)}
 }
 /* ── SECTION SHELLS ──────────────────────────────────── */
 section{position:relative;z-index:1}
-.wrap{padding:var(--section-pad-y,clamp(64px,10vw,80px)) clamp(20px,5vw,80px);max-width:1400px;margin:0 auto}
+.wrap{padding:clamp(7rem,14vh,12rem) clamp(20px,5vw,80px);max-width:1400px;margin:0 auto}
 .s-tag{
   display:inline-flex;align-items:center;gap:8px;
-  font-family:var(--font-data);font-size:11px;letter-spacing:.06em;
-  text-transform:none;color:var(--muted);margin-bottom:20px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--green);margin-bottom:20px;
 }
 .s-tag::before{content:"";width:18px;height:1px;background:var(--green)}
 .s-h{
@@ -502,7 +501,6 @@ footer nav a:hover{color:var(--text)}
 <div class="ts-scroll-progress" aria-hidden="true"><span class="ts-scroll-progress-bar"></span></div>
 <nav class="ts-section-dots" aria-label="Page sections">
   <button type="button" class="ts-dot active" data-target="#top" aria-label="Hero"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#product" aria-label="Product preview"><span></span></button>
   <button type="button" class="ts-dot" data-target="#manifesto" aria-label="Manifesto"><span></span></button>
   <button type="button" class="ts-dot" data-target="#how-it-works" aria-label="How it works"><span></span></button>
   <button type="button" class="ts-dot" data-target="#data" aria-label="Data"><span></span></button>
@@ -521,9 +519,9 @@ footer nav a:hover{color:var(--text)}
     <div class="ts-hero-noise"></div>
   </div>
 
-  <div class="ts-telemetry-strip" id="landing-telemetry-strip" aria-label="Data source telemetry">
-    <span class="ts-telemetry-sources" id="landing-telemetry-sources">CONGRESS.GOV · SENATE LDA · USASPENDING · FEC.GOV</span>
-    <span class="ts-telemetry-sync" id="landing-telemetry-sync">LAST SYNC …</span>
+  <div class="ts-classification-strip" aria-label="TradeSimple system status">
+    <span>TS//SCI//NOFORN — TRADESIMPLE INTEL ARCHIVE // COLLECTION 2026 // PUBLIC EDITION</span>
+    <span>INTELLIGENCE TERMINAL // PUBLIC ACCESS</span>
   </div>
 
   <nav class="ts-nav" aria-label="Site">
@@ -619,35 +617,49 @@ footer nav a:hover{color:var(--text)}
         <a href="#how-it-works" class="ts-secondary-cta">View methodology</a>
       </div>
       <p class="terminal-entry-instruction">Inside the terminal, start with Thesis Lab: choose a ticker, write the thesis in one sentence, then use Bills, Markets, and Contracts as evidence before paper trading.</p>
-      <div class="hero-reference-row" aria-label="Source references">
-        <span>Congress.gov</span>
-        <span>Senate LDA</span>
-        <span>USASpending</span>
+      <div class="hero-reference-row" aria-label="Archive reference">
+        <span>REF: COLLECTION_2026</span>
+        <span>WASHINGTON D.C. / NYC</span>
+        <span>STATUS: PUBLIC RELEASE</span>
       </div>
     </div>
 
     <div class="ts-hero-visual">
-      <div class="ts-cinematic-wall" aria-label="Live product preview">
+      <div class="ts-cinematic-wall" aria-label="Cinematic intelligence wall">
+        <figure class="cinema-frame frame-bridge">
+          <video autoplay loop muted playsinline webkit-playsinline>
+            <source src="https://assets.mixkit.co/videos/22953/22953-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-01_NYC_TRANSIT</figcaption>
+        </figure>
+        <figure class="cinema-frame frame-city">
+          <video autoplay loop muted playsinline webkit-playsinline>
+            <source src="https://assets.mixkit.co/videos/11712/11712-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-02_NYC_SKYLINE</figcaption>
+        </figure>
+        <figure class="cinema-frame frame-street">
+          <video autoplay loop muted playsinline webkit-playsinline>
+            <source src="https://assets.mixkit.co/videos/4194/4194-720.mp4" type="video/mp4"/>
+          </video>
+          <figcaption>CAM-03_NYC_STREET</figcaption>
+        </figure>
         <div class="cinema-signal-dock">
-          <div class="ts-product-loop" id="hero-product-loop" aria-live="polite">
-            <div class="product-loop-step is-active" data-step="0">
-              <span class="product-loop-step-label">Policy event</span>
-              <span class="product-loop-step-value" id="loop-event">Committee markup detected</span>
-            </div>
-            <div class="product-loop-step" data-step="1">
-              <span class="product-loop-step-label">Source chain</span>
-              <span class="product-loop-step-value" id="loop-chain">Congress.gov → markup → exposure</span>
-            </div>
-            <div class="product-loop-step" data-step="2">
-              <span class="product-loop-step-label">Ticker</span>
-              <span class="product-loop-step-value" id="loop-ticker">NVDA · policy tag CHIPS</span>
-            </div>
-            <div class="product-loop-step" data-step="3">
-              <span class="product-loop-step-label">Confidence</span>
-              <span class="product-loop-step-value" id="loop-confidence">82 / 100 · modeled</span>
+          <div class="cinema-live-row"><span></span>Policy source feed</div>
+          <div class="cinema-stamp">CRS band</div>
+          <div class="cinema-audio-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cinema-intel-ticker" aria-label="Live intelligence briefings">
+            <span class="cinema-intel-label">Intel queue</span>
+            <div class="cinema-intel-track">
+              <button type="button" data-briefing="dod-mesh">DOD tactical intel mesh award</button>
+              <button type="button" data-briefing="semiconductor-export">Semiconductor export restrictions</button>
+              <button type="button" data-briefing="faa-drone">FAA drone delivery votes</button>
+              <button type="button" data-briefing="sec-custody">SEC crypto custody amendments</button>
+              <button type="button" data-briefing="ai-procurement-transparency">AI defense procurement hearings</button>
+              <button type="button" data-briefing="ftc-defense">FTC defense-sector merger probe</button>
+              <button type="button" data-briefing="doe-nuclear">DOE nuclear grid integration</button>
             </div>
           </div>
-          <div class="cinema-live-row"><span></span>Live signal card · illustrative when offline</div>
           <div class="cinema-terminal-slot">
             <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
               <div class="terminal-topbar">
@@ -742,7 +754,7 @@ footer nav a:hover{color:var(--text)}
   </div>
 </section>
 
-<section class="fec-marketing-strip div-line ts-product-preview" id="product" aria-label="Live product preview">
+<section class="fec-marketing-strip div-line" id="fec-marketing-strip" aria-label="Live FEC campaign finance" hidden>
   <div class="wrap fec-marketing-wrap">
     <div class="fec-marketing-head">
       <div>
@@ -768,13 +780,13 @@ footer nav a:hover{color:var(--text)}
 <!-- MANIFESTO -->
 <section class="ts-manifesto-section div-line" id="manifesto">
   <div class="manifesto-watermark" aria-hidden="true">
-    <span>Trade</span><span>Simple</span><span>Policy</span><span>Signals</span><span>Market</span><span>Clarity</span><span>Legislative</span><span>Intelligence</span>
+    <span>Trade</span><span>Simple</span><span>Policy</span><span>Signals</span><span>Market</span><span>Clarity</span><span>Legislative</span><span>Intelligence</span><span>TS//SCI</span><span>Directive 2026</span>
   </div>
   <div class="wrap manifesto-wrap">
     <div class="manifesto-layout reveal">
       <div class="manifesto-heading">
         <p class="chapter-eyebrow">Methodology</p>
-        <h2>Public records<br>mapped to<br>exposed tickers.</h2>
+        <h2>Public records<br>mapped to<br><em>exposed tickers.</em></h2>
       </div>
       <div class="manifesto-copy">
         <p class="manifesto-quote">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, PAC filings from FEC.gov, and quote snapshots from market feeds — each labeled live, modeled, or fallback before you act.</p>
@@ -835,7 +847,7 @@ footer nav a:hover{color:var(--text)}
     <p class="chapter-eyebrow">Terminal view</p>
     <div class="terminal-preview-shell reveal">
       <div class="terminal-preview-head">
-        <span>TradeSimple secure portal — v1.0</span>
+        <span>TRADESIMPLE SECURE PORTAL — v1.0</span>
         <div aria-hidden="true"><i></i><i></i><i></i></div>
       </div>
       <div class="terminal-preview-grid">
@@ -891,12 +903,12 @@ footer nav a:hover{color:var(--text)}
     </div>
 
     <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
-      <article><span>Auth + sessions</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
-      <article><span>Source freshness</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
-      <article><span>AI research</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
-      <article><span>Thesis Lab</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
-      <article><span>Paper mode</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
-      <article><span>Guardrails</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
+      <article><span>AUTH + SESSIONS</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
+      <article><span>SOURCE FRESHNESS</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
+      <article><span>AI RESEARCH</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
+      <article><span>THESIS LAB</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
+      <article><span>PAPER MODE</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
+      <article><span>GUARDRAILS</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
     </div>
 
     <div class="source-chain-registry reveal" aria-label="Source chain registry">
@@ -1232,8 +1244,6 @@ function hydrateLandingSignal(){
   }
   function updateSignal(d){
     if(!d)return;
-    window.__landingLastSync=Date.now();
-    if(window.__updateProductLoop)window.__updateProductLoop(d);
     var label=document.getElementById('terminal-signal-label');
     var headline=document.getElementById('terminal-signal-headline');
     var chain=document.getElementById('terminal-signal-chain');
@@ -1302,18 +1312,15 @@ function hydrateLandingSignal(){
     updateFecMarketingFromPayload({source:source||'sample',pulses:pulse?[pulse]:[]});
   }
   function updateFecMarketingFromPayload(payload){
-    var strip=document.getElementById('product')||document.getElementById('fec-marketing-strip');
+    var strip=document.getElementById('fec-marketing-strip');
     var cards=document.getElementById('fec-marketing-cards');
     var badge=document.getElementById('fec-marketing-badge');
     var trail=document.getElementById('fec-marketing-trail');
     var trailSteps=document.getElementById('fec-marketing-trail-steps');
     if(!strip||!cards)return;
     var pulses=(payload&&payload.pulses)||[];
-    if(!pulses.length){
-      if(cards)cards.innerHTML='<p class="fec-marketing-note muted">Connecting to FEC pulse feed…</p>';
-      if(trail)trail.hidden=true;
-      return;
-    }
+    if(!pulses.length){strip.hidden=true;cards.innerHTML='';if(trail)trail.hidden=true;return;}
+    strip.hidden=false;
     var isLive=payload.source==='fec';
     if(badge){
       badge.textContent=isLive?'Live FEC':'Illustrative';
@@ -1392,65 +1399,11 @@ function hydrateLandingSignal(){
   setInterval(fetchFecPulse, 480000);
 }
 
-function hydrateLandingTelemetry(){
-  var sourcesEl=document.getElementById('landing-telemetry-sources');
-  var syncEl=document.getElementById('landing-telemetry-sync');
-  window.__landingLastSync=Date.now();
-  function setSync(){
-    if(!syncEl)return;
-    var sec=Math.max(0,Math.floor((Date.now()-(window.__landingLastSync||Date.now()))/1000));
-    syncEl.textContent='LAST SYNC '+sec+'s';
-  }
-  function renderSources(cfg){
-    if(!sourcesEl)return;
-    var data=(cfg&&cfg.data)||{};
-    var items=[
-      {label:'CONGRESS.GOV',live:!!data.congress},
-      {label:'SENATE LDA',live:!!(data.senateLda||data.ldaEnabled)},
-      {label:'USASPENDING',live:true},
-      {label:'FEC.GOV',live:!!data.fec}
-    ];
-    sourcesEl.innerHTML=items.map(function(item,i){
-      var dot='<span class="telemetry-dot'+(item.live?' is-live':'')+'" aria-hidden="true">●</span>';
-      var sep=i<items.length-1?'<span class="telemetry-sep" aria-hidden="true">·</span>':'';
-      return '<span class="telemetry-source'+(item.live?' is-live':'')+'">'+dot+item.label+'</span>'+sep;
-    }).join('');
-  }
-  setSync();
-  setInterval(setSync,1000);
-  fetch(tsApiUrl('/api/config')).then(function(r){return r.ok?r.json():null}).then(renderSources).catch(function(){});
-}
-
-function initProductLoop(){
-  var steps=document.querySelectorAll('#hero-product-loop .product-loop-step');
-  if(!steps.length)return;
-  var idx=0;
-  function tick(){
-    steps.forEach(function(s,i){s.classList.toggle('is-active',i===idx);});
-    idx=(idx+1)%steps.length;
-  }
-  tick();
-  setInterval(tick,2800);
-  window.__updateProductLoop=function(d){
-    if(!d)return;
-    var ev=document.getElementById('loop-event');
-    var ch=document.getElementById('loop-chain');
-    var tk=document.getElementById('loop-ticker');
-    var cf=document.getElementById('loop-confidence');
-    if(ev)ev.textContent=(d.headline||d.label||'Policy event detected').slice(0,72);
-    if(ch)ch.textContent=d.chain||d.sourceChain||'Congress.gov → committee → exposure';
-    if(tk)tk.textContent=(d.ticker||'—')+' · '+(d.tag||d.policyTag||'policy tag');
-    if(cf)cf.textContent=(d.confidence!=null?d.confidence:82)+' / 100 · '+(d.mode||'modeled');
-  };
-}
-
 function bootLandingScripts(){
   mountGithubPagesOriginBanner();
   wireTerminalLinks();
   initScrollReveal();
   hydrateLandingTicker();
-  hydrateLandingTelemetry();
-  initProductLoop();
   hydrateLandingSignal();
 }
 if(document.readyState==='loading'){
@@ -1459,6 +1412,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=cd-brief-1" defer></script>
+<script src="assets/landing-cinematic.js?v=signal-freshness-2" defer></script>
 </body>
 </html>
