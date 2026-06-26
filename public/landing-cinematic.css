@@ -3441,6 +3441,17 @@ html[data-theme="light"] .signal-editorial-context {
   margin-top: clamp(24px, 3vh, 40px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+.landing-cinematic .ts-ticker-tape::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  background: linear-gradient(to left, rgba(5, 5, 5, 0.82) 30%, transparent);
+  pointer-events: none;
+  z-index: 9;
+}
 
 .hero-reference-row {
   display: grid;

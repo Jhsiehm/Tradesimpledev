@@ -808,6 +808,10 @@
       if (signalHeadline) signalHeadline.textContent = preset.signal;
       if (tagDetailEl) tagDetailEl.textContent = preset.tagDetail;
       if (signalFreshness) signalFreshness.textContent = "Illustrative example · demo briefing";
+      var editorialEl = qs("#terminal-signal-editorial");
+      if (editorialEl) { editorialEl.hidden = true; editorialEl.textContent = ""; }
+      var briefLinkEl = qs("#terminal-signal-brief-link");
+      if (briefLinkEl) briefLinkEl.hidden = true;
       if (confidenceText) confidenceText.textContent = preset.confidence + "/100";
       animateConfidence(preset.confidence);
       setChainText(preset.chain, animate !== false);

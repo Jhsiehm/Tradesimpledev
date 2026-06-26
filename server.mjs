@@ -3831,7 +3831,7 @@ const ONBOARDING_BILL_FALLBACK = "H.R.3633-119";
 const EDITORIAL_LEAD_BILL_ID = String(process.env.EDITORIAL_LEAD_BILL_ID || "S.2-119").trim();
 const EDITORIAL_LEAD_CONTEXT = String(
   process.env.EDITORIAL_LEAD_CONTEXT ||
-    "Senate reconciliation vehicle — immigration enforcement and detention operators on the watchlist."
+    "Drug pricing bill in Senate reconciliation — Medicare negotiation provisions would pressure pharma revenue. LLY, MRK, and BMY on the watchlist."
 ).trim();
 
 function landingSignalBillPool() {
