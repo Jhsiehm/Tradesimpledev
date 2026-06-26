@@ -481,6 +481,7 @@ section{position:relative;z-index:1}
 .fec-marketing-trail-steps{display:grid;gap:.45rem;margin:.55rem 0 0;font-size:.82rem;line-height:1.45}
 .fec-marketing-trail-step{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .fec-marketing-trail-step strong{color:var(--text);font-weight:600}
+.trail-proof-panel{margin-top:12px;padding:14px 16px;border:1px solid rgba(232,228,220,0.11);background:rgba(5,5,5,0.6)}
 
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
@@ -1240,6 +1241,84 @@ function hydrateLandingSignal(){
   function escHtml(s){
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+  function renderMoneyTrailSvg(pulse,isLive){
+    var links=pulse.links||{};
+    var tickers=(links.tickers||[]).slice(0,4);
+    var bills=(links.bills||[]).slice(0,3);
+    var lobby=(links.lobbyingFilings||[]).slice(0,2);
+    var contracts=(links.contracts||[]).slice(0,2);
+    var midNodes=bills.length+lobby.length+contracts.length;
+    if(!midNodes&&!tickers.length) return '';
+    var W=900,rowH=52,pad=20;
+    var midCount=Math.max(midNodes,1);
+    var tkCount=Math.max(tickers.length,1);
+    var H=Math.max(midCount*rowH+pad*2, tkCount*rowH+pad*2, 180);
+    var pacX=20,pacY=H/2,pacW=140,pacH=44;
+    var midX=260,midW=280;
+    var tkX=680,tkW=120;
+    var green='rgba(91,191,130,1)';
+    var dim='rgba(232,228,220,0.25)';
+    var txt='rgba(232,228,220,0.82)';
+    var faint='rgba(232,228,220,0.42)';
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible" role="img" aria-label="Money trail graph">';
+    svg+='<style>text{font-family:var(--mono,ui-monospace,monospace)}.trail-node{cursor:pointer}.trail-node:hover rect,.trail-node:hover circle{stroke:'+green+'}.trail-edge{stroke:'+dim+';fill:none;stroke-width:1}.trail-label{font-size:9px;fill:'+faint+'}.trail-title{font-size:11px;fill:'+txt+'}.trail-sub{font-size:9px;fill:'+faint+'}.trail-tag{font-size:10px;fill:'+green+';font-weight:700}</style>';
+
+    // PAC node
+    svg+='<g class="trail-node">';
+    svg+='<rect x="'+pacX+'" y="'+(pacY-pacH/2)+'" width="'+pacW+'" height="'+pacH+'" rx="0" fill="rgba(91,191,130,0.08)" stroke="'+dim+'"/>';
+    svg+='<text class="trail-tag" x="'+(pacX+10)+'" y="'+(pacY-6)+'" dominant-baseline="auto">FEC</text>';
+    svg+='<text class="trail-sub" x="'+(pacX+10)+'" y="'+(pacY+10)+'" dominant-baseline="auto">'+escHtml((pulse.committee||'PAC').slice(0,18))+'</text>';
+    if(pulse.fecUrl) svg+='<a href="'+escHtml(pulse.fecUrl)+'" target="_blank" rel="noopener"><rect x="'+pacX+'" y="'+(pacY-pacH/2)+'" width="'+pacW+'" height="'+pacH+'" fill="transparent"/></a>';
+    svg+='</g>';
+
+    var midY=pad;
+    var midItems=[];
+    bills.forEach(function(b){midItems.push({type:'Bill',label:(b.title||b.id||'').slice(0,32),sub:b.status||'',url:b.sourceUrl,reason:b.linkReason});});
+    lobby.forEach(function(l){midItems.push({type:'Lobby',label:(l.client||'').slice(0,32),sub:l.amount?('$'+(Number(l.amount)/1e6).toFixed(1)+'M'):'',url:l.sourceUrl,reason:l.linkReason});});
+    contracts.forEach(function(c){midItems.push({type:'Contract',label:(c.recipient||'').slice(0,28),sub:c.amount?('$'+(Number(c.amount)/1e6).toFixed(1)+'M'):'',url:c.sourceUrl,reason:c.linkReason});});
+
+    midItems.forEach(function(item,i){
+      var cy=midY+i*rowH+rowH/2;
+      var nodeH=40;
+      // Edge from PAC to mid node
+      svg+='<path class="trail-edge" d="M'+(pacX+pacW)+','+pacY+' C'+(pacX+pacW+40)+','+pacY+' '+(midX-40)+','+cy+' '+midX+','+cy+'"/>';
+      svg+='<text class="trail-label" x="'+((pacX+pacW+midX)/2)+'" y="'+(((pacY+cy)/2)-6)+'" text-anchor="middle">via committee map</text>';
+      // Mid node
+      var tagColor=item.type==='Bill'?green:item.type==='Lobby'?'rgba(255,165,0,0.9)':'rgba(100,180,255,0.9)';
+      svg+='<g class="trail-node" data-reason="'+escHtml(item.reason||'')+'">';
+      if(item.url) svg+='<a href="'+escHtml(item.url)+'" target="_blank" rel="noopener">';
+      svg+='<rect x="'+midX+'" y="'+(cy-nodeH/2)+'" width="'+midW+'" height="'+nodeH+'" rx="0" fill="rgba(255,255,255,0.03)" stroke="'+dim+'"/>';
+      svg+='<text style="font-size:10px;fill:'+tagColor+';font-weight:700" x="'+(midX+8)+'" y="'+(cy-4)+'" dominant-baseline="auto">'+escHtml(item.type)+'</text>';
+      svg+='<text class="trail-sub" x="'+(midX+8)+'" y="'+(cy+10)+'" dominant-baseline="auto">'+escHtml(item.label)+(item.sub?' · '+escHtml(item.sub):'')+'</text>';
+      if(item.url) svg+='</a>';
+      svg+='</g>';
+    });
+
+    // Ticker nodes
+    var tkStartY=pad;
+    if(tickers.length<midItems.length) tkStartY=pad+(midItems.length-tickers.length)*rowH/2;
+    tickers.forEach(function(t,i){
+      var cy=tkStartY+i*rowH+rowH/2;
+      // Find nearest mid node to draw edge from
+      var fromY=midItems.length?midY+(Math.min(i,midItems.length-1))*rowH+rowH/2:pacY;
+      var fromX=midItems.length?midX+midW:pacX+pacW;
+      svg+='<path class="trail-edge" d="M'+fromX+','+fromY+' C'+(fromX+40)+','+fromY+' '+(tkX-40)+','+cy+' '+tkX+','+cy+'"/>';
+      svg+='<text class="trail-label" x="'+((fromX+tkX)/2)+'" y="'+(((fromY+cy)/2)-6)+'" text-anchor="middle">via fec-committee-map</text>';
+      // Ticker node
+      svg+='<g class="trail-node">';
+      if(t.sourceUrl) svg+='<a href="'+escHtml(t.sourceUrl)+'" target="_blank" rel="noopener">';
+      svg+='<rect x="'+tkX+'" y="'+(cy-20)+'" width="'+tkW+'" height="40" rx="0" fill="rgba(91,191,130,0.06)" stroke="'+dim+'"/>';
+      svg+='<text class="trail-tag" x="'+(tkX+tkW/2)+'" y="'+(cy+4)+'" text-anchor="middle">'+escHtml(t.symbol)+'</text>';
+      if(t.sourceUrl) svg+='</a>';
+      svg+='</g>';
+    });
+
+    // Source badge
+    svg+='<text style="font-size:9px;fill:'+(isLive?green:faint)+'" x="'+(W-10)+'" y="16" text-anchor="end">'+(isLive?'Live FEC':'Illustrative')+'</text>';
+    svg+='</svg>';
+    svg+='<div class="trail-proof-panel" id="trail-proof-panel" hidden></div>';
+    return svg;
+  }
   function updateFecMarketingStrip(pulse,source){
     updateFecMarketingFromPayload({source:source||'sample',pulses:pulse?[pulse]:[]});
   }
@@ -1277,15 +1356,19 @@ function hydrateLandingSignal(){
     var hero=pulses[0];
     if(trail&&trailSteps&&hero){
       trail.hidden=false;
-      var tk=(hero.tickers||[])[0]||'LMT';
-      var billN=(hero.linkCounts&&hero.linkCounts.bills)||2;
-      var lobbyN=(hero.linkCounts&&hero.linkCounts.lobbyingFilings)||1;
-      trailSteps.innerHTML=[
-        '<div class="fec-marketing-trail-step"><strong>FEC</strong> · '+escHtml(hero.committee||'Committee')+' PAC cluster · '+(isLive?'Live FEC':'Illustrative')+'</div>',
-        '<div class="fec-marketing-trail-step"><strong>Bill</strong> · '+billN+' linked bill'+(billN===1?'':'s')+' via committee map</div>',
-        '<div class="fec-marketing-trail-step"><strong>Lobby</strong> · '+lobbyN+' LDA filing'+(lobbyN===1?'':'s')+' via client crosswalk</div>',
-        '<div class="fec-marketing-trail-step"><strong>Ticker</strong> · '+escHtml(tk)+' via explicit fec-committee-map.json</div>'
-      ].join('');
+      trailSteps.innerHTML=renderMoneyTrailSvg(hero,isLive);
+      trailSteps.querySelectorAll('.trail-node[data-reason]').forEach(function(node){
+        node.addEventListener('click',function(e){
+          if(e.target.closest('a'))return;
+          var panel=document.getElementById('trail-proof-panel');
+          if(!panel)return;
+          var reason=node.getAttribute('data-reason')||'';
+          var link=node.querySelector('a');
+          var url=link?link.getAttribute('href'):'';
+          panel.hidden=false;
+          panel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-family:var(--mono);font-size:10px;color:rgba(232,228,220,0.42);text-transform:uppercase">Source chain</span><button type="button" style="background:none;border:none;color:rgba(232,228,220,0.42);cursor:pointer;font-size:14px" onclick="this.closest(\'.trail-proof-panel\').hidden=true">&times;</button></div><p style="font-family:var(--mono);font-size:12px;color:rgba(232,228,220,0.72);line-height:1.6;margin:0">'+escHtml(reason)+'</p>'+(url?'<a href="'+escHtml(url)+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-family:var(--mono);font-size:11px;color:rgba(91,191,130,1);text-decoration:none">View primary source &rarr;</a>':'');
+        });
+      });
     }
   }
   function updateTrendingStrip(items){
@@ -1313,14 +1396,14 @@ function hydrateLandingSignal(){
       .catch(function(){return null})
       .then(function(payload){
         if(!payload||!payload.pulses||!payload.pulses.length)return;
+        if(payload.source!=='fec')return;
         var fresh=document.getElementById('terminal-signal-freshness');
         var label=document.getElementById('terminal-signal-label');
         var idx=Math.floor(Date.now()/480000)%payload.pulses.length;
         var top=payload.pulses[idx];
-        var srcLabel=payload.source==='fec'?'Live FEC':'Illustrative';
         if(fresh&&!fresh.dataset.fecSet){
           fresh.dataset.fecSet='1';
-          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · '+srcLabel;
+          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · Live FEC';
         }
         if(label) label.textContent='FEC pulse · '+(top.committee||'Committee');
         var rotStart=Math.floor(Date.now()/480000)%payload.pulses.length;
