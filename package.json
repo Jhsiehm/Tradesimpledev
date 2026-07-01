@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "NODE_ENV=production node server.mjs",
-    "check": "node --check ai-brain.mjs && node --check social-pulse.mjs && node --check server.mjs && node --check public/app.js && node --check public/charts.js",
+    "check": "node --check ai-brain.mjs && node --check social-pulse.mjs && node --check server.mjs && node --check public/app.js && node --check public/charts.js && node --check src/server/contract-intelligence.mjs && node --check src/server/predictions-api.mjs && node --check src/server/auth-email.mjs && node --check src/data/runtime-seeds.mjs && node --check public/js/00-utils.js && node --check public/js/08-watchlist.js && node --check public/js/09-setup.js && node --check public/js/10-render-analysis.js && node --check public/js/11-render-chrome.js && node --check public/js/12-render-markets.js && node --check public/js/13-render-tabs.js",
     "dev:3010": "PORT=3010 node server.mjs"
   },
   "engines": {
