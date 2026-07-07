@@ -100,6 +100,39 @@ const PAPER_STARTING_CASH = 100000;
 loadEnvFile(".env");
 loadEnvFile(".env.local");
 
+function isLandingOnly() {
+  const value = String(process.env.LANDING_ONLY || "").trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
+}
+
+function landingOnlyAllows(pathname, method) {
+  if (pathname.startsWith("/assets/")) return true;
+  if (pathname.startsWith("/src/imports/")) return true;
+  if (method === "GET" || method === "HEAD") {
+    if (pathname === "/" || pathname === "/manifesto" || pathname === "/favicon.ico") return true;
+    if (pathname === "/robots.txt" || pathname === "/.well-known/security.txt") return true;
+  }
+  if (method === "GET") {
+    if (pathname === "/api/config") return true;
+    if (pathname === "/api/landing-quotes") return true;
+    if (pathname === "/api/landing-signal") return true;
+    if (pathname === "/api/landing-fec-pulse") return true;
+    if (pathname === "/api/fec/pulse") return true;
+  }
+  if (method === "POST" && pathname === "/api/waitlist") return true;
+  return false;
+}
+
+function landingOnlyBlocked(res, pathname) {
+  if (pathname.startsWith("/api/")) {
+    return sendJson(res, 503, {
+      error: "landing_only",
+      message: "Terminal access opens soon. Join the waitlist on the home page."
+    });
+  }
+  return redirect(res, "/#early-access");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FEATURE GATES — Launch Phase Control
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2920,6 +2953,10 @@ async function route(req, res) {
   const url = new URL(req.url || "/", APP_URL);
   const pathname = normalizeRoutePathname(url.pathname);
 
+  if (isLandingOnly() && !landingOnlyAllows(pathname, req.method)) {
+    return landingOnlyBlocked(res, pathname);
+  }
+
   if (pathname === "/") return sendLandingIndex(res);
   if (pathname === "/favicon.ico") return sendStatic(res, "favicon.png");
   if (pathname === "/dashboard") {
@@ -3373,8 +3410,12 @@ function publicConfig() {
   const dispatchWelcomeEnabled = Boolean(process.env.RESEND_API_KEY);
   return {
     auth: {
-      demo: process.env.DEMO_AUTH !== "false",
-      email: true
+      demo: !isLandingOnly() && process.env.DEMO_AUTH !== "false",
+      email: !isLandingOnly()
+    },
+    launch: {
+      landingOnly: isLandingOnly(),
+      waitlistOpen: true
     },
     dispatch: {
       dispatchWelcomeEnabled,

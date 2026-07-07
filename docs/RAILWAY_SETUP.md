@@ -91,6 +91,7 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 | `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
 | `DATA_ACCURACY_MODE` | `demo` for soft launch |
 | `LAUNCH_PHASE` | `full-feature` — all terminal views and API gates on |
+| `LANDING_ONLY` | `true` for LinkedIn soft launch (landing + waitlist only; blocks dashboard/demo) |
 | `DEMO_AUTH` | `true` |
 
 **Required for Supabase persistence (email accounts, paper trading, watchlists, waitlist):**

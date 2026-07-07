@@ -699,15 +699,14 @@ footer nav a:hover{color:var(--text)}
         <button class="active" id="dark-btn" onclick="setTheme('dark')">Dark</button>
         <button id="light-btn" onclick="setTheme('light')">Light</button>
       </div>
-      <a class="terminal-button terminal-button-secondary" href="/signup" data-app-path="/signup">Sign up</a>
-      <a class="terminal-button" href="/auth/demo?next=/dashboard%3Fview%3Dhome" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Enter terminal</a>
+      <a class="terminal-button" href="#early-access">Join waitlist</a>
     </div>
   </nav>
   </div>
 
     <div class="ts-hero-stage-caption">
       <p class="ts-hero-stage-tagline">Congress → contracts → tickers. Source chains labeled live or illustrative.</p>
-      <a class="ts-hero-stage-cta" href="/auth/demo?next=/dashboard%3Fview%3Dhome" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
+      <a class="ts-hero-stage-cta" href="#early-access">Join waitlist →</a>
     </div>
 
     <a href="/manifesto" class="ts-manifesto-portal" aria-label="Read why TradeSimple exists — manifesto">
@@ -760,11 +759,10 @@ footer nav a:hover{color:var(--text)}
         traced to your tickers before consensus forms.
       </p>
       <div class="ts-hero-ctas">
-        <a href="/auth/demo?next=/dashboard%3Fview%3Dhome" class="ts-primary-cta" id="primary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
-        <a href="#early-access" class="ts-secondary-cta ts-secondary-cta--ghost">Join waitlist</a>
+        <a href="#early-access" class="ts-primary-cta" id="primary-cta">Join waitlist →</a>
         <a href="/manifesto" class="ts-secondary-cta ts-secondary-cta--ghost ts-hero-manifesto-link">Why TradeSimple →</a>
       </div>
-      <p class="terminal-entry-instruction">Inside the terminal, start with <span class="term-em">Thesis Lab</span>: choose a ticker, write the thesis in one sentence, then use <span class="term-em">Bills</span>, <span class="term-em">Markets</span>, and <span class="term-em">Contracts</span> as source-backed evidence.</p>
+      <p class="terminal-entry-instruction">Early access opens soon. Join the signal list — we’ll email you when the terminal is live.</p>
       <div class="hero-reference-row" aria-label="Source references">
         <span>Congress.gov</span>
         <span>Senate LDA</span>
@@ -844,7 +842,7 @@ footer nav a:hover{color:var(--text)}
               <div class="landing-trending-strip" id="landing-trending-strip" hidden>
                 <div class="landing-trending-head">
                   <span class="landing-trending-label">Policy topics</span>
-                  <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
+                  <a class="landing-trending-cta" href="#early-access">Join waitlist →</a>
                 </div>
                 <div class="landing-trending-items" id="landing-trending-items"></div>
                 <p class="landing-trending-note">Monitoring topic · not investment advice</p>
@@ -873,8 +871,7 @@ footer nav a:hover{color:var(--text)}
       </div>
       <div class="fec-marketing-rail">
         <span class="fec-marketing-badge mini-pill" id="fec-marketing-badge">Connecting</span>
-        <a class="ts-secondary-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dfec">Enter terminal → FEC</a>
-        <a class="ts-secondary-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Signals →</a>
+        <a class="ts-secondary-cta" href="#early-access">Join waitlist →</a>
       </div>
     </div>
     <div class="fec-marketing-cards" id="fec-marketing-cards"></div>
@@ -1063,25 +1060,20 @@ footer nav a:hover{color:var(--text)}
 <section class="archive-access-section div-line" id="early-access">
   <div class="archive-wrap access-grid">
     <div class="reveal">
-      <p class="chapter-eyebrow">Terminal access</p>
+      <p class="chapter-eyebrow">Early access</p>
       <h2>Read the record before the headline.</h2>
-      <p>Policy signals, cited sources, plain-English research, thesis storage, and paper trading in one terminal.</p>
-      <div class="access-actions">
-        <a href="/auth/demo?next=/dashboard%3Fview%3Dhome" class="ts-primary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
-        <a href="/signup" class="ts-secondary-cta" data-app-path="/signup">Create account</a>
-        <a href="/login" class="ts-secondary-cta" data-app-path="/login">Log in</a>
-      </div>
+      <p>Policy signals, cited sources, plain-English research, thesis storage, and paper trading — launching soon. Join the waitlist for first access.</p>
     </div>
     <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
       <label for="access-email">Join the signal list</label>
       <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
-      <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
+      <button class="ts-primary-cta" type="submit" id="wl-submit">Join waitlist →</button>
       <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
-      <div class="access-checklist" aria-label="Access path">
-        <span>Open demo terminal</span>
-        <span>Review a source chain</span>
-        <span>Save a thesis</span>
-        <span>Test in paper mode</span>
+      <div class="access-checklist" aria-label="What happens next">
+        <span>Join the waitlist</span>
+        <span>Get launch updates</span>
+        <span>Early terminal access</span>
+        <span>Paper mode when we open</span>
       </div>
     </form>
   </div>
@@ -1499,7 +1491,7 @@ function hydrateLandingSignal(){
     if(!items||!items.length){strip.hidden=true;host.innerHTML='';return;}
     strip.hidden=false;
     host.innerHTML=items.slice(0,3).map(function(item){
-      var href=item.briefUrl||'/auth/demo?next=%2Fdashboard%3Fview%3Dsignals';
+      var href=item.briefUrl||'#early-access';
       var type=(item.type||'topic').toUpperCase();
       var tick=item.tickerLabel||'';
       return '<a class="landing-trending-item" href="'+href+'"><div><strong>'+item.title+'</strong><em>'+tick+'</em></div><span>'+type+'</span></a>';

@@ -10,6 +10,7 @@ AUTH_SECRET=${SECRET}
 DATA_ACCURACY_MODE=demo
 DEMO_AUTH=true
 LAUNCH_PHASE=full-feature
+LANDING_ONLY=true
 EOF
 echo ""
 echo "APP_URL is optional on Railway — the server auto-uses RAILWAY_PUBLIC_DOMAIN."
