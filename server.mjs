@@ -3080,6 +3080,7 @@ async function route(req, res) {
   if (pathname === "/api/auth/signup" && req.method === "POST") return authSignup(req, res);
   if (pathname === "/api/auth/login" && req.method === "POST") return authLogin(req, res);
   if (pathname === "/api/auth/logout" && req.method === "POST") return authLogoutApi(res, req);
+  if (pathname === "/manifesto") return sendStatic(res, "manifesto.html");
   if (pathname === "/login" || pathname === "/signup") return sendStatic(res, "auth.html");
 
   // ── Prediction ledger (public reads — the track record is a brand asset) ──
@@ -3969,6 +3970,8 @@ function buildLandingSignalPayload(bill, mode, dateKey, { editorial = false } = 
     relatedContracts: [],
     exposureSource: merged.exposureSource || null
   });
+  const policyTag =
+    (Array.isArray(merged.tags) && merged.tags[0]) || merged.policyArea || null;
   return {
     billId: merged.id,
     label: editorial
@@ -3978,6 +3981,9 @@ function buildLandingSignalPayload(bill, mode, dateKey, { editorial = false } = 
     editorialContext: editorial ? EDITORIAL_LEAD_CONTEXT : null,
     briefPath: shareBillPath(merged.id),
     chain,
+    ticker: tickers[0] || null,
+    tickers,
+    policyTag,
     whyMarketsCare,
     confidence: momentum,
     signal: merged.signal || merged.plainEnglish || "",

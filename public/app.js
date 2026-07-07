@@ -225,6 +225,7 @@ function refreshPolicyScopedViews() {
   if ($("#view-signals")?.classList.contains("active")) renderSignalsDesk();
   if ($("#view-bills")?.classList.contains("active") && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
   if ($("#view-fec")?.classList.contains("active")) renderFecView();
+  renderMorningBrief();
   renderSinceLastVisitStrip();
 }
 
@@ -418,6 +419,7 @@ function setFocusSymbol(symbol, { persist = true, render = true, syncAnalysis = 
     renderMobileContextBar();
     syncResearchFabLabel();
     renderTabFilterContexts();
+    if ($("#view-overview")?.classList.contains("active")) renderMorningBrief();
     renderMarkets();
     if (isFeatureEnabled("BILLS_EXPLORER_ENABLED")) renderBills();
     if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
@@ -1716,13 +1718,18 @@ function billConfidenceLabel(bill) {
 }
 
 function twelveWordSummary(text) {
-  const words = String(text || "")
-    .trim()
+  const words = briefDisplayCopy(text)
     .split(/\s+/)
     .filter(Boolean);
   if (!words.length) return "—";
   const slice = words.slice(0, 12).join(" ");
   return words.length > 12 ? `${slice}…` : slice;
+}
+
+function briefDisplayCopy(text) {
+  return String(text || "")
+    .replace(/\s*—\s*/g, ", ")
+    .trim();
 }
 
 function industryStanceForBill(bill) {
@@ -9547,6 +9554,9 @@ function showView(view, updateUrl = true) {
   if (view === "overview" || view === "signals") {
     renderSinceLastVisitStrip();
   }
+  if (view === "overview") {
+    renderOverview();
+  }
   if (view === "signals" && isViewEnabled("signals")) {
     if (!state.bills?.length && !state.trending?.length) showSkeleton("#signal-list", 4, "card");
     renderSignalsDesk();
@@ -10748,9 +10758,25 @@ function formatSignalDate(value) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function morningBriefFreshnessIso(pick) {
+  if (!pick) return "";
+  if (pick.kind === "fec") return state.fecPulse?.updatedAt || pick.data?.date || "";
+  if (pick.kind === "signal") return state.dataMeta?.policy?.updatedAt || pick.data?.date || "";
+  if (pick.kind === "bill") return state.dataMeta?.bills?.updatedAt || pick.data?.latestActionDate || "";
+  return "";
+}
+
+function morningBriefUpdatedHtml(pick) {
+  const iso = morningBriefFreshnessIso(pick);
+  if (!iso) return "";
+  const label = freshnessText(iso);
+  if (!label || label === "waiting") return "";
+  return `<span class="morning-brief-updated">Updated ${escapeHtml(label)}</span>`;
+}
+
 function pickMorningBriefSignal() {
   const scopedFec = filteredFecPulses();
-  if (scopedFec.length && (state.fecPulse?.source === "fec" || Math.random() < 0.35)) {
+  if (scopedFec.length) {
     const pulse = scopedFec[0];
     return {
       kind: "fec",
@@ -10759,8 +10785,8 @@ function pickMorningBriefSignal() {
         score: 72,
         date: pulse.filingDate || state.fecPulse?.updatedAt,
         tickers: pulse.tickers || [],
-        title: pulse.plainEnglish || pulse.label,
-        chain: ["FEC", pulse.plainEnglish || "", (pulse.tickers || []).join(", ")],
+        title: briefDisplayCopy(pulse.plainEnglish || pulse.label),
+        chain: ["FEC", briefDisplayCopy(pulse.plainEnglish || ""), (pulse.tickers || []).join(", ")],
         _fecUrl: pulse.fecUrl
       }
     };
@@ -10773,6 +10799,25 @@ function pickMorningBriefSignal() {
     .sort((a, b) => billMomentum(b) - billMomentum(a));
   if (bills.length) return { kind: "bill", data: bills[0] };
   return null;
+}
+
+function morningBriefHeadHtml({ label, ticker, sourceTag, updatedHtml }) {
+  return `
+    <div class="morning-brief-head">
+      <span class="top-signal-dot" aria-hidden="true"></span>
+      <span class="morning-brief-label">${escapeHtml(label)}</span>
+      ${ticker ? `<span class="morning-brief-ticker">${escapeHtml(ticker)}</span>` : ""}
+      ${sourceTag || ""}
+      ${updatedHtml}
+    </div>`;
+}
+
+function morningBriefActionsHtml(secondaryHtml = "") {
+  return `
+    <div class="morning-brief-actions">
+      <button type="button" class="mb-action mb-action--primary" data-view-jump="signals">Open in Signals</button>
+      ${secondaryHtml}
+    </div>`;
 }
 
 function renderMorningBrief() {
@@ -10788,71 +10833,50 @@ function renderMorningBrief() {
     return;
   }
   card.hidden = false;
+  card.className = "morning-brief-card intel-card panel";
+  const updatedHtml = morningBriefUpdatedHtml(pick);
   if (pick.kind === "signal") {
     const sig = pick.data;
     const source = signalSourceLabel(sig);
-    const band = `${sig.score}/100 · ${momentumBandLabel(sig.score)}`;
-    const convBand = sig.score >= 67 ? "high" : sig.score < 35 ? "low" : "medium";
-    card.className = `morning-brief-card intel-card intel-card--${convBand} panel panel-emphasis`;
     const primaryTicker = (sig.tickers && sig.tickers[0]) || "";
     inner.innerHTML = `
-      ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
-      <div class="morning-brief-eyebrow">
-        <span class="top-signal-dot" aria-hidden="true"></span>
-        <span>Morning brief</span>
-        <span class="mini-pill">${escapeHtml(band)}</span>
-      </div>
-      <hr class="morning-brief-rule" aria-hidden="true">
-      <h2 class="morning-brief-title">${escapeHtml(sig.title || "Top signal")}</h2>
-      ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: momentumBandLabel(sig.score) })}
-      <p class="morning-brief-why">${escapeHtml(twelveWordSummary(sig.chain?.[1] || sig.title || ""))}</p>
-      <div class="morning-brief-actions">
-        <button type="button" class="button button-primary compact" data-view-jump="signals">Open in Signals</button>
-        ${sig._billId ? `<button type="button" class="button button-secondary compact" data-drill-action="bills" data-bill-id="${escapeHtml(sig._billId)}" role="link" tabindex="0">View bill</button>` : ""}
-      </div>`;
+      ${morningBriefHeadHtml({ label: "Morning brief", ticker: primaryTicker, updatedHtml })}
+      <h2 class="morning-brief-title">${escapeHtml(briefDisplayCopy(sig.title || "Top signal"))}</h2>
+      ${signalScanLineHtml({ source, date: sig.date, tickers: sig.tickers, band: `${sig.score}/100 · ${momentumBandLabel(sig.score)}` })}
+      ${morningBriefActionsHtml(
+        sig._billId
+          ? `<button type="button" class="mb-action mb-action--ghost" data-drill-action="bills" data-bill-id="${escapeHtml(sig._billId)}" role="link" tabindex="0">View bill</button>`
+          : ""
+      )}`;
   } else if (pick.kind === "fec") {
     const sig = pick.data;
-    const convBand = "medium";
-    card.className = `morning-brief-card intel-card intel-card--${convBand} panel panel-emphasis`;
     const primaryTicker = (sig.tickers && sig.tickers[0]) || "";
+    const sampleTag =
+      state.fecPulse?.source === "sample"
+        ? `<span class="morning-brief-source-tag">Sample</span>`
+        : "";
     inner.innerHTML = `
-      ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
-      <div class="morning-brief-eyebrow">
-        <span class="top-signal-dot" aria-hidden="true"></span>
-        <span>Morning brief · FEC</span>
-        <span class="mini-pill ${state.fecPulse?.source === "sample" ? "amber" : "green"}">${state.fecPulse?.source === "sample" ? "Sample" : "FEC"}</span>
-      </div>
-      <hr class="morning-brief-rule" aria-hidden="true">
-      <h2 class="morning-brief-title">${escapeHtml(sig.title || "Campaign finance pulse")}</h2>
+      ${morningBriefHeadHtml({ label: "Morning brief · FEC", ticker: primaryTicker, sourceTag: sampleTag, updatedHtml })}
+      <h2 class="morning-brief-title">${escapeHtml(briefDisplayCopy(sig.title || "Campaign finance pulse"))}</h2>
       ${signalScanLineHtml({ source: "FEC", date: sig.date, tickers: sig.tickers, band: String(state.fecPulse?.cycle || "") })}
-      <p class="morning-brief-why">${escapeHtml(twelveWordSummary(sig.chain?.[1] || sig.title || ""))}</p>
-      <div class="morning-brief-actions">
-        <button type="button" class="button button-primary compact" data-view-jump="signals">Open in Signals</button>
-        ${sig._fecUrl ? `<a class="button button-secondary compact" href="${escapeHtml(sig._fecUrl)}" target="_blank" rel="noopener noreferrer">Source: FEC</a>` : ""}
-      </div>`;
+      ${morningBriefActionsHtml(
+        sig._fecUrl
+          ? `<a class="mb-action mb-action--ghost" href="${escapeHtml(sig._fecUrl)}" target="_blank" rel="noopener noreferrer">Source: FEC</a>`
+          : ""
+      )}`;
   } else {
     const bill = pick.data;
     const m = billMomentum(bill);
-    const convBand = m >= 67 ? "high" : m < 35 ? "low" : "medium";
-    card.className = `morning-brief-card intel-card intel-card--${convBand} panel panel-emphasis`;
     const tickers = (bill.affected || []).slice(0, 4);
     const source = bill.exactCongressRecord ? "Congress.gov" : "Policy feed";
     const primaryTicker = tickers[0] || "";
     inner.innerHTML = `
-      ${primaryTicker ? `<div class="morning-brief-ticker">${escapeHtml(primaryTicker)}</div>` : ""}
-      <div class="morning-brief-eyebrow">
-        <span class="top-signal-dot" aria-hidden="true"></span>
-        <span>Morning brief</span>
-        <span class="mini-pill">${m}/100 · ${escapeHtml(billConfidenceLabel(bill))}</span>
-      </div>
-      <hr class="morning-brief-rule" aria-hidden="true">
-      <h2 class="morning-brief-title">${escapeHtml(bill.shortTitle || bill.title)}</h2>
-      ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: momentumBandLabel(m) })}
-      <p class="morning-brief-why">${escapeHtml(bill.whyMarketsCare || bill.plainEnglish || bill.signal || bill.impact || "")}</p>
-      <div class="morning-brief-actions">
-        <button type="button" class="button button-primary compact" data-view-jump="signals">Open in Signals</button>
-        <button type="button" class="button button-secondary compact" data-drill-action="bills" data-bill-id="${escapeHtml(bill.id)}" role="link" tabindex="0">View bill</button>
-      </div>`;
+      ${morningBriefHeadHtml({ label: "Morning brief", ticker: primaryTicker, updatedHtml })}
+      <h2 class="morning-brief-title">${escapeHtml(briefDisplayCopy(bill.shortTitle || bill.title))}</h2>
+      ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: `${m}/100 · ${momentumBandLabel(m)}` })}
+      ${morningBriefActionsHtml(
+        `<button type="button" class="mb-action mb-action--ghost" data-drill-action="bills" data-bill-id="${escapeHtml(bill.id)}" role="link" tabindex="0">View bill</button>`
+      )}`;
   }
   inner.querySelectorAll("[data-view-jump]").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.viewJump));

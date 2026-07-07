@@ -332,11 +332,49 @@ body[data-page="dashboard"] .causality-evidence-card p {
 /* ── BRAND MONOGRAM ─────────────────────────────────────────── */
 body[data-page="dashboard"] .brand-monogram {
   flex-shrink: 0;
-  filter: drop-shadow(0 0 5px rgba(200, 255, 0, 0.25));
+  filter: drop-shadow(0 0 5px rgba(141, 253, 171, 0.28));
+}
+body[data-page="dashboard"] .brand-monogram circle[r="12.5"] {
+  stroke: color-mix(in srgb, #8dfdab 30%, transparent);
+}
+body[data-page="dashboard"] .brand-monogram circle[stroke-dasharray] {
+  stroke: #8dfdab;
+}
+body[data-page="dashboard"] .brand-monogram line {
+  stroke: color-mix(in srgb, #8dfdab 50%, transparent);
+}
+body[data-page="dashboard"] .brand-monogram circle[r="2"] {
+  fill: #8dfdab;
 }
 body[data-page="dashboard"] .terminal-brand {
   align-items: center;
   gap: 9px;
+}
+
+body[data-page="dashboard"] .terminal-brand .brand-name {
+  display: block;
+  line-height: 1;
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #8dfdab;
+  text-shadow:
+    0 0 12px rgba(141, 253, 171, 0.35),
+    0 0 24px rgba(141, 253, 171, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="dashboard"] .terminal-brand .brand-name {
+    color: #8dfdab;
+    text-shadow: none;
+  }
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .terminal-brand .brand-name {
+  color: var(--green);
+  text-shadow: none;
 }
 
 /* ── SOURCE / SIGNAL / CLARITY evidence badge colors ────────── */
@@ -1594,7 +1632,7 @@ body[data-page="dashboard"] .terminal-brand .brand-tagline {
   font-family: var(--mono);
   font-size: 8px;
   letter-spacing: 0.12em;
-  color: rgba(200, 255, 0, 0.6);
+  color: color-mix(in srgb, #8dfdab 78%, transparent);
   text-transform: uppercase;
   margin-top: 1px;
   line-height: 1;
@@ -4519,39 +4557,11 @@ body[data-page="dashboard"] .morning-brief-card {
   margin-bottom: 16px;
 }
 
-body[data-page="dashboard"] .morning-brief-inner {
-  padding: 16px 18px;
-}
-
-body[data-page="dashboard"] .morning-brief-eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+body[data-page="dashboard"] .morning-brief-updated {
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: var(--muted);
-}
-
-body[data-page="dashboard"] .morning-brief-title {
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-}
-
-body[data-page="dashboard"] .morning-brief-why {
-  margin: 0 0 12px;
-  color: var(--dash-body);
-  line-height: 1.5;
-}
-
-body[data-page="dashboard"] .morning-brief-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  margin-left: auto;
 }
 
 body[data-page="dashboard"] .trust-feed-chip {
@@ -4922,6 +4932,47 @@ body[data-page="dashboard"] .fec-pulse-strip {
   margin-bottom: var(--elev-gap-section);
 }
 
+/* FEC pulse strip — flat terminal card; no nested panel chrome or ::before accent glitch */
+body[data-page="dashboard"] .fec-pulse-strip.panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 0;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip.panel > :not(.panel-head) {
+  padding: 0;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip-inner {
+  border-radius: 0;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card {
+  border-radius: 0;
+  border: 1px solid var(--gotham-line, var(--line));
+  padding: 14px 16px;
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card::before {
+  display: none;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card:hover {
+  border-color: var(--gotham-line-2, var(--line-2));
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .fec-pulse-strip .mini-pill,
+body[data-page="dashboard"] .fec-pulse-strip .link-chip {
+  border-radius: 0;
+}
+
+/* Morning brief — professional flat card (match FEC pulse strip) */
+
 body[data-page="dashboard"] .fec-pulse-card {
   display: grid;
   gap: 0.55rem;
@@ -5182,23 +5233,6 @@ body[data-page="dashboard"] .sc-card.intel-card {
   padding: 16px 16px 16px 18px;
 }
 
-body[data-page="dashboard"] .morning-brief-card.intel-card {
-  margin-bottom: var(--elev-gap-section);
-  box-shadow: var(--elev-shadow);
-}
-
-body[data-page="dashboard"] .morning-brief-card.intel-card .morning-brief-inner {
-  padding: 20px 20px 20px 22px;
-}
-
-body[data-page="dashboard"] .morning-brief-title {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: clamp(1.1rem, 2.5vw, 1.35rem);
-  letter-spacing: -0.025em;
-  line-height: 1.15;
-}
-
 body[data-page="dashboard"] .signal-featured.intel-card,
 body[data-page="dashboard"] .signal-secondary.intel-card {
   border-left: 0;
@@ -5391,7 +5425,7 @@ body[data-page="dashboard"] .dash-classbar {
     pointer-events: none;
   }
 
-  body[data-page="dashboard"] .morning-brief-card.intel-card {
+  body[data-page="dashboard"] #morning-brief-card.morning-brief-card.intel-card {
     margin-left: -12px;
     margin-right: -12px;
     border-radius: 0;
@@ -5399,8 +5433,8 @@ body[data-page="dashboard"] .dash-classbar {
     border-right: 0;
   }
 
-  body[data-page="dashboard"] .morning-brief-card.intel-card::before {
-    width: 4px;
+  body[data-page="dashboard"] #morning-brief-card.morning-brief-card.intel-card::before {
+    display: none;
   }
 
   body[data-page="dashboard"] .sc-card-grid .intel-card {
@@ -5890,3 +5924,244 @@ body[data-page="dashboard"] .watchlist-prompt-actions {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* ── Morning brief card — professional flat layout ── */
+body[data-page="dashboard"] #morning-brief-card.morning-brief-card.intel-card {
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-2);
+  box-shadow: none;
+  margin-bottom: var(--elev-gap-section, 16px);
+  padding: 0;
+}
+
+body[data-page="dashboard"] #morning-brief-card.morning-brief-card.intel-card::before {
+  display: none;
+}
+
+body[data-page="dashboard"] #morning-brief-card.morning-brief-card.panel {
+  backdrop-filter: none;
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-inner {
+  border-radius: 0;
+  padding: 14px 16px;
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-label {
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-ticker {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--green);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-source-tag {
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 2px 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] #morning-brief-card .top-signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  background: var(--green);
+  box-shadow: none;
+  animation: none;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-title {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  color: var(--text, var(--dash-body));
+}
+
+body[data-page="dashboard"] #morning-brief-card .signal-scan-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  margin: 0 0 12px;
+  letter-spacing: 0.02em;
+}
+
+body[data-page="dashboard"] #morning-brief-card .morning-brief-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+body[data-page="dashboard"] #morning-brief-card .mb-action {
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+body[data-page="dashboard"] #morning-brief-card .mb-action--primary {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--green) 40%, rgba(255, 255, 255, 0.12));
+  color: var(--green);
+}
+
+body[data-page="dashboard"] #morning-brief-card .mb-action--primary:hover {
+  border-color: color-mix(in srgb, var(--green) 65%, rgba(255, 255, 255, 0.12));
+  color: color-mix(in srgb, var(--green) 90%, #fff);
+}
+
+body[data-page="dashboard"] #morning-brief-card .mb-action--ghost {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  padding: 8px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-transform: none;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+body[data-page="dashboard"] #morning-brief-card .mb-action--ghost:hover {
+  color: var(--text, var(--dash-body));
+}
+
+html[data-theme="light"] body[data-page="dashboard"] #morning-brief-card.morning-brief-card.intel-card {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: var(--bg-2);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] #morning-brief-card .morning-brief-source-tag {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ── THEME CONTRAST (theme-contrast-1) ─────────────────── */
+html[data-theme="dark"] body[data-page="dashboard"] {
+  --dash-body: var(--text);
+  --dash-caption: var(--muted);
+  --dash-label: color-mix(in srgb, var(--text) 82%, var(--muted));
+  --dash-edge: rgba(255, 255, 255, 0.14);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] {
+  --dash-body: var(--text);
+  --dash-caption: var(--muted);
+  --dash-label: var(--muted);
+  --dash-edge: rgba(0, 0, 0, 0.12);
+}
+
+body[data-page="dashboard"] .nav-item {
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] .nav-item.active {
+  background: rgba(141, 253, 171, 0.1);
+  color: var(--green);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .nav-item.active {
+  background: rgba(26, 92, 56, 0.1);
+}
+
+body[data-page="dashboard"] .dash-telemetry-strip {
+  color: var(--muted);
+  border-bottom-color: var(--line-2);
+}
+
+body[data-page="dashboard"] .dash-telemetry-sync,
+body[data-page="dashboard"] .telemetry-source {
+  color: var(--faint);
+}
+
+body[data-page="dashboard"] .terminal-table th {
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] .terminal-table td {
+  color: var(--text);
+}
+
+body[data-page="dashboard"] .terminal-table td.muted,
+body[data-page="dashboard"] .panel-title,
+body[data-page="dashboard"] .page-header p {
+  color: var(--faint);
+}
+
+body[data-page="dashboard"] .research-drawer-global {
+  border-left-color: var(--line-2);
+}
+
+body[data-page="dashboard"] .research-drawer-head {
+  border-bottom-color: var(--line-2);
+  color: var(--text);
+}
+
+body[data-page="dashboard"] #research-log .message {
+  color: var(--dash-body);
+}
+
+body[data-page="dashboard"] .morning-brief-updated {
+  color: var(--faint);
+}
+
+body[data-page="dashboard"] .fec-pulse-line {
+  color: var(--muted);
+}
+
+body[data-page="dashboard"] .sidebar-signout {
+  color: var(--faint);
+}
+
+body[data-page="dashboard"] .search-box input,
+body[data-page="dashboard"] .filter-row input,
+body[data-page="dashboard"] .trade-form select,
+body[data-page="dashboard"] .trade-form input {
+  border-color: var(--line-2);
+  color: var(--text);
+}
+
+body[data-page="dashboard"] .search-box input::placeholder,
+body[data-page="dashboard"] .research-drawer-global textarea::placeholder {
+  color: var(--faint);
+}
+

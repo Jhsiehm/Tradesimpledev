@@ -5,57 +5,145 @@
 (function(){try{var t=localStorage.getItem("ts_theme");document.documentElement.setAttribute("data-theme",t==="light"||t==="dark"?t:"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();
 </script>
 <meta charset="utf-8"/>
+<style id="landing-first-paint">
+/* First paint: video + scribble only — no below-fold flash */
+.ts-hero-reveal,
+.ts-hero-visual,
+.ts-cinematic-wall,
+.cinema-signal-dock,
+.ts-section-dots,
+.ts-scroll-progress {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.ts-nav.ts-nav--dormant,
+nav.ts-nav:not(.ts-nav--revealed) {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#nav-reveal-scribble:not([hidden]) {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+#landing-telemetry-strip,
+.ts-telemetry-strip {
+  display: none !important;
+}
+.ts-hero-stage-caption,
+.ts-manifesto-portal {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+html.landing-ready .ts-hero-reveal,
+html.landing-ready .ts-hero-visual,
+html.landing-ready .ts-cinematic-wall,
+html.landing-ready .cinema-signal-dock,
+html.landing-ready .ts-section-dots,
+html.landing-ready .ts-scroll-progress {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+</style>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <link rel="icon" type="image/png" href="/favicon.png"/>
 <link rel="apple-touch-icon" href="/favicon.png"/>
-<title>TradeSimple — Policy Signals. Market Clarity.</title>
-<meta name="description" content="TradeSimple connects Congressional activity, lobbying disclosures, federal contracts, market data, AI thesis tools, and paper trading in one source-backed terminal."/>
+<title>TradeSimple: Policy Signals. Market Clarity.</title>
+<meta name="description" content="TradeSimple traces Congressional activity, lobbying filings, federal contracts, and PAC disclosures to the tickers you watch — in plain English, before headlines."/>
 <!-- Open Graph / Twitter Card -->
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="https://tradesimple.app/"/>
-<meta property="og:title" content="TradeSimple — Policy Signals. Market Clarity."/>
-<meta property="og:description" content="Bills, lobbying, contracts, tickers, thesis tools, and paper trading in one source-backed terminal."/>
+<meta property="og:title" content="TradeSimple: Policy Signals. Market Clarity."/>
+<meta property="og:description" content="Congressional bills, lobbying pressure, federal contracts, and market data mapped to exposed tickers — source-backed policy signals in plain English."/>
 <meta property="og:image" content="https://tradesimple.app/media/og-image.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:site" content="@tradesimple"/>
-<meta name="twitter:title" content="TradeSimple — Policy Signals. Market Clarity."/>
-<meta name="twitter:description" content="Bills, lobbying, contracts, tickers, thesis tools, and paper trading in one source-backed terminal."/>
+<meta name="twitter:title" content="TradeSimple: Policy Signals. Market Clarity."/>
+<meta name="twitter:description" content="Congressional bills, lobbying pressure, federal contracts, and market data mapped to exposed tickers — source-backed policy signals in plain English."/>
 <meta name="twitter:image" content="https://tradesimple.app/media/og-image.png"/>
 <link rel="canonical" href="https://tradesimple.app/"/>
 <meta name="ts-app-origin" content="https://tradesimpledev-production.up.railway.app"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Outfit:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=signal-dock-3"/>
+<link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-manifesto-1"/>
+<style id="nav-reveal-critical">
+/* First-paint: nav stays hidden until video end or scribble tap */
+.ts-nav.ts-nav--dormant,
+.landing-cinematic .ts-nav.ts-nav--dormant {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#nav-reveal-scribble:not([hidden]):not(.is-hiding) {
+  display: flex !important;
+  pointer-events: auto !important;
+}
+body.ts-nav-is-revealed #nav-reveal-scribble,
+#nav-reveal-scribble[hidden],
+#nav-reveal-scribble.is-hiding {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+body.ts-hero-scroll-reveal .ts-hero-reveal > .ts-ticker-tape,
+body.ts-hero-scroll-reveal .ts-hero-reveal > .ts-hero-content {
+  opacity: 0 !important;
+  transform: translate3d(0, 28px, 0);
+  pointer-events: none;
+}
+body.ts-hero-scroll-reveal .ts-hero-reveal .ts-kicker,
+body.ts-hero-scroll-reveal .ts-hero-reveal .ts-hero-copy h1,
+body.ts-hero-scroll-reveal .ts-hero-reveal .ts-subcopy,
+body.ts-hero-scroll-reveal .ts-hero-reveal .ts-hero-ctas,
+body.ts-hero-scroll-reveal .ts-hero-reveal .ts-hero-visual,
+body.ts-hero-scroll-reveal .ts-hero-reveal .terminal-entry-instruction,
+body.ts-hero-scroll-reveal .ts-hero-reveal .hero-reference-row {
+  animation: none !important;
+}
+body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-ticker-tape,
+body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto;
+}
+</style>
 <style>
 /* ── TOKENS ─────────────────────────────────────────── */
 :root{
-  --signal-green:#C8FF00;--signal-green-soft:#E0FF6A;--signal-green-dim:rgba(200,255,0,.14);
-  --warning-amber:#FFA500;--text-main:#E8E4DC;
-  --green:var(--signal-green);--green-dim:#344700;--green-glow:rgba(200,255,0,.12);
-  --green-glow-strong:rgba(200,255,0,.2);
-  --amber:var(--warning-amber);--red:#e0524d;--blue:#5a9fd4;
-  --bg:#0a0b09;--bg-2:#10110f;--bg-3:#141513;--bg-edge:#2A2A2A;
-  --line:rgba(255,255,255,.06);--line-2:rgba(255,255,255,.1);--line-3:rgba(255,255,255,.17);
-  --text:var(--text-main);--muted:#8C8C82;--faint:#4A4A4A;
-  --ivory:var(--text-main);--forest:#1F4A35;--slate:#3F4542;
-  --mono:"Space Mono","IBM Plex Mono","SFMono-Regular",Consolas,monospace;
-  --sans:"Outfit",ui-sans-serif,system-ui,sans-serif;
-  --serif:"Cormorant Garamond",Georgia,"Times New Roman",serif;
+  --signal-green:#8dfdab;--signal-green-soft:#a8ffc4;--signal-green-dim:rgba(141, 253, 171,.14);
+  --warning-amber:#ffb340;--text-main:#ece8e0;
+  --green:var(--signal-green);--green-dim:#063c15;--green-glow:rgba(141, 253, 171,.12);
+  --green-glow-strong:rgba(141, 253, 171,.2);
+  --amber:var(--warning-amber);--red:#f06862;--blue:#6db3e8;
+  --bg:#0a0b09;--bg-2:#0c0c0c;--bg-3:#141513;--bg-edge:#3a3a38;
+  --line:rgba(255,255,255,.14);--line-2:rgba(255,255,255,.20);--line-3:rgba(255,255,255,.28);
+  --text:var(--text-main);--muted:#aaa89c;--faint:#787870;
+  --ivory:var(--text-main);--forest:#1a5c38;--slate:#787870;
+  --mono:var(--font-data);
+  --sans:var(--font-ui);
+  --serif:var(--font-display);
   --ease:cubic-bezier(.16,1,.3,1);
   --ease-spring:cubic-bezier(.32,.72,0,1);
   --ease-out:cubic-bezier(0,0,.2,1);
 }
 html[data-theme="light"]{
-  --bg:#F1EEE6;--bg-2:#ffffff;--bg-3:#e8e4d8;--bg-edge:#d8d4c8;
-  --line:rgba(0,0,0,.1);--line-2:rgba(0,0,0,.16);--line-3:rgba(0,0,0,.24);
-  --text:#141612;--muted:#3f4239;--faint:#45483f;
+  --bg:#F1EEE6;--bg-2:#ffffff;--bg-3:#e4e0d4;--bg-edge:#c8c4ba;
+  --line:rgba(0,0,0,.14);--line-2:rgba(0,0,0,.20);--line-3:rgba(0,0,0,.28);
+  --text:#141612;--muted:#363830;--faint:#52564a;
   --signal-green:#1a5c38;--signal-green-soft:#227a4d;--text-main:#141612;
-  --green:var(--signal-green);--green-dim:#2f4210;--green-glow:rgba(26,92,56,.12);
+  --green:var(--signal-green);--green-dim:#0d4a2d;--green-glow:rgba(26,92,56,.14);
   --green-glow-strong:rgba(26,92,56,.18);
   --amber:#9a5f08;--red:#a83030;--blue:#1f5f94;
 }
@@ -87,8 +175,8 @@ html[data-theme="light"] .scanline-overlay{display:none}
 .grid-overlay{
   position:fixed;inset:0;z-index:0;pointer-events:none;
   background-image:
-    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(91,191,130,.009) 39px,rgba(91,191,130,.009) 40px),
-    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(91,191,130,.006) 39px,rgba(91,191,130,.006) 40px);
+    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(141,253,171,.009) 39px,rgba(141,253,171,.009) 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(141,253,171,.006) 39px,rgba(141,253,171,.006) 40px);
 }
 html[data-theme="light"] .grid-overlay{display:none}
 
@@ -118,7 +206,7 @@ html[data-theme="light"] .nav-inner{
   width:8px;height:8px;border-radius:50%;background:var(--green);
   box-shadow:0 0 0 2px var(--green-glow);
 }
-.brand-monogram{flex-shrink:0;filter:drop-shadow(0 0 6px rgba(91,191,130,.28))}
+.brand-monogram{flex-shrink:0;filter:drop-shadow(0 0 6px rgba(141,253,171,.28))}
 @keyframes breathe{
   0%,100%{opacity:1;transform:scale(1);box-shadow:0 0 0 4px var(--green-glow)}
   50%{opacity:.45;transform:scale(.7);box-shadow:0 0 0 2px transparent}
@@ -164,7 +252,7 @@ html[data-theme="light"] .nav-inner{
 .btn:active{transform:translateY(0) scale(.98) !important}
 
 /* Directional hover fill */
-.btn-primary{background:var(--green);color:#071004;border:1px solid var(--green);border-radius:8px;box-shadow:none}
+.btn-primary{background:var(--green);color:#0a0a0a;border:1px solid var(--green);border-radius:var(--radius-md,4px);box-shadow:none}
 .btn-primary::after{display:none}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.14)}
 .btn-primary:hover::after{display:none}
@@ -178,7 +266,7 @@ html[data-theme="light"] .nav-inner{
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
 .skip-link:focus{position:fixed;left:16px;top:16px;width:auto;height:auto;overflow:visible;z-index:10000;padding:10px 16px;background:var(--green);color:#071004;font-size:13px;font-weight:600;border-radius:8px;text-decoration:none;outline:2px solid var(--text);outline-offset:3px}
 @keyframes scroll-left{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
-.up{color:var(--green);background:rgba(91,220,145,.09)}
+.up{color:var(--green);background:rgba(141,253,171,.09)}
 .dn{color:var(--red);background:rgba(224,82,77,.12)}
 html[data-theme="light"] .up{background:rgba(47,128,24,.1)}
 html[data-theme="light"] .dn{background:rgba(168,48,48,.1)}
@@ -193,11 +281,11 @@ html[data-theme="light"] .dn{background:rgba(168,48,48,.1)}
 }
 /* ── SECTION SHELLS ──────────────────────────────────── */
 section{position:relative;z-index:1}
-.wrap{padding:clamp(7rem,14vh,12rem) clamp(20px,5vw,80px);max-width:1400px;margin:0 auto}
+.wrap{padding:var(--section-pad-y,clamp(64px,10vw,80px)) clamp(20px,5vw,80px);max-width:1400px;margin:0 auto}
 .s-tag{
   display:inline-flex;align-items:center;gap:8px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--green);margin-bottom:20px;
+  font-family:var(--font-data);font-size:11px;letter-spacing:.06em;
+  text-transform:none;color:var(--muted);margin-bottom:20px;
 }
 .s-tag::before{content:"";width:18px;height:1px;background:var(--green)}
 .s-h{
@@ -266,7 +354,7 @@ section{position:relative;z-index:1}
   border-top:3px solid transparent;position:relative;
 }
 .chain-node:last-child{border-right:none}
-.chain-node.active-g{border-top-color:var(--green);background:rgba(91,191,130,.03)}
+.chain-node.active-g{border-top-color:var(--green);background:rgba(141,253,171,.03)}
 .chain-node.active-a{border-top-color:var(--amber);background:rgba(212,144,10,.03)}
 .chain-node.active-b{border-top-color:var(--blue);background:rgba(58,143,212,.03)}
 .chain-node.active-r{border-top-color:var(--red);background:rgba(201,64,64,.03)}
@@ -290,7 +378,7 @@ section{position:relative;z-index:1}
 }
 @media(max-width:640px){.compare-grid{grid-template-columns:1fr}}
 .compare-col{background:var(--bg);padding:32px 28px}
-.compare-col.col-r{background:rgba(91,191,130,.025)}
+.compare-col.col-r{background:rgba(141,253,171,.025)}
 .col-label{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:24px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .col-label.red{color:var(--red)}
 .col-label.green{color:var(--green)}
@@ -322,10 +410,10 @@ section{position:relative;z-index:1}
 }
 .sig-card::before{
   content:"";position:absolute;inset:0;border-radius:14px;
-  background:radial-gradient(circle 180px at var(--cx,50%) var(--cy,50%),rgba(91,191,130,.12),transparent 70%);
+  background:radial-gradient(circle 180px at var(--cx,50%) var(--cy,50%),rgba(141,253,171,.12),transparent 70%);
   opacity:0;transition:opacity .3s;pointer-events:none;z-index:0;
 }
-.sig-card:hover{border-color:rgba(91,191,130,.25);transform:translateY(-2px)}
+.sig-card:hover{border-color:rgba(141,253,171,.25);transform:translateY(-2px)}
 .sig-card:hover::before{opacity:1}
 .sig-card.amber-sig:hover{border-color:rgba(212,144,10,.25)}
 .sig-card.amber-sig::before{background:radial-gradient(circle 180px at var(--cx,50%) var(--cy,50%),rgba(212,144,10,.12),transparent 70%)}
@@ -399,7 +487,7 @@ section{position:relative;z-index:1}
   border:1px solid var(--line);border-radius:10px;
   background:var(--bg-2);
 }
-.lock-icon{width:30px;height:30px;border-radius:8px;background:var(--green-glow);border:1px solid rgba(91,191,130,.18);display:grid;place-items:center;flex-shrink:0}
+.lock-icon{width:30px;height:30px;border-radius:8px;background:var(--green-glow);border:1px solid rgba(141,253,171,.18);display:grid;place-items:center;flex-shrink:0}
 .security-note p{font-size:12.5px;color:var(--muted);line-height:1.6}
 .security-note strong{color:var(--text);font-weight:500}
 
@@ -417,7 +505,7 @@ section{position:relative;z-index:1}
   background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);
   outline:none;transition:border-color .18s,box-shadow .18s;
 }
-.wl-input:focus{border-color:rgba(91,191,130,.4);box-shadow:0 0 0 3px var(--green-glow)}
+.wl-input:focus{border-color:rgba(141,253,171,.4);box-shadow:0 0 0 3px var(--green-glow)}
 .wl-input::placeholder{color:var(--faint)}
 .wl-status{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:4px}
 .wl-right{padding-top:12px}
@@ -464,25 +552,23 @@ section{position:relative;z-index:1}
 .fec-marketing-strip{padding:clamp(2rem,5vw,3.5rem) 0;background:var(--bg-2)}
 .fec-marketing-wrap{display:grid;gap:1.25rem}
 .fec-marketing-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem}
-.fec-marketing-title{margin:.35rem 0 .5rem;font-family:var(--serif,Georgia,serif);font-size:clamp(1.8rem,3vw,2.7rem);font-weight:400;line-height:1;letter-spacing:0}
-.fec-marketing-lede{max-width:42rem;margin:0;font-family:var(--mono,monospace);font-size:12px;line-height:1.8;color:rgba(232,228,220,0.42)}
+.fec-marketing-title{margin:.35rem 0 .5rem;font-size:clamp(1.35rem,2.5vw,1.85rem);line-height:1.15;font-weight:600}
+.fec-marketing-lede{max-width:42rem;margin:0;font-size:.92rem;line-height:1.5}
 .fec-marketing-rail{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem}
 .fec-marketing-badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
 .fec-marketing-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.75rem}
 .fec-marketing-card{
-  padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  padding:14px 16px;border:1px solid var(--line);border-radius:0;background:var(--panel);
   display:grid;gap:.45rem;
 }
 .fec-marketing-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
 .fec-marketing-card-head span{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .fec-marketing-card p{margin:0;font-size:.88rem;line-height:1.45}
 .fec-marketing-card em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--faint)}
-.fec-marketing-trail{margin-top:.35rem;padding:.85rem;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--panel) 92%,transparent)}
+.fec-marketing-trail{margin-top:.35rem;padding:.85rem;border:1px solid var(--line);border-radius:0;background:color-mix(in srgb,var(--panel) 92%,transparent)}
 .fec-marketing-trail-steps{display:grid;gap:.45rem;margin:.55rem 0 0;font-size:.82rem;line-height:1.45}
 .fec-marketing-trail-step{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .fec-marketing-trail-step strong{color:var(--text);font-weight:600}
-.trail-proof-panel{margin-top:12px;padding:14px 16px;border:1px solid rgba(232,228,220,0.11);background:rgba(5,5,5,0.6)}
-.founding-member-card{padding:28px 24px;border:1px solid rgba(91,191,130,0.18);background:rgba(91,191,130,0.03)}
 
 /* ── FOOTER ──────────────────────────────────────────── */
 footer{
@@ -491,7 +577,7 @@ footer{
   display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;
   position:relative;z-index:1;
 }
-.footer-brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px}
+.footer-brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:11.5px;text-decoration:none;color:inherit}
 footer nav{display:flex;gap:24px;font-size:12.5px;color:var(--muted)}
 footer nav a:hover{color:var(--text)}
 .footer-legal{font-size:11px;color:var(--faint);font-family:var(--mono);width:100%;margin-top:8px}
@@ -503,7 +589,8 @@ footer nav a:hover{color:var(--text)}
 <div class="ts-scroll-progress" aria-hidden="true"><span class="ts-scroll-progress-bar"></span></div>
 <nav class="ts-section-dots" aria-label="Page sections">
   <button type="button" class="ts-dot active" data-target="#top" aria-label="Hero"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#manifesto" aria-label="Manifesto"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#signal-feed" aria-label="Product preview"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#methodology" aria-label="Methodology"><span></span></button>
   <button type="button" class="ts-dot" data-target="#how-it-works" aria-label="How it works"><span></span></button>
   <button type="button" class="ts-dot" data-target="#data" aria-label="Data"><span></span></button>
   <button type="button" class="ts-dot" data-target="#early-access" aria-label="Early access"><span></span></button>
@@ -512,45 +599,48 @@ footer nav a:hover{color:var(--text)}
 <main class="site-main" style="overflow-x:hidden;width:100%;max-width:100%">
 
 <section class="ts-hero" id="top">
-  <div class="ts-hero-media" aria-hidden="true">
-    <video class="ts-hero-video" autoplay muted loop playsinline webkit-playsinline poster="assets/media/hero/tradesimple-hero-poster.svg"></video>
-    <div class="ts-hero-poster"></div>
-    <div class="ts-hero-dark-overlay"></div>
-    <div class="ts-hero-gradient-overlay"></div>
-    <div class="ts-hero-grid-overlay"></div>
-    <div class="ts-hero-noise"></div>
-  </div>
+  <div class="ts-hero-video-stage">
+    <div class="ts-hero-media" aria-hidden="true">
+      <video class="ts-hero-video" autoplay muted playsinline webkit-playsinline poster="/assets/media/hero/tradesimple-hero-poster.svg">
+        <source src="/assets/media/hero/tradesimple-hero-video.mp4" type="video/mp4">
+      </video>
+      <div class="ts-hero-poster"></div>
+    </div>
 
-  <div class="ts-classification-strip" aria-label="TradeSimple system status">
-    <span>TS//SCI//NOFORN — TRADESIMPLE INTEL ARCHIVE // COLLECTION 2026 // PUBLIC EDITION</span>
-    <span>INTELLIGENCE TERMINAL // PUBLIC ACCESS</span>
-  </div>
+    <div class="ts-nav-slot">
+    <button type="button" class="ts-nav-reveal-scribble" id="nav-reveal-scribble" aria-label="Show navigation">
+      <svg class="ts-scribble-arrow" viewBox="0 0 72 52" aria-hidden="true" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 10 C 14 18, 24 28, 38 36 S 58 42, 66 44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M54 32 C 62 36, 66 40, 66 44 L 58 46" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 6 C 18 4, 26 8, 30 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+      <span class="ts-scribble-text">press this</span>
+    </button>
 
-  <nav class="ts-nav" aria-label="Site">
+  <nav class="ts-nav ts-nav--dormant" aria-label="Site">
     <a class="ts-brand" href="/">
       <svg class="brand-monogram" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-        <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.35)" stroke-width="1"/>
+        <circle cx="14" cy="14" r="12.5" stroke="rgba(141,253,171,0.35)" stroke-width="1"/>
         <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbit)" stroke-width="1.5" stroke-dasharray="14 64">
           <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
         </circle>
-        <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.55)" stroke-width="0.75"/>
+        <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(141,253,171,0.55)" stroke-width="0.75"/>
         <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
-        <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
+        <circle cx="23.5" cy="9" r="2" fill="#8dfdab"/>
         <defs>
           <linearGradient id="tOrbit" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#5bbf82"/>
+            <stop offset="0%" stop-color="#8dfdab"/>
             <stop offset="100%" stop-color="#1F4A35"/>
           </linearGradient>
         </defs>
       </svg>
       <span>TradeSimple</span>
-      <small>Est. 2026 / Policy &amp; equity</small>
     </a>
     <button type="button" class="ts-nav-menu-btn" id="ts-nav-menu-btn" aria-expanded="false">Menu</button>
     <div class="ts-nav-links">
-      <a href="#manifesto">Forensic</a>
+      <a href="#methodology">Method</a>
       <span class="nav-divider" aria-hidden="true">/</span>
-      <a href="#how-it-works">Methodology</a>
+      <a href="#how-it-works">Pipeline</a>
       <a href="#data">Terminal</a>
       <a href="#early-access">Access</a>
     </div>
@@ -563,31 +653,24 @@ footer nav a:hover{color:var(--text)}
       <a class="terminal-button" href="/auth/demo?next=/dashboard%3Fview%3Dhome" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Enter terminal</a>
     </div>
   </nav>
-
-  <div class="ts-hero-content">
-    <div class="ts-hero-copy">
-      <p class="ts-kicker"><span></span>Congress.gov · Senate LDA · USASpending · FEC.gov</p>
-      <h1>Markets<br><em>move</em> when<br>bills <i>pass.</i></h1>
-      <p class="ts-subcopy">
-        Congressional activity, lobbying filings, federal contracts, and live PAC filings from FEC.gov —
-        traced to your tickers before consensus forms.
-      </p>
-      <div class="ts-hero-ctas">
-        <a href="/auth/demo?next=/dashboard%3Fview%3Dhome" class="ts-primary-cta" id="primary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
-        <a href="#early-access" class="ts-secondary-cta">Join waitlist</a>
-        <a href="/signup" class="ts-secondary-cta" data-app-path="/signup">Create account</a>
-        <a href="#how-it-works" class="ts-secondary-cta">View methodology</a>
-      </div>
-      <p class="terminal-entry-instruction">Inside the terminal, start with Thesis Lab: choose a ticker, write the thesis in one sentence, then use Bills, Markets, and Contracts as evidence before paper trading.</p>
-      <div class="hero-reference-row" aria-label="Archive reference">
-        <span>REF: COLLECTION_2026</span>
-        <span>WASHINGTON D.C. / NYC</span>
-        <span>STATUS: PUBLIC RELEASE</span>
-      </div>
-    </div>
-
   </div>
 
+    <div class="ts-hero-stage-caption">
+      <p class="ts-hero-stage-tagline">Congress → contracts → tickers. Source chains labeled live or illustrative.</p>
+      <a class="ts-hero-stage-cta" href="/auth/demo?next=/dashboard%3Fview%3Dhome" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
+    </div>
+
+    <a href="/manifesto" class="ts-manifesto-portal" aria-label="Read why TradeSimple exists — manifesto">
+      <span class="ts-manifesto-portal-seal" aria-hidden="true">TS</span>
+      <span class="ts-manifesto-portal-body">
+        <em>Why we exist</em>
+        <strong>The manifesto</strong>
+      </span>
+      <span class="ts-manifesto-portal-arrow" aria-hidden="true">→</span>
+    </a>
+  </div>
+
+  <div class="ts-hero-reveal">
   <div class="ts-ticker-tape" aria-label="Market ticker">
     <span style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);font-size:0.65rem;opacity:0.55;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;z-index:10">Source-tagged</span>
     <div class="ts-ticker-track">
@@ -613,88 +696,130 @@ footer nav a:hover{color:var(--text)}
       <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
     </div>
   </div>
-</section>
 
-<section class="archive-section ts-signal-section div-line" id="signal-feed">
-  <div class="archive-wrap">
-    <p class="chapter-eyebrow">Policy source feed · Live</p>
-    <div class="ts-signal-panel">
-      <div class="ts-signal-intel-bar" aria-label="Live intelligence briefings">
-        <span class="cinema-intel-label">Intel queue</span>
-        <button type="button" data-briefing="dod-mesh">DOD tactical intel mesh award</button>
-        <button type="button" data-briefing="semiconductor-export">Semiconductor export restrictions</button>
-        <button type="button" data-briefing="faa-drone">FAA drone delivery votes</button>
-        <button type="button" data-briefing="sec-custody">SEC crypto custody amendments</button>
-        <button type="button" data-briefing="ai-procurement-transparency">AI defense procurement hearings</button>
-        <button type="button" data-briefing="ftc-defense">FTC defense-sector merger probe</button>
-        <button type="button" data-briefing="doe-nuclear">DOE nuclear grid integration</button>
+  <div class="ts-hero-content">
+    <div class="ts-hero-copy">
+      <p class="ts-kicker">Congress.gov · Senate LDA · USASpending · FEC.gov</p>
+      <h1 class="ts-hero-headline" aria-label="Markets move when bills pass.">
+        <span class="ts-h1-line">Markets</span>
+        <span class="ts-h1-line ts-h1-neutral">move</span>
+        <span class="ts-h1-line">when bills pass.</span>
+      </h1>
+      <p class="ts-subcopy">
+        Congressional activity, lobbying filings, federal contracts, and live PAC filings from FEC.gov,
+        traced to your tickers before consensus forms.
+      </p>
+      <div class="ts-hero-ctas">
+        <a href="/auth/demo?next=/dashboard%3Fview%3Dhome" class="ts-primary-cta" id="primary-cta" data-app-path="/auth/demo?next=/dashboard%3Fview%3Dhome">Try demo terminal →</a>
+        <a href="#early-access" class="ts-secondary-cta ts-secondary-cta--ghost">Join waitlist</a>
+        <a href="/manifesto" class="ts-secondary-cta ts-secondary-cta--ghost ts-hero-manifesto-link">Why TradeSimple →</a>
       </div>
-      <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
-        <div class="terminal-topbar">
-          <div class="traffic-lights"><span></span><span></span><span></span></div>
-          <p>TradeSimple // Signal card</p>
-          <div class="terminal-meta">
-            <span class="verified">System active</span>
-            <span id="terminal-updated" aria-live="polite">Updated 9s ago</span>
+      <p class="terminal-entry-instruction">Inside the terminal, start with <span class="term-em">Thesis Lab</span>: choose a ticker, write the thesis in one sentence, then use <span class="term-em">Bills</span>, <span class="term-em">Markets</span>, and <span class="term-em">Contracts</span> as source-backed evidence.</p>
+      <div class="hero-reference-row" aria-label="Source references">
+        <span>Congress.gov</span>
+        <span>Senate LDA</span>
+        <span>USASpending</span>
+      </div>
+    </div>
+
+    <div class="ts-hero-visual">
+      <div class="ts-cinematic-wall" aria-label="Live product preview">
+        <div class="cinema-signal-dock">
+          <div class="ts-product-loop" id="hero-product-loop" aria-live="polite">
+            <div class="product-loop-step is-active" data-step="0">
+              <span class="product-loop-step-label">Policy event</span>
+              <span class="product-loop-step-value" id="loop-event">Committee markup detected</span>
+            </div>
+            <div class="product-loop-step" data-step="1">
+              <span class="product-loop-step-label">Source chain</span>
+              <span class="product-loop-step-value" id="loop-chain">Congress.gov → markup → exposure</span>
+            </div>
+            <div class="product-loop-step" data-step="2">
+              <span class="product-loop-step-label">Ticker</span>
+              <span class="product-loop-step-value" id="loop-ticker">NVDA · policy tag CHIPS</span>
+            </div>
+            <div class="product-loop-step" data-step="3">
+              <span class="product-loop-step-label">Confidence</span>
+              <span class="product-loop-step-value" id="loop-confidence">82 / 100 · modeled</span>
+            </div>
           </div>
-        </div>
-        <div class="terminal-status-strip" aria-label="Signal model inputs">
-          <span>CRS active</span>
-          <span>Watchlist linked</span>
-          <span>Not financial advice</span>
-        </div>
-        <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
-          <div class="terminal-table-header" aria-hidden="true">
-            <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
+          <div class="cinema-live-row"><span></span>Live signal card · illustrative when offline</div>
+          <div class="cinema-terminal-slot">
+            <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
+              <div class="terminal-topbar">
+                <div class="traffic-lights"><span></span><span></span><span></span></div>
+                <p>TradeSimple // Signal card</p>
+                <div class="terminal-meta">
+                  <span class="verified">System active</span>
+                  <span id="terminal-updated" aria-live="polite">Updated 9s ago</span>
+                </div>
+              </div>
+              <div class="terminal-status-strip" aria-label="Signal model inputs">
+                <span>CRS (Congressional Risk Score)</span>
+                <span>Watchlist linked</span>
+                <span>Not financial advice</span>
+              </div>
+              <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
+                <div class="terminal-table-header" aria-hidden="true">
+                  <span>Symbol</span><span>Company</span><span>Last</span><span>Chg</span><span>Catalyst</span>
+                </div>
+                <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
+                  <strong>NVDA</strong><span>NVIDIA Corp</span><span>$208.19</span><em class="up">+1.42%</em><b>CHIPS</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
+                  <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
+                  <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
+                </button>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
+                  <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
+                </button>
+              </div>
+              <div class="terminal-signal" id="terminal-signal-panel">
+                <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
+                <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
+                <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
+                <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
+                <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
+                <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS, semiconductor manufacturing appropriations</p>
+                <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
+                <div class="confidence-row">
+                  <span>Confidence</span>
+                  <span id="terminal-confidence-text">82/100</span>
+                </div>
+                <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
+                <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+              </div>
+              <div class="landing-trending-strip" id="landing-trending-strip" hidden>
+                <div class="landing-trending-head">
+                  <span class="landing-trending-label">Policy topics</span>
+                  <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
+                </div>
+                <div class="landing-trending-items" id="landing-trending-items"></div>
+                <p class="landing-trending-note">Monitoring topic · not investment advice</p>
+              </div>
+            </div>
           </div>
-          <button type="button" class="terminal-row active" role="option" aria-selected="true" data-ticker="NVDA">
-            <strong>NVDA</strong><span>NVIDIA Corp</span><span>$208.19</span><em class="up">+1.42%</em><b>CHIPS</b>
-          </button>
-          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LLY">
-            <strong>LLY</strong><span>Eli Lilly</span><span>$796.60</span><em class="up">+1.09%</em><b class="tag-amber">Drug bill</b>
-          </button>
-          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
-            <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
-          </button>
-          <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
-            <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
-          </button>
-        </div>
-        <div class="terminal-signal" id="terminal-signal-panel">
-          <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
-          <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
-          <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
-          <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
-          <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
-          <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS — semiconductor manufacturing appropriations</p>
-          <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
-          <div class="confidence-row">
-            <span>Confidence</span>
-            <span id="terminal-confidence-text">82/100</span>
+          <div class="cinema-alert-overlay" aria-hidden="true">
+            <span>Signal intercept</span>
+            <strong id="cinema-alert-title">Source chain updating</strong>
+            <em>Open dossier for source-backed context</em>
           </div>
-          <div class="confidence-bar" aria-hidden="true"><span id="terminal-confidence-fill" style="width:82%"></span></div>
-          <div class="confidence-ticks" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
-        </div>
-        <div class="landing-trending-strip" id="landing-trending-strip" hidden>
-          <div class="landing-trending-head">
-            <span class="landing-trending-label">Policy topics</span>
-            <a class="landing-trending-cta" href="/auth/demo?next=%2Fdashboard%3Fview%3Dsignals">Open Signals →</a>
-          </div>
-          <div class="landing-trending-items" id="landing-trending-items"></div>
-          <p class="landing-trending-note">Monitoring topic · not investment advice</p>
         </div>
       </div>
     </div>
   </div>
+  </div>
 </section>
 
-<section class="fec-marketing-strip div-line" id="fec-marketing-strip" aria-label="Live FEC campaign finance" hidden>
+<section class="fec-marketing-strip div-line ts-product-preview" id="signal-feed" aria-label="Live product preview">
   <div class="wrap fec-marketing-wrap">
     <div class="fec-marketing-head">
       <div>
         <p class="chapter-eyebrow">Live from FEC</p>
         <h2 class="fec-marketing-title">See how a PAC filing connects to a bill, lobbyist, and ticker.</h2>
-        <p class="fec-marketing-lede muted">Every link shows why — committee maps, LDA crosswalks, and contract recipients. Live when FEC_API_KEY is set; illustrative otherwise.</p>
+        <p class="fec-marketing-lede muted">Every link shows why: committee maps, LDA crosswalks, and contract recipients. Live when FEC_API_KEY is set; illustrative otherwise.</p>
       </div>
       <div class="fec-marketing-rail">
         <span class="fec-marketing-badge mini-pill" id="fec-marketing-badge">Connecting</span>
@@ -707,50 +832,79 @@ footer nav a:hover{color:var(--text)}
       <p class="chapter-eyebrow">Example money trail</p>
       <div class="fec-marketing-trail-steps" id="fec-marketing-trail-steps"></div>
     </div>
-    <p class="fec-marketing-note muted">Campaign finance context only — not investment advice. Source: FEC.gov via Open FEC API.</p>
+    <p class="fec-marketing-note muted">Campaign finance context only. Not investment advice. Source: FEC.gov via Open FEC API.</p>
   </div>
 </section>
 
 <!-- MANIFESTO -->
-<section class="ts-manifesto-section div-line" id="manifesto">
-  <div class="manifesto-watermark" aria-hidden="true">
-    <span>Trade</span><span>Simple</span><span>Policy</span><span>Signals</span><span>Market</span><span>Clarity</span><span>Legislative</span><span>Intelligence</span><span>TS//SCI</span><span>Directive 2026</span>
+<section class="ts-manifesto-section ts-methodology-section div-line" id="methodology">
+  <div class="methodology-watermark" aria-hidden="true">
+    <span>Congress.gov</span><span>Senate LDA</span><span>USASpending</span><span>FEC.gov</span><span>CRS</span><span>Source chain</span><span>Freshness</span><span>Exposure</span>
   </div>
-  <div class="wrap manifesto-wrap">
+  <div class="wrap manifesto-wrap methodology-wrap">
     <div class="manifesto-layout reveal">
       <div class="manifesto-heading">
-        <p class="chapter-eyebrow">Methodology</p>
+        <p class="chapter-eyebrow manifesto-stamp">Method</p>
         <h2>Public records<br>mapped to<br><em>exposed tickers.</em></h2>
       </div>
       <div class="manifesto-copy">
-        <p class="manifesto-quote">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, PAC filings from FEC.gov, and quote snapshots from market feeds — each labeled live, modeled, or fallback before you act.</p>
-        <p>TradeSimple does not report news. We document lobbying spend, legislative draft alignments, source freshness, market movement, and paper-trade outcomes so each thesis can be tested against public records.</p>
+        <p class="manifesto-editorial">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, PAC filings from FEC.gov, and quote snapshots from market feeds, each labeled live, modeled, or fallback before you act.</p>
+        <p class="manifesto-body">TradeSimple does not report news. We document lobbying spend, legislative draft alignments, source freshness, market movement, and paper-trade outcomes so each thesis can be tested against public records.</p>
       </div>
     </div>
 
     <div class="manifesto-registry">
-      <p class="chapter-eyebrow muted">CRS severity bands</p>
-      <div class="severity-grid stagger">
-        <article class="severity-card high">
-          <header><span>CRS 7.0-10.0</span><b>Active signal</b></header>
-          <h3>High Signal</h3>
-          <p>Contract, lobbying activity, market movement, and legislative alignment are fully synchronized.</p>
-          <footer>Paper-trade thesis review</footer>
+      <p class="chapter-eyebrow muted">CRS (Congressional Risk Score) severity bands</p>
+      <div class="severity-readout stagger">
+        <article class="severity-row high">
+          <div class="severity-row-band">
+            <span class="severity-band-label">CRS 7.0-10.0</span>
+            <strong class="severity-band-name">High Signal</strong>
+          </div>
+          <p class="severity-row-desc">Contract, lobbying activity, market movement, and legislative alignment are fully synchronized.</p>
+          <b class="severity-state">Active signal</b>
+          <span class="severity-action">Paper-trade thesis review</span>
         </article>
-        <article class="severity-card moderate">
-          <header><span>CRS 4.0-6.9</span><b>Monitor</b></header>
-          <h3>Moderate Exposure</h3>
-          <p>Partial alignment detected. Confirmation events, source freshness, or contract revisions remain pending.</p>
-          <footer>Monitor for escalation</footer>
+        <article class="severity-row moderate">
+          <div class="severity-row-band">
+            <span class="severity-band-label">CRS 4.0-6.9</span>
+            <strong class="severity-band-name">Moderate Exposure</strong>
+          </div>
+          <p class="severity-row-desc">Partial alignment detected. Confirmation events, source freshness, or contract revisions remain pending.</p>
+          <b class="severity-state">Monitor</b>
+          <span class="severity-action">Monitor for escalation</span>
         </article>
-        <article class="severity-card risk">
-          <header><span>CRS 0.0-3.9</span><b>Risk flag</b></header>
-          <h3>Risk Flag</h3>
-          <p>Negative legislative drafts, significant lobbying pullbacks, or broken thesis rules trigger exposure warnings.</p>
-          <footer>Immediate exposure review</footer>
+        <article class="severity-row risk">
+          <div class="severity-row-band">
+            <span class="severity-band-label">CRS 0.0-3.9</span>
+            <strong class="severity-band-name">Risk Flag</strong>
+          </div>
+          <p class="severity-row-desc">Negative legislative drafts, significant lobbying pullbacks, or broken thesis rules trigger exposure warnings.</p>
+          <b class="severity-state">Risk flag</b>
+          <span class="severity-action">Immediate exposure review</span>
         </article>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="ts-edge-strip div-line" id="why-tradesimple" aria-label="Why TradeSimple">
+  <div class="wrap ts-edge-strip-grid">
+    <article class="ts-edge-card reveal">
+      <p class="chapter-eyebrow">Not headlines</p>
+      <h3>Source chains on every signal</h3>
+      <p>Bill stage, lobbying pressure, contract lineage, and FEC maps cited before you form a thesis.</p>
+    </article>
+    <article class="ts-edge-card reveal">
+      <p class="chapter-eyebrow">Not black boxes</p>
+      <h3>Live, modeled, and fallback labeled</h3>
+      <p>Freshness badges and confidence bands stay visible. Illustrative examples never pretend to be live.</p>
+    </article>
+    <article class="ts-edge-card reveal">
+      <p class="chapter-eyebrow">Not a brokerage</p>
+      <h3>Paper-trade the idea first</h3>
+      <p>Thesis lab and simulated rails let you test policy exposure before real capital is at risk.</p>
+    </article>
   </div>
 </section>
 
@@ -781,19 +935,19 @@ footer nav a:hover{color:var(--text)}
     <p class="chapter-eyebrow">Terminal view</p>
     <div class="terminal-preview-shell reveal">
       <div class="terminal-preview-head">
-        <span>TRADESIMPLE SECURE PORTAL — v1.0</span>
+        <span>TradeSimple secure portal v1.0</span>
         <div aria-hidden="true"><i></i><i></i><i></i></div>
       </div>
       <div class="terminal-preview-grid">
         <aside class="terminal-watchlist-preview">
           <span>Watchlist</span>
-          <div><b>PLTR</b><em>$132.07</em></div>
+          <div><b>PLTR</b><em>$24.80</em></div>
           <div><b>TSM</b><em>$145.20</em></div>
-          <div><b>RTX</b><em>$112.84</em></div>
+          <div><b>RTX</b><em>$98.40</em></div>
           <div><b>LLY</b><em>$796.60</em></div>
         </aside>
         <div class="terminal-feed-preview">
-          <header><span></span>Intel feed — illustrative examples · live/model tagged</header>
+          <header><span></span>Intel feed: illustrative examples · live/model tagged</header>
           <article>
             <h3>DOD Tactical Intelligence Mesh Contract Award</h3>
             <p>CONTRACT · 2H AGO · PLTR +3.2% · CRS 8.4</p>
@@ -837,12 +991,12 @@ footer nav a:hover{color:var(--text)}
     </div>
 
     <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
-      <article><span>AUTH + SESSIONS</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
-      <article><span>SOURCE FRESHNESS</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
-      <article><span>AI RESEARCH</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
-      <article><span>THESIS LAB</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
-      <article><span>PAPER MODE</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
-      <article><span>GUARDRAILS</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
+      <article><span>Auth + sessions</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
+      <article><span>Source freshness</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
+      <article><span>AI research</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
+      <article><span>Thesis Lab</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
+      <article><span>Paper mode</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
+      <article><span>Guardrails</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
     </div>
 
     <div class="source-chain-registry reveal" aria-label="Source chain registry">
@@ -868,26 +1022,18 @@ footer nav a:hover{color:var(--text)}
         <a href="/login" class="ts-secondary-cta" data-app-path="/login">Log in</a>
       </div>
     </div>
-    <div class="access-dossier reveal">
-      <div class="founding-member-card" id="founding-member-card" hidden>
-        <span class="chapter-eyebrow" style="color:var(--green,#5bbf82)">Founding member</span>
-        <div style="margin:12px 0 4px;font-family:var(--serif,Georgia,serif);font-size:clamp(2rem,4vw,3rem);font-weight:400;line-height:1" id="founding-price">$49<span style="font-size:14px;font-family:var(--mono,monospace);color:rgba(232,228,220,0.42)">/mo</span></div>
-        <p style="font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.42);line-height:1.6;margin:8px 0 16px">Lock in founding price. Full price will be $99/mo. Cancel anytime.</p>
-        <ul style="list-style:none;padding:0;margin:0 0 20px;font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.62);line-height:2">
-          <li>Live FEC money trail mapped to your tickers</li>
-          <li>Daily policy exposure briefing</li>
-          <li>Bill, lobbying, and contract source chains</li>
-          <li>Thesis lab and paper trading</li>
-        </ul>
-        <a href="#" class="ts-primary-cta" id="founding-checkout-link" target="_blank" rel="noopener">Subscribe →</a>
+    <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
+      <label for="access-email">Join the signal list</label>
+      <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
+      <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
+      <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
+      <div class="access-checklist" aria-label="Access path">
+        <span>Open demo terminal</span>
+        <span>Review a source chain</span>
+        <span>Save a thesis</span>
+        <span>Test in paper mode</span>
       </div>
-      <form class="wl-form" onsubmit="handleWL(event)" style="margin-top:20px">
-        <label for="access-email">Or join the signal list (free)</label>
-        <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
-        <button class="ts-secondary-cta" type="submit" id="wl-submit">Join waitlist</button>
-        <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
-      </form>
-    </div>
+    </form>
   </div>
 </section>
 
@@ -923,16 +1069,16 @@ footer nav a:hover{color:var(--text)}
 <footer>
   <a class="footer-brand" href="#top">
     <svg class="brand-monogram" width="22" height="22" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <circle cx="14" cy="14" r="12.5" stroke="rgba(91,191,130,0.3)" stroke-width="1"/>
+      <circle cx="14" cy="14" r="12.5" stroke="rgba(141,253,171,0.3)" stroke-width="1"/>
       <circle cx="14" cy="14" r="12.5" stroke="url(#tOrbitF)" stroke-width="1.5" stroke-dasharray="14 64">
         <animateTransform attributeName="transform" type="rotate" from="0 14 14" to="360 14 14" dur="8s" repeatCount="indefinite"/>
       </circle>
-      <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(91,191,130,0.5)" stroke-width="0.75"/>
+      <line x1="8" y1="14" x2="20" y2="14" stroke="rgba(141,253,171,0.5)" stroke-width="0.75"/>
       <text x="14" y="18.5" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#F1EEE6" letter-spacing="-0.5">T</text>
-      <circle cx="23.5" cy="9" r="2" fill="#5bbf82"/>
+      <circle cx="23.5" cy="9" r="2" fill="#8dfdab"/>
       <defs>
         <linearGradient id="tOrbitF" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#5bbf82"/>
+          <stop offset="0%" stop-color="#8dfdab"/>
           <stop offset="100%" stop-color="#1F4A35"/>
         </linearGradient>
       </defs>
@@ -940,9 +1086,9 @@ footer nav a:hover{color:var(--text)}
     <span>TradeSimple</span>
   </a>
   <nav aria-label="Footer">
+    <a href="/manifesto">Manifesto</a>
+    <a href="#methodology">Method</a>
     <a href="#how-it-works">How it works</a>
-    <a href="#signals">Signals</a>
-    <a href="#data">Data</a>
     <a href="#early-access">Early access</a>
   </nav>
   <div class="footer-legal">Not financial advice. &copy; 2026 TradeSimple. All signals are informational only and do not constitute investment recommendations. API keys stay server-side.</div>
@@ -1027,8 +1173,8 @@ function mountGithubPagesOriginBanner(){
   if(document.getElementById('ts-origin-banner')) return;
   var bar = document.createElement('div');
   bar.id = 'ts-origin-banner';
-  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;border-top:1px solid rgba(200,255,0,.35);padding:12px 14px;font:13px/1.4 var(--sans,sans-serif);color:#e8e4dc;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
-  bar.innerHTML = '<span style="flex:1;min-width:220px">Paste your live Railway URL (not tradesimple.app):</span><input id="ts-origin-input" type="url" placeholder="https://your-service.up.railway.app" style="flex:2;min-width:260px;padding:8px 10px;border-radius:6px;border:1px solid #444;background:#0a0a0a;color:#fff"/><button type="button" id="ts-origin-save" style="padding:8px 12px;border-radius:6px;border:none;background:#C8FF00;color:#111;font-weight:700">Save</button>';
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#111;border-top:1px solid rgba(141, 253, 171,.35);padding:12px 14px;font:13px/1.4 var(--sans,sans-serif);color:#e8e4dc;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  bar.innerHTML = '<span style="flex:1;min-width:220px">Paste your live Railway URL (not tradesimple.app):</span><input id="ts-origin-input" type="url" placeholder="https://your-service.up.railway.app" style="flex:2;min-width:260px;padding:8px 10px;border-radius:6px;border:1px solid #444;background:#0a0a0a;color:#fff"/><button type="button" id="ts-origin-save" style="padding:8px 12px;border-radius:6px;border:none;background:#8dfdab;color:#111;font-weight:700">Save</button>';
   document.body.appendChild(bar);
   document.getElementById('ts-origin-save').addEventListener('click', function(){
     var val = document.getElementById('ts-origin-input').value;
@@ -1186,6 +1332,7 @@ function hydrateLandingSignal(){
   }
   function updateSignal(d){
     if(!d)return;
+    if(window.__updateProductLoop)window.__updateProductLoop(d);
     var label=document.getElementById('terminal-signal-label');
     var headline=document.getElementById('terminal-signal-headline');
     var chain=document.getElementById('terminal-signal-chain');
@@ -1246,125 +1393,33 @@ function hydrateLandingSignal(){
     }
     updateFecMarketingStrip(d.fecPulse,d.fecSource);
     updateTrendingStrip(d.trending||[]);
-    if(d.foundingMemberLink){
-      var fmCard=document.getElementById('founding-member-card');
-      var fmLink=document.getElementById('founding-checkout-link');
-      var fmPrice=document.getElementById('founding-price');
-      if(fmCard)fmCard.hidden=false;
-      if(fmLink)fmLink.href=d.foundingMemberLink;
-      if(fmPrice&&d.foundingMemberPrice){
-        var parts=d.foundingMemberPrice.match(/^(\$\d+)(.*)/);
-        if(parts)fmPrice.innerHTML=parts[1]+'<span style="font-size:14px;font-family:var(--mono,monospace);color:rgba(232,228,220,0.42)">'+escHtml(parts[2])+'</span>';
-      }
-    }
   }
   function escHtml(s){
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-  function renderMoneyTrailSvg(pulse,isLive){
-    var links=pulse.links||{};
-    var tickers=(links.tickers||[]).slice(0,4);
-    var bills=(links.bills||[]).slice(0,3);
-    var lobby=(links.lobbyingFilings||[]).slice(0,2);
-    var contracts=(links.contracts||[]).slice(0,2);
-    var midNodes=bills.length+lobby.length+contracts.length;
-    if(!midNodes&&!tickers.length) return '';
-    var W=900,rowH=52,pad=20;
-    var midCount=Math.max(midNodes,1);
-    var tkCount=Math.max(tickers.length,1);
-    var H=Math.max(midCount*rowH+pad*2, tkCount*rowH+pad*2, 180);
-    var pacX=20,pacY=H/2,pacW=140,pacH=44;
-    var midX=260,midW=280;
-    var tkX=680,tkW=120;
-    var green='rgba(91,191,130,1)';
-    var dim='rgba(232,228,220,0.25)';
-    var txt='rgba(232,228,220,0.82)';
-    var faint='rgba(232,228,220,0.42)';
-    var svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible" role="img" aria-label="Money trail graph">';
-    svg+='<style>text{font-family:var(--mono,ui-monospace,monospace)}.trail-node{cursor:pointer}.trail-node:hover rect,.trail-node:hover circle{stroke:'+green+'}.trail-edge{stroke:'+dim+';fill:none;stroke-width:1}.trail-label{font-size:9px;fill:'+faint+'}.trail-title{font-size:11px;fill:'+txt+'}.trail-sub{font-size:9px;fill:'+faint+'}.trail-tag{font-size:10px;fill:'+green+';font-weight:700}</style>';
-
-    // PAC node
-    svg+='<g class="trail-node">';
-    svg+='<rect x="'+pacX+'" y="'+(pacY-pacH/2)+'" width="'+pacW+'" height="'+pacH+'" rx="0" fill="rgba(91,191,130,0.08)" stroke="'+dim+'"/>';
-    svg+='<text class="trail-tag" x="'+(pacX+10)+'" y="'+(pacY-6)+'" dominant-baseline="auto">FEC</text>';
-    svg+='<text class="trail-sub" x="'+(pacX+10)+'" y="'+(pacY+10)+'" dominant-baseline="auto">'+escHtml((pulse.committee||'PAC').slice(0,18))+'</text>';
-    if(pulse.fecUrl) svg+='<a href="'+escHtml(pulse.fecUrl)+'" target="_blank" rel="noopener"><rect x="'+pacX+'" y="'+(pacY-pacH/2)+'" width="'+pacW+'" height="'+pacH+'" fill="transparent"/></a>';
-    svg+='</g>';
-
-    var midY=pad;
-    var midItems=[];
-    bills.forEach(function(b){midItems.push({type:'Bill',label:(b.title||b.id||'').slice(0,32),sub:b.status||'',url:b.sourceUrl,reason:b.linkReason});});
-    lobby.forEach(function(l){midItems.push({type:'Lobby',label:(l.client||'').slice(0,32),sub:l.amount?('$'+(Number(l.amount)/1e6).toFixed(1)+'M'):'',url:l.sourceUrl,reason:l.linkReason});});
-    contracts.forEach(function(c){midItems.push({type:'Contract',label:(c.recipient||'').slice(0,28),sub:c.amount?('$'+(Number(c.amount)/1e6).toFixed(1)+'M'):'',url:c.sourceUrl,reason:c.linkReason});});
-
-    midItems.forEach(function(item,i){
-      var cy=midY+i*rowH+rowH/2;
-      var nodeH=40;
-      // Edge from PAC to mid node
-      svg+='<path class="trail-edge" d="M'+(pacX+pacW)+','+pacY+' C'+(pacX+pacW+40)+','+pacY+' '+(midX-40)+','+cy+' '+midX+','+cy+'"/>';
-      svg+='<text class="trail-label" x="'+((pacX+pacW+midX)/2)+'" y="'+(((pacY+cy)/2)-6)+'" text-anchor="middle">via committee map</text>';
-      // Mid node
-      var tagColor=item.type==='Bill'?green:item.type==='Lobby'?'rgba(255,165,0,0.9)':'rgba(100,180,255,0.9)';
-      svg+='<g class="trail-node" data-reason="'+escHtml(item.reason||'')+'">';
-      if(item.url) svg+='<a href="'+escHtml(item.url)+'" target="_blank" rel="noopener">';
-      svg+='<rect x="'+midX+'" y="'+(cy-nodeH/2)+'" width="'+midW+'" height="'+nodeH+'" rx="0" fill="rgba(255,255,255,0.03)" stroke="'+dim+'"/>';
-      svg+='<text style="font-size:10px;fill:'+tagColor+';font-weight:700" x="'+(midX+8)+'" y="'+(cy-4)+'" dominant-baseline="auto">'+escHtml(item.type)+'</text>';
-      svg+='<text class="trail-sub" x="'+(midX+8)+'" y="'+(cy+10)+'" dominant-baseline="auto">'+escHtml(item.label)+(item.sub?' · '+escHtml(item.sub):'')+'</text>';
-      if(item.url) svg+='</a>';
-      svg+='</g>';
-    });
-
-    // Ticker nodes
-    var tkStartY=pad;
-    if(tickers.length<midItems.length) tkStartY=pad+(midItems.length-tickers.length)*rowH/2;
-    tickers.forEach(function(t,i){
-      var cy=tkStartY+i*rowH+rowH/2;
-      // Find nearest mid node to draw edge from
-      var fromY=midItems.length?midY+(Math.min(i,midItems.length-1))*rowH+rowH/2:pacY;
-      var fromX=midItems.length?midX+midW:pacX+pacW;
-      svg+='<path class="trail-edge" d="M'+fromX+','+fromY+' C'+(fromX+40)+','+fromY+' '+(tkX-40)+','+cy+' '+tkX+','+cy+'"/>';
-      svg+='<text class="trail-label" x="'+((fromX+tkX)/2)+'" y="'+(((fromY+cy)/2)-6)+'" text-anchor="middle">via fec-committee-map</text>';
-      // Ticker node
-      svg+='<g class="trail-node">';
-      if(t.sourceUrl) svg+='<a href="'+escHtml(t.sourceUrl)+'" target="_blank" rel="noopener">';
-      svg+='<rect x="'+tkX+'" y="'+(cy-20)+'" width="'+tkW+'" height="40" rx="0" fill="rgba(91,191,130,0.06)" stroke="'+dim+'"/>';
-      svg+='<text class="trail-tag" x="'+(tkX+tkW/2)+'" y="'+(cy+4)+'" text-anchor="middle">'+escHtml(t.symbol)+'</text>';
-      if(t.sourceUrl) svg+='</a>';
-      svg+='</g>';
-    });
-
-    // Source badge
-    svg+='<text style="font-size:9px;fill:'+(isLive?green:faint)+'" x="'+(W-10)+'" y="16" text-anchor="end">'+(isLive?'Live FEC':'Illustrative')+'</text>';
-    svg+='</svg>';
-    svg+='<div class="trail-proof-panel" id="trail-proof-panel" hidden></div>';
-    return svg;
   }
   function updateFecMarketingStrip(pulse,source){
     updateFecMarketingFromPayload({source:source||'sample',pulses:pulse?[pulse]:[]});
   }
   function updateFecMarketingFromPayload(payload){
-    var strip=document.getElementById('fec-marketing-strip');
+    var strip=document.getElementById('signal-feed')||document.getElementById('fec-marketing-strip');
     var cards=document.getElementById('fec-marketing-cards');
     var badge=document.getElementById('fec-marketing-badge');
     var trail=document.getElementById('fec-marketing-trail');
     var trailSteps=document.getElementById('fec-marketing-trail-steps');
     if(!strip||!cards)return;
     var pulses=(payload&&payload.pulses)||[];
-    var isUnavailable=payload.source==='unavailable';
-    if(!pulses.length&&!isUnavailable){strip.hidden=true;cards.innerHTML='';if(trail)trail.hidden=true;return;}
-    strip.hidden=false;
-    var isLive=payload.source==='fec';
-    if(badge){
-      badge.textContent=isUnavailable?'Unavailable':isLive?'Live FEC':'Illustrative';
-      badge.style.color=isUnavailable?'var(--risk-red, #ff4444)':isLive?'var(--green)':'var(--amber)';
-    }
-    if(isUnavailable){
-      cards.innerHTML='<p style="font-family:var(--mono,monospace);font-size:12px;color:rgba(232,228,220,0.42);padding:1.5rem 0">FEC data unavailable — API key not configured or openFEC unreachable. No illustrative data shown.</p>';
+    if(!pulses.length){
+      if(cards)cards.innerHTML='<p class="fec-marketing-note muted">Connecting to FEC pulse feed…</p>';
       if(trail)trail.hidden=true;
       return;
     }
+    var isLive=payload.source==='fec';
+    if(badge){
+      badge.textContent=isLive?'Live FEC':'Illustrative';
+      badge.style.color=isLive?'var(--green)':'var(--amber)';
+    }
     cards.innerHTML=pulses.slice(0,3).map(function(p){
-      var tick=(p.tickers||[]).slice(0,3).join(', ')||'—';
+      var tick=(p.tickers||[]).slice(0,3).join(', ')||'n/a';
       var counts=p.linkCounts||{};
       var links=[];
       if(counts.bills)links.push(counts.bills+' bill'+(counts.bills===1?'':'s'));
@@ -1376,19 +1431,15 @@ function hydrateLandingSignal(){
     var hero=pulses[0];
     if(trail&&trailSteps&&hero){
       trail.hidden=false;
-      trailSteps.innerHTML=renderMoneyTrailSvg(hero,isLive);
-      trailSteps.querySelectorAll('.trail-node[data-reason]').forEach(function(node){
-        node.addEventListener('click',function(e){
-          if(e.target.closest('a'))return;
-          var panel=document.getElementById('trail-proof-panel');
-          if(!panel)return;
-          var reason=node.getAttribute('data-reason')||'';
-          var link=node.querySelector('a');
-          var url=link?link.getAttribute('href'):'';
-          panel.hidden=false;
-          panel.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-family:var(--mono);font-size:10px;color:rgba(232,228,220,0.42);text-transform:uppercase">Source chain</span><button type="button" style="background:none;border:none;color:rgba(232,228,220,0.42);cursor:pointer;font-size:14px" onclick="this.closest(\'.trail-proof-panel\').hidden=true">&times;</button></div><p style="font-family:var(--mono);font-size:12px;color:rgba(232,228,220,0.72);line-height:1.6;margin:0">'+escHtml(reason)+'</p>'+(url?'<a href="'+escHtml(url)+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-family:var(--mono);font-size:11px;color:rgba(91,191,130,1);text-decoration:none">View primary source &rarr;</a>':'');
-        });
-      });
+      var tk=(hero.tickers||[])[0]||'LMT';
+      var billN=(hero.linkCounts&&hero.linkCounts.bills)||2;
+      var lobbyN=(hero.linkCounts&&hero.linkCounts.lobbyingFilings)||1;
+      trailSteps.innerHTML=[
+        '<div class="fec-marketing-trail-step"><strong>FEC</strong> · '+escHtml(hero.committee||'Committee')+' PAC cluster · '+(isLive?'Live FEC':'Illustrative')+'</div>',
+        '<div class="fec-marketing-trail-step"><strong>Bill</strong> · '+billN+' linked bill'+(billN===1?'':'s')+' via committee map</div>',
+        '<div class="fec-marketing-trail-step"><strong>Lobby</strong> · '+lobbyN+' LDA filing'+(lobbyN===1?'':'s')+' via client crosswalk</div>',
+        '<div class="fec-marketing-trail-step"><strong>Ticker</strong> · '+escHtml(tk)+' via explicit fec-committee-map.json</div>'
+      ].join('');
     }
   }
   function updateTrendingStrip(items){
@@ -1416,14 +1467,14 @@ function hydrateLandingSignal(){
       .catch(function(){return null})
       .then(function(payload){
         if(!payload||!payload.pulses||!payload.pulses.length)return;
-        if(payload.source!=='fec')return;
         var fresh=document.getElementById('terminal-signal-freshness');
         var label=document.getElementById('terminal-signal-label');
         var idx=Math.floor(Date.now()/480000)%payload.pulses.length;
         var top=payload.pulses[idx];
+        var srcLabel=payload.source==='fec'?'Live FEC':'Illustrative';
         if(fresh&&!fresh.dataset.fecSet){
           fresh.dataset.fecSet='1';
-          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · Live FEC';
+          fresh.textContent=(top.plainEnglish||'').slice(0,96)+' · '+srcLabel;
         }
         if(label) label.textContent='FEC pulse · '+(top.committee||'Committee');
         var rotStart=Math.floor(Date.now()/480000)%payload.pulses.length;
@@ -1440,11 +1491,73 @@ function hydrateLandingSignal(){
   setInterval(fetchFecPulse, 480000);
 }
 
+function initProductLoop(){
+  var steps=document.querySelectorAll('#hero-product-loop .product-loop-step');
+  if(!steps.length)return;
+  var idx=0;
+  function tick(){
+    steps.forEach(function(s,i){s.classList.toggle('is-active',i===idx);});
+    idx=(idx+1)%steps.length;
+  }
+  tick();
+  setInterval(tick,2800);
+  function parseLoopTickers(d){
+    var syms=[];
+    if(Array.isArray(d.tickers)&&d.tickers.length){
+      syms=d.tickers.map(function(s){return String(s||'').trim().toUpperCase();}).filter(Boolean);
+    }else if(d.ticker){
+      syms=[String(d.ticker).trim().toUpperCase()];
+    }else if(d.chain){
+      var m=/(?:→\s*Tickers:\s*|Mapped tickers:\s*)([^→]+)/i.exec(String(d.chain));
+      if(m){
+        syms=m[1].split(/[,·]/).map(function(s){return s.trim().toUpperCase();}).filter(function(s){return /^[A-Z]{1,5}$/.test(s);});
+      }
+    }
+    return syms;
+  }
+  function formatLoopTickerLine(d){
+    var syms=parseLoopTickers(d);
+    if(!syms.length)return 'n/a';
+    var tag=String(d.policyTag||d.tag||'').trim();
+    var line=syms.length===1?syms[0]:(syms.length<=3?syms.join(' · '):syms[0]+' (+'+(syms.length-1)+')');
+    return tag?line+' · '+tag:line;
+  }
+  function updateCinemaLiveRow(d){
+    var row=document.querySelector('.cinema-live-row');
+    if(!row)return;
+    var isLive=Boolean(d.live)||(d.freshness&&d.freshness.level==='verified');
+    row.classList.toggle('is-live',isLive);
+    row.classList.toggle('is-illustrative',!isLive);
+    var suffix=isLive?' · live Congress overlay':' · illustrative when offline';
+    var nodes=row.childNodes;
+    for(var i=0;i<nodes.length;i++){
+      if(nodes[i].nodeType===3){
+        nodes[i].textContent='Live signal card'+suffix;
+        break;
+      }
+    }
+  }
+  window.__updateProductLoop=function(d){
+    if(!d)return;
+    var ev=document.getElementById('loop-event');
+    var ch=document.getElementById('loop-chain');
+    var tk=document.getElementById('loop-ticker');
+    var cf=document.getElementById('loop-confidence');
+    var tickerLine=formatLoopTickerLine(d);
+    if(ev)ev.textContent=(d.headline||d.label||'Policy event detected').slice(0,72);
+    if(ch)ch.textContent=d.chain||d.sourceChain||'Congress.gov → committee → exposure';
+    if(tk)tk.textContent=tickerLine;
+    if(cf)cf.textContent=(d.confidence!=null?d.confidence:82)+' / 100 · '+(d.mode||'modeled');
+    updateCinemaLiveRow(d);
+  };
+}
+
 function bootLandingScripts(){
   mountGithubPagesOriginBanner();
   wireTerminalLinks();
   initScrollReveal();
   hydrateLandingTicker();
+  initProductLoop();
   hydrateLandingSignal();
 }
 if(document.readyState==='loading'){
@@ -1453,6 +1566,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=signal-freshness-2" defer></script>
+<script src="assets/landing-cinematic.js?v=landing-manifesto-1" defer></script>
 </body>
 </html>

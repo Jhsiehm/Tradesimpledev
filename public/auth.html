@@ -9,8 +9,8 @@
 <link rel="apple-touch-icon" href="/favicon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/src/imports/design-tokens.css?v=cd-brief-1"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
 <style>
   :root{
     --bg:#0a0b09;--bg-2:#10110f;--lime:#C8FF00;--amber:#FFA500;--red:#e0524d;
@@ -48,7 +48,18 @@
   .card > *{position:relative;z-index:1}
   .brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:10px;text-decoration:none;color:inherit}
   .brand-logo{width:56px;height:56px;object-fit:contain;display:block;flex-shrink:0}
-  .brand b{font-family:var(--mono);font-weight:700;letter-spacing:.1em;font-size:12px}
+  .brand b{
+    font-family:"JetBrains Mono","Space Mono",monospace;
+    font-style:normal;
+    font-weight:500;
+    letter-spacing:.1em;
+    font-size:12px;
+    color:#8dfdab;
+    text-shadow:0 0 12px rgba(141,253,171,.35),0 0 24px rgba(141,253,171,.15);
+  }
+  @media (prefers-reduced-motion:reduce){
+    .brand b{color:#8dfdab;text-shadow:none}
+  }
   h1{font-family:var(--serif);font-weight:600;font-size:clamp(1.65rem,5vw,1.75rem);margin:18px 0 6px;line-height:1.12;letter-spacing:-.02em;text-wrap:balance}
   .sub{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.55;max-width:36ch}
   .tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:4px;margin-bottom:22px}
