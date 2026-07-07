@@ -363,6 +363,31 @@
       window.addEventListener("scroll", onScrollNav, { passive: true });
     }
 
+    function ensureHeroVideoPlaying(restartIfEnded) {
+      if (!video || prefersReducedMotion) return false;
+      if (document.body.classList.contains("ts-video-paused")) return false;
+      video.muted = true;
+      video.defaultMuted = true;
+      video.playsInline = true;
+      video.setAttribute("muted", "");
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.setAttribute("autoplay", "");
+      if (restartIfEnded || video.ended) {
+        try { video.currentTime = 0; } catch (e) {}
+      }
+      var attempt = video.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(function () {});
+      return !video.paused;
+    }
+
+    function heroVideoHasSource() {
+      return Boolean(
+        video &&
+        (video.getAttribute("src") || video.currentSrc || video.querySelector("source"))
+      );
+    }
+
     /* ── Hero video ── */
     if (video) {
       if (prefersReducedMotion) {
@@ -386,9 +411,26 @@
           root.classList.add("ts-video-fallback");
           markReady();
         });
+        ["loadedmetadata", "loadeddata", "canplay", "canplaythrough"].forEach(function (evt) {
+          video.addEventListener(evt, function () { ensureHeroVideoPlaying(false); }, { once: true });
+        });
+        ensureHeroVideoPlaying(true);
+        var autoplayTries = 0;
+        var autoplayTimer = window.setInterval(function () {
+          autoplayTries += 1;
+          if (autoplayTries > 20) {
+            window.clearInterval(autoplayTimer);
+            return;
+          }
+          var playing = ensureHeroVideoPlaying(autoplayTries === 1);
+          if (playing && video.currentTime > 0.01) window.clearInterval(autoplayTimer);
+        }, 400);
+        window.addEventListener("pageshow", function () {
+          ensureHeroVideoPlaying(true);
+        });
         document.addEventListener("visibilitychange", function () {
           if (document.hidden) video.pause();
-          else video.play().catch(function () {});
+          else if (!video.ended) ensureHeroVideoPlaying(false);
         });
       }
     }
@@ -397,8 +439,9 @@
        force muted playback via JS and retry once on first user interaction ── */
     if (!prefersReducedMotion) {
       var nudgeAutoplayVideos = function () {
+        ensureHeroVideoPlaying(false);
         if (document.body.classList.contains("ts-video-paused")) return;
-        qsa(".ts-hero-video, .cinema-frame video").forEach(function (clip) {
+        qsa(".cinema-frame video").forEach(function (clip) {
           clip.muted = true;
           if (clip.paused) clip.play().catch(function () {});
         });
@@ -425,9 +468,10 @@
         if (enabled) clip.play().catch(function () {});
         else clip.pause();
       });
-      if (!video || !video.querySelector("source")) return;
-      if (enabled) video.play().catch(function () {});
-      else video.pause();
+      if (heroVideoHasSource()) {
+        if (enabled) ensureHeroVideoPlaying(false);
+        else video.pause();
+      }
     }
 
     function updateSoundProfileUI() {

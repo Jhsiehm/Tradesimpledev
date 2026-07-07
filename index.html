@@ -76,7 +76,7 @@ html.landing-ready .ts-scroll-progress {
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
 <link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-mobile-375-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-autoplay-2"/>
 <style id="nav-reveal-critical">
 /* First-paint: nav stays hidden until video end or scribble tap */
 .ts-nav.ts-nav--dormant,
@@ -606,6 +606,54 @@ footer nav a:hover{color:var(--text)}
       </video>
       <div class="ts-hero-poster"></div>
     </div>
+    <script>
+    (function () {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      function kickHeroVideo(opts) {
+        opts = opts || {};
+        var clip = document.querySelector(".ts-hero-video");
+        if (!clip) return false;
+        clip.muted = true;
+        clip.defaultMuted = true;
+        clip.playsInline = true;
+        clip.setAttribute("muted", "");
+        clip.setAttribute("playsinline", "");
+        clip.setAttribute("webkit-playsinline", "");
+        clip.setAttribute("autoplay", "");
+        if (opts.fromStart || clip.ended) {
+          try { clip.currentTime = 0; } catch (e) {}
+        }
+        var attempt = clip.play();
+        if (attempt && attempt.catch) attempt.catch(function () {});
+        return !clip.paused;
+      }
+      kickHeroVideo({ fromStart: true });
+      document.addEventListener("DOMContentLoaded", function () {
+        var clip = document.querySelector(".ts-hero-video");
+        if (!clip) return;
+        kickHeroVideo({ fromStart: true });
+        ["loadedmetadata", "loadeddata", "canplay", "canplaythrough"].forEach(function (evt) {
+          clip.addEventListener(evt, function () { kickHeroVideo({ fromStart: false }); }, { once: true });
+        });
+        var tries = 0;
+        var retryTimer = window.setInterval(function () {
+          tries += 1;
+          if (tries > 20) {
+            window.clearInterval(retryTimer);
+            return;
+          }
+          var playing = kickHeroVideo({ fromStart: tries === 1 });
+          if (playing && clip.currentTime > 0.01) window.clearInterval(retryTimer);
+        }, 400);
+        window.addEventListener("pageshow", function () { kickHeroVideo({ fromStart: true }); });
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden && clip.paused && !clip.ended) kickHeroVideo({ fromStart: false });
+        });
+        document.addEventListener("touchstart", function () { kickHeroVideo({ fromStart: false }); }, { once: true, passive: true });
+        document.addEventListener("click", function () { kickHeroVideo({ fromStart: false }); }, { once: true });
+      }, { once: true });
+    })();
+    </script>
 
     <div class="ts-nav-slot">
     <button type="button" class="ts-nav-reveal-scribble" id="nav-reveal-scribble" aria-label="Show navigation">
@@ -1566,6 +1614,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=landing-mobile-375-1" defer></script>
+<script src="assets/landing-cinematic.js?v=landing-autoplay-2" defer></script>
 </body>
 </html>
