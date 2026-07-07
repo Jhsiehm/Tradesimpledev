@@ -76,7 +76,7 @@ html.landing-ready .ts-scroll-progress {
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
 <link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-autoplay-2"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-loop-1"/>
 <style id="nav-reveal-critical">
 /* First-paint: nav stays hidden until video end or scribble tap */
 .ts-nav.ts-nav--dormant,
@@ -601,7 +601,7 @@ footer nav a:hover{color:var(--text)}
 <section class="ts-hero" id="top">
   <div class="ts-hero-video-stage">
     <div class="ts-hero-media" aria-hidden="true">
-      <video class="ts-hero-video" autoplay muted playsinline webkit-playsinline preload="auto" poster="/assets/media/hero/tradesimple-hero-poster.svg" src="/assets/media/hero/tradesimple-hero-video.mp4">
+      <video class="ts-hero-video" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="/assets/media/hero/tradesimple-hero-poster.svg" src="/assets/media/hero/tradesimple-hero-video.mp4">
         <source src="/assets/media/hero/tradesimple-hero-video.mp4" type="video/mp4">
       </video>
       <div class="ts-hero-poster"></div>
@@ -620,6 +620,8 @@ footer nav a:hover{color:var(--text)}
         clip.setAttribute("playsinline", "");
         clip.setAttribute("webkit-playsinline", "");
         clip.setAttribute("autoplay", "");
+        clip.setAttribute("loop", "");
+        clip.loop = true;
         if (opts.fromStart || clip.ended) {
           try { clip.currentTime = 0; } catch (e) {}
         }
@@ -1614,6 +1616,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=landing-autoplay-2" defer></script>
+<script src="assets/landing-cinematic.js?v=landing-loop-1" defer></script>
 </body>
 </html>

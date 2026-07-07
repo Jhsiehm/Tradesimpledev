@@ -349,8 +349,14 @@
         );
 
         if (hasVideoSource) {
-          video.removeAttribute("loop");
-          video.addEventListener("ended", revealNav, { once: true });
+          video.loop = true;
+          video.setAttribute("loop", "");
+          function scheduleNavRevealAfterVideo() {
+            var delayMs = (video.duration && isFinite(video.duration) ? video.duration : 35) * 1000;
+            window.setTimeout(revealNav, delayMs);
+          }
+          if (video.readyState >= 1) scheduleNavRevealAfterVideo();
+          else video.addEventListener("loadedmetadata", scheduleNavRevealAfterVideo, { once: true });
         }
       }
     }
@@ -373,6 +379,8 @@
       video.setAttribute("playsinline", "");
       video.setAttribute("webkit-playsinline", "");
       video.setAttribute("autoplay", "");
+      video.loop = true;
+      video.setAttribute("loop", "");
       if (restartIfEnded || video.ended) {
         try { video.currentTime = 0; } catch (e) {}
       }
