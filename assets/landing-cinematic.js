@@ -369,13 +369,22 @@
         video.pause();
         video.removeAttribute("autoplay");
       } else {
+        var videoReadyMarked = false;
         var markReady = function () {
+          if (videoReadyMarked) return;
+          videoReadyMarked = true;
           root.classList.add("ts-video-ready");
         };
         if (video.readyState >= 2) markReady();
-        else video.addEventListener("canplay", markReady, { once: true });
+        else {
+          video.addEventListener("loadeddata", markReady, { once: true });
+          video.addEventListener("loadedmetadata", markReady, { once: true });
+          video.addEventListener("canplay", markReady, { once: true });
+          window.setTimeout(markReady, 4500);
+        }
         video.addEventListener("error", function () {
-          root.classList.remove("ts-video-ready");
+          root.classList.add("ts-video-fallback");
+          markReady();
         });
         document.addEventListener("visibilitychange", function () {
           if (document.hidden) video.pause();

@@ -167,7 +167,7 @@ html[data-theme="dark"] body.landing-cinematic {
 }
 
 .ts-hero-poster {
-  background-image: url("media/hero/tradesimple-hero-poster.svg");
+  background-image: url("/assets/media/hero/tradesimple-hero-poster.svg");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center center;
@@ -177,6 +177,14 @@ html[data-theme="dark"] body.landing-cinematic {
 
 .ts-video-ready .ts-hero-poster {
   opacity: 0;
+}
+
+html.ts-video-fallback .ts-hero-video {
+  display: none;
+}
+
+html.ts-video-fallback .ts-hero-poster {
+  opacity: 1 !important;
 }
 
 .ts-hero-dark-overlay {
@@ -5331,9 +5339,8 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic .ts-hero,
 .landing-cinematic .ts-hero-video-stage,
 .landing-cinematic .ts-hero-media,
-.landing-cinematic .ts-hero-video,
-.landing-cinematic .ts-hero-poster {
-  background: #000;
+.landing-cinematic .ts-hero-video {
+  background-color: #000;
 }
 
 .landing-cinematic .ts-hero-video-stage {
@@ -5366,13 +5373,17 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic .ts-hero-video {
   object-fit: contain;
   object-position: center;
-  filter: none;
+  filter: brightness(1.38) contrast(1.1) saturate(1.12);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .landing-cinematic .ts-hero-poster {
   background-color: #000;
+  background-image: url("/assets/media/hero/tradesimple-hero-poster.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center center;
 }
 
 .landing-cinematic .ts-hero-headline {

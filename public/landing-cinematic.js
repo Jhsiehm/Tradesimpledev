@@ -369,13 +369,22 @@
         video.pause();
         video.removeAttribute("autoplay");
       } else {
+        var videoReadyMarked = false;
         var markReady = function () {
+          if (videoReadyMarked) return;
+          videoReadyMarked = true;
           root.classList.add("ts-video-ready");
         };
         if (video.readyState >= 2) markReady();
-        else video.addEventListener("canplay", markReady, { once: true });
+        else {
+          video.addEventListener("loadeddata", markReady, { once: true });
+          video.addEventListener("loadedmetadata", markReady, { once: true });
+          video.addEventListener("canplay", markReady, { once: true });
+          window.setTimeout(markReady, 4500);
+        }
         video.addEventListener("error", function () {
-          root.classList.remove("ts-video-ready");
+          root.classList.add("ts-video-fallback");
+          markReady();
         });
         document.addEventListener("visibilitychange", function () {
           if (document.hidden) video.pause();
@@ -852,14 +861,6 @@
           em.className = pct >= 0 ? "up" : "down";
         }
       });
-      qsa(".terminal-watchlist-preview div").forEach(function (row) {
-        var b = row.querySelector("b");
-        var em = row.querySelector("em");
-        if (!b || !em) return;
-        var q = map[b.textContent.trim()];
-        if (!q || q.price == null) return;
-        em.textContent = formatLandingPrice(q.price);
-      });
     }
 
     function fetchLandingQuotes(callback) {
@@ -904,10 +905,6 @@
       if (signalHeadline) signalHeadline.textContent = preset.signal;
       if (tagDetailEl) tagDetailEl.textContent = preset.tagDetail;
       if (signalFreshness) signalFreshness.textContent = "Illustrative example · demo briefing";
-      var editorialEl = qs("#terminal-signal-editorial");
-      if (editorialEl) { editorialEl.hidden = true; editorialEl.textContent = ""; }
-      var briefLinkEl = qs("#terminal-signal-brief-link");
-      if (briefLinkEl) briefLinkEl.hidden = true;
       if (confidenceText) confidenceText.textContent = preset.confidence + "/100";
       animateConfidence(preset.confidence);
       setChainText(preset.chain, animate !== false);

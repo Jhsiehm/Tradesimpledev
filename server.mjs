@@ -10,7 +10,7 @@
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { createReadStream, readFileSync, existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -2967,7 +2967,7 @@ async function route(req, res) {
   if (pathname.startsWith("/stock/") && (req.method === "GET" || req.method === "HEAD")) {
     return publicStockCard(res, pathname, { head: req.method === "HEAD" });
   }
-  if (pathname.startsWith("/assets/")) return sendStatic(res, pathname.replace("/assets/", ""));
+  if (pathname.startsWith("/assets/")) return sendStatic(res, pathname.replace("/assets/", ""), req);
   if (pathname.startsWith("/src/imports/")) return sendImportsStatic(res, pathname);
 
   if (pathname === "/api/config") {
@@ -3286,18 +3286,68 @@ function injectLandingCanonicalMeta(html) {
     );
 }
 
-async function sendStatic(res, relativePath) {
+async function sendStatic(res, relativePath, req = null) {
   const safePath = normalize(relativePath || "index.html").replace(/^(\.\.[/\\])+/, "");
   const filePath = join(PUBLIC_DIR, safePath);
   if (!filePath.startsWith(PUBLIC_DIR)) return sendText(res, 403, "Forbidden");
   if (!existsSync(filePath)) return sendText(res, 404, "Not found");
   const fileStat = await stat(filePath);
   if (!fileStat.isFile()) return sendText(res, 404, "Not found");
+
+  const type = contentType(filePath);
+  const isMedia = type.startsWith("video/") || type.startsWith("audio/");
+  const cacheControl = isMedia ? "public, max-age=86400, immutable" : "no-store";
+  const baseHeaders = responseHeaders({
+    "content-type": type,
+    "cache-control": cacheControl,
+    "accept-ranges": "bytes",
+    "content-length": String(fileStat.size)
+  });
+
+  if (req?.method === "HEAD") {
+    res.writeHead(200, baseHeaders);
+    res.end();
+    return;
+  }
+
+  const rangeHeader = req?.headers?.range;
+  if (isMedia && rangeHeader) {
+    const match = /^bytes=(\d*)-(\d*)$/i.exec(String(rangeHeader).trim());
+    if (match) {
+      const size = fileStat.size;
+      let start = match[1] ? Number.parseInt(match[1], 10) : 0;
+      let end = match[2] ? Number.parseInt(match[2], 10) : size - 1;
+      if (Number.isNaN(start) || start < 0 || start >= size) {
+        res.writeHead(416, responseHeaders({
+          "content-range": `bytes */${size}`,
+          "accept-ranges": "bytes"
+        }));
+        res.end();
+        return;
+      }
+      end = Math.min(end, size - 1);
+      if (Number.isNaN(end) || end < start) end = size - 1;
+      const chunkSize = end - start + 1;
+      res.writeHead(206, responseHeaders({
+        "content-type": type,
+        "cache-control": cacheControl,
+        "accept-ranges": "bytes",
+        "content-range": `bytes ${start}-${end}/${size}`,
+        "content-length": String(chunkSize)
+      }));
+      createReadStream(filePath, { start, end }).pipe(res);
+      return;
+    }
+  }
+
+  if (isMedia) {
+    res.writeHead(200, baseHeaders);
+    createReadStream(filePath).pipe(res);
+    return;
+  }
+
   const body = await readFile(filePath);
-  res.writeHead(200, responseHeaders({
-    "content-type": contentType(filePath),
-    "cache-control": "no-store"
-  }));
+  res.writeHead(200, baseHeaders);
   res.end(body);
 }
 
