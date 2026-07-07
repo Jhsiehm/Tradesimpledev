@@ -9,6 +9,7 @@ cat <<EOF
 AUTH_SECRET=${SECRET}
 DATA_ACCURACY_MODE=demo
 DEMO_AUTH=true
+LAUNCH_PHASE=full-feature
 EOF
 echo ""
 echo "APP_URL is optional on Railway — the server auto-uses RAILWAY_PUBLIC_DOMAIN."

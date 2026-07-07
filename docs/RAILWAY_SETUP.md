@@ -44,6 +44,7 @@ Or open `docs/RAILWAY_COPY_PASTE.env` (generated locally, gitignored) if you alr
 |----------|--------|
 | `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
 | `DATA_ACCURACY_MODE` | `demo` for soft launch |
+| `LAUNCH_PHASE` | `full-feature` — enables Lobbying, Analysis Lab, AI Research, Settings, Alerts, Track Record |
 | `DEMO_AUTH` | `true` |
 
 `APP_URL` is **optional** on Railway — the server uses `RAILWAY_PUBLIC_DOMAIN` when `APP_URL` is localhost or unset.
@@ -89,6 +90,7 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 |----------|-----------------|
 | `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
 | `DATA_ACCURACY_MODE` | `demo` for soft launch |
+| `LAUNCH_PHASE` | `full-feature` — all terminal views and API gates on |
 | `DEMO_AUTH` | `true` |
 
 **Required for Supabase persistence (email accounts, paper trading, watchlists, waitlist):**
