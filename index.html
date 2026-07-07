@@ -1186,6 +1186,16 @@ function tsAppOrigin(){
   return window.location.origin;
 }
 var TS_APP_ORIGIN = tsAppOrigin();
+var TS_LANDING_ONLY = false;
+function loadLaunchConfig(){
+  return fetch(tsApiUrl('/api/config'))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; })
+    .then(function(cfg){
+      if(cfg && cfg.launch) TS_LANDING_ONLY = !!cfg.launch.landingOnly;
+      return cfg;
+    });
+}
 function tsAppUrl(path){
   return new URL(String(path||'/'), TS_APP_ORIGIN).toString();
 }
@@ -1397,7 +1407,11 @@ function hydrateLandingSignal(){
       }
     }
     if(briefLink){
-      if(d.billId){
+      if(TS_LANDING_ONLY){
+        briefLink.href='#early-access';
+        briefLink.hidden=false;
+        briefLink.textContent='Join waitlist →';
+      }else if(d.billId){
         var briefPath=d.briefPath||('/bill/'+encodeURIComponent(d.billId));
         briefLink.href=briefPath;
         briefLink.hidden=false;
@@ -1406,7 +1420,7 @@ function hydrateLandingSignal(){
         briefLink.hidden=true;
       }
     }
-    if(primaryCta&&d.editorial&&d.billId){
+    if(primaryCta&&d.editorial&&d.billId&&!TS_LANDING_ONLY){
       var leadPath=d.briefPath||('/bill/'+encodeURIComponent(d.billId));
       primaryCta.href=leadPath;
       primaryCta.textContent='Read today\'s bill brief →';
@@ -1598,9 +1612,11 @@ function bootLandingScripts(){
   mountGithubPagesOriginBanner();
   wireTerminalLinks();
   initScrollReveal();
-  hydrateLandingTicker();
-  initProductLoop();
-  hydrateLandingSignal();
+  loadLaunchConfig().finally(function(){
+    hydrateLandingTicker();
+    initProductLoop();
+    hydrateLandingSignal();
+  });
 }
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',bootLandingScripts);

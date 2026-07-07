@@ -38,7 +38,23 @@ Copy the output into **Railway → Tradesimpledev → Variables → Raw Editor**
 
 Or open `docs/RAILWAY_COPY_PASTE.env` (generated locally, gitignored) if you already ran setup once.
 
-**Minimum keys:**
+**LinkedIn soft launch (landing + waitlist only):**
+
+Run `bash scripts/print-railway-vars.sh` (default profile) or paste:
+
+| Variable | Value |
+|----------|--------|
+| `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
+| `DATA_ACCURACY_MODE` | `demo` |
+| `LANDING_ONLY` | `true` — serves `/`, `/manifesto`, public landing APIs, and `POST /api/waitlist` only |
+| `DEMO_AUTH` | `false` — defense in depth; demo auth is already blocked when `LANDING_ONLY=true` |
+| `LAUNCH_PHASE` | `full-feature` (terminal gates apply after you turn landing-only off) |
+
+Waitlist is enabled by default (`WAITLIST_ENABLED` in server feature gates). Terminal routes (`/dashboard`, `/auth/demo`, `/login`, `/signup`) redirect to `/#early-access`.
+
+**Full terminal preview** (demo enabled):
+
+Run `bash scripts/print-railway-vars.sh full` or set `LANDING_ONLY=false` and `DEMO_AUTH=true`.
 
 | Variable | Value |
 |----------|--------|
@@ -92,7 +108,7 @@ The server sets `data.supabase: true` in `GET /api/config` only when both vars a
 | `DATA_ACCURACY_MODE` | `demo` for soft launch |
 | `LAUNCH_PHASE` | `full-feature` — all terminal views and API gates on |
 | `LANDING_ONLY` | `true` for LinkedIn soft launch (landing + waitlist only; blocks dashboard/demo) |
-| `DEMO_AUTH` | `true` |
+| `DEMO_AUTH` | `false` for LinkedIn launch; `true` when demo terminal should work |
 
 **Required for Supabase persistence (email accounts, paper trading, watchlists, waitlist):**
 

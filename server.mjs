@@ -109,7 +109,8 @@ function landingOnlyAllows(pathname, method) {
   if (pathname.startsWith("/assets/")) return true;
   if (pathname.startsWith("/src/imports/")) return true;
   if (method === "GET" || method === "HEAD") {
-    if (pathname === "/" || pathname === "/manifesto" || pathname === "/favicon.ico") return true;
+    if (pathname === "/" || pathname === "/manifesto") return true;
+    if (pathname === "/favicon.ico" || pathname === "/favicon.png") return true;
     if (pathname === "/robots.txt" || pathname === "/.well-known/security.txt") return true;
   }
   if (method === "GET") {
@@ -14276,6 +14277,7 @@ function localPolicyAnswer(question, name) {
 }
 
 async function startDemoSession(req, res) {
+  if (isLandingOnly()) return redirect(res, "/#early-access");
   if (process.env.DEMO_AUTH === "false") return sendText(res, 403, "Demo auth disabled");
   const url = new URL(req.url || "/", APP_URL);
   const next = sanitizeRelativePath(url.searchParams.get("next"));
