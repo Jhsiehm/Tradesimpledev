@@ -228,16 +228,27 @@ const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 65_536);
 const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 10);
 const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 
+// Shared by requestIsHttps() and clientIp(): only trust proxy-supplied
+// X-Forwarded-* headers when we know a real proxy (Railway, or an explicit
+// opt-in) sits in front of us. Otherwise a client could set these headers
+// directly and spoof its own IP or the request's apparent scheme.
+function isTrustedProxy() {
+  return (
+    process.env.TRUST_PROXY === "true" ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN)
+  );
+}
+
 function requestIsHttps(req) {
-  const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-  return proto === "https" || APP_URL.startsWith("https://");
+  if (isTrustedProxy()) {
+    const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+    if (proto === "https") return true;
+  }
+  return APP_URL.startsWith("https://");
 }
 
 function clientIp(req) {
-  const trustProxy =
-    process.env.TRUST_PROXY === "true" ||
-    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN);
-  if (trustProxy) {
+  if (isTrustedProxy()) {
     const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
     if (forwarded) return forwarded;
   }
@@ -2845,13 +2856,17 @@ function warmQuoteCatalogCache() {
 }
 
 function requestIp(req) {
-  const raw =
-    req.headers["cf-connecting-ip"] ||
-    req.headers["x-real-ip"] ||
-    req.headers["x-forwarded-for"] ||
-    req.socket?.remoteAddress ||
-    "unknown";
-  return String(Array.isArray(raw) ? raw[0] : raw).split(",")[0].trim();
+  // Only trust proxy-supplied IP headers behind a known proxy — otherwise a
+  // client can set these directly to spoof its IP and evade the IP-windowed
+  // rate limiters this feeds (share endpoints, the general /api/ backstop).
+  if (isTrustedProxy()) {
+    const raw =
+      req.headers["cf-connecting-ip"] ||
+      req.headers["x-real-ip"] ||
+      req.headers["x-forwarded-for"];
+    if (raw) return String(Array.isArray(raw) ? raw[0] : raw).split(",")[0].trim();
+  }
+  return String(req.socket?.remoteAddress || "unknown");
 }
 
 function checkIpWindowLimit(bucket, req, { max, windowMs }) {
