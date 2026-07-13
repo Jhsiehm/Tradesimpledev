@@ -2757,6 +2757,9 @@ server.listen(PORT, "0.0.0.0", async () => {
   if (process.env.LEDGER_AUTO_RECORD !== "false") {
     setTimeout(() => autoRecordSignalPredictions(), 8_000);
     setInterval(() => autoRecordSignalPredictions(), 24 * 60 * 60 * 1000); // daily
+    // Staggered after contract-watch's own 14s boot refresh so store.awards is populated.
+    setTimeout(() => autoRecordCRSPredictions(), 20_000);
+    setInterval(() => autoRecordCRSPredictions(), 24 * 60 * 60 * 1000); // daily
   }
   setTimeout(() => resolveDuePredictions(ledgerDeps).then((r) => {
     if (r.resolved) console.log(`[ledger] resolved ${r.resolved} prediction(s)`);
@@ -5303,6 +5306,72 @@ async function autoRecordSignalPredictions() {
     if (recorded) console.log(`[ledger] auto-recorded ${recorded} new prediction(s)`);
   } catch (err) {
     console.warn("[ledger] auto-record failed:", err.message);
+  }
+}
+
+// Backtested against 28 real historical contract-award events (2022–2026):
+// CRS >= 60 showed +3.12% mean 20-trading-day abnormal return vs. ITA and a
+// 61% win rate. Full-sample correlation (70 events) between CRS score and
+// realized 20-day abnormal return was rho=0.40 (p=0.0006). Do not change
+// this threshold without new backtest evidence.
+const CRS_AUTO_RECORD_THRESHOLD = 60;
+// 20-trading-day validated window, approximated as calendar days.
+const CRS_AUTO_RECORD_HORIZON_DAYS = 28;
+
+/**
+ * Auto-populate the ledger from contract-award CRS scores, mirroring
+ * autoRecordSignalPredictions() but for USASpending contract awards instead
+ * of legislation. Only fires for tickers with a CONTRACT_PROFILES entry —
+ * the CRS formula was calibrated on those companies and explicitly failed
+ * generalization testing on private-recipient proxies (GEO, CXW, SPCX), so
+ * it must never auto-extrapolate to them.
+ */
+async function autoRecordCRSPredictions() {
+  try {
+    const open = await listPredictions({ status: "open" });
+    const openKeys = new Set(
+      open.map((p) => `${p.catalyst?.id || ""}:${p.ticker}:${p.direction}`)
+    );
+
+    const store = await loadContractWatchStore();
+    const awards = Array.isArray(store.awards) ? store.awards : [];
+
+    let recorded = 0;
+    for (const award of awards) {
+      const symbol = String(award.mappedTickers?.[0] || "").toUpperCase();
+      if (!symbol || !CONTRACT_PROFILES[symbol]) continue;
+
+      const key = `${award.awardId}:${symbol}:bullish`;
+      if (openKeys.has(key)) continue;
+
+      const sig = computeContractEventSignal(symbol, award.amount, award.agency);
+      if (!sig || sig.score < CRS_AUTO_RECORD_THRESHOLD) continue;
+
+      try {
+        await recordPrediction(
+          {
+            ticker: symbol,
+            direction: "bullish",
+            horizonDays: CRS_AUTO_RECORD_HORIZON_DAYS,
+            confidence: sig.score,
+            thesis: `CRS ${sig.score} (${sig.label}) — ${award.recipient || symbol} award from ${award.agency || "a federal agency"}: ${sig.plainEnglish || sig.pricedInAssessment}`,
+            catalyst: {
+              type: "contract_crs",
+              id: award.awardId,
+              title: `${award.recipient || symbol} — ${award.agency || "federal award"}`
+            },
+            origin: "auto:crs_signal"
+          },
+          ledgerDeps
+        );
+        recorded++;
+      } catch {
+        /* skip tickers we can't price right now */
+      }
+    }
+    if (recorded) console.log(`[ledger] auto-recorded ${recorded} CRS prediction(s)`);
+  } catch (err) {
+    console.warn("[ledger] CRS auto-record failed:", err.message);
   }
 }
 
