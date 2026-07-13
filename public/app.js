@@ -5882,8 +5882,13 @@ function renderContractWatchCard(award) {
   const briefUrl = primaryTicker ? contractPageUrl(primaryTicker) : award.contractBriefUrl;
   const usaspendingUrl = award.contractUrl;
   const firstSeen = award.firstSeenAt ? `First seen by TradeSimple: ${freshnessText(award.firstSeenAt)}` : "";
-  const actionDate = award.awardDate ? `Award date ${award.awardDate}` : "";
-  const meta = [firstSeen, actionDate].filter(Boolean).join(" · ");
+  const latestAction =
+    award.actionDate && award.actionDate !== award.awardDate
+      ? `Latest action ${award.actionDate}`
+      : award.awardDate
+        ? `Award date ${award.awardDate}`
+        : "";
+  const meta = [firstSeen, latestAction].filter(Boolean).join(" · ");
 
   return `
     <article class="sc-card trending-card sc-card--contract contract-watch-card">
@@ -5896,7 +5901,7 @@ function renderContractWatchCard(award) {
       <h3 class="sc-title">${escapeHtml(compactMoney(award.amount))} → ${escapeHtml(award.recipient || "Recipient")}</h3>
       ${signalScanLineHtml({
         source: "USASpending.gov",
-        date: award.awardDate || award.firstSeenAt,
+        date: award.actionDate || award.awardDate || award.firstSeenAt,
         tickers: (award.mappedTickers || []).slice(0, 4),
         band: award.isNew ? "New award" : "Recent"
       })}

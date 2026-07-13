@@ -4755,7 +4755,7 @@ function formatContractWatchAward(row, mapping, seenRecord, nowIso) {
     amount: Number(row.obligatedAmount || 0),
     agency: row.awardingAgency || null,
     awardDate: row.startDate || null,
-    actionDate: row.startDate || null,
+    actionDate: row.lastModifiedDate || row.startDate || null,
     lastModifiedDate,
     descriptionSnippet: description ? `${description.slice(0, 180)}${description.length > 180 ? "…" : ""}` : null,
     mappedTickers: mapping.mappedTickers,
@@ -7010,21 +7010,33 @@ function buildContractFreshnessBadge({ awards = [], relatedBills = [], updatedAt
   let stale = false;
   const rows = Array.isArray(awards) ? awards : [];
   const withUrl = rows.filter((row) => row.directUrl);
+  // Period-of-performance end dates are frequently years in the future for active
+  // multi-year contracts, so they can't stand in for "when did this award last change."
+  // Only Last Modified Date (or a past-dated start/end) reflects real recency.
+  const now = Date.now();
+  const awardRecencyDate = (row) => {
+    for (const candidate of [row?.lastModifiedDate, row?.endDate, row?.startDate]) {
+      const ts = Date.parse(candidate || "");
+      if (Number.isFinite(ts) && ts <= now) return candidate;
+    }
+    return null;
+  };
   const newestAward = rows.reduce((best, row) => {
-    const ts = Date.parse(row.endDate || row.startDate || "");
+    const ts = Date.parse(awardRecencyDate(row) || "");
     if (!Number.isFinite(ts)) return best;
-    if (!best || ts > Date.parse(best.endDate || best.startDate || "")) return row;
+    if (!best || ts > Date.parse(awardRecencyDate(best) || "")) return row;
     return best;
   }, null);
 
   if (withUrl.length) {
+    const asOf = (newestAward && awardRecencyDate(newestAward)) || updatedAt || null;
     sources.push({
       kind: "usaspending",
-      asOf: newestAward?.endDate || newestAward?.startDate || updatedAt || null,
+      asOf,
       source: "USASpending",
       note: `${rows.length} award${rows.length === 1 ? "" : "s"}`
     });
-    const awardDays = freshnessDaysSince(newestAward?.endDate || newestAward?.startDate || updatedAt);
+    const awardDays = freshnessDaysSince(asOf);
     if (awardDays != null && awardDays <= 7) verified = true;
     else stale = true;
   } else if (rows.length) {
@@ -13493,6 +13505,7 @@ const USASPENDING_AWARD_FIELDS = [
   "Description",
   "Start Date",
   "End Date",
+  "Last Modified Date",
   "Contract Award Type",
   "NAICS",
   "PSC"
@@ -13554,7 +13567,8 @@ function mapUsaspendingAwardRow(row) {
     contractType: row["Contract Award Type"] || row["Award Type"] || null,
     obligatedAmount: Number(row["Award Amount"] || 0),
     startDate: row["Start Date"] || row["Period of Performance Start Date"] || null,
-    endDate: row["End Date"] || row["Period of Performance Current End Date"] || null
+    endDate: row["End Date"] || row["Period of Performance Current End Date"] || null,
+    lastModifiedDate: row["Last Modified Date"] || null
   };
 }
 
