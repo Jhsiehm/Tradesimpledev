@@ -3632,8 +3632,12 @@ async function patchWatchlist(req, res, session) {
 
 async function waitlistAdmin(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/waitlist", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   if (dbReady) {
     const rows = await dbSelect("waitlist", "select=email,source,user_agent,created_at&order=created_at.desc");
@@ -3725,8 +3729,12 @@ async function sendDispatchWelcomeEmail(email) {
 
 function validateBillsAdmin(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/validate-bills", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   return sendJson(res, 200, validateBillPipelineSample());
 }
@@ -4498,8 +4506,12 @@ async function trendingListHandlerAsync(res) {
 
 async function trendingAdminHandler(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/trending", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   const body = await readJson(req);
   const store = await loadTrendingTopicsStore();
@@ -5028,8 +5040,12 @@ function contractWatchAlertsHandler(res, url) {
 
 async function contractWatchAdminHandler(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/contract-watch", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   const body = await readJson(req);
   const store = await loadContractWatchStore();
