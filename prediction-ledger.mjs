@@ -314,12 +314,19 @@ function foldPredictions(events) {
   const byId = new Map();
   for (const e of events) {
     if (e.type === "prediction") {
-      byId.set(e.id, { ...e, status: "open", resolution: null });
+      byId.set(e.id, { ...e, status: "open", resolution: null, voided: false, voidReason: null, voidedAt: null });
     } else if (e.type === "resolution") {
       const p = byId.get(e.id);
       if (p) {
         p.status = "resolved";
         p.resolution = e;
+      }
+    } else if (e.type === "void") {
+      const p = byId.get(e.id);
+      if (p) {
+        p.voided = true;
+        p.voidReason = e.reason || null;
+        p.voidedAt = e.voidedAt || null;
       }
     }
   }
@@ -329,6 +336,12 @@ function foldPredictions(events) {
 export async function listPredictions(filter = {}) {
   const events = await ensureLoaded();
   let preds = foldPredictions(events);
+  // Voided entries stay in the hash chain forever (that's the point — they
+  // can't be silently deleted) but are excluded from every normal read by
+  // default, since the whole reason to void something is that it should
+  // stop counting toward the public track record. Pass includeVoided:true
+  // to see them (e.g. an admin audit view).
+  if (!filter.includeVoided) preds = preds.filter((p) => !p.voided);
   if (filter.ticker) {
     const t = String(filter.ticker).toUpperCase();
     preds = preds.filter((p) => p.ticker === t);
@@ -340,6 +353,35 @@ export async function listPredictions(filter = {}) {
   preds.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (filter.limit) preds = preds.slice(0, Number(filter.limit));
   return preds;
+}
+
+// ── Public: void a prediction (does NOT delete — appends a chained "void"
+// event with a mandatory reason). Used to exclude entries that should never
+// have been recorded (e.g. an unvalidated ticker slipping through a gating
+// bug) from the public track record, without breaking the append-only
+// tamper-evidence guarantee: the original mis-scoped prediction event stays
+// in the chain forever, verifiable by anyone, alongside the void event and
+// its documented reason. ──────────────────────────────────────────────────
+export async function voidPrediction(id, reason) {
+  const predId = String(id || "").trim();
+  if (!predId) throw new Error("id required");
+  const cleanReason = String(reason || "").trim();
+  if (!cleanReason) throw new Error("reason required");
+
+  const events = await ensureLoaded();
+  const pred = events.find((e) => e.type === "prediction" && e.id === predId);
+  if (!pred) throw new Error(`no prediction with id ${predId}`);
+  if (events.some((e) => e.type === "void" && e.id === predId)) {
+    throw new Error(`prediction ${predId} is already voided`);
+  }
+
+  return appendEvent({
+    type: "void",
+    id: predId,
+    ticker: pred.ticker,
+    reason: cleanReason.slice(0, 600),
+    voidedAt: new Date().toISOString()
+  });
 }
 
 // ── Scorecard: the public, brand-defining aggregate ─────────────────────────

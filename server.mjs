@@ -56,7 +56,8 @@ import {
   resolveDuePredictions,
   listPredictions,
   computeScorecard,
-  verifyLedger
+  verifyLedger,
+  voidPrediction
 } from "./prediction-ledger.mjs";
 import { normalizeThesis } from "./src/core/normalizeThesis.mjs";
 import { buildMarketThesisContext } from "./src/core/marketThesisContext.mjs";
@@ -3171,6 +3172,7 @@ async function route(req, res) {
   if (pathname === "/api/admin/trending" && req.method === "POST") return trendingAdminHandler(req, res);
   if (pathname === "/api/admin/contract-watch" && req.method === "POST") return contractWatchAdminHandler(req, res);
   if (pathname === "/api/admin/validate-bills" && req.method === "GET") return validateBillsAdmin(req, res);
+  if (pathname === "/api/admin/predictions/void" && req.method === "POST") return voidPredictionAdmin(req, res);
   if (pathname === "/terminal" || pathname === "/terminal/") {
     return redirect(res, "/auth/demo?next=/dashboard%3Fview%3Dhome");
   }
@@ -3828,6 +3830,34 @@ function validateBillsAdmin(req, res) {
     return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   return sendJson(res, 200, validateBillPipelineSample());
+}
+
+// Marks a ledger entry as void — does not delete it (the chain is append-only
+// and tamper-evident by design), just excludes it from public reads/scoring
+// going forward, with a mandatory documented reason. Use this to correct
+// entries that should never have been recorded (e.g. an unvalidated ticker
+// slipping through a gating bug), not to hide legitimate misses.
+async function voidPredictionAdmin(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/predictions/void", req);
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
+  }
+  let body;
+  try {
+    body = await readJson(req);
+  } catch {
+    return sendJson(res, 400, { error: "invalid_json" });
+  }
+  try {
+    const event = await voidPrediction(body.id, body.reason);
+    return sendJson(res, 200, { ok: true, event });
+  } catch (err) {
+    return sendJson(res, 400, { error: "void_failed", message: err.message });
+  }
 }
 
 async function waitlistSignup(req, res) {
@@ -5353,14 +5383,23 @@ async function autoRecordSignalPredictions() {
 const CRS_AUTO_RECORD_THRESHOLD = 60;
 // 20-trading-day validated window, approximated as calendar days.
 const CRS_AUTO_RECORD_HORIZON_DAYS = 28;
+// The CRS calibration only covers these five tickers. CONTRACT_PROFILES also
+// has entries for GEO, CXW, and SPCX (used for other features — manual signal
+// display, contract briefs, etc.), but those three specifically FAILED a
+// generalization backtest (rho=0.012, p=0.94, n=46 — no correlation between
+// CRS score and realized returns). Gate on this explicit allowlist, never on
+// "has a CONTRACT_PROFILES entry" — that check is a superset of validated
+// tickers, not an equivalent one, and auto-recording must never extrapolate
+// to an unvalidated name.
+const CRS_VALIDATED_TICKERS = new Set(["LMT", "BAH", "LDOS", "SAIC", "PLTR"]);
 
 /**
  * Auto-populate the ledger from contract-award CRS scores, mirroring
  * autoRecordSignalPredictions() but for USASpending contract awards instead
- * of legislation. Only fires for tickers with a CONTRACT_PROFILES entry —
- * the CRS formula was calibrated on those companies and explicitly failed
- * generalization testing on private-recipient proxies (GEO, CXW, SPCX), so
- * it must never auto-extrapolate to them.
+ * of legislation. Only fires for CRS_VALIDATED_TICKERS — the CRS formula was
+ * calibrated on those five companies and explicitly failed generalization
+ * testing on private-recipient proxies (GEO, CXW, SPCX), so it must never
+ * auto-extrapolate to them even though they have CONTRACT_PROFILES entries.
  */
 async function autoRecordCRSPredictions() {
   try {
@@ -5375,7 +5414,7 @@ async function autoRecordCRSPredictions() {
     let recorded = 0;
     for (const award of awards) {
       const symbol = String(award.mappedTickers?.[0] || "").toUpperCase();
-      if (!symbol || !CONTRACT_PROFILES[symbol]) continue;
+      if (!symbol || !CRS_VALIDATED_TICKERS.has(symbol)) continue;
 
       const key = `${award.awardId}:${symbol}:bullish`;
       if (openKeys.has(key)) continue;
