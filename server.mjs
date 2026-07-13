@@ -5137,10 +5137,18 @@ async function predictionListHandler(res, url) {
 }
 
 async function predictionRecordHandler(req, res, session) {
-  // Manual recording is gated to admins (or any authed user if no ADMIN_SECRET set).
+  // Fails closed: with no ADMIN_SECRET configured, there is no way to prove
+  // the caller is an admin, so manual recording must be refused rather than
+  // opened up to any authenticated user. The public track record is a brand
+  // asset — the hash chain proves tamper-evidence after the fact, not that
+  // what got appended in the first place was legitimate.
   const adminSecret = process.env.ADMIN_SECRET;
-  if (adminSecret && req.headers["x-admin-secret"] !== adminSecret) {
+  if (!adminSecret || !safeEqual(String(req.headers["x-admin-secret"] || ""), adminSecret)) {
+    logAdminAuthFailure("predictions/record", req);
     return sendJson(res, 403, { error: "forbidden" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   try {
     const body = await readJson(req);
