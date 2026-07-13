@@ -428,6 +428,17 @@ const stockSnapshotHistory = new Map();
 const shareRateLimit = new Map();
 const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
 const SHARE_RATE_LIMIT_WINDOW_MS = Number(process.env.SHARE_RATE_LIMIT_WINDOW_MS || 60_000);
+// Coarse per-IP backstop across the whole authenticated /api/ surface. Several
+// routes under this gate (contracts, congress bills, FEC, lobbying) call
+// external, rate-limited/paid APIs on a cache miss with no per-endpoint
+// throttle of their own — this bounds how fast one IP can force cache misses
+// across all of them. Deliberately generous so normal dashboard use (which
+// can fan out to a dozen-plus endpoints per view) is never affected; it's a
+// backstop against abuse/loops, not a precise per-endpoint budget. Tune via
+// env if real traffic patterns need a different ceiling.
+const apiRateLimit = new Map();
+const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
+const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60_000);
 const EDGAR_SNAPSHOT_CACHE_TTL_MS = Number(process.env.EDGAR_SNAPSHOT_CACHE_TTL_MS || 6 * 60 * 60_000);
 const edgarSnapshotCache = new Map();
 // File-level write lock — prevents concurrent writes corrupting flat JSON/JSONL data files.
@@ -2956,6 +2967,27 @@ async function route(req, res) {
 
   if (isLandingOnly() && !landingOnlyAllows(pathname, req.method)) {
     return landingOnlyBlocked(res, pathname);
+  }
+
+  // Coarse per-IP backstop across the whole /api/ surface — applied here,
+  // before any route-specific handling, so it also covers routes matched
+  // earlier in this function (e.g. /api/usaspending/*, /api/session) that
+  // never reach the authenticated-block gate further down. Endpoints with
+  // their own tighter limiter (auth, share) are still bound by it too; this
+  // is just an outer ceiling, not a replacement for those.
+  if (pathname.startsWith("/api/")) {
+    const apiLimit = checkIpWindowLimit(apiRateLimit, req, {
+      max: API_RATE_LIMIT_MAX,
+      windowMs: API_RATE_LIMIT_WINDOW_MS
+    });
+    if (!apiLimit.ok) {
+      res.writeHead(429, responseHeaders({
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+        "retry-after": String(apiLimit.retryAfterSeconds)
+      }));
+      return res.end(JSON.stringify({ error: "rate_limited", message: "Too many requests. Please slow down." }));
+    }
   }
 
   if (pathname === "/") return sendLandingIndex(res);
