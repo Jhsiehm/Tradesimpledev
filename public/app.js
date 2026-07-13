@@ -11357,6 +11357,15 @@ function renderTrCalibration(buckets) {
   }
 }
 
+// Human-readable label + badge color class for a prediction's catalyst.type.
+// Unknown/future catalyst types (e.g. a new auto-recorder) fall back to "Other"
+// rather than leaking a raw snake_case type string into the UI.
+function trCatalystInfo(type) {
+  if (type === "bill_stage") return { label: "Legislation", cls: "legislation" };
+  if (type === "contract_crs") return { label: "Contract Award", cls: "contract-award" };
+  return { label: "Other", cls: "other" };
+}
+
 function renderTrCatalyst(byCat) {
   const el = $("#tr-catalyst");
   if (!el) return;
@@ -11369,7 +11378,7 @@ function renderTrCatalyst(byCat) {
   el.innerHTML = rows.map(([type, v]) => {
     const hit = v.hitRate != null ? Math.round(v.hitRate * 100) : null;
     const edgeCls = v.edgePct == null ? "" : v.edgePct > 0 ? "pos" : "neg";
-    const label = type.replace(/_/g, " ");
+    const label = trCatalystInfo(type).label;
     return `
       <div class="tr-cat-row">
         <div class="tr-cat-name">${escapeHtml(label)}<small>${v.n} call${v.n === 1 ? "" : "s"}</small></div>
@@ -11412,9 +11421,13 @@ function renderTrLog(predictions) {
     }
 
     const conf = Number.isFinite(Number(p.confidence)) ? `${Math.round(p.confidence)}% conf` : "";
+    const catInfo = trCatalystInfo(p.catalyst?.type);
     return `
       <div class="tr-log-row">
-        <span class="tr-log-dir ${p.direction}">${dirLabel}</span>
+        <div class="tr-log-dir-col">
+          <span class="tr-log-dir ${p.direction}">${dirLabel}</span>
+          <span class="tr-log-cat-badge ${catInfo.cls}">${escapeHtml(catInfo.label)}</span>
+        </div>
         <div class="tr-log-body">
           <span class="tr-log-tick">${escapeHtml(p.ticker)}</span>
           <p class="tr-log-thesis">${escapeHtml(p.thesis || catalyst)}</p>
