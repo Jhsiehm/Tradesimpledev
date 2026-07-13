@@ -83,7 +83,7 @@ import {
   readCongressCache,
   writeCongressCache
 } from "./src/core/dataRefreshState.mjs";
-import { aggregateLobbyingForBills, fetchLdaFilings } from "./src/core/ldaLobbying.mjs";
+import { aggregateLobbyingForBills, fetchLdaFilings, TICKER_CLIENT_HINTS } from "./src/core/ldaLobbying.mjs";
 import { isStrictDataMode, productionReadiness } from "./src/core/productionDataMode.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -2765,6 +2765,10 @@ server.listen(PORT, "0.0.0.0", async () => {
     // Staggered after contract-watch's own 14s boot refresh so store.awards is populated.
     setTimeout(() => autoRecordCRSPredictions(), 20_000);
     setInterval(() => autoRecordCRSPredictions(), 24 * 60 * 60 * 1000); // daily
+    // 26s: staggered after the contract-award CRS recorder (20s), which itself
+    // waits on contract-watch's 14s boot refresh. See autoRecordCRSPredictions().
+    setTimeout(() => autoRecordLobbyingPredictions(), 26_000);
+    setInterval(() => autoRecordLobbyingPredictions(), 24 * 60 * 60 * 1000); // daily
   }
   setTimeout(() => resolveDuePredictions(ledgerDeps).then((r) => {
     if (r.resolved) console.log(`[ledger] resolved ${r.resolved} prediction(s)`);
@@ -5380,6 +5384,115 @@ async function autoRecordCRSPredictions() {
     if (recorded) console.log(`[ledger] auto-recorded ${recorded} CRS prediction(s)`);
   } catch (err) {
     console.warn("[ledger] CRS auto-record failed:", err.message);
+  }
+}
+
+// Starting cutoff, NOT backtest-derived like CRS_AUTO_RECORD_THRESHOLD — a rough
+// filter to avoid logging routine quarter-to-quarter lobbying noise. Tune once
+// more live predictions using this threshold have resolved.
+const LOBBYING_AUTO_RECORD_QOQ_THRESHOLD_PCT = 50;
+const LOBBYING_AUTO_RECORD_HORIZON_DAYS = 40; // horizon where the correlation was strongest (p=0.009)
+
+function calendarQuarterKey(dateStr) {
+  const t = Date.parse(dateStr || "");
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  const q = Math.floor(d.getUTCMonth() / 3) + 1;
+  return `${d.getUTCFullYear()}-Q${q}`;
+}
+
+/**
+ * Auto-populate the ledger from LDA lobbying-spend changes, mirroring
+ * autoRecordSignalPredictions()/autoRecordCRSPredictions() but for quarter-
+ * over-quarter lobbying income deltas instead of legislation or contract
+ * awards. Scoped to CONTRACT_PROFILES tickers via the same TICKER_CLIENT_HINTS
+ * map used to attribute LDA filings to companies elsewhere in this file.
+ *
+ * IMPORTANT — direction is intentionally BEARISH: our backtest found lobbying
+ * spend increases correlated with NEGATIVE forward abnormal returns
+ * (rho=-0.264 at 5 days, rho=-0.347 at 40 days, p=0.009), the opposite of the
+ * naive "more lobbying → more contract wins" intuition. Do not flip this to
+ * bullish without re-checking the data.
+ *
+ * IMPORTANT — this signal has NOT been validated with panel-corrected
+ * statistics (company fixed effects / clustered standard errors). The raw
+ * correlation may be overstated by repeated observations per company. Once
+ * ~20-30 of these predictions resolve, check hit rate/edge by catalyst
+ * ("lobbying_spend_delta" in the by-catalyst breakdown) before trusting the
+ * threshold further.
+ */
+async function autoRecordLobbyingPredictions() {
+  try {
+    const apiKey = process.env.SENATE_LDA_API_KEY;
+    if (!apiKey) return;
+
+    const open = await listPredictions({ status: "open" });
+    const openKeys = new Set(
+      open.map((p) => `${p.catalyst?.id || ""}:${p.ticker}:${p.direction}`)
+    );
+
+    const filings = await fetchLdaFilings({
+      apiKey,
+      fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000)
+    });
+
+    let recorded = 0;
+    for (const symbol of Object.keys(CONTRACT_PROFILES)) {
+      const hints = TICKER_CLIENT_HINTS[symbol];
+      if (!hints || !hints.length) continue;
+
+      const byQuarter = new Map();
+      for (const filing of filings) {
+        const hay = `${filing.client || ""} ${filing.registrant || ""}`.toLowerCase();
+        if (!hints.some((hint) => hay.includes(hint))) continue;
+        const qKey = calendarQuarterKey(filing.postedAt);
+        if (!qKey) continue;
+        byQuarter.set(qKey, (byQuarter.get(qKey) || 0) + Number(filing.amount || 0));
+      }
+      const quarters = [...byQuarter.keys()].sort().reverse();
+      if (quarters.length < 2) continue;
+
+      const [latestQ, priorQ] = quarters;
+      const latestTotal = byQuarter.get(latestQ);
+      const priorTotal = byQuarter.get(priorQ);
+      if (!(priorTotal > 0)) continue;
+
+      const pctChange = ((latestTotal - priorTotal) / priorTotal) * 100;
+      if (pctChange < LOBBYING_AUTO_RECORD_QOQ_THRESHOLD_PCT) continue;
+
+      const catalystId = `${symbol}:${latestQ}`;
+      const key = `${catalystId}:${symbol}:bearish`;
+      if (openKeys.has(key)) continue;
+
+      try {
+        await recordPrediction(
+          {
+            ticker: symbol,
+            direction: "bearish",
+            horizonDays: LOBBYING_AUTO_RECORD_HORIZON_DAYS,
+            // Fixed, deliberately modest confidence — unlike CRS there's no
+            // calibrated per-event score here, and the underlying correlation
+            // isn't panel-corrected, so this shouldn't claim more certainty
+            // than a flat, slightly-above-coinflip prior.
+            confidence: 55,
+            thesis: `Lobbying spend +${pctChange.toFixed(0)}% QoQ (${latestQ}: ${compactMoney(latestTotal)} vs ${priorQ}: ${compactMoney(priorTotal)}) — historically correlated with negative 40-day forward abnormal return (rho=-0.347, p=0.009), not more contract wins. Panel-uncorrected; treat cautiously.`,
+            catalyst: {
+              type: "lobbying_spend_delta",
+              id: catalystId,
+              title: `${symbol} lobbying spend +${pctChange.toFixed(0)}% QoQ`
+            },
+            origin: "auto:lobbying_signal"
+          },
+          ledgerDeps
+        );
+        recorded++;
+      } catch {
+        /* skip tickers we can't price right now */
+      }
+    }
+    if (recorded) console.log(`[ledger] auto-recorded ${recorded} lobbying prediction(s)`);
+  } catch (err) {
+    console.warn("[ledger] lobbying auto-record failed:", err.message);
   }
 }
 

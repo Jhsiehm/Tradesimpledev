@@ -2,7 +2,7 @@
  * Map Senate LDA filings to policy bills by issue keywords and client names.
  */
 
-const TICKER_CLIENT_HINTS = {
+export const TICKER_CLIENT_HINTS = {
   LLY: ["lilly", "eli lilly"],
   MRK: ["merck"],
   PFE: ["pfizer"],
@@ -30,7 +30,9 @@ const TICKER_CLIENT_HINTS = {
   PLTR: ["palantir"],
   BAH: ["booz allen", "booz allen hamilton"],
   LMT: ["lockheed martin", "lockheed"],
-  SPCX: ["spacex", "space exploration technologies", "space exploration technologies corp"]
+  SPCX: ["spacex", "space exploration technologies", "space exploration technologies corp"],
+  LDOS: ["leidos"],
+  SAIC: ["saic", "science applications international"]
 };
 
 const HOMELAND_ISSUE_KEYWORDS = [
