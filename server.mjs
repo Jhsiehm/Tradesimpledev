@@ -3085,6 +3085,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiScorecardHandler(req, res);
   }
   if (pathname === "/api/ai/edgar" && req.method === "POST") {
@@ -3092,6 +3093,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiEdgarHandler(req, res);
   }
   if (pathname === "/api/ai/lobby-map" && req.method === "POST") {
@@ -3099,6 +3101,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiLobbyMapHandler(req, res);
   }
   if (pathname === "/api/ai/chart-label" && req.method === "POST") {
@@ -3106,6 +3109,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiChartLabelHandler(req, res);
   }
   if (pathname === "/api/ai/thesis" && req.method === "POST") {
@@ -3113,6 +3117,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiThesisHandler(req, res);
   }
   if (pathname.startsWith("/api/share/edgar/") && req.method === "GET") {
@@ -3177,7 +3182,7 @@ async function route(req, res) {
     const session = getSession(req);
     if (!session) return sendJson(res, 401, { error: "unauthorized" });
 
-    if (requiresCsrf(req, pathname) && !validateCsrf(req)) {
+    if (requiresCsrf(req) && !validateCsrf(req)) {
       return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     }
 
@@ -14725,10 +14730,9 @@ function clearAuthCookies(res, req) {
   ]);
 }
 
-function requiresCsrf(req, pathname) {
+function requiresCsrf(req) {
   const method = String(req.method || "GET").toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
-  if (pathname.startsWith("/api/ai/")) return false;
   return true;
 }
 
