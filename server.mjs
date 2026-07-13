@@ -126,6 +126,7 @@ function landingOnlyAllows(pathname, method) {
     if (pathname === "/api/predictions") return true;
   }
   if (method === "POST" && pathname === "/api/waitlist") return true;
+  if (method === "POST" && pathname === "/api/preview/unlock") return true;
   return false;
 }
 
@@ -137,6 +138,16 @@ function landingOnlyBlocked(res, pathname) {
     });
   }
   return redirect(res, "/#early-access");
+}
+
+// Signed cookie set by previewUnlockHandler() on a correct PREVIEW_PASSCODE.
+// A valid cookie bypasses LANDING_ONLY entirely for that browser — it does
+// not touch FEATURE_GATES or any other global state, so it can never affect
+// what a different visitor sees.
+function previewAccessGranted(req) {
+  const cookies = parseCookies(req);
+  const payload = verifyObject(cookies[PREVIEW_COOKIE]);
+  return Boolean(payload?.granted && payload.exp > unixNow());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,6 +243,17 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 65_536);
 const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 10);
 const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+
+// Dev-preview passcode gate — a single shared passcode (PREVIEW_PASSCODE) that
+// bypasses LANDING_ONLY mode for whoever enters it, so the owner (or anyone
+// they hand the code to) can reach the terminal/ledger before public launch.
+// Deliberately a per-request cookie check, not a FEATURE_GATES mutation —
+// unlike the /api/settings/anthropic bug fixed earlier, this must never
+// change what any other visitor sees.
+const PREVIEW_COOKIE = "ts_preview";
+const PREVIEW_TTL_SECONDS = Number(process.env.PREVIEW_TTL_SECONDS || 60 * 60 * 24 * 30); // 30 days
+const PREVIEW_RATE_LIMIT_MAX = Number(process.env.PREVIEW_RATE_LIMIT_MAX || 10);
+const PREVIEW_RATE_LIMIT_WINDOW_MS = Number(process.env.PREVIEW_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 
 // Shared by requestIsHttps() and clientIp(): only trust proxy-supplied
 // X-Forwarded-* headers when we know a real proxy (Railway, or an explicit
@@ -2992,7 +3014,7 @@ async function route(req, res) {
   const url = new URL(req.url || "/", APP_URL);
   const pathname = normalizeRoutePathname(url.pathname);
 
-  if (isLandingOnly() && !landingOnlyAllows(pathname, req.method)) {
+  if (isLandingOnly() && !landingOnlyAllows(pathname, req.method) && !previewAccessGranted(req)) {
     return landingOnlyBlocked(res, pathname);
   }
 
@@ -3144,6 +3166,7 @@ async function route(req, res) {
     return sendJson(res, 200, { user: session?.user || null });
   }
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
+  if (pathname === "/api/preview/unlock" && req.method === "POST") return previewUnlockHandler(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
   if (pathname === "/api/admin/trending" && req.method === "POST") return trendingAdminHandler(req, res);
   if (pathname === "/api/admin/contract-watch" && req.method === "POST") return contractWatchAdminHandler(req, res);
@@ -3483,7 +3506,8 @@ function publicConfig() {
     },
     launch: {
       landingOnly: isLandingOnly(),
-      waitlistOpen: true
+      waitlistOpen: true,
+      previewPasscodeEnabled: Boolean(process.env.PREVIEW_PASSCODE)
     },
     dispatch: {
       dispatchWelcomeEnabled,
@@ -14629,6 +14653,57 @@ setInterval(() => {
 // Never logs the submitted secret itself — only that an attempt failed, from where.
 function logAdminAuthFailure(routeLabel, req) {
   console.warn(`[admin] auth failed for ${routeLabel} from ${clientIp(req)}`);
+}
+
+// ── Dev-preview passcode gate ─────────────────────────────────────────────────
+const previewAttempts = new Map();
+
+function previewRateLimitOk(req) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const entry = previewAttempts.get(ip);
+  if (!entry || now - entry.start > PREVIEW_RATE_LIMIT_WINDOW_MS) {
+    previewAttempts.set(ip, { start: now, n: 1 });
+    return true;
+  }
+  if (entry.n >= PREVIEW_RATE_LIMIT_MAX) return false;
+  entry.n += 1;
+  return true;
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - PREVIEW_RATE_LIMIT_WINDOW_MS * 2;
+  for (const [ip, entry] of previewAttempts) {
+    if (entry.start < cutoff) previewAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
+async function previewUnlockHandler(req, res) {
+  if (!previewRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
+  }
+
+  const configured = String(process.env.PREVIEW_PASSCODE || "");
+  if (!configured) {
+    return sendJson(res, 503, { error: "preview_not_configured", message: "Preview access isn't set up yet." });
+  }
+
+  let body;
+  try {
+    body = await readJson(req);
+  } catch {
+    return sendJson(res, 400, { error: "invalid_json" });
+  }
+  const passcode = String(body.passcode || "");
+
+  if (!passcode || !safeEqual(passcode, configured)) {
+    console.warn(`[preview] auth failed from ${clientIp(req)}`); // never logs the passcode itself
+    return sendJson(res, 401, { error: "invalid_passcode", message: "Incorrect passcode." });
+  }
+
+  const token = signObject({ granted: true, exp: unixNow() + PREVIEW_TTL_SECONDS });
+  res.setHeader("set-cookie", `${PREVIEW_COOKIE}=${token}; ${cookieAttrs(PREVIEW_TTL_SECONDS, req)}`);
+  return sendJson(res, 200, { ok: true });
 }
 
 // ── Email / password accounts ────────────────────────────────────────────────

@@ -581,6 +581,24 @@ footer{
 footer nav{display:flex;gap:24px;font-size:12.5px;color:var(--muted)}
 footer nav a:hover{color:var(--text)}
 .footer-legal{font-size:11px;color:var(--faint);font-family:var(--mono);width:100%;margin-top:8px}
+
+/* ── PREVIEW ACCESS (owner passcode gate, hidden unless configured) ──── */
+.preview-access{width:100%;margin-top:10px;font-size:12px}
+.preview-access-toggle{background:none;border:none;padding:0;font:inherit;color:var(--faint);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.preview-access-toggle:hover{color:var(--muted)}
+.preview-access-form{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.preview-access-input{
+  padding:8px 12px;border:1px solid var(--line-2);border-radius:7px;
+  background:var(--bg);color:var(--text);font-size:13px;font-family:var(--mono);
+  outline:none;width:180px;
+}
+.preview-access-input:focus{border-color:rgba(141,253,171,.4);box-shadow:0 0 0 3px var(--green-glow)}
+.preview-access-submit{
+  padding:8px 14px;border:1px solid var(--line-2);border-radius:7px;background:transparent;
+  color:var(--text);font-size:12.5px;font-family:var(--sans);cursor:pointer;
+}
+.preview-access-submit:hover{border-color:var(--green)}
+.preview-access-status{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;width:100%}
 </style>
 </head>
 <body class="landing-cinematic">
@@ -1133,6 +1151,14 @@ footer nav a:hover{color:var(--text)}
     <a href="#how-it-works">How it works</a>
     <a href="#early-access">Early access</a>
   </nav>
+  <div class="preview-access" id="preview-access" hidden>
+    <button type="button" class="preview-access-toggle" id="preview-access-toggle" onclick="togglePreviewForm()">Preview access</button>
+    <form class="preview-access-form" id="preview-access-form" onsubmit="handlePreviewUnlock(event)" hidden>
+      <input id="preview-passcode" class="preview-access-input" type="password" placeholder="Passcode" autocomplete="off" required/>
+      <button class="preview-access-submit" type="submit" id="preview-submit">Unlock →</button>
+    </form>
+    <p class="preview-access-status" id="preview-status"></p>
+  </div>
   <div class="footer-legal">Not financial advice. &copy; 2026 TradeSimple. All signals are informational only and do not constitute investment recommendations. API keys stay server-side.</div>
 </footer>
 
@@ -1192,7 +1218,11 @@ function loadLaunchConfig(){
     .then(function(r){ return r.ok ? r.json() : null; })
     .catch(function(){ return null; })
     .then(function(cfg){
-      if(cfg && cfg.launch) TS_LANDING_ONLY = !!cfg.launch.landingOnly;
+      if(cfg && cfg.launch){
+        TS_LANDING_ONLY = !!cfg.launch.landingOnly;
+        var previewEl = document.getElementById('preview-access');
+        if(previewEl) previewEl.hidden = !cfg.launch.previewPasscodeEnabled;
+      }
       return cfg;
     });
 }
@@ -1311,6 +1341,46 @@ function handleWL(e){
       }
       btn.style.opacity='1';
       btn.disabled=false;
+    });
+}
+
+/* ── PREVIEW ACCESS (owner passcode gate) ── */
+function togglePreviewForm(){
+  var form=document.getElementById('preview-access-form');
+  var toggle=document.getElementById('preview-access-toggle');
+  if(!form)return;
+  form.hidden=!form.hidden;
+  if(!form.hidden){
+    toggle.hidden=true;
+    var input=document.getElementById('preview-passcode');
+    if(input)input.focus();
+  }
+}
+function handlePreviewUnlock(e){
+  e.preventDefault();
+  var input=document.getElementById('preview-passcode');
+  var btn=document.getElementById('preview-submit');
+  var st=document.getElementById('preview-status');
+  var passcode=(input&&input.value||'').trim();
+  if(!passcode||btn.disabled)return;
+  btn.style.opacity='.6';
+  btn.disabled=true;
+  st.style.color='var(--muted)';
+  st.textContent='Checking…';
+  fetch(tsApiUrl('/api/preview/unlock'),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({passcode:passcode})})
+    .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
+    .catch(function(){return{ok:false,data:{}};})
+    .then(function(result){
+      btn.style.opacity='1';
+      btn.disabled=false;
+      if(result.ok&&result.data.ok){
+        st.style.color='var(--green)';
+        st.textContent='Unlocked — opening the terminal…';
+        window.location.href=tsAppUrl('/dashboard?view=home');
+      }else{
+        st.style.color='var(--red)';
+        st.textContent=(result.data&&result.data.message)||'Incorrect passcode.';
+      }
     });
 }
 
