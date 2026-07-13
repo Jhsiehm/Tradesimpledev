@@ -8,10 +8,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .
+COPY --chown=node:node . .
 
 ENV NODE_ENV=production
 ENV YFINANCE_PYTHON=python3
+
+# Run as the image's built-in unprivileged user rather than root.
+USER node
 
 EXPOSE 8080
 CMD ["node", "server.mjs"]

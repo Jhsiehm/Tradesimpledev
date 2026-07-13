@@ -228,16 +228,27 @@ const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 65_536);
 const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 10);
 const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 
+// Shared by requestIsHttps() and clientIp(): only trust proxy-supplied
+// X-Forwarded-* headers when we know a real proxy (Railway, or an explicit
+// opt-in) sits in front of us. Otherwise a client could set these headers
+// directly and spoof its own IP or the request's apparent scheme.
+function isTrustedProxy() {
+  return (
+    process.env.TRUST_PROXY === "true" ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN)
+  );
+}
+
 function requestIsHttps(req) {
-  const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-  return proto === "https" || APP_URL.startsWith("https://");
+  if (isTrustedProxy()) {
+    const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+    if (proto === "https") return true;
+  }
+  return APP_URL.startsWith("https://");
 }
 
 function clientIp(req) {
-  const trustProxy =
-    process.env.TRUST_PROXY === "true" ||
-    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN);
-  if (trustProxy) {
+  if (isTrustedProxy()) {
     const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
     if (forwarded) return forwarded;
   }
@@ -428,6 +439,17 @@ const stockSnapshotHistory = new Map();
 const shareRateLimit = new Map();
 const SHARE_RATE_LIMIT_MAX = Number(process.env.SHARE_RATE_LIMIT_MAX || 60);
 const SHARE_RATE_LIMIT_WINDOW_MS = Number(process.env.SHARE_RATE_LIMIT_WINDOW_MS || 60_000);
+// Coarse per-IP backstop across the whole authenticated /api/ surface. Several
+// routes under this gate (contracts, congress bills, FEC, lobbying) call
+// external, rate-limited/paid APIs on a cache miss with no per-endpoint
+// throttle of their own — this bounds how fast one IP can force cache misses
+// across all of them. Deliberately generous so normal dashboard use (which
+// can fan out to a dozen-plus endpoints per view) is never affected; it's a
+// backstop against abuse/loops, not a precise per-endpoint budget. Tune via
+// env if real traffic patterns need a different ceiling.
+const apiRateLimit = new Map();
+const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
+const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60_000);
 const EDGAR_SNAPSHOT_CACHE_TTL_MS = Number(process.env.EDGAR_SNAPSHOT_CACHE_TTL_MS || 6 * 60 * 60_000);
 const edgarSnapshotCache = new Map();
 // File-level write lock — prevents concurrent writes corrupting flat JSON/JSONL data files.
@@ -2834,13 +2856,17 @@ function warmQuoteCatalogCache() {
 }
 
 function requestIp(req) {
-  const raw =
-    req.headers["cf-connecting-ip"] ||
-    req.headers["x-real-ip"] ||
-    req.headers["x-forwarded-for"] ||
-    req.socket?.remoteAddress ||
-    "unknown";
-  return String(Array.isArray(raw) ? raw[0] : raw).split(",")[0].trim();
+  // Only trust proxy-supplied IP headers behind a known proxy — otherwise a
+  // client can set these directly to spoof its IP and evade the IP-windowed
+  // rate limiters this feeds (share endpoints, the general /api/ backstop).
+  if (isTrustedProxy()) {
+    const raw =
+      req.headers["cf-connecting-ip"] ||
+      req.headers["x-real-ip"] ||
+      req.headers["x-forwarded-for"];
+    if (raw) return String(Array.isArray(raw) ? raw[0] : raw).split(",")[0].trim();
+  }
+  return String(req.socket?.remoteAddress || "unknown");
 }
 
 function checkIpWindowLimit(bucket, req, { max, windowMs }) {
@@ -2958,6 +2984,27 @@ async function route(req, res) {
     return landingOnlyBlocked(res, pathname);
   }
 
+  // Coarse per-IP backstop across the whole /api/ surface — applied here,
+  // before any route-specific handling, so it also covers routes matched
+  // earlier in this function (e.g. /api/usaspending/*, /api/session) that
+  // never reach the authenticated-block gate further down. Endpoints with
+  // their own tighter limiter (auth, share) are still bound by it too; this
+  // is just an outer ceiling, not a replacement for those.
+  if (pathname.startsWith("/api/")) {
+    const apiLimit = checkIpWindowLimit(apiRateLimit, req, {
+      max: API_RATE_LIMIT_MAX,
+      windowMs: API_RATE_LIMIT_WINDOW_MS
+    });
+    if (!apiLimit.ok) {
+      res.writeHead(429, responseHeaders({
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+        "retry-after": String(apiLimit.retryAfterSeconds)
+      }));
+      return res.end(JSON.stringify({ error: "rate_limited", message: "Too many requests. Please slow down." }));
+    }
+  }
+
   if (pathname === "/") return sendLandingIndex(res);
   if (pathname === "/favicon.ico") return sendStatic(res, "favicon.png");
   if (pathname === "/dashboard") {
@@ -3038,6 +3085,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiScorecardHandler(req, res);
   }
   if (pathname === "/api/ai/edgar" && req.method === "POST") {
@@ -3045,6 +3093,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiEdgarHandler(req, res);
   }
   if (pathname === "/api/ai/lobby-map" && req.method === "POST") {
@@ -3052,6 +3101,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiLobbyMapHandler(req, res);
   }
   if (pathname === "/api/ai/chart-label" && req.method === "POST") {
@@ -3059,6 +3109,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiChartLabelHandler(req, res);
   }
   if (pathname === "/api/ai/thesis" && req.method === "POST") {
@@ -3066,6 +3117,7 @@ async function route(req, res) {
       return sendJson(res, 503, { error: "feature_unavailable", message: "AI research is not yet enabled." });
     }
     if (!getSession(req)) return sendJson(res, 401, { error: "unauthorized" });
+    if (!validateCsrf(req)) return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     return aiThesisHandler(req, res);
   }
   if (pathname.startsWith("/api/share/edgar/") && req.method === "GET") {
@@ -3130,7 +3182,7 @@ async function route(req, res) {
     const session = getSession(req);
     if (!session) return sendJson(res, 401, { error: "unauthorized" });
 
-    if (requiresCsrf(req, pathname) && !validateCsrf(req)) {
+    if (requiresCsrf(req) && !validateCsrf(req)) {
       return sendJson(res, 403, { error: "csrf_invalid", message: "Invalid or missing CSRF token." });
     }
 
@@ -3453,10 +3505,28 @@ function publicConfig() {
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 
 async function saveAnthropicSettings(req, res) {
+  // Admin-only: this sets the server's shared Anthropic key/model for every
+  // user's "server AI" requests, not a per-user setting. Any authenticated
+  // user being able to call this would let them silently redirect every other
+  // user's AI traffic through a key of their choosing.
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("settings/anthropic", req);
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
+  }
+
   const body = await readJson(req);
   const apiKey = String(body.apiKey || "").trim();
   const model  = String(body.model  || "").trim();
 
+  // Reject control characters (newline, CR, NUL) so a submitted value can
+  // never inject extra lines into .env.local when persisted below.
+  if (/[\r\n\0]/.test(apiKey) || /[\r\n\0]/.test(model)) {
+    return sendJson(res, 400, { error: "invalid_characters", message: "Key/model must not contain control characters." });
+  }
   if (!apiKey) return sendJson(res, 400, { error: "api_key_required" });
   if (!apiKey.startsWith("sk-ant-")) return sendJson(res, 400, { error: "invalid_key_format", message: "Key must start with sk-ant-" });
 
@@ -3614,8 +3684,12 @@ async function patchWatchlist(req, res, session) {
 
 async function waitlistAdmin(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/waitlist", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   if (dbReady) {
     const rows = await dbSelect("waitlist", "select=email,source,user_agent,created_at&order=created_at.desc");
@@ -3707,8 +3781,12 @@ async function sendDispatchWelcomeEmail(email) {
 
 function validateBillsAdmin(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/validate-bills", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   return sendJson(res, 200, validateBillPipelineSample());
 }
@@ -4480,8 +4558,12 @@ async function trendingListHandlerAsync(res) {
 
 async function trendingAdminHandler(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/trending", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   const body = await readJson(req);
   const store = await loadTrendingTopicsStore();
@@ -5010,8 +5092,12 @@ function contractWatchAlertsHandler(res, url) {
 
 async function contractWatchAdminHandler(req, res) {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/contract-watch", req);
     return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   const body = await readJson(req);
   const store = await loadContractWatchStore();
@@ -5119,10 +5205,18 @@ async function predictionListHandler(res, url) {
 }
 
 async function predictionRecordHandler(req, res, session) {
-  // Manual recording is gated to admins (or any authed user if no ADMIN_SECRET set).
+  // Fails closed: with no ADMIN_SECRET configured, there is no way to prove
+  // the caller is an admin, so manual recording must be refused rather than
+  // opened up to any authenticated user. The public track record is a brand
+  // asset — the hash chain proves tamper-evidence after the fact, not that
+  // what got appended in the first place was legitimate.
   const adminSecret = process.env.ADMIN_SECRET;
-  if (adminSecret && req.headers["x-admin-secret"] !== adminSecret) {
+  if (!adminSecret || !safeEqual(String(req.headers["x-admin-secret"] || ""), adminSecret)) {
+    logAdminAuthFailure("predictions/record", req);
     return sendJson(res, 403, { error: "forbidden" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
   }
   try {
     const body = await readJson(req);
@@ -14313,6 +14407,40 @@ function logout(res, req) {
   redirect(res, "/");
 }
 
+// ── Admin-secret-gated endpoints ─────────────────────────────────────────────
+// Shared rate limiting + failure logging for every endpoint gated on
+// ADMIN_SECRET (waitlist admin, trending admin, contract-watch admin, bill
+// validation admin, prediction recording, Anthropic settings). The secret
+// comparisons themselves use safeEqual() (constant-time) at each call site.
+const ADMIN_RATE_LIMIT_MAX = Number(process.env.ADMIN_RATE_LIMIT_MAX || 20);
+const ADMIN_RATE_LIMIT_WINDOW_MS = Number(process.env.ADMIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const adminAttempts = new Map();
+
+function adminRateLimitOk(req) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const entry = adminAttempts.get(ip);
+  if (!entry || now - entry.start > ADMIN_RATE_LIMIT_WINDOW_MS) {
+    adminAttempts.set(ip, { start: now, n: 1 });
+    return true;
+  }
+  if (entry.n >= ADMIN_RATE_LIMIT_MAX) return false;
+  entry.n += 1;
+  return true;
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - ADMIN_RATE_LIMIT_WINDOW_MS * 2;
+  for (const [ip, entry] of adminAttempts) {
+    if (entry.start < cutoff) adminAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
+// Never logs the submitted secret itself — only that an attempt failed, from where.
+function logAdminAuthFailure(routeLabel, req) {
+  console.warn(`[admin] auth failed for ${routeLabel} from ${clientIp(req)}`);
+}
+
 // ── Email / password accounts ────────────────────────────────────────────────
 // Accounts persist to Supabase `profiles` when connected, else to a local
 // data/accounts.json file so the flow works in dev. Passwords are scrypt-hashed.
@@ -14602,10 +14730,9 @@ function clearAuthCookies(res, req) {
   ]);
 }
 
-function requiresCsrf(req, pathname) {
+function requiresCsrf(req) {
   const method = String(req.method || "GET").toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
-  if (pathname.startsWith("/api/ai/")) return false;
   return true;
 }
 
