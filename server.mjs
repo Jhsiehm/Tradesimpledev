@@ -112,6 +112,8 @@ function landingOnlyAllows(pathname, method) {
     if (pathname === "/" || pathname === "/manifesto") return true;
     if (pathname === "/favicon.ico" || pathname === "/favicon.png") return true;
     if (pathname === "/robots.txt" || pathname === "/.well-known/security.txt") return true;
+    // Investor/analyst pitch link — needs to work independent of the consumer launch phase.
+    if (pathname === "/track-record") return true;
   }
   if (method === "GET") {
     if (pathname === "/api/config") return true;
@@ -119,6 +121,9 @@ function landingOnlyAllows(pathname, method) {
     if (pathname === "/api/landing-signal") return true;
     if (pathname === "/api/landing-fec-pulse") return true;
     if (pathname === "/api/fec/pulse") return true;
+    if (pathname === "/api/predictions/scorecard") return true;
+    if (pathname === "/api/predictions/verify") return true;
+    if (pathname === "/api/predictions") return true;
   }
   if (method === "POST" && pathname === "/api/waitlist") return true;
   return false;
@@ -3180,6 +3185,9 @@ async function route(req, res) {
   if (pathname === "/api/predictions/scorecard" && req.method === "GET") return predictionScorecardHandler(res, url);
   if (pathname === "/api/predictions/verify" && req.method === "GET") return predictionVerifyHandler(res);
   if (pathname === "/api/predictions" && req.method === "GET") return predictionListHandler(res, url);
+  // Shareable, read-only Track Record page — no login, no other product surface.
+  // Fetches from the same public scorecard/predictions endpoints above.
+  if (pathname === "/track-record") return sendStatic(res, "track-record-public.html");
 
   if (pathname.startsWith("/api/")) {
     const session = getSession(req);
