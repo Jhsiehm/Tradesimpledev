@@ -3453,10 +3453,28 @@ function publicConfig() {
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 
 async function saveAnthropicSettings(req, res) {
+  // Admin-only: this sets the server's shared Anthropic key/model for every
+  // user's "server AI" requests, not a per-user setting. Any authenticated
+  // user being able to call this would let them silently redirect every other
+  // user's AI traffic through a key of their choosing.
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("settings/anthropic", req);
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
+  }
+
   const body = await readJson(req);
   const apiKey = String(body.apiKey || "").trim();
   const model  = String(body.model  || "").trim();
 
+  // Reject control characters (newline, CR, NUL) so a submitted value can
+  // never inject extra lines into .env.local when persisted below.
+  if (/[\r\n\0]/.test(apiKey) || /[\r\n\0]/.test(model)) {
+    return sendJson(res, 400, { error: "invalid_characters", message: "Key/model must not contain control characters." });
+  }
   if (!apiKey) return sendJson(res, 400, { error: "api_key_required" });
   if (!apiKey.startsWith("sk-ant-")) return sendJson(res, 400, { error: "invalid_key_format", message: "Key must start with sk-ant-" });
 
@@ -14311,6 +14329,40 @@ async function startDemoSession(req, res) {
 function logout(res, req) {
   clearAuthCookies(res, req);
   redirect(res, "/");
+}
+
+// ── Admin-secret-gated endpoints ─────────────────────────────────────────────
+// Shared rate limiting + failure logging for every endpoint gated on
+// ADMIN_SECRET (waitlist admin, trending admin, contract-watch admin, bill
+// validation admin, prediction recording, Anthropic settings). The secret
+// comparisons themselves use safeEqual() (constant-time) at each call site.
+const ADMIN_RATE_LIMIT_MAX = Number(process.env.ADMIN_RATE_LIMIT_MAX || 20);
+const ADMIN_RATE_LIMIT_WINDOW_MS = Number(process.env.ADMIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const adminAttempts = new Map();
+
+function adminRateLimitOk(req) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const entry = adminAttempts.get(ip);
+  if (!entry || now - entry.start > ADMIN_RATE_LIMIT_WINDOW_MS) {
+    adminAttempts.set(ip, { start: now, n: 1 });
+    return true;
+  }
+  if (entry.n >= ADMIN_RATE_LIMIT_MAX) return false;
+  entry.n += 1;
+  return true;
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - ADMIN_RATE_LIMIT_WINDOW_MS * 2;
+  for (const [ip, entry] of adminAttempts) {
+    if (entry.start < cutoff) adminAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000);
+
+// Never logs the submitted secret itself — only that an attempt failed, from where.
+function logAdminAuthFailure(routeLabel, req) {
+  console.warn(`[admin] auth failed for ${routeLabel} from ${clientIp(req)}`);
 }
 
 // ── Email / password accounts ────────────────────────────────────────────────
