@@ -11423,6 +11423,7 @@ function renderTrLog(predictions) {
 
     const conf = Number.isFinite(Number(p.confidence)) ? `${Math.round(p.confidence)}% conf` : "";
     const catInfo = trCatalystInfo(p.catalyst?.type);
+    const awardLine = trAwardLineHtml(p.catalyst);
     return `
       <div class="tr-log-row">
         <div class="tr-log-dir-col">
@@ -11433,10 +11434,31 @@ function renderTrLog(predictions) {
           <span class="tr-log-tick">${escapeHtml(p.ticker)}</span>
           <p class="tr-log-thesis">${escapeHtml(p.thesis || catalyst)}</p>
           <div class="tr-log-meta-line">${dateStr} · ${catalyst}${conf ? " · " + conf : ""}</div>
+          ${awardLine}
         </div>
         <div class="tr-log-outcome">${outcome}</div>
       </div>`;
   }).join("");
+}
+
+// Amount + contract-vehicle tag + a direct link to the real USASpending
+// record, when the catalyst carries them (contract_crs / lobbying_spend_delta
+// predictions do; bill_stage ones don't, since a bill has no award to link
+// to). Lets someone tell a genuine duplicate (same awardUrl) apart from two
+// different awards that just look similar in the log.
+function trAwardLineHtml(catalyst) {
+  if (!catalyst) return "";
+  const parts = [];
+  if (Number.isFinite(Number(catalyst.amount)) && Number(catalyst.amount) > 0) {
+    parts.push(`<span class="tr-log-amount">${escapeHtml(compactMoney(catalyst.amount))}</span>`);
+  }
+  if (catalyst.contractType) {
+    parts.push(`<span class="tr-log-contract-type">${escapeHtml(catalyst.contractType)}</span>`);
+  }
+  if (catalyst.awardUrl) {
+    parts.push(`<a class="tr-log-award-link" href="${escapeHtml(catalyst.awardUrl)}" target="_blank" rel="noopener noreferrer">View on USASpending →</a>`);
+  }
+  return parts.length ? `<div class="tr-log-award-line">${parts.join("")}</div>` : "";
 }
 
 function setupTrackRecordTabs() {

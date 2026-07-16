@@ -4905,6 +4905,7 @@ function formatContractWatchAward(row, mapping, seenRecord, nowIso) {
     recipient: row.recipientName || "Unknown recipient",
     amount: Number(row.obligatedAmount || 0),
     agency: row.awardingAgency || null,
+    contractType: row.contractType || null,
     awardDate: row.startDate || null,
     actionDate: row.lastModifiedDate || row.startDate || null,
     lastModifiedDate,
@@ -5433,7 +5434,24 @@ async function autoRecordCRSPredictions() {
             catalyst: {
               type: "contract_crs",
               id: award.awardId,
-              title: `${award.recipient || symbol} — ${award.agency || "federal award"}`
+              title: `${award.recipient || symbol} — ${award.agency || "federal award"}`,
+              amount: award.amount || null,
+              // Built strictly from internalId (a stable per-award USASpending
+              // id), not award.contractUrl — that field falls back to a
+              // generic recipient-name search URL when internalId is
+              // missing, which would make two genuinely different awards
+              // show an identical link and defeat the one thing this field
+              // exists for: telling a real duplicate (same URL) apart from
+              // two distinct contracts that just look similar in the log.
+              awardUrl: award.internalId ? usaspendingAwardDirectUrl({ generated_internal_id: award.internalId }) : null,
+              // This is USASpending's "Contract Award Type" (the procurement
+              // vehicle — e.g. "DEFINITIVE CONTRACT", "DELIVERY ORDER"), not
+              // a new-award-vs-modification flag. That distinction needs a
+              // modification_number field this dataset doesn't currently
+              // pull, so it isn't derivable yet — labeled honestly as
+              // "contract vehicle type" on the frontend rather than implying
+              // something this data can't actually support.
+              contractType: award.contractType || null
             },
             origin: "auto:crs_signal"
           },
@@ -5542,7 +5560,11 @@ async function autoRecordLobbyingPredictions() {
             catalyst: {
               type: "lobbying_spend_delta",
               id: catalystId,
-              title: `${symbol} lobbying spend +${pctChange.toFixed(0)}% QoQ`
+              title: `${symbol} lobbying spend +${pctChange.toFixed(0)}% QoQ`,
+              // Materiality context, same as the CRS recorder — the latest
+              // quarter's lobbying spend. No awardUrl/contractType here: LDA
+              // filings aren't USASpending awards, so neither field applies.
+              amount: latestTotal || null
             },
             origin: "auto:lobbying_signal"
           },
