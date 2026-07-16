@@ -11363,6 +11363,7 @@ function renderTrCalibration(buckets) {
 function trCatalystInfo(type) {
   if (type === "bill_stage") return { label: "Legislation", cls: "legislation" };
   if (type === "contract_crs") return { label: "Contract Award", cls: "contract-award" };
+  if (type === "lobbying_spend_delta") return { label: "Lobbying", cls: "lobbying" };
   return { label: "Other", cls: "other" };
 }
 

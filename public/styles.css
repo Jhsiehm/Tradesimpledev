@@ -6929,6 +6929,7 @@ html[data-theme="light"] .sk-block {
 .tr-log-cat-badge { font-family: var(--mono); font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-align: center; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
 .tr-log-cat-badge.legislation { color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); }
 .tr-log-cat-badge.contract-award { color: var(--green); background: var(--green-dim); }
+.tr-log-cat-badge.lobbying { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .tr-log-cat-badge.other { color: var(--faint); background: rgba(255,255,255,0.06); }
 .tr-log-body { min-width: 0; }
 .tr-log-tick { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text); }
