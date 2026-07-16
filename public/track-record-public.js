@@ -35,6 +35,15 @@
     return `${withSign && v > 0 ? "+" : ""}${v.toFixed(1)}%`;
   }
 
+  // Mirrors compactMoney()/money() in app.js.
+  function compactMoney(value) {
+    const n = Number(value || 0);
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+    return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n >= 1000 ? 0 : 2 });
+  }
+
   async function fetchJson(url) {
     const res = await fetch(url, { headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(`${url} → ${res.status}`);
@@ -161,6 +170,7 @@
 
       const conf = Number.isFinite(Number(p.confidence)) ? `${Math.round(p.confidence)}% conf` : "";
       const catInfo = trCatalystInfo(p.catalyst?.type);
+      const awardLine = trAwardLineHtml(p.catalyst);
       return `
         <div class="tr-log-row">
           <div class="tr-log-dir-col">
@@ -171,10 +181,27 @@
             <span class="tr-log-tick">${escapeHtml(p.ticker)}</span>
             <p class="tr-log-thesis">${escapeHtml(p.thesis || catalyst)}</p>
             <div class="tr-log-meta-line">${dateStr} · ${catalyst}${conf ? " · " + conf : ""}</div>
+            ${awardLine}
           </div>
           <div class="tr-log-outcome">${outcome}</div>
         </div>`;
     }).join("");
+  }
+
+  // Mirrors trAwardLineHtml() in app.js.
+  function trAwardLineHtml(catalyst) {
+    if (!catalyst) return "";
+    const parts = [];
+    if (Number.isFinite(Number(catalyst.amount)) && Number(catalyst.amount) > 0) {
+      parts.push(`<span class="tr-log-amount">${escapeHtml(compactMoney(catalyst.amount))}</span>`);
+    }
+    if (catalyst.contractType) {
+      parts.push(`<span class="tr-log-contract-type">${escapeHtml(catalyst.contractType)}</span>`);
+    }
+    if (catalyst.awardUrl) {
+      parts.push(`<a class="tr-log-award-link" href="${escapeHtml(catalyst.awardUrl)}" target="_blank" rel="noopener noreferrer">View on USASpending →</a>`);
+    }
+    return parts.length ? `<div class="tr-log-award-line">${parts.join("")}</div>` : "";
   }
 
   function setupTabs() {

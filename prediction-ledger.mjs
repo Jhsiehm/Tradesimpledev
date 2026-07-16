@@ -221,6 +221,28 @@ function parseRangeMidpoint(str) {
   return Math.abs(mid);
 }
 
+// A catalyst's awardUrl gets rendered as a real, clickable link on the
+// public track record — never trust it just because a caller (including the
+// admin-only manual-record endpoint) supplied one. Only accept a direct
+// usaspending.gov URL; anything else (including a javascript: scheme, which
+// escapeHtml() alone would not stop in an href attribute) is dropped.
+function sanitizeAwardUrl(value) {
+  const raw = String(value || "").trim();
+  return /^https:\/\/(www\.)?usaspending\.gov\//.test(raw) ? raw.slice(0, 500) : null;
+}
+
+function buildCatalyst(catalyst) {
+  const amount = Number(catalyst.amount);
+  return {
+    type: String(catalyst.type || "unknown"),
+    id: catalyst.id != null ? String(catalyst.id) : null,
+    title: String(catalyst.title || "").slice(0, 240),
+    amount: Number.isFinite(amount) && amount > 0 ? amount : null,
+    awardUrl: sanitizeAwardUrl(catalyst.awardUrl),
+    contractType: catalyst.contractType ? String(catalyst.contractType).slice(0, 120) : null
+  };
+}
+
 // ── Public: record a prediction ─────────────────────────────────────────────
 /**
  * @param {object} input
@@ -229,7 +251,7 @@ function parseRangeMidpoint(str) {
  * @param {number} [input.horizonDays=30]
  * @param {string} input.thesis  plain-English causal chain
  * @param {number} input.confidence  0..100
- * @param {object} [input.catalyst]  { type, id, title }
+ * @param {object} [input.catalyst]  { type, id, title, amount, awardUrl, contractType }
  * @param {string} [input.predictedRange]  e.g. "+15 to +30%"
  * @param {string} [input.origin]  "auto:top_signal" | "manual" | ...
  * @param {object} deps  { getQuote: async (symbol) => ({ price, source }) }
@@ -266,13 +288,7 @@ export async function recordPrediction(input, deps) {
     horizonDays,
     horizonEndsAt: new Date(now + horizonDays * 86400000).toISOString(),
     thesis: String(input.thesis || "").slice(0, 600),
-    catalyst: input.catalyst
-      ? {
-          type: String(input.catalyst.type || "unknown"),
-          id: input.catalyst.id != null ? String(input.catalyst.id) : null,
-          title: String(input.catalyst.title || "").slice(0, 240)
-        }
-      : null,
+    catalyst: input.catalyst ? buildCatalyst(input.catalyst) : null,
     confidence,
     predictedMagnitudePct: parseRangeMidpoint(input.predictedRange),
     entry: {
