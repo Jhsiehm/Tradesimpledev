@@ -27,7 +27,7 @@ import { createHash } from "node:crypto";
 import { appendFile, readFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dbReady, dbInsert } from "./src/lib/supabase.mjs";
+import { dbReady, dbInsert, dbSelect } from "./src/lib/supabase.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(ROOT, "data");
@@ -68,27 +68,76 @@ function shortId(prefix) {
 }
 
 // ── Load ────────────────────────────────────────────────────────────────────
+// Local disk (data/predictions.jsonl) is NOT durable on Railway — there is no
+// persistent volume configured, so every redeploy/restart gets a fresh
+// filesystem. Supabase's prediction_events table (when configured) is the
+// canonical store: paginated in full on boot, ordered by seq, and every
+// append is written there BEFORE it's considered committed. Local disk stays
+// as a redundant cache/fallback so the app still works (in ephemeral mode)
+// when Supabase isn't configured, but it is never the durability guarantee
+// when Supabase is available.
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function loadEventsFromSupabase() {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    const page = await dbSelect(
+      "prediction_events",
+      `select=payload&order=seq.asc&limit=${SUPABASE_PAGE_SIZE}&offset=${offset}`
+    );
+    if (page === null) return null; // query failed — caller falls back to disk
+    if (!page.length) break;
+    rows.push(...page);
+    if (page.length < SUPABASE_PAGE_SIZE) break;
+    offset += SUPABASE_PAGE_SIZE;
+  }
+  return rows.map((r) => r.payload).filter(Boolean);
+}
+
+async function loadEventsFromDisk() {
+  let raw = "";
+  try {
+    raw = await readFile(LEDGER_FILE, "utf8");
+  } catch {
+    raw = "";
+  }
+  const events = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      events.push(JSON.parse(trimmed));
+    } catch {
+      /* skip corrupt line — integrity check will flag the gap */
+    }
+  }
+  return events;
+}
+
 async function ensureLoaded() {
   if (_events) return _events;
   if (_loadPromise) return _loadPromise;
   _loadPromise = (async () => {
-    let raw = "";
-    try {
-      raw = await readFile(LEDGER_FILE, "utf8");
-    } catch {
-      raw = "";
-    }
-    const events = [];
-    for (const line of raw.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+    if (dbReady) {
       try {
-        events.push(JSON.parse(trimmed));
-      } catch {
-        /* skip corrupt line — integrity check will flag the gap */
+        const fromDb = await loadEventsFromSupabase();
+        if (fromDb) {
+          _events = fromDb;
+          console.log(`[ledger] loaded ${_events.length} event(s) from Supabase (durable)`);
+          return _events;
+        }
+        console.warn("[ledger] Supabase query failed at boot — falling back to local disk (EPHEMERAL until Supabase recovers)");
+      } catch (err) {
+        console.warn("[ledger] Supabase load failed at boot — falling back to local disk (EPHEMERAL until Supabase recovers):", err.message);
       }
     }
-    _events = events;
+    _events = await loadEventsFromDisk();
+    if (dbReady) {
+      console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (Supabase configured but unreachable at boot — durability degraded until it recovers)`);
+    } else {
+      console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (EPHEMERAL — configure SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY so the ledger survives redeploys)`);
+    }
     return _events;
   })();
   return _loadPromise;
@@ -98,9 +147,20 @@ function tailHash(events) {
   return events.length ? events[events.length - 1].hash : GENESIS_HASH;
 }
 
-/** Append one event to the hash chain. Serialized via _writeChain. */
+/**
+ * Append one event to the hash chain. Serialized via _writeChain so
+ * concurrent appends don't race on seq/prevHash.
+ *
+ * A failed attempt (e.g. a transient Supabase error) must not permanently
+ * wedge future appends: chaining .then() onto a rejected promise skips the
+ * handler forever, so without the .catch(() => {}) below, one failed write
+ * would silently block every prediction from ever being recorded again for
+ * the rest of the process's life. _writeChain is kept always-resolved for
+ * sequencing purposes; the real success/failure of *this* call is what gets
+ * returned to its caller.
+ */
 function appendEvent(partial) {
-  _writeChain = _writeChain.then(async () => {
+  const attempt = _writeChain.then(async () => {
     const events = await ensureLoaded();
     const prevHash = tailHash(events);
     const seq = events.length;
@@ -108,13 +168,14 @@ function appendEvent(partial) {
     const hash = hashEvent(prevHash, base);
     const event = { ...base, hash };
 
-    await mkdir(DATA_DIR, { recursive: true });
-    await appendFile(LEDGER_FILE, JSON.stringify(event) + "\n", "utf8");
-    events.push(event);
-
-    // Best-effort durability mirror — never blocks or breaks the canonical chain.
+    // Supabase is the durability guarantee when configured — this write must
+    // succeed before the event is considered committed. Without this await,
+    // a restart landing between "wrote locally" and "mirrored to Supabase"
+    // loses the event on the next boot, and the next auto-record pass
+    // re-records it — that race is exactly what produced the duplicate
+    // LDOS/DHS entry this fix closes.
     if (dbReady) {
-      dbInsert("prediction_events", {
+      const inserted = await dbInsert("prediction_events", {
         event_id: event.id,
         seq: event.seq,
         type: event.type,
@@ -122,12 +183,31 @@ function appendEvent(partial) {
         payload: event,
         hash: event.hash,
         prev_hash: event.prevHash,
-        created_at: event.createdAt || event.resolvedAt || new Date().toISOString()
-      }).catch(() => {});
+        created_at: event.createdAt || event.resolvedAt || event.voidedAt || new Date().toISOString()
+      });
+      if (!inserted) {
+        throw new Error("Supabase write failed — refusing to commit a ledger event without durable storage");
+      }
     }
+
+    // Local disk stays as a redundant cache. Best-effort once Supabase is
+    // canonical (a disk hiccup shouldn't block a durably-committed event),
+    // but still mandatory when Supabase isn't configured at all.
+    try {
+      await mkdir(DATA_DIR, { recursive: true });
+      await appendFile(LEDGER_FILE, JSON.stringify(event) + "\n", "utf8");
+    } catch (err) {
+      if (!dbReady) throw err;
+      console.warn("[ledger] local disk mirror write failed (non-fatal — Supabase already has this event):", err.message);
+    }
+
+    events.push(event);
     return event;
   });
-  return _writeChain;
+  // Always-resolved sequencing token for the *next* appendEvent call — must
+  // not carry this attempt's rejection forward (see comment above).
+  _writeChain = attempt.catch(() => {});
+  return attempt;
 }
 
 // ── Range parsing helper (e.g. "+15 to +30%" → 22.5) ────────────────────────
