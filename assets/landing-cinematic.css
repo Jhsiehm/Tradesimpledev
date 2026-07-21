@@ -697,7 +697,6 @@ html[data-theme="light"] .footer-brand span {
 
 .ts-h1-word--mint {
   color: var(--signal-green);
-  text-shadow: 0 0 28px rgba(141, 253, 171, 0.32), 0 0 8px rgba(141, 253, 171, 0.18);
 }
 
 .ts-h1-word--neutral {
@@ -5491,10 +5490,10 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   margin-inline: auto;
   text-align: center;
   font-size: clamp(2.3rem, 6.2vw, 4.35rem);
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
-  font-weight: 400;
+  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-weight: 500;
   line-height: 1.08;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-style: normal;
   overflow-wrap: normal;
   word-break: normal;
@@ -5514,21 +5513,19 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   display: block;
   color: var(--signal-green);
   font-style: normal;
-  text-shadow: 0 0 24px rgba(141, 253, 171, 0.18), 0 0 8px rgba(141, 253, 171, 0.12);
 }
 
 .landing-cinematic .ts-hero-headline .ts-h1-mint,
 .landing-cinematic .ts-hero-headline .ts-h1-line:not(.ts-h1-neutral) {
   color: var(--signal-green);
   font-style: normal;
-  text-shadow: 0 0 24px rgba(141, 253, 171, 0.18), 0 0 8px rgba(141, 253, 171, 0.12);
 }
 
 .landing-cinematic .ts-hero-headline .ts-h1-neutral,
 .landing-cinematic .ts-hero-headline .ts-h1-line.ts-h1-neutral {
   color: #e8e4dc;
   text-shadow: none;
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .landing-cinematic .nav-sound-suite {
@@ -5666,10 +5663,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 }
 
 html[data-theme="dark"] .landing-cinematic .ts-h1-word--mint,
-html[data-theme="dark"] .landing-cinematic .ts-hero-headline .ts-h1-mint {
-  text-shadow: 0 0 24px rgba(141, 253, 171, 0.18);
-}
-
+html[data-theme="dark"] .landing-cinematic .ts-hero-headline .ts-h1-mint,
 html[data-theme="light"] .landing-cinematic .ts-h1-word--mint,
 html[data-theme="light"] .landing-cinematic .ts-hero-headline .ts-h1-mint {
   text-shadow: none;
