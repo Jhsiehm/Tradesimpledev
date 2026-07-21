@@ -231,7 +231,14 @@
           vtext.textContent = `Chain verified · ${scorecard.integrity.length} events`;
         } else {
           badge.classList.add("broken");
-          vtext.textContent = "Chain integrity FAILED";
+          const roots = scorecard.integrity?.diagnosis?.genesisRoots;
+          const reason = scorecard.integrity?.reason;
+          vtext.textContent =
+            roots > 1
+              ? `Chain integrity FAILED · ${roots} forked ledgers`
+              : reason
+                ? `Chain integrity FAILED · ${reason}`
+                : "Chain integrity FAILED";
         }
       }
 

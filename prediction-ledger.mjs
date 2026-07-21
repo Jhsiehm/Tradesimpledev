@@ -19,15 +19,17 @@
  *   4. COMPOUNDS WITH TIME. A competitor starting today cannot backfill two years
  *      of verified, outcome-tracked calls. The ledger is the asset.
  *
- * Storage: append-only JSONL at data/predictions.jsonl (canonical, hash-chained),
- * with an optional best-effort mirror to Supabase when configured.
+ * Storage: when Supabase is configured it is the durable canonical store
+ * (hash-chained payloads in prediction_events); data/predictions.jsonl is a
+ * local cache/fallback. Auto-heal collapses multi-GENESIS forks left by
+ * ephemeral redeploys that mirrored independent seq=0 chains into Supabase.
  */
 
 import { createHash } from "node:crypto";
-import { appendFile, readFile, mkdir } from "node:fs/promises";
+import { appendFile, readFile, mkdir, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dbReady, dbInsert, dbSelect } from "./src/lib/supabase.mjs";
+import { dbReady, dbInsert, dbSelect, dbDelete, dbUpsert } from "./src/lib/supabase.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(ROOT, "data");
@@ -82,9 +84,12 @@ async function loadEventsFromSupabase() {
   const rows = [];
   let offset = 0;
   for (;;) {
+    // Secondary created_at order makes duplicate-seq rows deterministic (the
+    // multi-genesis fork bug from ephemeral Railway redeploys produced many
+    // rows sharing seq=0..N).
     const page = await dbSelect(
       "prediction_events",
-      `select=payload&order=seq.asc&limit=${SUPABASE_PAGE_SIZE}&offset=${offset}`
+      `select=payload&order=seq.asc,created_at.asc&limit=${SUPABASE_PAGE_SIZE}&offset=${offset}`
     );
     if (page === null) return null; // query failed — caller falls back to disk
     if (!page.length) break;
@@ -115,29 +120,69 @@ async function loadEventsFromDisk() {
   return events;
 }
 
+/** True when LEDGER_AUTO_HEAL is not explicitly disabled (default: on). */
+function autoHealEnabled() {
+  return String(process.env.LEDGER_AUTO_HEAL ?? "true").trim().toLowerCase() !== "false";
+}
+
 async function ensureLoaded() {
   if (_events) return _events;
   if (_loadPromise) return _loadPromise;
   _loadPromise = (async () => {
+    let source = "disk";
     if (dbReady) {
       try {
         const fromDb = await loadEventsFromSupabase();
         if (fromDb) {
           _events = fromDb;
+          source = "supabase";
           console.log(`[ledger] loaded ${_events.length} event(s) from Supabase (durable)`);
-          return _events;
+        } else {
+          console.warn("[ledger] Supabase query failed at boot — falling back to local disk (EPHEMERAL until Supabase recovers)");
         }
-        console.warn("[ledger] Supabase query failed at boot — falling back to local disk (EPHEMERAL until Supabase recovers)");
       } catch (err) {
         console.warn("[ledger] Supabase load failed at boot — falling back to local disk (EPHEMERAL until Supabase recovers):", err.message);
       }
     }
-    _events = await loadEventsFromDisk();
-    if (dbReady) {
-      console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (Supabase configured but unreachable at boot — durability degraded until it recovers)`);
-    } else {
-      console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (EPHEMERAL — configure SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY so the ledger survives redeploys)`);
+    if (!_events) {
+      _events = await loadEventsFromDisk();
+      source = "disk";
+      if (dbReady) {
+        console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (Supabase configured but unreachable at boot — durability degraded until it recovers)`);
+      } else {
+        console.warn(`[ledger] loaded ${_events.length} event(s) from local disk (EPHEMERAL — configure SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY so the ledger survives redeploys)`);
+      }
     }
+
+    // Collapse multi-genesis forks (ephemeral redeploy residue) before any
+    // reader sees a red integrity badge. Persists the healed chain so the
+    // next boot starts clean.
+    const integrity = verifyEvents(_events);
+    if (!integrity.ok && autoHealEnabled()) {
+      const healed = healForkedLedger(_events);
+      if (healed?.events) {
+        const persistOk = await persistHealedLedger(healed.events, { source });
+        if (persistOk) {
+          _events = healed.events;
+          console.warn(
+            `[ledger] healed forked ledger: kept ${healed.kept}/${healed.before} event(s), ` +
+              `discarded ${healed.discarded} duplicate fork event(s) from ${healed.forks} GENESIS roots ` +
+              `(${healed.reason})`
+          );
+        } else {
+          console.error("[ledger] heal computed a valid chain but persistence failed — leaving broken ledger in memory");
+        }
+      } else {
+        console.error(
+          `[ledger] integrity broken at seq ${integrity.brokenAtSeq}` +
+            (integrity.diagnosis?.genesisRoots != null
+              ? ` · ${integrity.diagnosis.genesisRoots} GENESIS root(s)`
+              : "") +
+            " — auto-heal could not recover"
+        );
+      }
+    }
+
     return _events;
   })();
   return _loadPromise;
@@ -572,24 +617,370 @@ function mean(arr) {
 }
 
 // ── Integrity: walk the hash chain, prove it is untampered ──────────────────
-export async function verifyLedger() {
-  const events = await ensureLoaded();
+
+function diagnoseEvents(events) {
+  const seqCounts = new Map();
+  let genesisRoots = 0;
+  for (const e of events) {
+    if (e?.prevHash === GENESIS_HASH) genesisRoots++;
+    const s = e?.seq;
+    if (typeof s === "number") seqCounts.set(s, (seqCounts.get(s) || 0) + 1);
+  }
+  const duplicateSeqs = [...seqCounts.values()].some((n) => n > 1);
+  return {
+    genesisRoots,
+    duplicateSeqs,
+    uniqueSeqs: seqCounts.size,
+    length: events.length
+  };
+}
+
+/** Pure verify over an in-memory event array (no I/O). */
+export function verifyEvents(events) {
+  const diagnosis = diagnoseEvents(events);
   let prevHash = GENESIS_HASH;
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
+    if (!e || typeof e !== "object") {
+      return {
+        ok: false,
+        brokenAtSeq: i,
+        brokenId: null,
+        length: events.length,
+        reason: "missing_event",
+        diagnosis
+      };
+    }
     const { hash, ...rest } = e;
     const expected = hashEvent(prevHash, rest);
-    if (e.prevHash !== prevHash || e.hash !== expected || e.seq !== i) {
-      return { ok: false, brokenAtSeq: i, brokenId: e.id || null, length: events.length };
+    let reason = null;
+    if (e.prevHash !== prevHash) reason = "prev_hash_mismatch";
+    else if (e.hash !== expected) reason = "hash_mismatch";
+    else if (e.seq !== i) reason = "seq_mismatch";
+    if (reason) {
+      return {
+        ok: false,
+        brokenAtSeq: i,
+        brokenId: e.id || null,
+        length: events.length,
+        reason,
+        diagnosis
+      };
     }
     prevHash = e.hash;
   }
-  return { ok: true, length: events.length, headHash: prevHash };
+  return {
+    ok: true,
+    length: events.length,
+    headHash: prevHash,
+    diagnosis
+  };
+}
+
+/** True when prevHash/hash linkage is valid (seq may still be gapped). */
+function chainHashLinked(eventsInOrder) {
+  let prevHash = GENESIS_HASH;
+  for (const e of eventsInOrder) {
+    if (!e || typeof e !== "object") return false;
+    const { hash, ...rest } = e;
+    if (e.prevHash !== prevHash || hashEvent(prevHash, rest) !== e.hash) return false;
+    prevHash = e.hash;
+  }
+  return true;
+}
+
+function buildChildrenIndex(events) {
+  const children = new Map();
+  for (const e of events) {
+    if (!e || typeof e.prevHash !== "string" || typeof e.hash !== "string") continue;
+    const list = children.get(e.prevHash);
+    if (list) list.push(e);
+    else children.set(e.prevHash, [e]);
+  }
+  return children;
+}
+
+/**
+ * Walk from a GENESIS child, following the single longest hash-valid path.
+ * Multiple children of one hash (true fork mid-chain) pick the longest valid
+ * continuation so we still recover a usable track record.
+ */
+function walkFromRoot(root, children) {
+  const chain = [root];
+  const seen = new Set([root.hash]);
+  for (;;) {
+    const kids = (children.get(chain[chain.length - 1].hash) || []).filter(
+      (k) => k?.hash && !seen.has(k.hash)
+    );
+    if (!kids.length) break;
+    let best = null;
+    let bestLen = -1;
+    for (const kid of kids) {
+      const probe = [kid];
+      const probeSeen = new Set(seen);
+      probeSeen.add(kid.hash);
+      let tip = kid;
+      while (true) {
+        const next = (children.get(tip.hash) || []).filter((k) => k?.hash && !probeSeen.has(k.hash));
+        if (!next.length) break;
+        // Greedy for probe length only — full choice is re-evaluated at each step.
+        next.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+        tip = next[0];
+        probe.push(tip);
+        probeSeen.add(tip.hash);
+      }
+      if (probe.length > bestLen) {
+        bestLen = probe.length;
+        best = kid;
+      } else if (probe.length === bestLen && best) {
+        if (String(kid.createdAt || "") > String(best.createdAt || "")) best = kid;
+      }
+    }
+    if (!best) break;
+    chain.push(best);
+    seen.add(best.hash);
+  }
+  return chain;
+}
+
+/**
+ * Extract every GENESIS-rooted chain whose prevHash/hash links verify.
+ * This is the residue pattern from Railway's ephemeral filesystem: each
+ * redeploy restarted seq at 0 / prevHash=GENESIS and fire-and-forget mirrored
+ * into Supabase, so the durable table holds several intact mini-ledgers.
+ */
+export function extractGenesisChains(events) {
+  const children = buildChildrenIndex(events);
+  const roots = children.get(GENESIS_HASH) || [];
+  const chains = [];
+  for (const root of roots) {
+    const chain = walkFromRoot(root, children);
+    if (chainHashLinked(chain)) chains.push(chain);
+  }
+  chains.sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    const aTip = a[a.length - 1]?.createdAt || "";
+    const bTip = b[b.length - 1]?.createdAt || "";
+    return String(bTip).localeCompare(String(aTip));
+  });
+  return chains;
+}
+
+/** Re-number seq to 0..n-1 and recompute the hash chain (seq is inside the hash). */
+export function rehashChain(eventsInOrder) {
+  let prevHash = GENESIS_HASH;
+  const out = [];
+  for (let i = 0; i < eventsInOrder.length; i++) {
+    const src = eventsInOrder[i];
+    const { hash: _h, prevHash: _p, seq: _s, ...partial } = src;
+    const base = { ...partial, seq: i, prevHash };
+    const hash = hashEvent(prevHash, base);
+    out.push({ ...base, hash });
+    prevHash = hash;
+  }
+  return out;
+}
+
+/**
+ * Collapse multi-genesis forks into one canonical chain.
+ * Prefers the longest hash-valid GENESIS-rooted chain (usually the one that
+ * kept growing after Supabase became canonical), then rehashes so seq===index.
+ * Returns null when this repair strategy does not apply.
+ */
+export function healForkedLedger(events) {
+  if (!Array.isArray(events) || !events.length) return null;
+  const before = events.length;
+  const diagnosis = diagnoseEvents(events);
+  const chains = extractGenesisChains(events);
+  if (chains.length > 1) {
+    const best = chains[0];
+    const repaired = rehashChain(best);
+    // Append an audit event so the repair itself is part of the public chain.
+    const auditPartial = {
+      type: "repair",
+      id: shortId("repair"),
+      repairedAt: new Date().toISOString(),
+      reason: "collapsed_ephemeral_redeploy_forks",
+      detail:
+        "Multiple GENESIS-rooted chains were merged in durable storage because " +
+        "Railway's ephemeral filesystem restarted the ledger at seq=0 on each " +
+        "redeploy while Supabase still held prior mirrors. Kept the longest " +
+        "intact chain and discarded duplicate fork copies; rehashed so seq " +
+        "matches chain index.",
+      before,
+      kept: best.length,
+      discarded: before - best.length,
+      forks: chains.length,
+      methodologyVersion: METHODOLOGY_VERSION
+    };
+    const withAudit = (() => {
+      const prevHash = tailHash(repaired);
+      const seq = repaired.length;
+      const base = { ...auditPartial, seq, prevHash };
+      const hash = hashEvent(prevHash, base);
+      return [...repaired, { ...base, hash }];
+    })();
+    if (!verifyEvents(withAudit).ok) return null;
+    return {
+      events: withAudit,
+      reason: "collapsed_ephemeral_redeploy_forks",
+      before,
+      kept: best.length,
+      discarded: before - best.length,
+      forks: chains.length,
+      diagnosis
+    };
+  }
+
+  // Single chain, hash-linked when walked by prevHash, but seq gaps / order
+  // by seq.asc broke verifyEvents (e.g. seq jumped 7 → 39 after a dirty load).
+  if (chains.length === 1 && chains[0].length === events.length) {
+    const linked = chains[0];
+    if (chainHashLinked(linked) && !verifyEvents(linked).ok) {
+      const repaired = rehashChain(linked);
+      if (!verifyEvents(repaired).ok) return null;
+      return {
+        events: repaired,
+        reason: "resequenced_gapped_chain",
+        before,
+        kept: repaired.length,
+        discarded: 0,
+        forks: 1,
+        diagnosis
+      };
+    }
+  }
+
+  return null;
+}
+
+async function writeLedgerFile(events) {
+  await mkdir(DATA_DIR, { recursive: true });
+  const body = events.map((e) => JSON.stringify(e)).join("\n") + (events.length ? "\n" : "");
+  await writeFile(LEDGER_FILE, body, "utf8");
+}
+
+async function replaceSupabaseLedger(events) {
+  // Upsert kept/rehashed rows FIRST, then delete orphans. Never wipe the
+  // table up front — a mid-loop insert failure must not leave an empty ledger.
+  const keepIds = new Set(events.map((e) => e.id));
+  for (const event of events) {
+    const row = {
+      event_id: event.id,
+      seq: event.seq,
+      type: event.type,
+      ticker: event.ticker || null,
+      payload: event,
+      hash: event.hash,
+      prev_hash: event.prevHash,
+      created_at:
+        event.createdAt ||
+        event.resolvedAt ||
+        event.voidedAt ||
+        event.repairedAt ||
+        new Date().toISOString()
+    };
+    const upserted = await dbUpsert("prediction_events", row, "event_id");
+    if (!upserted) return false;
+  }
+
+  // Page through current ids and drop anything not in the healed set.
+  let offset = 0;
+  for (;;) {
+    const page = await dbSelect(
+      "prediction_events",
+      `select=event_id&order=seq.asc&limit=${SUPABASE_PAGE_SIZE}&offset=${offset}`
+    );
+    if (page === null) return false;
+    if (!page.length) break;
+    const orphans = page.map((r) => r.event_id).filter((id) => id && !keepIds.has(id));
+    if (orphans.length) {
+      // PostgREST in.() — event ids are pred_/repair_ + hex, safe for this filter.
+      const filter = `event_id=in.(${orphans.map((id) => `"${id}"`).join(",")})`;
+      const deleted = await dbDelete("prediction_events", filter);
+      if (deleted === null) return false;
+    }
+    if (page.length < SUPABASE_PAGE_SIZE) break;
+    offset += SUPABASE_PAGE_SIZE;
+  }
+  return true;
+}
+
+async function persistHealedLedger(events, { source } = {}) {
+  try {
+    await writeLedgerFile(events);
+  } catch (err) {
+    if (!dbReady || source === "supabase") {
+      // When Supabase is canonical, disk is best-effort — but a total failure
+      // to persist anywhere must abort the heal so we don't claim success.
+      if (!dbReady) {
+        console.error("[ledger] heal disk persist failed:", err.message);
+        return false;
+      }
+      console.warn("[ledger] heal disk persist failed (continuing with Supabase replace):", err.message);
+    } else {
+      console.error("[ledger] heal disk persist failed:", err.message);
+      return false;
+    }
+  }
+  if (dbReady) {
+    const ok = await replaceSupabaseLedger(events);
+    if (!ok) {
+      console.error("[ledger] heal Supabase replace failed");
+      return false;
+    }
+  }
+  return true;
+}
+
+export async function verifyLedger() {
+  const events = await ensureLoaded();
+  return verifyEvents(events);
+}
+
+/**
+ * Force a heal attempt against the currently loaded ledger and persist it.
+ * Used by ops scripts; no-ops with ok:false when heal does not apply.
+ */
+export async function repairLedgerNow() {
+  const events = await ensureLoaded();
+  const before = verifyEvents(events);
+  if (before.ok) return { ok: true, repaired: false, integrity: before };
+  const healed = healForkedLedger(events);
+  if (!healed?.events) {
+    return { ok: false, repaired: false, integrity: before, error: "heal_not_applicable" };
+  }
+  const persistOk = await persistHealedLedger(healed.events, { source: dbReady ? "supabase" : "disk" });
+  if (!persistOk) {
+    return { ok: false, repaired: false, integrity: before, error: "persist_failed", heal: healed };
+  }
+  _events = healed.events;
+  _loadPromise = Promise.resolve(_events);
+  const after = verifyEvents(_events);
+  return {
+    ok: after.ok,
+    repaired: true,
+    integrity: after,
+    heal: {
+      reason: healed.reason,
+      before: healed.before,
+      kept: healed.kept,
+      discarded: healed.discarded,
+      forks: healed.forks
+    }
+  };
 }
 
 /** Test hook — reset in-memory cache (so tests can reload from disk). */
 export function _resetCacheForTest() {
   _events = null;
   _loadPromise = null;
+  _writeChain = Promise.resolve();
+}
+
+/** Test hook — inject an in-memory event log (skips disk/Supabase load). */
+export function _setEventsForTest(events) {
+  _events = events;
+  _loadPromise = Promise.resolve(events);
   _writeChain = Promise.resolve();
 }

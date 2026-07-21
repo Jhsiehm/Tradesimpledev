@@ -80,6 +80,18 @@ export async function dbInsert(table, row) {
   return Array.isArray(data) ? data[0] : data;
 }
 
+/** DELETE — rows matching PostgREST params. Returns deleted row count, or null on error. */
+export async function dbDelete(table, params = "") {
+  if (!dbReady) return null;
+  const res = await fetch(restUrl(table, params), {
+    method: "DELETE",
+    headers: headers({ Prefer: "return=representation" }),
+  });
+  if (!res.ok) { console.error(`[db] DELETE ${table} error`, res.status, await res.text()); return null; }
+  const data = await res.json();
+  return Array.isArray(data) ? data.length : 0;
+}
+
 /** Fetch one portfolio row for a user, or null if missing / error */
 export async function fetchPortfolioRow(userId) {
   if (!dbReady) return null;

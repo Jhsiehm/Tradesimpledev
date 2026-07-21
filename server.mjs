@@ -2783,7 +2783,11 @@ server.listen(PORT, "0.0.0.0", async () => {
       console.log(
         v.ok
           ? `[ledger] integrity OK · ${v.length} events`
-          : `[ledger] ⚠ integrity broken at seq ${v.brokenAtSeq}`
+          : `[ledger] ⚠ integrity broken at seq ${v.brokenAtSeq}` +
+              (v.reason ? ` (${v.reason})` : "") +
+              (v.diagnosis?.genesisRoots > 1
+                ? ` · ${v.diagnosis.genesisRoots} GENESIS forks`
+                : "")
       )
     )
     .catch(() => {});

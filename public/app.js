@@ -11387,7 +11387,14 @@ function renderTrackRecord() {
       vtext.textContent = `Chain verified · ${sc.integrity.length} events`;
     } else {
       badge.classList.add("broken"); badge.classList.remove("ok");
-      vtext.textContent = "Chain integrity FAILED";
+      const roots = sc.integrity?.diagnosis?.genesisRoots;
+      const reason = sc.integrity?.reason;
+      vtext.textContent =
+        roots > 1
+          ? `Chain integrity FAILED · ${roots} forked ledgers`
+          : reason
+            ? `Chain integrity FAILED · ${reason}`
+            : "Chain integrity FAILED";
     }
   }
 
