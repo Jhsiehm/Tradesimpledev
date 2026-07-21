@@ -19,6 +19,9 @@ const COMPANY_NEWS_TTL_MS = 10 * 60_000;
 const scorecardCache = new Map();
 const SCORECARD_CACHE_TTL_MS = Number(process.env.SCORECARD_CACHE_TTL_MS || 5 * 60_000);
 
+const causalityCache = new Map();
+const CAUSALITY_CACHE_TTL_MS = Number(process.env.CAUSALITY_CACHE_TTL_MS || 30 * 60_000);
+
 let lobbyMap = {};
 let lobbyMapLoaded = false;
 
@@ -840,7 +843,39 @@ export async function aiLobbyMapHandler(req, res) {
  * Generate a plain-English causality analysis for how policy/contracts affect a stock.
  * Works for any ticker — uses bills, lobbying context, and contract profile as grounding data.
  */
-export async function runCausalityAnalyzer({ symbol, companyName, bills = [], lobbyingContext = "", contractProfile = null, price = null, sector = "" }) {
+function causalityCacheKey({ symbol, contractProfile, bills }) {
+  const cleanSymbol = String(symbol || "").toUpperCase().replace(/[^A-Z.]/g, "");
+  const billFingerprint = (bills || [])
+    .slice(0, 5)
+    .map((b) => `${b.id || b.title || ""}:${b.momentum ?? ""}:${b.stage ?? ""}`)
+    .join("|");
+  return `causality:${cleanSymbol}:${contractProfile?.archetype || "none"}:${billFingerprint}`;
+}
+
+export async function runCausalityAnalyzer({
+  symbol,
+  companyName,
+  bills = [],
+  lobbyingContext = "",
+  contractProfile = null,
+  price = null,
+  sector = "",
+  rateLimitKey = null,
+  checkRateLimit = null
+}) {
+  const cacheKey = causalityCacheKey({ symbol, contractProfile, bills });
+  const cached = causalityCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < CAUSALITY_CACHE_TTL_MS) {
+    return { ...cached.value, cached: true };
+  }
+
+  if (typeof checkRateLimit === "function" && rateLimitKey) {
+    const rateCheck = checkRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      throw new Error("rate_limited");
+    }
+  }
+
   const govPct = contractProfile ? Math.round(contractProfile.governmentRevenuePct * 100) : null;
   const billSummary = bills.slice(0, 5).map((b, i) =>
     `${i + 1}. "${b.title}" — stage: ${b.stage || "unknown"}, momentum: ${b.momentum ?? "?"}/100, impact: ${b.impact || b.policyImpact || "unclear"}`
@@ -862,16 +897,25 @@ Respond with ONLY a raw JSON object. No markdown, no explanation outside the JSO
 
 Fill in real content for ${ticker}. Be specific — if a bill is named in the data, use its actual title.`;
 
-  const { text } = await fetchAiText({ system, user, maxTokens: 1600, timeoutMs: 45_000 });
+  const { text } = await fetchAiText({
+    system,
+    user,
+    maxTokens: 1600,
+    timeoutMs: 45_000,
+    model: process.env.CAUSALITY_MODEL || process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"
+  });
   const parsed = parseJsonFromText(text);
 
   // Normalize and validate
-  return {
+  const result = {
     plainEnglish: String(parsed.plainEnglish || ""),
     nodes: Array.isArray(parsed.nodes) ? parsed.nodes.slice(0, 6) : [],
     scenarios: Array.isArray(parsed.scenarios) ? parsed.scenarios.slice(0, 3) : [],
-    translation: Array.isArray(parsed.translation) ? parsed.translation.slice(0, 4) : []
+    translation: Array.isArray(parsed.translation) ? parsed.translation.slice(0, 4) : [],
+    cached: false
   };
+  causalityCache.set(cacheKey, { value: result, cachedAt: Date.now() });
+  return result;
 }
 
 export async function aiChartLabelHandler(req, res) {

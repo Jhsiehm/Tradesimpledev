@@ -2546,7 +2546,7 @@ function buildGovernmentMoneyTrail(symbol, awardAmount, agencyName, programName)
   };
 }
 
-async function contractCausality(res, url) {
+async function contractCausality(res, url, req = null) {
   const symbol = (url.searchParams.get("symbol") || "").toUpperCase().trim();
   if (!symbol) return sendJson(res, 400, { error: "symbol_required" });
 
@@ -2588,6 +2588,8 @@ async function contractCausality(res, url) {
         bills: relatedBills,
         lobbyingContext,
         contractProfile: profile,
+        rateLimitKey: req ? clientIp(req) : "anon",
+        checkRateLimit: checkBriefAiRateLimit
       });
       return sendJson(res, 200, {
         symbol,
@@ -3242,7 +3244,7 @@ async function route(req, res) {
     if (pathname === "/api/congress/bills") return congressBills(res, url);
     if (pathname === "/api/contracts/causality" && req.method === "GET") {
       if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
-      return contractCausality(res, url);
+      return contractCausality(res, url, req);
     }
     if (pathname.startsWith("/api/contracts/") && req.method === "GET") {
       if (!checkFeature("CONTRACTS_ANALYZER_ENABLED", res)) return;
