@@ -54,7 +54,7 @@ html.landing-ready .ts-scroll-progress {
 <link rel="icon" type="image/png" href="/favicon.png"/>
 <link rel="apple-touch-icon" href="/favicon.png"/>
 <title>TradeSimple: Policy Signals. Market Clarity.</title>
-<meta name="description" content="TradeSimple traces Congressional activity, lobbying filings, federal contracts, and PAC disclosures to the tickers you watch — in plain English, before headlines."/>
+<meta name="description" content="By the time it's a headline, the move already happened. TradeSimple watches Congress.gov, USASpending, and FEC records — mapped to exposed tickers before headlines."/>
 <!-- Open Graph / Twitter Card -->
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="https://tradesimple.app/"/>
@@ -76,7 +76,7 @@ html.landing-ready .ts-scroll-progress {
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js" defer></script>
 <link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
-<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-loop-1"/>
+<link rel="stylesheet" href="assets/landing-cinematic.css?v=landing-receipts-1"/>
 <style id="nav-reveal-critical">
 /* First-paint: nav stays hidden until video end or scribble tap */
 .ts-nav.ts-nav--dormant,
@@ -129,7 +129,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
   --amber:var(--warning-amber);--red:#f06862;--blue:#6db3e8;
   --bg:#0a0b09;--bg-2:#0c0c0c;--bg-3:#141513;--bg-edge:#3a3a38;
   --line:rgba(255,255,255,.14);--line-2:rgba(255,255,255,.20);--line-3:rgba(255,255,255,.28);
-  --text:var(--text-main);--muted:#aaa89c;--faint:#787870;
+  --text:var(--text-main);--muted:#c4c2b8;--faint:#8a8880;
   --ivory:var(--text-main);--forest:#1a5c38;--slate:#787870;
   --mono:var(--font-data);
   --sans:var(--font-ui);
@@ -549,7 +549,7 @@ section{position:relative;z-index:1}
 .landing-trending-note{margin:8px 0 0;font-size:10px;color:var(--faint);font-family:var(--mono)}
 
 /* ── FEC MARKETING STRIP ─────────────────────────────── */
-.fec-marketing-strip{padding:clamp(2rem,5vw,3.5rem) 0;background:var(--bg-2)}
+.fec-marketing-strip{padding:clamp(1.3rem,3.2vw,2.25rem) 0;background:var(--bg-2)}
 .fec-marketing-wrap{display:grid;gap:1.25rem}
 .fec-marketing-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem}
 .fec-marketing-title{margin:.35rem 0 .5rem;font-size:clamp(1.35rem,2.5vw,1.85rem);line-height:1.15;font-weight:600}
@@ -581,6 +581,7 @@ footer{
 footer nav{display:flex;gap:24px;font-size:12.5px;color:var(--muted)}
 footer nav a:hover{color:var(--text)}
 .footer-legal{font-size:11px;color:var(--faint);font-family:var(--mono);width:100%;margin-top:8px}
+.footer-tagline{width:100%;margin-top:4px;font-family:var(--serif);font-size:clamp(1.1rem,2.5vw,1.45rem);font-weight:400;color:var(--muted);line-height:1.2}
 
 /* ── PREVIEW ACCESS (owner passcode gate, hidden unless configured) ──── */
 .preview-access{width:100%;margin-top:10px;font-size:12px}
@@ -607,10 +608,10 @@ footer nav a:hover{color:var(--text)}
 <div class="ts-scroll-progress" aria-hidden="true"><span class="ts-scroll-progress-bar"></span></div>
 <nav class="ts-section-dots" aria-label="Page sections">
   <button type="button" class="ts-dot active" data-target="#top" aria-label="Hero"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#signal-feed" aria-label="Product preview"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#methodology" aria-label="Methodology"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#receipts" aria-label="Verified receipts"><span></span></button>
   <button type="button" class="ts-dot" data-target="#how-it-works" aria-label="How it works"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#data" aria-label="Data"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#compare" aria-label="Comparison"><span></span></button>
+  <button type="button" class="ts-dot" data-target="#founder" aria-label="Founder"><span></span></button>
   <button type="button" class="ts-dot" data-target="#early-access" aria-label="Early access"><span></span></button>
 </nav>
 
@@ -619,7 +620,7 @@ footer nav a:hover{color:var(--text)}
 <section class="ts-hero" id="top">
   <div class="ts-hero-video-stage">
     <div class="ts-hero-media" aria-hidden="true">
-      <video class="ts-hero-video" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="/assets/media/hero/tradesimple-hero-poster.svg" src="/assets/media/hero/tradesimple-hero-video.mp4">
+      <video class="ts-hero-video" autoplay muted loop playsinline webkit-playsinline preload="auto" poster="/assets/media/hero/tradesimple-hero-poster.svg">
         <source src="/assets/media/hero/tradesimple-hero-video.mp4" type="video/mp4">
       </video>
       <div class="ts-hero-poster"></div>
@@ -682,7 +683,7 @@ footer nav a:hover{color:var(--text)}
         <path d="M54 32 C 62 36, 66 40, 66 44 L 58 46" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M12 6 C 18 4, 26 8, 30 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.7"/>
       </svg>
-      <span class="ts-scribble-text">press this</span>
+      <span class="ts-scribble-text">Open menu</span>
     </button>
 
   <nav class="ts-nav ts-nav--dormant" aria-label="Site">
@@ -706,10 +707,10 @@ footer nav a:hover{color:var(--text)}
     </a>
     <button type="button" class="ts-nav-menu-btn" id="ts-nav-menu-btn" aria-expanded="false">Menu</button>
     <div class="ts-nav-links">
-      <a href="#methodology">Method</a>
+      <a href="#receipts">Receipts</a>
       <span class="nav-divider" aria-hidden="true">/</span>
       <a href="#how-it-works">Pipeline</a>
-      <a href="#data">Terminal</a>
+      <a href="#compare">Compare</a>
       <a href="#early-access">Access</a>
     </div>
     <div class="ts-nav-actions">
@@ -723,7 +724,7 @@ footer nav a:hover{color:var(--text)}
   </div>
 
     <div class="ts-hero-stage-caption">
-      <p class="ts-hero-stage-tagline">Congress → contracts → tickers. Source chains labeled live or illustrative.</p>
+      <p class="ts-hero-stage-tagline">By the time it's a headline, the move already happened.</p>
       <a class="ts-hero-stage-cta" href="#early-access">Join waitlist →</a>
     </div>
 
@@ -741,22 +742,26 @@ footer nav a:hover{color:var(--text)}
   <div class="ts-ticker-tape" aria-label="Market ticker">
     <span style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);font-size:0.65rem;opacity:0.55;font-family:var(--mono);letter-spacing:0.08em;text-transform:uppercase;pointer-events:none;z-index:10">Source-tagged</span>
     <div class="ts-ticker-track">
-      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="COIN">COIN <strong>$276.50</strong> <em class="down">-1.0%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LUNR">LUNR <strong>$8.42</strong> <em class="up">+49.0%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RUN">RUN <strong>$9.18</strong> <em class="dn">-40.0%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="CRCL">CRCL <strong>$142.50</strong> <em class="up">+34.0%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="LLY">LLY <strong>$796.60</strong> <em class="up">+1.09%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="GME">GME <strong>$24.80</strong> <em class="up">+28.4%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="COIN">COIN <strong>$276.50</strong> <em class="down">-1.0%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AMZN">AMZN <strong>$189.72</strong> <em class="up">+1.33%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="ETH">ETH <strong>$3,291</strong> <em class="down">-1.44%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="RTX">RTX <strong>$112.84</strong> <em class="down">-0.31%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="SPCX">SPCX <strong>$211.60</strong> <em class="up">+2.86%</em></button>
-      <button type="button" class="ts-ticker-item" data-ticker="PLTR">PLTR <strong>$132.07</strong> <em class="up">+4.18%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="LUNR">LUNR <strong>$8.42</strong> <em class="up">+49.0%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="RUN">RUN <strong>$9.18</strong> <em class="dn">-40.0%</em></button>
+      <button type="button" class="ts-ticker-item" data-ticker="CRCL">CRCL <strong>$142.50</strong> <em class="up">+34.0%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NOC">NOC <strong>$498.30</strong> <em class="up">+0.92%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="NVDA">NVDA <strong>$208.19</strong> <em class="up">+1.42%</em></button>
       <button type="button" class="ts-ticker-item" data-ticker="AAPL">AAPL <strong>$228.60</strong> <em class="down">-0.40%</em></button>
@@ -766,21 +771,20 @@ footer nav a:hover{color:var(--text)}
 
   <div class="ts-hero-content">
     <div class="ts-hero-copy">
-      <p class="ts-kicker">Congress.gov · Senate LDA · USASpending · FEC.gov</p>
+      <p class="ts-kicker">Congress.gov · Senate LDA · USASpending<br>FEC.gov</p>
       <h1 class="ts-hero-headline" aria-label="Markets move when bills pass.">
-        <span class="ts-h1-line">Markets</span>
-        <span class="ts-h1-line ts-h1-neutral">move</span>
+        <span class="ts-h1-line">Markets move</span>
         <span class="ts-h1-line">when bills pass.</span>
       </h1>
       <p class="ts-subcopy">
-        Congressional activity, lobbying filings, federal contracts, and live PAC filings from FEC.gov,
-        traced to your tickers before consensus forms.
+        The contract award, the committee vote, the lobbying filing — all public days earlier.
+        TradeSimple watches the record so you see it first.
       </p>
       <div class="ts-hero-ctas">
         <a href="#early-access" class="ts-primary-cta" id="primary-cta">Join waitlist →</a>
         <a href="/manifesto" class="ts-secondary-cta ts-secondary-cta--ghost ts-hero-manifesto-link">Why TradeSimple →</a>
       </div>
-      <p class="terminal-entry-instruction">Early access opens soon. Join the signal list — we’ll email you when the terminal is live.</p>
+      <p class="terminal-entry-instruction">Public records move markets. Be watching when the catalyst drops.</p>
       <div class="hero-reference-row" aria-label="Source references">
         <span>Congress.gov</span>
         <span>Senate LDA</span>
@@ -809,7 +813,7 @@ footer nav a:hover{color:var(--text)}
               <span class="product-loop-step-value" id="loop-confidence">82 / 100 · modeled</span>
             </div>
           </div>
-          <div class="cinema-live-row"><span></span>Live signal card · illustrative when offline</div>
+          <div class="cinema-live-row"><span></span>Live signal card</div>
           <div class="cinema-terminal-slot">
             <div class="ts-terminal-card" id="hero-terminal" tabindex="0" aria-label="Demo market terminal. Use arrow keys to cycle tickers.">
               <div class="terminal-topbar">
@@ -823,7 +827,7 @@ footer nav a:hover{color:var(--text)}
               <div class="terminal-status-strip" aria-label="Signal model inputs">
                 <span>CRS (Congressional Risk Score)</span>
                 <span>Watchlist linked</span>
-                <span>Not financial advice</span>
+                <span>Source cited</span>
               </div>
               <div class="terminal-table" role="listbox" aria-label="Watchlist rows">
                 <div class="terminal-table-header" aria-hidden="true">
@@ -838,18 +842,18 @@ footer nav a:hover{color:var(--text)}
                 <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="AAPL">
                   <strong>AAPL</strong><span>Apple Inc</span><span>$228.60</span><em class="down">-0.40%</em><b class="tag-blue">Antitrust</b>
                 </button>
-                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="PLTR">
-                  <strong>PLTR</strong><span>Palantir</span><span>$132.07</span><em class="up">+4.18%</em><b>Contract</b>
+                <button type="button" class="terminal-row" role="option" aria-selected="false" data-ticker="LUNR">
+                  <strong>LUNR</strong><span>Intuitive Machines</span><span>$8.42</span><em class="up">+49.0%</em><b>Contract</b>
                 </button>
               </div>
               <div class="terminal-signal" id="terminal-signal-panel">
-                <p class="signal-label" id="terminal-signal-label">LegisAlert · NVDA · Policy exposure 82/100</p>
-                <p class="signal-freshness" id="terminal-signal-freshness">Illustrative example · rotates every 30s</p>
-                <h3 id="terminal-signal-headline">CHIPS Act appropriations advanced in committee markup</h3>
+                <p class="signal-label" id="terminal-signal-label">ProcAlert · LUNR · Contract award</p>
+                <p class="signal-freshness" id="terminal-signal-freshness">Sept 17, 2024 · USASpending.gov</p>
+                <h3 id="terminal-signal-headline">NASA posts $4.82B Near Space Network award to Intuitive Machines</h3>
                 <p class="signal-editorial-context" id="terminal-signal-editorial" hidden></p>
                 <a href="#" class="signal-brief-cta" id="terminal-signal-brief-link" hidden>Read today's bill brief →</a>
-                <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: CHIPS, semiconductor manufacturing appropriations</p>
-                <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="Congress.gov → Appropriations markup → Fab timeline → NVDA"></p>
+                <p class="signal-tag-detail" id="terminal-tag-detail">Policy tag: Contract — NASA Near Space Network · max $4.82B</p>
+                <p class="signal-chain typed-target" id="terminal-signal-chain" data-full-text="USASpending.gov → NASA award notice → Intuitive Machines → LUNR +49% next session"></p>
                 <div class="confidence-row">
                   <span>Confidence</span>
                   <span id="terminal-confidence-text">82/100</span>
@@ -863,7 +867,7 @@ footer nav a:hover{color:var(--text)}
                   <a class="landing-trending-cta" href="#early-access">Join waitlist →</a>
                 </div>
                 <div class="landing-trending-items" id="landing-trending-items"></div>
-                <p class="landing-trending-note">Monitoring topic · not investment advice</p>
+                <p class="landing-trending-note">Policy topic watch</p>
               </div>
             </div>
           </div>
@@ -879,197 +883,144 @@ footer nav a:hover{color:var(--text)}
   </div>
 </section>
 
-<section class="fec-marketing-strip div-line ts-product-preview" id="signal-feed" aria-label="Live product preview">
-  <div class="wrap fec-marketing-wrap">
-    <div class="fec-marketing-head">
-      <div>
-        <p class="chapter-eyebrow">Live from FEC</p>
-        <h2 class="fec-marketing-title">See how a PAC filing connects to a bill, lobbyist, and ticker.</h2>
-        <p class="fec-marketing-lede muted">Every link shows why: committee maps, LDA crosswalks, and contract recipients. Live when FEC_API_KEY is set; illustrative otherwise.</p>
-      </div>
-      <div class="fec-marketing-rail">
-        <span class="fec-marketing-badge mini-pill" id="fec-marketing-badge">Connecting</span>
-        <a class="ts-secondary-cta" href="#early-access">Join waitlist →</a>
-      </div>
-    </div>
-    <div class="fec-marketing-cards" id="fec-marketing-cards"></div>
-    <div class="fec-marketing-trail" id="fec-marketing-trail" hidden>
-      <p class="chapter-eyebrow">Example money trail</p>
-      <div class="fec-marketing-trail-steps" id="fec-marketing-trail-steps"></div>
-    </div>
-    <p class="fec-marketing-note muted">Campaign finance context only. Not investment advice. Source: FEC.gov via Open FEC API.</p>
-  </div>
-</section>
-
-<!-- MANIFESTO -->
-<section class="ts-manifesto-section ts-methodology-section div-line" id="methodology">
-  <div class="methodology-watermark" aria-hidden="true">
-    <span>Congress.gov</span><span>Senate LDA</span><span>USASpending</span><span>FEC.gov</span><span>CRS</span><span>Source chain</span><span>Freshness</span><span>Exposure</span>
-  </div>
-  <div class="wrap manifesto-wrap methodology-wrap">
-    <div class="manifesto-layout reveal">
-      <div class="manifesto-heading">
-        <p class="chapter-eyebrow manifesto-stamp">Method</p>
-        <h2>Public records<br>mapped to<br><em>exposed tickers.</em></h2>
-      </div>
-      <div class="manifesto-copy">
-        <p class="manifesto-editorial">Every signal cites a source chain: bill stage from Congress.gov, lobbying pressure from Senate LDA, contract awards from USASpending, PAC filings from FEC.gov, and quote snapshots from market feeds, each labeled live, modeled, or fallback before you act.</p>
-        <p class="manifesto-body">TradeSimple does not report news. We document lobbying spend, legislative draft alignments, source freshness, market movement, and paper-trade outcomes so each thesis can be tested against public records.</p>
-      </div>
-    </div>
-
-    <div class="manifesto-registry">
-      <p class="chapter-eyebrow muted">CRS (Congressional Risk Score) severity bands</p>
-      <div class="severity-readout stagger">
-        <article class="severity-row high">
-          <div class="severity-row-band">
-            <span class="severity-band-label">CRS 7.0-10.0</span>
-            <strong class="severity-band-name">High Signal</strong>
+<section class="ts-receipt-section div-line" id="receipts" aria-label="Verified market receipts">
+  <div class="wrap">
+    <p class="chapter-eyebrow reveal">Verified receipts</p>
+    <h2 class="s-h reveal">The record moved first.<br><em>The headline came later.</em></h2>
+    <p class="s-sub reveal">Real dates, real tickers, real one-day moves — traced to public government files.</p>
+    <div class="ts-receipt-grid stagger">
+      <article class="ts-receipt-card reveal">
+        <div class="ts-receipt-head">
+          <div>
+            <span class="ts-receipt-type">Contract · USASpending</span>
+            <span class="ts-receipt-ticker">LUNR</span>
           </div>
-          <p class="severity-row-desc">Contract, lobbying activity, market movement, and legislative alignment are fully synchronized.</p>
-          <b class="severity-state">Active signal</b>
-          <span class="severity-action">Paper-trade thesis review</span>
-        </article>
-        <article class="severity-row moderate">
-          <div class="severity-row-band">
-            <span class="severity-band-label">CRS 4.0-6.9</span>
-            <strong class="severity-band-name">Moderate Exposure</strong>
+          <strong class="ts-receipt-move up">+49%</strong>
+        </div>
+        <p class="ts-receipt-copy">Sept 17, 2024 — NASA posts a $4.82B Near Space Network award to Intuitive Machines. LUNR closed +49% the next session. The award notice was a public record.</p>
+        <span class="ts-receipt-source">USASpending.gov · next-session move</span>
+      </article>
+      <article class="ts-receipt-card reveal">
+        <div class="ts-receipt-head">
+          <div>
+            <span class="ts-receipt-type">Bill · Congress.gov</span>
+            <span class="ts-receipt-ticker">RUN</span>
           </div>
-          <p class="severity-row-desc">Partial alignment detected. Confirmation events, source freshness, or contract revisions remain pending.</p>
-          <b class="severity-state">Monitor</b>
-          <span class="severity-action">Monitor for escalation</span>
-        </article>
-        <article class="severity-row risk">
-          <div class="severity-row-band">
-            <span class="severity-band-label">CRS 0.0-3.9</span>
-            <strong class="severity-band-name">Risk Flag</strong>
+          <strong class="ts-receipt-move dn">−40%</strong>
+        </div>
+        <p class="ts-receipt-copy">May 22, 2025 — H.R.1 passes the House with rooftop-solar credits eliminated. Sunrun −40% in a day. The committee text had been on Congress.gov for ten days.</p>
+        <span class="ts-receipt-source">Congress.gov · 10-day upstream lead</span>
+      </article>
+      <article class="ts-receipt-card reveal">
+        <div class="ts-receipt-head">
+          <div>
+            <span class="ts-receipt-type">Bill · Congress.gov</span>
+            <span class="ts-receipt-ticker">CRCL</span>
           </div>
-          <p class="severity-row-desc">Negative legislative drafts, significant lobbying pullbacks, or broken thesis rules trigger exposure warnings.</p>
-          <b class="severity-state">Risk flag</b>
-          <span class="severity-action">Immediate exposure review</span>
-        </article>
-      </div>
+          <strong class="ts-receipt-move up">+34%</strong>
+        </div>
+        <p class="ts-receipt-copy">June 17, 2025 — GENIUS Act clears the Senate 68–30. Circle +34% the next day. The vote schedule was public.</p>
+        <span class="ts-receipt-source">Congress.gov · next-session move</span>
+      </article>
     </div>
-  </div>
-</section>
-
-<section class="ts-edge-strip div-line" id="why-tradesimple" aria-label="Why TradeSimple">
-  <div class="wrap ts-edge-strip-grid">
-    <article class="ts-edge-card reveal">
-      <p class="chapter-eyebrow">Not headlines</p>
-      <h3>Source chains on every signal</h3>
-      <p>Bill stage, lobbying pressure, contract lineage, and FEC maps cited before you form a thesis.</p>
-    </article>
-    <article class="ts-edge-card reveal">
-      <p class="chapter-eyebrow">Not black boxes</p>
-      <h3>Live, modeled, and fallback labeled</h3>
-      <p>Freshness badges and confidence bands stay visible. Illustrative examples never pretend to be live.</p>
-    </article>
-    <article class="ts-edge-card reveal">
-      <p class="chapter-eyebrow">Not a brokerage</p>
-      <h3>Paper-trade the idea first</h3>
-      <p>Thesis lab and simulated rails let you test policy exposure before real capital is at risk.</p>
-    </article>
+    <aside class="ts-receipt-chain reveal" aria-label="Multi-hop source chain example">
+      <p class="chapter-eyebrow">Source chain · detention pipeline</p>
+      <p class="ts-receipt-chain-copy">OBBBA allocates $45B for ICE detention. CoreCivic holds $1.47B in awards. GEO and CXW moved ~3% day one — a multi-hop chain, not a single receipt. TradeSimple traces bill language → agency spend → exposed operators.</p>
+      <span class="ts-receipt-source">GEO · CXW · bill → contract crosswalk</span>
+    </aside>
+    <p class="ts-receipt-disclaimer">Past market reactions are documented for context only — not forecasts or investment advice. Source records are public; timing and magnitude vary by event.</p>
   </div>
 </section>
 
 <!-- INTELLIGENCE PIPELINE -->
 <section class="archive-section archive-pipeline div-line" id="how-it-works">
   <div class="archive-wrap">
-    <p class="chapter-eyebrow">Intelligence pipeline</p>
+    <p class="chapter-eyebrow">How it works</p>
     <div class="archive-pipeline-grid reveal">
       <article class="archive-step">
         <h2>Monitor</h2>
-        <p>Congressional markup schedules, lobbying disclosure databases, agency award notices, and federal procurement contracts.</p>
+        <p>Congress.gov markups, Senate LDA filings, USASpending award notices, and FEC committee maps — watched continuously so you catch the catalyst when it drops.</p>
       </article>
       <article class="archive-step">
         <h2>Score</h2>
-        <p>Each political event is calibrated into a CRS band, with source freshness, confidence, and live/model/fallback state exposed instead of hidden.</p>
+        <p>Each event maps to exposed tickers with a confidence band and a cited source chain — bill stage, contract lineage, or lobbying pressure in plain English.</p>
       </article>
       <article class="archive-step">
         <h2>Test</h2>
-        <p>Structured briefs move into the TradeSimple thesis lab and paper-trading rails, so the idea can be tested before any real capital is at risk.</p>
+        <p>Structured briefs feed the thesis lab and paper-trading rails. Test the idea against the record before any real capital is at risk.</p>
       </article>
     </div>
   </div>
 </section>
 
-<!-- TERMINAL VIEW -->
-<section class="archive-terminal-section div-line" id="data">
-  <div class="archive-wrap">
-    <p class="chapter-eyebrow">Terminal view</p>
-    <div class="terminal-preview-shell reveal">
-      <div class="terminal-preview-head">
-        <span>TradeSimple secure portal v1.0</span>
-        <div aria-hidden="true"><i></i><i></i><i></i></div>
+<section class="compare-section div-line" id="compare" aria-label="TradeSimple vs disclosure trackers">
+  <div class="wrap">
+    <p class="chapter-eyebrow reveal">Why not politician-trade trackers?</p>
+    <h2 class="s-h reveal">They track trades.<br><em>We track events.</em></h2>
+    <p class="s-sub reveal">Quiver Quantitative and Unusual Whales follow congressional stock disclosures — often 45 days after the trade. TradeSimple follows the public record that can move markets first.</p>
+    <div class="compare-grid reveal">
+      <div class="compare-col">
+        <p class="col-label red">Quiver · Unusual Whales</p>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot r"></span><span class="tl-bar"></span></div>
+          <div>
+            <p class="tl-event">Politician buys NVDA</p>
+            <p class="tl-note">Disclosure filed 45 days later under STOCK Act rules</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot r"></span><span class="tl-bar"></span></div>
+          <div>
+            <p class="tl-event">Headline: "Senator traded defense stocks"</p>
+            <p class="tl-note">Move may already be priced in — timing is the signal gap</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot r"></span></div>
+          <div>
+            <p class="tl-event">You react to the filing</p>
+            <p class="tl-note">Late signal — the trade happened weeks ago</p>
+          </div>
+        </div>
       </div>
-      <div class="terminal-preview-grid">
-        <aside class="terminal-watchlist-preview">
-          <span>Watchlist</span>
-          <div><b>PLTR</b><em>$24.80</em></div>
-          <div><b>TSM</b><em>$145.20</em></div>
-          <div><b>RTX</b><em>$98.40</em></div>
-          <div><b>LLY</b><em>$796.60</em></div>
-        </aside>
-        <div class="terminal-feed-preview">
-          <header><span></span>Intel feed: illustrative examples · live/model tagged</header>
-          <article>
-            <h3>DOD Tactical Intelligence Mesh Contract Award</h3>
-            <p>CONTRACT · 2H AGO · PLTR +3.2% · CRS 8.4</p>
-          </article>
-          <article>
-            <h3>Advanced Semiconductor Export Restriction Expansion</h3>
-            <p>LEGISLATIVE · 1D AGO · TSM -1.4% · CRS 7.8</p>
-          </article>
-          <article>
-            <h3>FAA Reauthorization Act, drone delivery integration</h3>
-            <p>LEGISLATIVE · 2D AGO · RTX +0.8% · CRS 5.2</p>
-          </article>
+      <div class="compare-col col-r">
+        <p class="col-label green">TradeSimple</p>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot g"></span><span class="tl-bar"></span></div>
+          <div>
+            <p class="tl-event">Committee text posted on Congress.gov</p>
+            <p class="tl-note highlight">10-day lead before H.R.1 floor vote · RUN −40%</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot g"></span><span class="tl-bar"></span></div>
+          <div>
+            <p class="tl-event">NASA award notice on USASpending</p>
+            <p class="tl-note highlight">Same-day public record · LUNR +49% next session</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-gutter"><span class="tl-dot g"></span></div>
+          <div>
+            <p class="tl-event">You watch the record</p>
+            <p class="tl-note highlight">Contracts, markups, filings — before the headline</p>
+          </div>
         </div>
       </div>
     </div>
+  </div>
+</section>
 
-    <div class="source-freshness-ledger reveal" aria-label="Source freshness ledger">
-      <div class="ledger-title">
-        <span>Source freshness</span>
-        <strong>Live/model state visible on every signal</strong>
-      </div>
-      <div class="ledger-grid">
-        <article><span>Market quotes</span><b>Live snapshot</b><em>Updated under 5m</em></article>
-        <article><span>Congress.gov</span><b>Bill stage</b><em>Committee + floor watch</em></article>
-        <article><span>Senate LDA</span><b>Lobbying filings</b><em>Disclosure pressure</em></article>
-        <article><span>USASpending</span><b>Contract awards</b><em>Agency/vendor lineage</em></article>
-        <article><span>FEC.gov</span><b>PAC filings</b><em>Committee → ticker map</em></article>
-      </div>
+<section class="ts-founder-section div-line" id="founder" aria-label="Who is building TradeSimple">
+  <div class="wrap ts-founder-grid reveal">
+    <div>
+      <p class="chapter-eyebrow">Who's building it</p>
+      <h2 class="s-h">Built by investors who got tired of reading headlines second.</h2>
     </div>
-
-    <div class="interactive-proof-ledger reveal" aria-label="Interactive proof dossiers">
-      <div>
-        <p class="chapter-eyebrow">Interactive proof</p>
-        <h2>Open the source chain,<br><em>then test the thesis.</em></h2>
-      </div>
-      <div class="proof-actions">
-        <button type="button" data-briefing="dod-mesh">Contract dossier</button>
-        <button type="button" data-briefing="semiconductor-export">Legislative dossier</button>
-        <button type="button" data-briefing="sec-custody">Regulatory dossier</button>
-      </div>
-    </div>
-
-    <div class="archive-dossier-grid stagger" aria-label="Current TradeSimple capabilities">
-      <article><span>Auth + sessions</span><p>Email sign-in, demo mode, signed sessions, and protected dashboard routes run on the TradeSimple backend.</p></article>
-      <article><span>Source freshness</span><p>Market, bill, lobbying, and contract states are labeled as live, modeled, fallback, or unavailable before a user acts.</p></article>
-      <article><span>AI research</span><p>Plain-English research answers, scenario framing, evidence state, and uncertainty labels stay attached to the source chain.</p></article>
-      <article><span>Thesis Lab</span><p>Save catalysts, exits, confirmation rules, monitor status, and reasoning so each signal becomes a traceable test.</p></article>
-      <article><span>Paper mode</span><p>Simulated orders and account tracking are the default trading rail. This page remains intelligence, not financial advice.</p></article>
-      <article><span>Guardrails</span><p>TradeSimple separates intelligence from advice, keeps API keys server-side, and routes risky ideas through paper-trade review.</p></article>
-    </div>
-
-    <div class="source-chain-registry reveal" aria-label="Source chain registry">
-      <div class="source-chain-row"><b>Congress.gov</b><span>Bill stage tracking, committee votes, floor schedules</span><em>Bill advances → affected tickers surface</em></div>
-      <div class="source-chain-row"><b>Senate LDA</b><span>Lobbying disclosures, registrants, issue-area spend</span><em>Filing detected → pressure score updated</em></div>
-      <div class="source-chain-row"><b>USASpending</b><span>Federal contracts, agencies, vendors, award size</span><em>Award notice → contract exposure mapped</em></div>
-      <div class="source-chain-row"><b>FEC.gov</b><span>PAC receipts, committee filings, sponsor totals</span><em>Filing detected → policy cluster tickers surfaced</em></div>
-      <div class="source-chain-row"><b>Market + broker rails</b><span>Quote snapshots, crypto pricing, paper trading</span><em>Thesis → simulated order → outcome review</em></div>
+    <div class="ts-founder-copy">
+      <p>TradeSimple started during finals week — two friends kept asking the same question: why wait for the headline when the record already exists on Congress.gov, USASpending, and FEC?</p>
+      <p>We're assembling a policy-to-markets terminal that maps public government action to exposed tickers in plain English. Not a brokerage. Not buy/sell calls. Source chains you can inspect.</p>
+      <a class="ts-secondary-cta" href="/manifesto">Read the manifesto →</a>
     </div>
   </div>
 </section>
@@ -1079,17 +1030,17 @@ footer nav a:hover{color:var(--text)}
   <div class="archive-wrap access-grid">
     <div class="reveal">
       <p class="chapter-eyebrow">Early access</p>
-      <h2>Read the record before the headline.</h2>
-      <p>Policy signals, cited sources, plain-English research, thesis storage, and paper trading — launching soon. Join the waitlist for first access.</p>
+      <h2>Join the waitlist.<br>Get this week's Bill Brief.</h2>
+      <p>Policy signals with cited sources, plain-English research, and paper trading — plus a weekly Bill Brief on the legislation moving your watchlist. Launching soon.</p>
     </div>
     <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
-      <label for="access-email">Join the signal list</label>
+      <label for="access-email">Email for waitlist + Bill Brief</label>
       <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
       <button class="ts-primary-cta" type="submit" id="wl-submit">Join waitlist →</button>
-      <p class="wl-status" id="wl-status">Waitlist updates when new policy feeds ship.</p>
+      <p class="wl-status" id="wl-status">Weekly Bill Brief + launch access when the terminal opens.</p>
       <div class="access-checklist" aria-label="What happens next">
         <span>Join the waitlist</span>
-        <span>Get launch updates</span>
+        <span>Get this week's Bill Brief</span>
         <span>Early terminal access</span>
         <span>Paper mode when we open</span>
       </div>
@@ -1110,9 +1061,9 @@ footer nav a:hover{color:var(--text)}
     <h2 id="briefing-modal-title">Policy signal briefing</h2>
     <p class="briefing-summary" id="briefing-summary"></p>
     <div class="briefing-meta-grid">
-      <div><span>Ticker</span><strong id="briefing-ticker">--</strong></div>
-      <div><span>Date</span><strong id="briefing-date">--</strong></div>
-      <div><span>Source chain</span><strong id="briefing-source">--</strong></div>
+      <div><span>Ticker</span><strong id="briefing-ticker">LUNR</strong></div>
+      <div><span>Date</span><strong id="briefing-date">Sept 17, 2024</strong></div>
+      <div><span>Source chain</span><strong id="briefing-source">USASpending.gov → NASA Near Space Network</strong></div>
     </div>
     <div class="briefing-impact">
       <span>Modeled impact</span>
@@ -1121,7 +1072,7 @@ footer nav a:hover{color:var(--text)}
     <div class="briefing-sparkline" aria-label="Seven day modeled movement">
       <svg id="briefing-sparkline" viewBox="0 0 320 88" role="img" aria-hidden="true"></svg>
     </div>
-    <p class="briefing-disclaimer">Illustrative landing-page dossier. TradeSimple keeps source tags visible and routes real decisions through paper-trade review first.</p>
+    <p class="briefing-disclaimer">Verified receipt for context only — not investment advice. Source records are public.</p>
   </article>
 </div>
 
@@ -1147,10 +1098,11 @@ footer nav a:hover{color:var(--text)}
   </a>
   <nav aria-label="Footer">
     <a href="/manifesto">Manifesto</a>
-    <a href="#methodology">Method</a>
+    <a href="#receipts">Receipts</a>
     <a href="#how-it-works">How it works</a>
     <a href="#early-access">Early access</a>
   </nav>
+  <p class="footer-tagline">Read the record before the headline.</p>
   <div class="preview-access" id="preview-access" hidden>
     <button type="button" class="preview-access-toggle" id="preview-access-toggle" onclick="togglePreviewForm()">Preview access</button>
     <form class="preview-access-form" id="preview-access-form" onsubmit="handlePreviewUnlock(event)" hidden>
@@ -1450,7 +1402,7 @@ function hydrateLandingSignal(){
       if(age)txt+=' · '+age;
       return txt;
     }
-    return 'Illustrative example · rotates every 30s';
+    return 'Example signal · updates every 30s';
   }
   function updateSignal(d){
     if(!d)return;
@@ -1535,13 +1487,12 @@ function hydrateLandingSignal(){
     if(!strip||!cards)return;
     var pulses=(payload&&payload.pulses)||[];
     if(!pulses.length){
-      if(cards)cards.innerHTML='<p class="fec-marketing-note muted">Connecting to FEC pulse feed…</p>';
-      if(trail)trail.hidden=true;
+      if(typeof window.__renderFecFallback==='function') window.__renderFecFallback();
       return;
     }
     var isLive=payload.source==='fec';
     if(badge){
-      badge.textContent=isLive?'Live FEC':'Illustrative';
+      badge.textContent=isLive?'Live FEC':'Example trail';
       badge.style.color=isLive?'var(--green)':'var(--amber)';
     }
     cards.innerHTML=pulses.slice(0,3).map(function(p){
@@ -1561,7 +1512,7 @@ function hydrateLandingSignal(){
       var billN=(hero.linkCounts&&hero.linkCounts.bills)||2;
       var lobbyN=(hero.linkCounts&&hero.linkCounts.lobbyingFilings)||1;
       trailSteps.innerHTML=[
-        '<div class="fec-marketing-trail-step"><strong>FEC</strong> · '+escHtml(hero.committee||'Committee')+' PAC cluster · '+(isLive?'Live FEC':'Illustrative')+'</div>',
+        '<div class="fec-marketing-trail-step"><strong>FEC</strong> · '+escHtml(hero.committee||'Committee')+' PAC cluster · '+(isLive?'Live FEC':'Example')+'</div>',
         '<div class="fec-marketing-trail-step"><strong>Bill</strong> · '+billN+' linked bill'+(billN===1?'':'s')+' via committee map</div>',
         '<div class="fec-marketing-trail-step"><strong>Lobby</strong> · '+lobbyN+' LDA filing'+(lobbyN===1?'':'s')+' via client crosswalk</div>',
         '<div class="fec-marketing-trail-step"><strong>Ticker</strong> · '+escHtml(tk)+' via explicit fec-committee-map.json</div>'
@@ -1587,12 +1538,27 @@ function hydrateLandingSignal(){
       .catch(function(){return null})
       .then(updateSignal);
   }
+  var FEC_LANDING_FALLBACK={
+    source:'sample',
+    pulses:[
+      {committee:'Armed Services',chamber:'House',label:'Defense industry PACs',tickers:['LMT','RTX','NOC'],filingDate:'Jun 15',plainEnglish:'Defense industry PACs reported $4.2M in cycle receipts with fresh filings — names in play: LMT, RTX, NOC.',clusterKey:'armed-services',linkCounts:{bills:2,lobbyingFilings:1,contracts:1}},
+      {committee:'Banking',chamber:'Senate',label:'Financial services PACs',tickers:['JPM','BAC','GS'],filingDate:'Jun 16',plainEnglish:'Banking committee-linked PACs filed $2.8M in cycle activity — watch JPM, BAC, GS if capital-markets bills move.',clusterKey:'banking',linkCounts:{bills:1,lobbyingFilings:2,contracts:0}},
+      {committee:'Energy & Commerce',chamber:'House',label:'Energy & telecom PACs',tickers:['XOM','NEE','TSLA'],filingDate:'Jun 14',plainEnglish:'Energy & Commerce PAC cluster shows $3.1M in cycle receipts — grid and permitting bills could touch XOM, NEE, TSLA.',clusterKey:'energy-commerce',linkCounts:{bills:3,lobbyingFilings:1,contracts:0}}
+    ]
+  };
+  window.__renderFecFallback=function(){
+    updateFecMarketingFromPayload(FEC_LANDING_FALLBACK);
+  };
+  window.__renderFecFallback();
   function fetchFecPulse(){
     fetch(tsApiUrl('/api/landing-fec-pulse'))
       .then(function(r){return r.ok?r.json():null})
       .catch(function(){return null})
       .then(function(payload){
-        if(!payload||!payload.pulses||!payload.pulses.length)return;
+        if(!payload||!payload.pulses||!payload.pulses.length){
+          window.__renderFecFallback();
+          return;
+        }
         var fresh=document.getElementById('terminal-signal-freshness');
         var label=document.getElementById('terminal-signal-label');
         var idx=Math.floor(Date.now()/480000)%payload.pulses.length;
@@ -1609,6 +1575,9 @@ function hydrateLandingSignal(){
           rot.push(payload.pulses[(rotStart+i)%payload.pulses.length]);
         }
         updateFecMarketingFromPayload({source:payload.source,pulses:rot});
+      })
+      .catch(function(){
+        window.__renderFecFallback();
       });
   }
   fetchSignal();
@@ -1654,7 +1623,7 @@ function initProductLoop(){
     var isLive=Boolean(d.live)||(d.freshness&&d.freshness.level==='verified');
     row.classList.toggle('is-live',isLive);
     row.classList.toggle('is-illustrative',!isLive);
-    var suffix=isLive?' · live Congress overlay':' · illustrative when offline';
+    var suffix=isLive?' · live overlay':'';
     var nodes=row.childNodes;
     for(var i=0;i<nodes.length;i++){
       if(nodes[i].nodeType===3){
@@ -1694,6 +1663,6 @@ if(document.readyState==='loading'){
   bootLandingScripts();
 }
 </script>
-<script src="assets/landing-cinematic.js?v=landing-loop-1" defer></script>
+<script src="assets/landing-cinematic.js?v=landing-receipts-1" defer></script>
 </body>
 </html>

@@ -37,20 +37,20 @@
       chain: "DOJ → App store probe → Services risk → AAPL",
       confidence: 54,
     },
-    PLTR: {
-      price: "$132.07",
-      pct: "+4.18%",
+    LUNR: {
+      price: "$8.42",
+      pct: "+49.0%",
       pctClass: "up",
       tag: "Contract",
-      tagDetail: "Policy tag: Contract — DOD AI procurement evaluation",
+      tagDetail: "Policy tag: Contract — NASA Near Space Network · max $4.82B",
       alert: "ProcAlert",
-      signal: "DOD AI contract evaluation closing Friday",
-      chain: "USASpending → RFP close → Award watch → PLTR",
-      confidence: 48,
+      signal: "NASA posts $4.82B Near Space Network award to Intuitive Machines",
+      chain: "USASpending.gov → NASA award notice → Intuitive Machines → LUNR +49% next session",
+      confidence: 91,
     },
   };
 
-  var TICKER_ORDER = ["NVDA", "LLY", "AAPL", "PLTR"];
+  var TICKER_ORDER = ["NVDA", "LLY", "AAPL", "LUNR"];
 
   var SOUND_PROFILES = {
     forensic: {
@@ -96,16 +96,40 @@
   };
 
   var BRIEFINGS = {
-    "dod-mesh": {
-      title: "DOD announces $4.2B tactical intel mesh contract award.",
+    "lunr-nasa": {
+      title: "NASA posts $4.82B Near Space Network award to Intuitive Machines.",
       category: "Contract award",
-      date: "May 29, 2026",
-      crs: "CRS 8.4",
-      ticker: "PLTR",
-      source: "USASpending.gov → Defense Logistics Agency",
-      summary: "The Department of Defense finalized a multi-year tactical intelligence mesh contract for edge-sensor telemetry and theater-level decision matrices.",
-      impact: "This is treated as a high-signal paper-trade review: inspect the award lineage, validate source freshness, and test the PLTR thesis before any real capital decision.",
-      sparkline: [22.1, 22.4, 22.25, 22.9, 23.4, 24.1, 24.8],
+      date: "Sept 17, 2024",
+      crs: "Verified receipt",
+      ticker: "LUNR",
+      source: "USASpending.gov → NASA Near Space Network",
+      summary: "NASA awarded Intuitive Machines a Near Space Network contract with a $4.82B ceiling. The award notice was a public record on USASpending.",
+      impact: "LUNR closed +49% the next session. The record was the catalyst — be watching when award notices drop.",
+      sparkline: [5.2, 5.4, 5.3, 5.8, 6.2, 7.1, 8.42],
+      color: "#8dfdab",
+    },
+    "run-hr1": {
+      title: "H.R.1 passes the House with rooftop-solar credits eliminated.",
+      category: "Legislative",
+      date: "May 22, 2025",
+      crs: "Verified receipt",
+      ticker: "RUN",
+      source: "Congress.gov → House floor vote",
+      summary: "H.R.1 cleared the House with rooftop solar investment tax credits gutted. Committee text had been public on Congress.gov since May 12–14.",
+      impact: "Sunrun fell −40% the same day. Upstream bill language gave a ten-day lead before the floor vote.",
+      sparkline: [15.2, 14.8, 14.1, 12.4, 10.2, 9.5, 9.18],
+      color: "#FF2B2B",
+    },
+    "crcl-genius": {
+      title: "GENIUS Act clears the Senate 68–30.",
+      category: "Legislative",
+      date: "June 17, 2025",
+      crs: "Verified receipt",
+      ticker: "CRCL",
+      source: "Congress.gov → Senate floor vote",
+      summary: "The GENIUS Act passed the Senate 68–30. The vote schedule and bill text were public on Congress.gov before the session.",
+      impact: "Circle (CRCL) rose +34% the next session. The vote schedule was public — the record moved first.",
+      sparkline: [98.2, 101.4, 105.8, 112.2, 125.6, 134.8, 142.5],
       color: "#8dfdab",
     },
     "semiconductor-export": {
@@ -145,15 +169,15 @@
       color: "#8dfdab",
     },
     "ai-procurement-transparency": {
-      title: "Congress convenes hearings on AI defense procurement transparency.",
-      category: "Legislative",
-      date: "May 25, 2026",
-      crs: "CRS 4.8",
-      ticker: "PLTR",
-      source: "Congress.gov → House Armed Services Committee",
-      summary: "The House Armed Services Committee scheduled hearings reviewing software transparency guidelines and military AI testing protocols.",
-      impact: "Scrutiny can slow contract timing, but certification requirements may reinforce vendors with combat-proven enterprise systems.",
-      sparkline: [24.1, 23.9, 23.5, 23.8, 24.2, 24.5, 24.8],
+      title: "OBBBA allocates $45B for ICE detention capacity.",
+      category: "Legislative chain",
+      date: "2025",
+      crs: "Source chain",
+      ticker: "GEO",
+      source: "Congress.gov → USASpending → detention operators",
+      summary: "OBBBA includes $45B for ICE detention. CoreCivic holds $1.47B in federal awards. GEO and CXW saw modest ~3% day-one moves — a multi-hop chain, not a single receipt.",
+      impact: "TradeSimple traces bill language → agency spend → exposed operators. Smaller day-one moves; the chain is the signal.",
+      sparkline: [14.1, 14.2, 14.4, 14.5, 14.6, 14.8, 14.9],
       color: "#FFA500",
     },
     "ftc-defense": {
@@ -182,7 +206,7 @@
     },
   };
 
-  var BRIEFING_ORDER = ["dod-mesh", "semiconductor-export", "faa-drone", "sec-custody", "ai-procurement-transparency", "ftc-defense", "doe-nuclear"];
+  var BRIEFING_ORDER = ["lunr-nasa", "run-hr1", "crcl-genius", "semiconductor-export", "faa-drone", "sec-custody", "ai-procurement-transparency", "ftc-defense", "doe-nuclear"];
 
   function ready(fn) {
     if (document.readyState === "loading") {
@@ -261,6 +285,8 @@
         markLandingReady();
         return;
       }
+
+      markLandingReady();
 
       var videoStage = qs(".ts-hero-video-stage");
 
@@ -352,7 +378,7 @@
           video.loop = true;
           video.setAttribute("loop", "");
           function scheduleNavRevealAfterVideo() {
-            var delayMs = (video.duration && isFinite(video.duration) ? video.duration : 35) * 1000;
+            var delayMs = Math.min(4200, (video.duration && isFinite(video.duration) ? video.duration : 4) * 1000);
             window.setTimeout(revealNav, delayMs);
           }
           if (video.readyState >= 1) scheduleNavRevealAfterVideo();
@@ -717,6 +743,34 @@
       if (closeButton) closeButton.focus({ preventScroll: true });
     }
 
+    function renderProofPreview(id) {
+      var briefing = BRIEFINGS[id];
+      if (!briefing) return;
+      var category = qs("#proof-preview-category");
+      var crs = qs("#proof-preview-crs");
+      var title = qs("#proof-preview-title");
+      var summary = qs("#proof-preview-summary");
+      var ticker = qs("#proof-preview-ticker");
+      var date = qs("#proof-preview-date");
+      var source = qs("#proof-preview-source");
+      var impact = qs("#proof-preview-impact");
+      var expand = qs(".proof-preview-expand");
+      if (category) category.textContent = briefing.category;
+      if (crs) crs.textContent = briefing.crs;
+      if (title) title.textContent = briefing.title;
+      if (summary) summary.textContent = briefing.summary;
+      if (ticker) ticker.textContent = briefing.ticker;
+      if (date) date.textContent = briefing.date;
+      if (source) source.textContent = briefing.source;
+      if (impact) impact.textContent = briefing.impact;
+      if (expand) expand.setAttribute("data-briefing", id);
+      qsa(".proof-actions [data-briefing]").forEach(function (button) {
+        var active = button.getAttribute("data-briefing") === id;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      });
+    }
+
     function closeBriefing() {
       if (briefingModal) briefingModal.hidden = true;
       document.body.classList.remove("briefing-open");
@@ -727,9 +781,24 @@
 
     qsa("[data-briefing]").forEach(function (button) {
       button.addEventListener("click", function () {
+        var id = button.getAttribute("data-briefing");
+        if (button.closest(".proof-actions")) {
+          renderProofPreview(id);
+          return;
+        }
+        openBriefing(id);
+      });
+    });
+
+    qsa(".proof-preview-expand[data-briefing]").forEach(function (button) {
+      button.addEventListener("click", function () {
         openBriefing(button.getAttribute("data-briefing"));
       });
     });
+
+    if (qs("#proof-preview-title")) {
+      renderProofPreview("lunr-nasa");
+    }
 
     qsa("[data-briefing-close]").forEach(function (button) {
       button.addEventListener("click", function (event) {
@@ -848,7 +917,7 @@
         if (i <= text.length) {
           chainEl.textContent = text.slice(0, i);
           i += 1;
-          typeTimer = setTimeout(typeTick, 22);
+          typeTimer = setTimeout(typeTick, animate ? 14 : 0);
         } else {
           chainEl.classList.remove("typed");
           typeTimer = null;
@@ -956,10 +1025,10 @@
       }
       if (signalHeadline) signalHeadline.textContent = preset.signal;
       if (tagDetailEl) tagDetailEl.textContent = preset.tagDetail;
-      if (signalFreshness) signalFreshness.textContent = "Illustrative example · demo briefing";
+      if (signalFreshness) signalFreshness.textContent = "Example signal · demo briefing";
       if (confidenceText) confidenceText.textContent = preset.confidence + "/100";
       animateConfidence(preset.confidence);
-      setChainText(preset.chain, animate !== false);
+      setChainText(preset.chain, animate === true);
 
       if (signalPanel) {
         signalPanel.classList.add("is-updating");
@@ -1049,8 +1118,8 @@
 
     fetchLandingQuotes(function () {
       selectTerminalRow("NVDA", false);
-      if (!prefersReducedMotion && chainEl) {
-        setChainText(TERMINAL_PRESETS.NVDA.chain, true);
+      if (chainEl) {
+        setChainText(TERMINAL_PRESETS.NVDA.chain, false);
       }
       if (!prefersReducedMotion) startAutoCycle();
     });
@@ -1288,6 +1357,8 @@
         return;
       }
 
+      unlockHeroReveal();
+
       if ("IntersectionObserver" in window) {
         var observer = new IntersectionObserver(
           function (entries) {
@@ -1332,6 +1403,10 @@
         document.body.classList.add("ts-hero-scroll-reveal");
         var targets = [ticker, heroContent].filter(Boolean);
         if (!targets.length) return;
+
+        document.body.classList.add("ts-hero-reveal-unlocked");
+        gsap.set(targets, { opacity: 1, y: 0, visibility: "visible", immediateRender: true });
+        return;
 
         gsap.set(targets, { opacity: 0, y: 28, visibility: "hidden", immediateRender: true });
 
@@ -1558,29 +1633,14 @@
     if (kicker) restoreKickerText(kicker);
 
     /* Do NOT wrap .ts-kicker in scatter chars */
+    /* Headline stays plain text — avoids mono mid-word breaks and long decode intro. */
     var scatterTargetList = Array.prototype.slice.call(
-      heroCopy.querySelectorAll(".ts-subcopy, .terminal-entry-instruction, .ts-secondary-cta")
+      heroCopy.querySelectorAll(".ts-subcopy, .terminal-entry-instruction")
     );
-    var h1LineTargets = heroCopy.querySelectorAll("h1 .ts-h1-line");
-    if (h1LineTargets.length) {
-      Array.prototype.forEach.call(h1LineTargets, function (line) {
-        scatterTargetList.push(line);
-      });
-    } else {
-      var h1WordTargets = heroCopy.querySelectorAll("h1 .ts-h1-word");
-      if (h1WordTargets.length) {
-        Array.prototype.forEach.call(h1WordTargets, function (word) {
-          scatterTargetList.push(word);
-        });
-      } else {
-        var bareH1 = heroCopy.querySelector("h1");
-        if (bareH1) scatterTargetList.push(bareH1);
-      }
-    }
     var wrappedRoots = new Set();
 
     scatterTargetList.forEach(function (el) {
-      if (el.closest(".ts-primary-cta")) return;
+      if (el.closest(".ts-primary-cta") || el.closest(".ts-hero-manifesto-link")) return;
       if (wrappedRoots.has(el)) return;
       wrappedRoots.add(el);
 
@@ -1611,57 +1671,6 @@
     }
 
     if (!scatterEntries.length) return;
-
-    /* Decode: cipher glyphs resolve left-to-right once when headline enters view. */
-    if (h1 && h1DecodeLetters.length && "IntersectionObserver" in window) {
-      var GLYPHS = "#$%&@/\\<>*+=0123456789ABCDEFGHKMNPRSTUWXZ";
-      var decodeDone = false;
-
-      var runDecode = function () {
-        if (decodeDone) return;
-        decodeDone = true;
-        var STAGGER = 26;
-        var TICK = 44;
-        var scrollReveal = document.body.classList.contains("ts-hero-scroll-reveal");
-        var holdFor = scrollReveal ? 0 : Math.max(0, 1250 - performance.now());
-
-        var startLetters = function () {
-          h1DecodeLetters.forEach(function (span, idx) {
-            var flickers = 2 + Math.floor(Math.random() * 3);
-            span.classList.add("is-cipher");
-            span.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-            var step = 0;
-            var tick = function () {
-              step += 1;
-              if (step >= flickers) {
-                span.textContent = span.dataset.ch;
-                span.classList.remove("is-cipher");
-                return;
-              }
-              span.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-              setTimeout(tick, TICK);
-            };
-            setTimeout(tick, idx * STAGGER + TICK);
-          });
-        };
-
-        if (holdFor > 0) setTimeout(startLetters, holdFor);
-        else startLetters();
-      };
-
-      var decodeObserver = new IntersectionObserver(
-        function (entries) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting && !decodeDone) {
-              runDecode();
-              decodeObserver.disconnect();
-            }
-          });
-        },
-        { threshold: 0.35 }
-      );
-      decodeObserver.observe(h1);
-    }
 
     /* Cursor scatter: letters repel from pointer with phosphor bloom. */
     if (finePointer) {

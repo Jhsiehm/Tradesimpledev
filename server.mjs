@@ -495,7 +495,7 @@ async function withFileLock(filePath, fn) {
   }
 }
 
-const LANDING_QUOTES_TICKERS = ["GME", "AMZN", "SPCX", "RTX", "PLTR", "NOC", "NVDA", "AAPL", "LLY"];
+const LANDING_QUOTES_TICKERS = ["LUNR", "RUN", "CRCL", "COIN", "ENPH", "AMZN", "SPCX", "RTX", "NOC", "NVDA", "AAPL", "LLY"];
 const LANDING_QUOTES_TTL_MS = 5 * 60 * 1000;
 let landingQuotesCache = null;
 let landingQuotesCachedAt = 0;
@@ -856,6 +856,9 @@ const MARKET_FALLBACK = {
   AAPL: { symbol: "AAPL", price: 228.6, change: -0.92, pct: -0.4, high: 235.0, low: 218.4, open: 229.5 },
   LLY: { symbol: "LLY", price: 796.6, change: 8.6, pct: 1.09, high: 810.0, low: 772.0, open: 788.0 },
   GME: { symbol: "GME", price: 24.8, change: 5.5, pct: 28.4, high: 26.0, low: 19.0, open: 19.3 },
+  LUNR: { symbol: "LUNR", price: 8.42, change: 2.77, pct: 49.0, high: 8.9, low: 5.7, open: 5.65 },
+  RUN: { symbol: "RUN", price: 9.18, change: -6.12, pct: -40.0, high: 15.5, low: 9.0, open: 15.3 },
+  CRCL: { symbol: "CRCL", price: 142.5, change: 36.16, pct: 34.0, high: 145.0, low: 106.0, open: 106.34 },
   RTX: { symbol: "RTX", price: 112.84, change: -0.35, pct: -0.31, high: 114.5, low: 111.0, open: 113.2 },
   PLTR: { symbol: "PLTR", price: 132.07, change: 5.3, pct: 4.18, high: 134.0, low: 126.0, open: 126.8 },
   NOC: { symbol: "NOC", price: 498.3, change: 4.5, pct: 0.92, high: 502.0, low: 490.0, open: 493.8 },

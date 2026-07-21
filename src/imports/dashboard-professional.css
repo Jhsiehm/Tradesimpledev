@@ -206,47 +206,46 @@ body[data-page="dashboard"] .causality-score-card p {
   margin: 6px 0 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.4;
 }
 body[data-page="dashboard"] .causality-map {
-  display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px;
-  padding: 16px 18px; position: relative;
+  display: flex; flex-direction: column;
+  padding: 16px 18px 4px;
 }
-@media (max-width: 1100px) {
-  body[data-page="dashboard"] .causality-map { grid-template-columns: repeat(3,1fr); }
+body[data-page="dashboard"] .causality-step {
+  display: flex; gap: 14px; padding-bottom: 22px; position: relative;
 }
-@media (max-width: 700px) {
-  body[data-page="dashboard"] .causality-map { grid-template-columns: 1fr 1fr; }
+body[data-page="dashboard"] .causality-step::before {
+  content: ""; position: absolute; left: 14px; top: 30px; bottom: 0;
+  width: 1px; background: var(--line);
 }
-body[data-page="dashboard"] .causality-node {
-  border: 1px solid var(--line); background: rgba(255,255,255,.025);
-  border-radius: 8px; padding: 14px 12px; min-height: 140px; position: relative;
-  transition: transform .18s, border-color .18s, background .18s;
+body[data-page="dashboard"] .causality-step:last-child::before { display: none; }
+body[data-page="dashboard"] .causality-step:last-child { padding-bottom: 0; }
+
+body[data-page="dashboard"] .causality-step-marker {
+  width: 29px; height: 29px; border-radius: 50%; flex-shrink: 0; z-index: 1;
+  border: 1px solid var(--line); background: var(--bg-black, #0a0b09);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+  transition: border-color .18s, color .18s;
 }
-body[data-page="dashboard"] .causality-node:hover {
-  transform: translateY(-2px); border-color: rgba(200,255,0,.35);
-  background: rgba(200,255,0,.05);
+body[data-page="dashboard"] .causality-step:hover .causality-step-marker {
+  border-color: var(--signal-green); color: var(--signal-green);
 }
-body[data-page="dashboard"] .causality-node:not(:last-child)::after {
-  content: "→"; position: absolute; right: -12px; top: 46%;
-  color: var(--green); font-family: var(--mono); font-size: 13px;
-  text-shadow: 0 0 10px rgba(200,255,0,.7); z-index: 2; pointer-events: none;
-}
-@media (max-width: 1100px) {
-  body[data-page="dashboard"] .causality-node:not(:last-child)::after { display: none; }
-}
+
+body[data-page="dashboard"] .causality-step-body { padding-top: 2px; }
 body[data-page="dashboard"] .causality-node-step {
   font-family: var(--mono); font-size: 9.5px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px;
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: 4px;
 }
-body[data-page="dashboard"] .causality-node h4 {
-  margin: 0 0 8px; font-size: 13.5px; line-height: 1.2; letter-spacing: -.015em;
+body[data-page="dashboard"] .causality-step-body h4 {
+  margin: 0 0 6px; font-size: 14px; line-height: 1.25; letter-spacing: -.01em;
 }
-body[data-page="dashboard"] .causality-node p {
-  margin: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.45;
+body[data-page="dashboard"] .causality-step-body p {
+  margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.5; max-width: 520px;
 }
 body[data-page="dashboard"] .causality-node-source {
-  display: inline-flex; margin-top: 10px; padding: 4px 8px;
-  border: 1px solid var(--line); border-radius: 999px;
+  display: inline-flex; margin-top: 9px; padding: 3px 7px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm, 0);
   font-family: var(--mono); font-size: 10px; color: var(--text-muted);
-  background: rgba(0,0,0,.15);
+  background: rgba(255,255,255,.02); letter-spacing: .05em;
 }
 body[data-page="dashboard"] .causality-grid-2 {
   display: grid; grid-template-columns: 1fr 1fr;
@@ -1606,6 +1605,64 @@ body[data-page="dashboard"] .dashboard-overview-view .two-column .panel-head h2 
   text-transform: none;
 }
 
+/* Plain-English readout — flat terminal cards */
+body[data-page="dashboard"] .portfolio-dashboard-summary {
+  gap: 6px;
+  padding: 10px 12px;
+  background: transparent;
+}
+
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card {
+  border-color: var(--gotham-line, var(--line));
+  border-left-width: 2px;
+  border-left-color: var(--gotham-line-2, var(--line-2));
+  border-radius: 4px;
+  background: var(--bg-3);
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card.actionable-card:hover,
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card.actionable-card:focus-visible {
+  transform: none;
+  border-color: var(--gotham-line-2, var(--line-2));
+  background: color-mix(in srgb, var(--bg-3) 88%, var(--bg-2));
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card.actionable-card::after {
+  display: none;
+}
+
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+body[data-page="dashboard"] .portfolio-dashboard-summary .readout-footnote {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+}
+
+@media (max-width: 760px) {
+  body[data-page="dashboard"] .portfolio-dashboard-summary {
+    padding: 8px 10px;
+    gap: 5px;
+  }
+
+  body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card {
+    padding: 9px 10px;
+  }
+
+  body[data-page="dashboard"] .portfolio-dashboard-summary .readout-card p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+
 body[data-page="dashboard"] .panel-fold-summary {
   font-size: 12px;
   letter-spacing: 0;
@@ -2939,8 +2996,10 @@ body[data-page="dashboard"] {
   --dash-z-sidebar-overlay: 50;
   --dash-z-drawer: 200;
   --dash-z-fab: 600;
+  --dash-z-guided-demo: 750;
   --dash-z-bottom-nav: 800;
   --dash-z-feed-drawer: 1000;
+  --dash-guided-demo-h: 0px;
   --dash-classbar-h: 24px;
   --dash-topbar-stack-h: 82px;
   --dash-chrome-rail-h: 0px;
@@ -4428,10 +4487,26 @@ body[data-page="dashboard"] .settings-grid {
   }
 
   body[data-page="dashboard"] .dash-chrome-rail .guided-demo-checklist:not([hidden]) {
+    position: relative;
+    z-index: var(--dash-z-guided-demo);
+    flex-shrink: 0;
     margin: 0;
+    padding: 10px 14px 12px;
     border-left: 0;
     border-right: 0;
+    border-top: 1px solid var(--gotham-line);
+    border-bottom: 0;
     border-radius: 0;
+    box-shadow: none;
+    max-height: min(42dvh, 220px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body[data-page="dashboard"] .dash-chrome-rail .guided-demo-checklist.is-collapsed:not([hidden]) {
+    max-height: none;
+    overflow: visible;
+    padding: 8px 14px 10px;
   }
 
   body[data-page="dashboard"] .morning-brief-card:not([hidden]) + .overview-metrics-wrap--hero {
@@ -4669,11 +4744,18 @@ body[data-page="dashboard"] .feed-health-row-head strong {
 }
 
 body[data-page="dashboard"] .guided-demo-checklist {
-  margin: 0 0 8px;
+  margin: 0;
   padding: 10px 14px;
   border: 1px solid var(--dash-edge);
   border-radius: var(--dash-radius-md);
   background: color-mix(in srgb, var(--green) 6%, var(--bg-2));
+}
+
+body[data-page="dashboard"] .dash-chrome-rail .guided-demo-checklist:not([hidden]) {
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
 }
 
 body[data-page="dashboard"] .guided-demo-checklist[hidden] {
@@ -4693,6 +4775,20 @@ body[data-page="dashboard"] .guided-demo-head {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+body[data-page="dashboard"] .guided-demo-checklist .guided-demo-dismiss.button.compact {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px -8px -6px 0;
+  padding: 0;
+  font-size: 14px;
 }
 
 body[data-page="dashboard"] .guided-demo-title {
@@ -6163,5 +6259,89 @@ body[data-page="dashboard"] .trade-form input {
 body[data-page="dashboard"] .search-box input::placeholder,
 body[data-page="dashboard"] .research-drawer-global textarea::placeholder {
   color: var(--faint);
+}
+
+/* ═══ MATTE WORKSPACE — flat terminal canvas (no glow/grid/glass) ═══ */
+
+body[data-page="dashboard"] {
+  --dash-elev: none;
+  --gotham-elev: none;
+  --elev-shadow: none;
+  background: var(--bg);
+}
+
+html[data-theme="light"] body[data-page="dashboard"] {
+  --elev-shadow: none;
+  background: var(--bg);
+}
+
+body[data-page="dashboard"] .terminal-shell {
+  background: var(--bg);
+}
+
+body[data-page="dashboard"] .main-column,
+body[data-page="dashboard"] .workspace,
+body[data-page="dashboard"] #workspace-main.workspace {
+  background: var(--bg);
+}
+
+body[data-page="dashboard"] .dashboard-overview-view.active::before {
+  display: none;
+}
+
+body[data-page="dashboard"] .topbar-stack {
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .panel,
+body[data-page="dashboard"] .stat-card,
+body[data-page="dashboard"] .intel-card,
+body[data-page="dashboard"] .signal-card,
+body[data-page="dashboard"] .bill-card,
+body[data-page="dashboard"] .lobby-card,
+body[data-page="dashboard"] .crypto-card,
+body[data-page="dashboard"] .portfolio-command-hero,
+body[data-page="dashboard"] .portfolio-terminal-hero {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--bg-2);
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .panel-head {
+  background: transparent;
+}
+
+body[data-page="dashboard"] .stat-card-hero {
+  background: var(--bg-2);
+}
+
+body[data-page="dashboard"] .intel-card:hover,
+body[data-page="dashboard"] .sc-card.intel-card:hover {
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .portfolio-terminal-hero::before {
+  display: none;
+}
+
+body[data-page="dashboard"] .terminal-view .panel-emphasis {
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .ts-filter-bar--sticky {
+  box-shadow: none;
+}
+
+html[data-theme="light"] body[data-page="dashboard"] .panel,
+html[data-theme="light"] body[data-page="dashboard"] .stat-card,
+html[data-theme="light"] body[data-page="dashboard"] .portfolio-command-hero {
+  box-shadow: none;
+}
+
+@media (max-width: 760px) {
+  body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row {
+    box-shadow: none;
+  }
 }
 

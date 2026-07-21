@@ -54,6 +54,8 @@ function disabledFeatureFallbackView() {
   return isViewEnabled("thesis") ? "thesis" : "overview";
 }
 
+const MOBILE_BOTTOM_PRIMARY_VIEWS = new Set(["overview", "signals", "markets", "trade"]);
+
 const HOLDING_PALETTE = ["#5eead4", "#93c5fd", "#fcd34d", "#f87171", "#c4b5fd", "#a78bfa", "#fb923c", "#60a5fa", "#e879f9", "#4ade80"];
 
 function dashboardBootstrap() {
@@ -3690,6 +3692,7 @@ async function initDashboard() {
   setupFocusBar();
   setupTabFilters();
   setupFeedHealthDrawer();
+  setupMobileSidebarDrawer();
   setupMobileBottomNav();
   setupDashChromeMetrics();
   setupClassbarScrollHide();
@@ -3924,17 +3927,22 @@ function inferClientDataMode() {
   return "scenario";
 }
 
+function dashTelemetryCompact() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
 function renderDashTelemetryStrip() {
   const sourcesEl = $("#dash-telemetry-sources");
   const syncEl = $("#dash-telemetry-sync");
   if (!sourcesEl && !syncEl) return;
 
+  const compact = dashTelemetryCompact();
   const cfg = state.config?.data || {};
   const items = [
-    { label: "CONGRESS.GOV", live: Boolean(cfg.congress) },
-    { label: "SENATE LDA", live: Boolean(cfg.senateLda || cfg.ldaEnabled) },
+    { label: compact ? "CONGRESS" : "CONGRESS.GOV", live: Boolean(cfg.congress) },
+    { label: compact ? "LDA" : "SENATE LDA", live: Boolean(cfg.senateLda || cfg.ldaEnabled) },
     { label: "USASPENDING", live: true },
-    { label: "FEC.GOV", live: Boolean(cfg.fec) }
+    { label: compact ? "FEC" : "FEC.GOV", live: Boolean(cfg.fec) }
   ];
 
   if (sourcesEl) {
@@ -3953,7 +3961,7 @@ function renderDashTelemetryStrip() {
       .filter((t) => Number.isFinite(t));
     const latest = timestamps.length ? Math.max(...timestamps) : Date.now();
     const sec = Math.max(0, Math.floor((Date.now() - latest) / 1000));
-    syncEl.textContent = `LAST SYNC ${sec}s`;
+    syncEl.textContent = compact ? `SYNC ${sec}s` : `LAST SYNC ${sec}s`;
   }
 }
 
@@ -4524,20 +4532,71 @@ function syncDashChromeHeights() {
 function closeMobileSidebarNav() {
   const sidebar = $("#main-sidebar");
   const hamBtn = $("#ham-btn");
+  const moreBtn = $("#mobile-bottom-nav")?.querySelector("[data-mobile-action='more']");
   if (!sidebar?.classList.contains("nav-open")) return;
   sidebar.classList.remove("nav-open");
+  document.body.classList.remove("mobile-sidebar-open");
   hamBtn?.setAttribute("aria-expanded", "false");
+  moreBtn?.setAttribute("aria-expanded", "false");
+}
+
+function openMobileSidebarNav() {
+  const sidebar = $("#main-sidebar");
+  const hamBtn = $("#ham-btn");
+  const moreBtn = $("#mobile-bottom-nav")?.querySelector("[data-mobile-action='more']");
+  if (!sidebar) return;
+  sidebar.classList.add("nav-open");
+  document.body.classList.add("mobile-sidebar-open");
+  hamBtn?.setAttribute("aria-expanded", "true");
+  moreBtn?.setAttribute("aria-expanded", "true");
+}
+
+function toggleMobileSidebarNav() {
+  const sidebar = $("#main-sidebar");
+  if (!sidebar) return;
+  if (sidebar.classList.contains("nav-open")) closeMobileSidebarNav();
+  else openMobileSidebarNav();
+}
+
+function setupMobileSidebarDrawer() {
+  const sidebar = $("#main-sidebar");
+  const hamBtn = $("#ham-btn");
+  if (!sidebar || sidebar.dataset.mobileDrawerBound === "true") return;
+  sidebar.dataset.mobileDrawerBound = "true";
+  hamBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMobileSidebarNav();
+  });
+  sidebar.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.addEventListener("click", closeMobileSidebarNav);
+  });
+  document.addEventListener("click", (event) => {
+    if (!sidebar.classList.contains("nav-open")) return;
+    const target = event.target;
+    if (sidebar.contains(target)) return;
+    if (hamBtn?.contains(target)) return;
+    if ($("#mobile-bottom-nav")?.contains(target)) return;
+    closeMobileSidebarNav();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileSidebarNav();
+  });
 }
 
 function setupDashChromeMetrics() {
   syncDashChromeHeights();
   if (window.__dashChromeMetricsBound) return;
   window.__dashChromeMetricsBound = true;
-  window.addEventListener("resize", syncDashChromeHeights, { passive: true });
+  window.addEventListener("resize", () => {
+    syncDashChromeHeights();
+    renderDashTelemetryStrip();
+  }, { passive: true });
   if (typeof ResizeObserver !== "undefined") {
+    const classbar = document.querySelector(".dash-classbar");
     const stack = document.querySelector(".topbar-stack");
     const chromeRail = document.querySelector(".dash-chrome-rail");
     const ro = new ResizeObserver(() => syncDashChromeHeights());
+    if (classbar) ro.observe(classbar);
     if (stack) ro.observe(stack);
     if (chromeRail) ro.observe(chromeRail);
   }
@@ -4555,16 +4614,27 @@ function setupMobileBottomNav() {
       showView(view);
     });
   });
+  nav.querySelector("[data-mobile-action='more']")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleMobileSidebarNav();
+  });
 }
 
 function syncMobileBottomNav(view) {
   const nav = $("#mobile-bottom-nav");
   if (!nav) return;
   nav.querySelectorAll("[data-mobile-view]").forEach((btn) => {
-    const active = btn.dataset.mobileView === view;
+    const btnView = btn.dataset.mobileView;
+    const active = btnView === view;
     btn.classList.toggle("is-active", active);
     btn.setAttribute("aria-current", active ? "page" : "false");
   });
+  const moreBtn = nav.querySelector("[data-mobile-action='more']");
+  if (moreBtn) {
+    const moreActive = !MOBILE_BOTTOM_PRIMARY_VIEWS.has(view);
+    moreBtn.classList.toggle("is-active", moreActive);
+    moreBtn.setAttribute("aria-current", moreActive ? "page" : "false");
+  }
 }
 
 function focusContextCounts(sym) {
@@ -6351,19 +6421,19 @@ function renderPortfolioDashboard(positions, totalValue, returnPct, dayChange) {
     .filter((bill) => bill.affected?.some((ticker) => positions.some((position) => position.symbol === ticker)))
     .sort((a, b) => Number(b.policyExposure ?? billMomentum(b)) - Number(a.policyExposure ?? billMomentum(a)))[0];
   summaryEl.innerHTML = `
-    <article class="actionable-card" ${drilldownAttrs("trade", {}, "Open paper trading account")}>
-      <span class="mini-pill ${dayChange >= 0 ? "green" : "red"}">Today</span>
+    <article class="readout-card actionable-card" ${drilldownAttrs("trade", {}, "Open paper trading account")}>
+      <span class="readout-label readout-label--${dayChange >= 0 ? "green" : "red"}">Today</span>
       <p>Your portfolio is ${dayChange >= 0 ? "up" : "down"} ${money(Math.abs(dayChange))} today and ${returnPct >= 0 ? "up" : "down"} ${fmt(Math.abs(returnPct))}% from entry.</p>
     </article>
-    <article class="actionable-card" ${drilldownAttrs("analysis", { symbol: best?.symbol || "" }, `Open ${best?.symbol || "top mover"} analysis`)}>
-      <span class="mini-pill green">Top mover</span>
+    <article class="readout-card actionable-card" ${drilldownAttrs("analysis", { symbol: best?.symbol || "" }, `Open ${best?.symbol || "top mover"} analysis`)}>
+      <span class="readout-label readout-label--green">Top mover</span>
       <p>${escapeHtml(best?.symbol || "N/A")} is the strongest holding today at ${signed(best?.quote?.pct || 0)}%.</p>
     </article>
-    <article class="actionable-card" ${drilldownAttrs("bills", { billId: biggestBill?.id || "" }, "Open portfolio policy exposure")}>
-      <span class="mini-pill amber">Policy exposure</span>
-      <p>${exposed.length} holdings have mapped policy chains. ${biggestBill ? `${biggestBill.title} is the highest-impact watch item.` : "No high-impact bill is mapped to current holdings."}</p>
+    <article class="readout-card actionable-card" ${drilldownAttrs("bills", { billId: biggestBill?.id || "" }, "Open portfolio policy exposure")}>
+      <span class="readout-label readout-label--amber">Policy exposure</span>
+      <p>${exposed.length} holdings have mapped policy chains. ${biggestBill ? `${escapeHtml(biggestBill.title)} is the highest-impact watch item.` : "No high-impact bill is mapped to current holdings."}</p>
     </article>
-    <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Informational scenarios only — not financial advice.</p>
+    <p class="readout-footnote">Informational scenarios only — not financial advice.</p>
   `;
 }
 
@@ -9454,6 +9524,13 @@ function applyFeatureGateVisibility() {
     button.disabled = !enabled;
     button.setAttribute("aria-hidden", enabled ? "false" : "true");
   });
+  document.querySelectorAll("#mobile-bottom-nav [data-mobile-view]").forEach((button) => {
+    const view = button.dataset.mobileView;
+    const enabled = isViewEnabled(view);
+    button.hidden = !enabled;
+    button.disabled = !enabled;
+    button.setAttribute("aria-hidden", enabled ? "false" : "true");
+  });
   document.querySelectorAll(".view[id^='view-']").forEach((section) => {
     const view = section.id.replace(/^view-/, "");
     const disabled = !isViewEnabled(view);
@@ -9482,6 +9559,7 @@ function setupNavigation() {
     button.addEventListener("click", () => {
       const view = button.dataset.view || button.dataset.viewJump;
       if (!isViewEnabled(view)) return;
+      closeMobileSidebarNav();
       showView(view);
     });
   });
@@ -9512,6 +9590,7 @@ function showView(view, updateUrl = true) {
     showView(disabledFeatureFallbackView(), updateUrl);
     return;
   }
+  closeMobileSidebarNav();
 
   /* Research UI lives in the global drawer; there is no #view-research — pair drawer with Bills so nav/state stay coherent. */
   if (view === "research") {
@@ -10675,8 +10754,26 @@ function dismissGuidedDemo() {
   syncDashChromeHeights();
 }
 
+function syncGuidedDemoLayout() {
+  const panel = $("#guided-demo-checklist");
+  const active = Boolean(panel && !panel.hidden && guidedDemoActive());
+  document.body.classList.toggle("guided-demo-active", active);
+  syncDashChromeHeights();
+}
+
 function setupGuidedDemo() {
   $("#guided-demo-dismiss")?.addEventListener("click", dismissGuidedDemo);
+  if (window.__guidedDemoLayoutBound) return;
+  window.__guidedDemoLayoutBound = true;
+  if (typeof ResizeObserver !== "undefined") {
+    const panel = $("#guided-demo-checklist");
+    if (panel) {
+      const ro = new ResizeObserver(() => syncGuidedDemoLayout());
+      ro.observe(panel);
+    }
+  }
+  window.matchMedia("(max-width: 760px)").addEventListener("change", syncGuidedDemoLayout);
+  window.addEventListener("resize", syncGuidedDemoLayout, { passive: true });
 }
 
 function renderGuidedDemoChecklist() {
@@ -10686,6 +10783,7 @@ function renderGuidedDemoChecklist() {
   if (!guidedDemoActive()) {
     panel.hidden = true;
     syncDashChromeHeights();
+    syncGuidedDemoLayout();
     return;
   }
   const steps = [
@@ -10736,6 +10834,7 @@ function renderGuidedDemoChecklist() {
     });
   });
   syncDashChromeHeights();
+  requestAnimationFrame(() => syncGuidedDemoLayout());
 }
 
 function momentumBandLabel(score) {

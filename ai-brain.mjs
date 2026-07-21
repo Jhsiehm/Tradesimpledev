@@ -897,12 +897,15 @@ Respond with ONLY a raw JSON object. No markdown, no explanation outside the JSO
 
 Fill in real content for ${ticker}. Be specific — if a bill is named in the data, use its actual title.`;
 
+  // Only override model when explicitly configured. Passing an Anthropic model
+  // id into fetchAiText breaks Gemini-preferred environments (model name mismatch).
+  const causalityModel = process.env.CAUSALITY_MODEL || null;
   const { text } = await fetchAiText({
     system,
     user,
     maxTokens: 1600,
     timeoutMs: 45_000,
-    model: process.env.CAUSALITY_MODEL || process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001"
+    ...(causalityModel ? { model: causalityModel } : {})
   });
   const parsed = parseJsonFromText(text);
 

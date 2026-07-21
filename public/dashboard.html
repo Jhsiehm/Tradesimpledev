@@ -125,13 +125,6 @@
       </div>
 
       <div class="dash-chrome-rail" aria-label="Terminal status">
-        <aside id="guided-demo-checklist" class="guided-demo-checklist" hidden aria-label="60-second demo path">
-          <div class="guided-demo-head">
-            <span class="guided-demo-title">Demo path · ~60s</span>
-            <button type="button" class="guided-demo-dismiss button button-ghost compact" id="guided-demo-dismiss" aria-label="Dismiss demo checklist">✕</button>
-          </div>
-          <ol class="guided-demo-steps" id="guided-demo-steps"></ol>
-        </aside>
         <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
           <div class="ts-focus-bar-inner">
             <span class="ts-focus-label">Focus</span>
@@ -160,6 +153,13 @@
           <button type="button" class="feed-scope-chip is-active" data-feed-scope="watchlist">Your watchlist</button>
           <button type="button" class="feed-scope-chip" data-feed-scope="all">All policy</button>
         </div>
+        <aside id="guided-demo-checklist" class="guided-demo-checklist" hidden aria-label="60-second demo path">
+          <div class="guided-demo-head">
+            <span class="guided-demo-title">Demo path · ~60s</span>
+            <button type="button" class="guided-demo-dismiss button button-ghost compact" id="guided-demo-dismiss" aria-label="Dismiss demo checklist">✕</button>
+          </div>
+          <ol class="guided-demo-steps" id="guided-demo-steps"></ol>
+        </aside>
       </div>
 
       <main class="workspace" id="workspace-main">
@@ -171,11 +171,11 @@
           <div id="since-last-visit-strip" class="since-last-visit-strip" role="status" aria-live="polite" hidden></div>
           <header class="dash-view-header dash-view-header--overview">
             <div class="dash-view-header-copy">
-              <h1 class="overview-hero-title">Holdings &amp; policy exposure</h1>
+              <h1>Holdings &amp; policy exposure</h1>
               <p id="overview-subtitle" class="dash-view-purpose">Portfolio value, mapped bills, and lobbying pressure for your watchlist.</p>
             </div>
             <div class="dash-view-header-rail">
-              <button type="button" class="button button-primary compact" data-view-jump="thesis">Start in Thesis Lab</button>
+              <button type="button" class="button button-secondary compact" data-view-jump="thesis">Thesis Lab</button>
             </div>
           </header>
 
@@ -1961,6 +1961,10 @@
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>
         <span class="mobile-bottom-nav-label">Account</span>
       </button>
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-action="more" aria-label="More sections" aria-expanded="false" aria-controls="main-sidebar">
+        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+        <span class="mobile-bottom-nav-label">More</span>
+      </button>
     </nav>
 
     <aside id="fec-detail-drawer" class="feed-health-drawer fec-detail-drawer" aria-label="FEC filing detail" aria-hidden="true" hidden>
@@ -2112,14 +2116,17 @@
         var dogePill = document.getElementById("c-doge-pill");
         if (dogePill) dogePill.style.display = data.dogeRisk ? "" : "none";
 
-        // Causal map
+        // Causal chain
         var mapEl = document.getElementById("c-map");
         mapEl.innerHTML = (data.nodes || []).map(function (n, i) {
-          return '<div class="causality-node">' +
-            '<div class="causality-node-step">' + esc(n.step) + '</div>' +
-            '<h4>' + esc(n.title) + '</h4>' +
-            '<p>' + esc(n.detail) + '</p>' +
-            '<span class="causality-node-source">' + esc(n.source) + '</span>' +
+          return '<div class="causality-step">' +
+            '<div class="causality-step-marker">' + (i + 1) + '</div>' +
+            '<div class="causality-step-body">' +
+              '<div class="causality-node-step">' + esc(n.step) + '</div>' +
+              '<h4>' + esc(n.title) + '</h4>' +
+              '<p>' + esc(n.detail) + '</p>' +
+              '<span class="causality-node-source">' + esc(n.source) + '</span>' +
+            '</div>' +
           '</div>';
         }).join("");
 
@@ -2355,28 +2362,6 @@
       } else {
         initSettings();
       }
-    })();
-    </script>
-    <script>
-    (function() {
-      var hamBtn = document.getElementById('ham-btn');
-      var sidebar = document.getElementById('main-sidebar');
-      if (!hamBtn || !sidebar) return;
-      function closeNav() {
-        sidebar.classList.remove('nav-open');
-        hamBtn.setAttribute('aria-expanded', 'false');
-      }
-      hamBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var isOpen = sidebar.classList.toggle('nav-open');
-        hamBtn.setAttribute('aria-expanded', String(isOpen));
-      });
-      sidebar.querySelectorAll('.nav-item').forEach(function(btn) {
-        btn.addEventListener('click', closeNav);
-      });
-      document.addEventListener('click', function(e) {
-        if (sidebar.classList.contains('nav-open') && !sidebar.contains(e.target)) closeNav();
-      });
     })();
     </script>
   </body>

@@ -62,9 +62,9 @@
   --radius-lg: 8px;
 
   /* ── Color ramp (dark default) ── */
-  --signal-green: #8dfdab;
-  --signal-green-soft: #a8ffc4;
-  --signal-green-dim: rgba(141, 253, 171, 0.14);
+  --signal-green: #7fe8c9;
+  --signal-green-soft: #a3f2dc;
+  --signal-green-dim: rgba(127, 232, 201, 0.14);
   --warning-amber: #ffb340;
   --risk-red: #f06862;
   --info-blue: #6db3e8;
@@ -100,9 +100,9 @@
 
 html[data-theme="light"] {
   color-scheme: light;
-  --signal-green: #1a5c38;
-  --signal-green-soft: #227a4d;
-  --signal-green-dim: rgba(26, 92, 56, 0.14);
+  --signal-green: #0f5f4d;
+  --signal-green-soft: #147a63;
+  --signal-green-dim: rgba(15, 95, 77, 0.14);
   --warning-amber: #9a5f08;
   --risk-red: #a83030;
   --info-blue: #1f5f94;
