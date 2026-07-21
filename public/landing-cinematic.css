@@ -28,8 +28,8 @@
   --lc-accent: var(--signal-green);
   --lc-accent-on: #071004;
   --mono: "Space Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-  --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-  --sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --shadow-terminal:
     0 48px 120px rgba(10, 14, 8, 0.58),
     0 16px 40px rgba(10, 14, 8, 0.32),
@@ -491,7 +491,7 @@ html[data-theme="light"] .footer-brand span {
   display: none;
   margin-left: auto;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
   background: var(--bg-card);
   color: var(--text-muted);
@@ -593,7 +593,7 @@ html[data-theme="light"] .footer-brand span {
 .ts-ticker-track em {
   margin-left: 8px;
   padding: 3px 7px;
-  border-radius: 6px;
+  border-radius: 0;
   font-style: normal;
   font-weight: 700;
   font-size: 12px;
@@ -1068,10 +1068,8 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
   min-height: 420px;
   height: min(60vh, 660px);
   overflow: hidden;
-  border-left: 1px solid rgba(232, 228, 220, 0.1);
-  border-bottom: 1px solid rgba(232, 228, 220, 0.1);
+  border: 1px solid var(--border-hairline, rgba(232, 228, 220, 0.1));
   background: var(--bg-black);
-  box-shadow: 0 42px 100px rgba(0, 0, 0, 0.45);
 }
 
 .ts-cinematic-wall::before,
@@ -1084,16 +1082,11 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
 }
 
 .ts-cinematic-wall::before {
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.8) 100%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 4px);
-  mix-blend-mode: screen;
-  opacity: 0.55;
+  content: none;
 }
 
 .ts-cinematic-wall::after {
-  border: 1px solid rgba(232, 228, 220, 0.06);
-  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.72);
+  content: none;
 }
 
 .cinema-frame {
@@ -1172,12 +1165,9 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
   width: 44%;
   height: 52%;
   padding: 22px;
-  border-left: 1px solid rgba(232, 228, 220, 0.07);
-  border-top: 1px solid rgba(232, 228, 220, 0.07);
-  background:
-    linear-gradient(180deg, rgba(8, 8, 8, 0.68), rgba(8, 8, 8, 0.96)),
-    url("media/backgrounds/data-center.svg") center / cover;
-  filter: grayscale(0.82);
+  border-left: 1px solid var(--border-hairline, rgba(232, 228, 220, 0.07));
+  border-top: 1px solid var(--border-hairline, rgba(232, 228, 220, 0.07));
+  background: var(--bg-deep, #070807);
 }
 
 .cinema-live-row {
@@ -1197,8 +1187,6 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
   height: 5px;
   border-radius: 50%;
   background: var(--signal-green);
-  box-shadow: 0 0 12px rgba(141, 253, 171, 0.5);
-  animation: pulseAmber 2s ease-in-out infinite;
 }
 
 .cinema-live-row.is-live {
@@ -1211,7 +1199,6 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
 
 .cinema-live-row.is-illustrative span {
   background: rgba(245, 166, 35, 0.88);
-  box-shadow: 0 0 10px rgba(245, 166, 35, 0.35);
 }
 
 .cinema-stamp {
@@ -1324,7 +1311,7 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
   opacity: 0;
   transform: translateY(8px);
   background:
-    linear-gradient(90deg, rgba(141, 253, 171, 0.16), transparent 54%),
+    linear-gradient(90deg, rgba(127, 232, 201, 0.16), transparent 54%),
     rgba(0, 0, 0, 0.76);
   transition: opacity 0.22s ease, transform 0.22s ease;
 }
@@ -1949,7 +1936,7 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
 .terminal-row b {
   justify-self: start;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -2364,7 +2351,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 .pipeline-step {
   padding: 24px 18px;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--bg-card);
 }
 
@@ -2468,7 +2455,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 .watch-card {
   padding: 24px;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--bg-card);
   transition: border-color 0.2s, transform 0.2s;
 }
@@ -2499,7 +2486,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 .demo-tile {
   padding: 22px;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--bg-card-strong);
 }
 
@@ -3139,7 +3126,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 }
 
 #hero-terminal:focus-visible {
-  box-shadow: var(--shadow-terminal), 0 0 0 2px rgba(141, 253, 171, 0.45);
+  box-shadow: var(--shadow-terminal), 0 0 0 2px rgba(127, 232, 201, 0.45);
 }
 
 /* ── PIPELINE INTERACTIVE ─────────────────────────────────── */
