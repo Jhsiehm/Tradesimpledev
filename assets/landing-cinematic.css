@@ -661,14 +661,17 @@ html[data-theme="light"] .footer-brand span {
 .ts-hero-copy h1 {
   margin: 0;
   max-width: none;
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--serif, "Fraunces", Georgia, "Times New Roman", serif);
   font-size: clamp(2.3rem, 6.2vw, 4.35rem);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 1.08;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   text-transform: none;
   font-style: normal;
   color: var(--signal-green);
+  text-shadow: none;
+  overflow-wrap: normal;
+  word-break: normal;
   opacity: 0;
   animation: fadeUp 0.7s ease 0.95s forwards;
 }
@@ -835,7 +838,7 @@ html[data-theme="light"] .ts-secondary-cta--ghost {
 }
 
 .terminal-entry-instruction {
-  max-width: 38ch;
+  max-width: min(46ch, 100%);
   margin-top: 22px;
   margin-left: auto;
   margin-right: auto;
@@ -849,6 +852,9 @@ html[data-theme="light"] .ts-secondary-cta--ghost {
   letter-spacing: 0.02em;
   text-transform: none;
   text-align: center;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .terminal-entry-instruction::before {
@@ -3530,7 +3536,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 }
 
 @media (max-width: 1200px) {
-  .landing-cinematic .ts-hero-copy h1 { font-size: 4.8rem; }
+  .landing-cinematic .ts-hero-copy h1 { font-size: clamp(2.5rem, 5.4vw, 3.9rem); }
   .landing-cinematic .ts-hero-content {
     grid-template-columns: 1fr;
   }
@@ -3573,8 +3579,8 @@ html[data-theme="light"] .ts-ticker-item.is-active {
   }
 
   .landing-cinematic .ts-hero-copy h1 {
-    max-width: 11ch;
-    font-size: 4rem;
+    max-width: min(18ch, 100%);
+    font-size: clamp(2.4rem, 7vw, 3.6rem);
   }
 
   .ts-class-row {
@@ -4754,7 +4760,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
   }
 
   .landing-cinematic .ts-hero-copy h1 {
-    font-size: 4.9rem;
+    font-size: clamp(2.4rem, 5.2vw, 3.75rem);
   }
 }
 
@@ -5191,8 +5197,13 @@ html[data-theme="light"] .landing-cinematic .nav-divider {
   margin-left: auto;
   margin-right: auto;
   grid-template-columns: unset;
+  gap: clamp(20px, 2.4vw, 36px);
+  padding-top: clamp(6.5rem, 10vh, 8.5rem);
   padding-left: clamp(20px, 5vw, 48px);
   padding-right: clamp(20px, 5vw, 48px);
+  padding-bottom: clamp(20px, 2.5vh, 36px);
+  min-height: 0;
+  overflow: visible;
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-visual {
@@ -5203,8 +5214,9 @@ html[data-theme="light"] .landing-cinematic .nav-divider {
 }
 
 .landing-cinematic .ts-hero-reveal .ts-cinematic-wall {
-  transform: scale(0.96);
+  transform: scale(0.94);
   transform-origin: top center;
+  max-height: min(720px, 68vh);
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy {
@@ -5254,6 +5266,10 @@ html[data-theme="light"] .landing-cinematic .nav-divider {
   margin-left: auto;
   margin-right: auto;
   text-align: center;
+  max-width: min(38rem, 100%);
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-ctas {
@@ -5270,6 +5286,11 @@ html[data-theme="light"] .landing-cinematic .nav-divider {
 .landing-cinematic .ts-hero-reveal .hero-reference-row span:nth-child(2),
 .landing-cinematic .ts-hero-reveal .hero-reference-row span:nth-child(3) {
   text-align: center;
+}
+
+.landing-cinematic .ts-hero-reveal .ts-scatter-word {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-scatter-ch,
@@ -5504,9 +5525,11 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 
 .landing-cinematic .ts-hero-headline .ts-h1-line,
 .landing-cinematic .ts-hero-reveal .ts-hero-copy h1 .ts-h1-line {
+  display: block;
   overflow-wrap: normal;
   word-break: normal;
-  white-space: nowrap;
+  white-space: normal;
+  text-shadow: none;
 }
 
 .landing-cinematic .ts-hero-headline .ts-h1-line {
@@ -6102,9 +6125,12 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy h1,
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-hero-headline {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace) !important;
+  font-family: var(--serif, "Fraunces", Georgia, "Times New Roman", serif) !important;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 500 !important;
+  text-shadow: none !important;
+  max-width: min(20ch, 100%);
+  overflow: visible;
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-subcopy,

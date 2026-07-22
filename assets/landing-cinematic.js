@@ -1568,17 +1568,29 @@
         var text = node.nodeValue || "";
         if (!text.trim()) return;
         var frag = document.createDocumentFragment();
+        var wordSpan = null;
+        var flushWord = function () {
+          if (wordSpan) {
+            frag.appendChild(wordSpan);
+            wordSpan = null;
+          }
+        };
         for (var i = 0; i < text.length; i++) {
           var ch = text[i];
           if (/\s/.test(ch)) {
+            flushWord();
             frag.appendChild(document.createTextNode(ch));
           } else {
+            if (!wordSpan) {
+              wordSpan = document.createElement("span");
+              wordSpan.className = "ts-scatter-word";
+            }
             var span = document.createElement("span");
             span.className = options.extraClass ? "ts-scatter-ch " + options.extraClass : "ts-scatter-ch";
             span.setAttribute("aria-hidden", "true");
             span.textContent = ch;
             span.dataset.ch = ch;
-            frag.appendChild(span);
+            wordSpan.appendChild(span);
             var entry = {
               el: span,
               radius: options.radius,
@@ -1589,9 +1601,15 @@
             if (options.decode) h1DecodeLetters.push(span);
           }
         }
+        flushWord();
         node.parentNode.replaceChild(frag, node);
       } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== "BR") {
-        if (node.classList && (node.classList.contains("ts-scatter-ch") || node.classList.contains("ts-h1-ch"))) {
+        if (
+          node.classList &&
+          (node.classList.contains("ts-scatter-ch") ||
+            node.classList.contains("ts-h1-ch") ||
+            node.classList.contains("ts-scatter-word"))
+        ) {
           return;
         }
         if (options.skipSelectors && node.matches) {
