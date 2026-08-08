@@ -499,14 +499,6 @@ section{position:relative;z-index:1}
 .wl-h em{font-style:normal;color:var(--green)}
 .wl-or{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;margin:0 0 12px}
 .wl-sub{font-size:15px;color:var(--muted);line-height:1.7;margin-bottom:24px}
-.wl-form{display:flex;flex-direction:column;gap:10px}
-.wl-input{
-  padding:12px 18px;border:1px solid var(--line-2);border-radius:9px;
-  background:var(--bg);color:var(--text);font-size:14px;font-family:var(--sans);
-  outline:none;transition:border-color .18s,box-shadow .18s;
-}
-.wl-input:focus{border-color:rgba(141,253,171,.4);box-shadow:0 0 0 3px var(--green-glow)}
-.wl-input::placeholder{color:var(--faint)}
 .wl-status{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:4px}
 .wl-right{padding-top:12px}
 .mini-signal{
@@ -612,7 +604,6 @@ footer nav a:hover{color:var(--text)}
   <button type="button" class="ts-dot" data-target="#how-it-works" aria-label="How it works"><span></span></button>
   <button type="button" class="ts-dot" data-target="#compare" aria-label="Comparison"><span></span></button>
   <button type="button" class="ts-dot" data-target="#founder" aria-label="Founder"><span></span></button>
-  <button type="button" class="ts-dot" data-target="#early-access" aria-label="Early access"><span></span></button>
 </nav>
 
 <main class="site-main" style="overflow-x:hidden;width:100%;max-width:100%">
@@ -711,21 +702,21 @@ footer nav a:hover{color:var(--text)}
       <span class="nav-divider" aria-hidden="true">/</span>
       <a href="#how-it-works">Pipeline</a>
       <a href="#compare">Compare</a>
-      <a href="#early-access">Access</a>
+      <a href="/terminal">Terminal</a>
     </div>
     <div class="ts-nav-actions">
       <div class="theme-pill" role="group" aria-label="Color theme">
         <button class="active" id="dark-btn" onclick="setTheme('dark')">Dark</button>
         <button id="light-btn" onclick="setTheme('light')">Light</button>
       </div>
-      <a class="terminal-button" href="#early-access">Join waitlist</a>
+      <a class="terminal-button" href="/terminal">Enter the terminal</a>
     </div>
   </nav>
   </div>
 
     <div class="ts-hero-stage-caption">
       <p class="ts-hero-stage-tagline">By the time it's a headline, the move already happened.</p>
-      <a class="ts-hero-stage-cta" href="#early-access">Join waitlist →</a>
+      <a class="ts-hero-stage-cta" href="/terminal">Enter the terminal →</a>
     </div>
 
     <a href="/manifesto" class="ts-manifesto-portal" aria-label="Read why TradeSimple exists — manifesto">
@@ -781,7 +772,7 @@ footer nav a:hover{color:var(--text)}
         TradeSimple watches the record so you see it first.
       </p>
       <div class="ts-hero-ctas">
-        <a href="#early-access" class="ts-primary-cta" id="primary-cta">Join waitlist →</a>
+        <a href="/terminal" class="ts-primary-cta" id="primary-cta">Enter the terminal →</a>
         <a href="/manifesto" class="ts-secondary-cta ts-secondary-cta--ghost ts-hero-manifesto-link">Why TradeSimple →</a>
       </div>
       <p class="terminal-entry-instruction">Public records move markets. Be watching when the catalyst drops.</p>
@@ -864,7 +855,7 @@ footer nav a:hover{color:var(--text)}
               <div class="landing-trending-strip" id="landing-trending-strip" hidden>
                 <div class="landing-trending-head">
                   <span class="landing-trending-label">Policy topics</span>
-                  <a class="landing-trending-cta" href="#early-access">Join waitlist →</a>
+                  <a class="landing-trending-cta" href="/terminal">Open terminal →</a>
                 </div>
                 <div class="landing-trending-items" id="landing-trending-items"></div>
                 <p class="landing-trending-note">Policy topic watch</p>
@@ -1026,25 +1017,23 @@ footer nav a:hover{color:var(--text)}
 </section>
 
 <!-- TERMINAL ACCESS -->
-<section class="archive-access-section div-line" id="early-access">
+<section class="archive-access-section div-line" id="enter">
   <div class="archive-wrap access-grid">
     <div class="reveal">
-      <p class="chapter-eyebrow">Early access</p>
-      <h2>Join the waitlist.<br>Get this week's Bill Brief.</h2>
-      <p>Policy signals with cited sources, plain-English research, and paper trading — plus a weekly Bill Brief on the legislation moving your watchlist. Launching soon.</p>
+      <p class="chapter-eyebrow">Open now</p>
+      <h2>No waitlist. No signup form.<br>Read the record yourself.</h2>
+      <p>Policy signals with cited sources, plain-English research, and paper trading — open to use right now. Research beta, not investment advice.</p>
     </div>
-    <form class="access-dossier wl-form reveal" onsubmit="handleWL(event)">
-      <label for="access-email">Email for waitlist + Bill Brief</label>
-      <input id="access-email" class="wl-input" type="email" placeholder="your@email.com" autocomplete="email" required/>
-      <button class="ts-primary-cta" type="submit" id="wl-submit">Join waitlist →</button>
-      <p class="wl-status" id="wl-status">Weekly Bill Brief + launch access when the terminal opens.</p>
-      <div class="access-checklist" aria-label="What happens next">
-        <span>Join the waitlist</span>
-        <span>Get this week's Bill Brief</span>
-        <span>Early terminal access</span>
-        <span>Paper mode when we open</span>
+    <div class="access-dossier reveal">
+      <a class="ts-primary-cta" href="/terminal">Enter the terminal →</a>
+      <p class="wl-status">Paper trading only. No account required to start.</p>
+      <div class="access-checklist" aria-label="What you get">
+        <span>Cited policy signals</span>
+        <span>Plain-English research</span>
+        <span>Paper trading terminal</span>
+        <span>Public, hash-chained prediction ledger</span>
       </div>
-    </form>
+    </div>
   </div>
 </section>
 
@@ -1100,7 +1089,7 @@ footer nav a:hover{color:var(--text)}
     <a href="/manifesto">Manifesto</a>
     <a href="#receipts">Receipts</a>
     <a href="#how-it-works">How it works</a>
-    <a href="#early-access">Early access</a>
+    <a href="/terminal">Terminal</a>
   </nav>
   <p class="footer-tagline">Read the record before the headline.</p>
   <div class="preview-access" id="preview-access" hidden>
@@ -1266,36 +1255,6 @@ function initScrollReveal(){
   document.querySelectorAll('.reveal,.stagger').forEach(function(el){ro.observe(el)});
 }
 
-/* ── WAITLIST ── */
-function handleWL(e){
-  e.preventDefault();
-  var form=e.target;
-  var btn=document.getElementById('wl-submit');
-  var st=document.getElementById('wl-status');
-  var input=form.querySelector('input[type="email"]');
-  var email=(input&&input.value||'').trim();
-  if(!email||btn.disabled)return;
-  btn.style.opacity='.6';
-  btn.disabled=true;
-  st.style.color='var(--muted)';
-  st.textContent='Sending…';
-  fetch(tsApiUrl('/api/waitlist'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,source:'landing_dispatch'})})
-    .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
-    .catch(function(){return{ok:false,data:{}};})
-    .then(function(result){
-      if(result.ok&&result.data.ok!==false){
-        st.textContent=result.data.message||"You're on the dispatch list. We'll reach you before the headline.";
-        st.style.color='var(--green)';
-        form.reset();
-      }else{
-        st.textContent=result.data.message||'Could not join the dispatch list. Try again in a moment.';
-        st.style.color='var(--red)';
-      }
-      btn.style.opacity='1';
-      btn.disabled=false;
-    });
-}
-
 /* ── PREVIEW ACCESS (owner passcode gate) ── */
 function togglePreviewForm(){
   var form=document.getElementById('preview-access-form');
@@ -1430,9 +1389,7 @@ function hydrateLandingSignal(){
     }
     if(briefLink){
       if(TS_LANDING_ONLY){
-        briefLink.href='#early-access';
-        briefLink.hidden=false;
-        briefLink.textContent='Join waitlist →';
+        briefLink.hidden=true;
       }else if(d.billId){
         var briefPath=d.briefPath||('/bill/'+encodeURIComponent(d.billId));
         briefLink.href=briefPath;
@@ -1526,7 +1483,7 @@ function hydrateLandingSignal(){
     if(!items||!items.length){strip.hidden=true;host.innerHTML='';return;}
     strip.hidden=false;
     host.innerHTML=items.slice(0,3).map(function(item){
-      var href=item.briefUrl||'#early-access';
+      var href=item.briefUrl||'/terminal';
       var type=(item.type||'topic').toUpperCase();
       var tick=item.tickerLabel||'';
       return '<a class="landing-trending-item" href="'+href+'"><div><strong>'+item.title+'</strong><em>'+tick+'</em></div><span>'+type+'</span></a>';

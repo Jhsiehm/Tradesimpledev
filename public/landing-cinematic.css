@@ -5593,7 +5593,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 }
 
 /* ── EARLY ACCESS TYPE (landing-access-type-1) ─────────── */
-.landing-cinematic #early-access .chapter-eyebrow,
+.landing-cinematic #enter .chapter-eyebrow,
 .landing-cinematic .archive-access-section .chapter-eyebrow {
   color: var(--signal-green);
   font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
@@ -5604,14 +5604,14 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   text-transform: uppercase;
 }
 
-.landing-cinematic #early-access h2,
+.landing-cinematic #enter h2,
 .landing-cinematic .archive-access-section h2 {
   font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
   font-style: normal;
   font-weight: 400;
 }
 
-.landing-cinematic #early-access .reveal > p:not(.chapter-eyebrow),
+.landing-cinematic #enter .reveal > p:not(.chapter-eyebrow),
 .landing-cinematic .archive-access-section .reveal > p:not(.chapter-eyebrow) {
   font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(15px, 1.6vw, 16px);
@@ -5621,7 +5621,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   color: rgba(232, 228, 220, 0.58);
 }
 
-.landing-cinematic #early-access .access-dossier label {
+.landing-cinematic #enter .access-dossier label {
   color: var(--signal-green);
   font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
   font-size: 10px;
@@ -5629,26 +5629,26 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   font-weight: 700;
 }
 
-.landing-cinematic #early-access .access-dossier .wl-input,
-.landing-cinematic #early-access .access-dossier .wl-status,
-.landing-cinematic #early-access .access-checklist span {
+.landing-cinematic #enter .access-dossier .wl-input,
+.landing-cinematic #enter .access-dossier .wl-status,
+.landing-cinematic #enter .access-checklist span {
   font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
 }
 
-.landing-cinematic #early-access .access-checklist span {
+.landing-cinematic #enter .access-checklist span {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.08em;
 }
 
-.landing-cinematic #early-access .access-actions .ts-primary-cta,
-.landing-cinematic #early-access .access-actions .ts-secondary-cta,
-.landing-cinematic #early-access .access-dossier .ts-secondary-cta {
+.landing-cinematic #enter .access-actions .ts-primary-cta,
+.landing-cinematic #enter .access-actions .ts-secondary-cta,
+.landing-cinematic #enter .access-dossier .ts-secondary-cta {
   font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
 }
 
-.landing-cinematic #early-access .access-actions .ts-primary-cta,
-.landing-cinematic #early-access .access-dossier .ts-primary-cta {
+.landing-cinematic #enter .access-actions .ts-primary-cta,
+.landing-cinematic #enter .access-dossier .ts-primary-cta {
   background: var(--lc-accent);
   border-color: var(--lc-accent);
   color: var(--lc-accent-on);
@@ -5675,9 +5675,9 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic .fec-marketing-strip .chapter-eyebrow,
 .landing-cinematic .landing-trending-label,
 .landing-cinematic .product-loop-step-label,
-.landing-cinematic #early-access .chapter-eyebrow,
+.landing-cinematic #enter .chapter-eyebrow,
 .landing-cinematic .archive-access-section .chapter-eyebrow,
-.landing-cinematic #early-access .access-dossier label,
+.landing-cinematic #enter .access-dossier label,
 .landing-cinematic .ts-hero-reveal .terminal-entry-instruction .term-em,
 .landing-cinematic .ts-h1-word--mint,
 .landing-cinematic .ts-hero-headline .ts-h1-mint,
@@ -5696,7 +5696,7 @@ html[data-theme="light"] .landing-cinematic .ts-hero-headline .ts-h1-mint {
   color: var(--lc-caption);
 }
 
-.landing-cinematic #early-access .reveal > p:not(.chapter-eyebrow),
+.landing-cinematic #enter .reveal > p:not(.chapter-eyebrow),
 .landing-cinematic .archive-access-section .reveal > p:not(.chapter-eyebrow) {
   color: var(--lc-subcopy);
 }
