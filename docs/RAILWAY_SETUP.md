@@ -38,9 +38,22 @@ Copy the output into **Railway → Tradesimpledev → Variables → Raw Editor**
 
 Or open `docs/RAILWAY_COPY_PASTE.env` (generated locally, gitignored) if you already ran setup once.
 
-**LinkedIn soft launch (landing + waitlist only):**
+**Open terminal (default — no gates):**
 
 Run `bash scripts/print-railway-vars.sh` (default profile) or paste:
+
+| Variable | Value |
+|----------|--------|
+| `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
+| `DATA_ACCURACY_MODE` | `demo` for soft launch |
+| `LAUNCH_PHASE` | `full-feature` — enables Lobbying, Analysis Lab, AI Research, Settings, Alerts, Track Record |
+| `DEMO_AUTH` | `true` |
+
+A fresh visitor can open `/terminal` or `/dashboard` and land in a working paper-trading session with zero manual steps — no passcode, no signup form, no waitlist.
+
+**Optional: landing + waitlist only, no terminal access:**
+
+Only use this if you deliberately want a scarcity-gated soft launch (e.g. a private preview link before a public announcement). Run `bash scripts/print-railway-vars.sh linkedin` or set:
 
 | Variable | Value |
 |----------|--------|
@@ -50,18 +63,7 @@ Run `bash scripts/print-railway-vars.sh` (default profile) or paste:
 | `DEMO_AUTH` | `false` — defense in depth; demo auth is already blocked when `LANDING_ONLY=true` |
 | `LAUNCH_PHASE` | `full-feature` (terminal gates apply after you turn landing-only off) |
 
-Waitlist is enabled by default (`WAITLIST_ENABLED` in server feature gates). Terminal routes (`/dashboard`, `/auth/demo`, `/login`, `/signup`) redirect to `/#early-access`.
-
-**Full terminal preview** (demo enabled):
-
-Run `bash scripts/print-railway-vars.sh full` or set `LANDING_ONLY=false` and `DEMO_AUTH=true`.
-
-| Variable | Value |
-|----------|--------|
-| `AUTH_SECRET` | 32+ char random (not `replace-with-a-long-random-string`) |
-| `DATA_ACCURACY_MODE` | `demo` for soft launch |
-| `LAUNCH_PHASE` | `full-feature` — enables Lobbying, Analysis Lab, AI Research, Settings, Alerts, Track Record |
-| `DEMO_AUTH` | `true` |
+Terminal routes (`/dashboard`, `/auth/demo`, `/login`, `/signup`) redirect to `/` while this is on. The landing page itself no longer has a waitlist form to sign up through — set `PREVIEW_PASSCODE` if you need to let specific people in early (see `.env.example`).
 
 `APP_URL` is **optional** on Railway — the server uses `RAILWAY_PUBLIC_DOMAIN` when `APP_URL` is localhost or unset.
 

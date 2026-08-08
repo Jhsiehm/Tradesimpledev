@@ -135,10 +135,10 @@ function landingOnlyBlocked(res, pathname) {
   if (pathname.startsWith("/api/")) {
     return sendJson(res, 503, {
       error: "landing_only",
-      message: "Terminal access opens soon. Join the waitlist on the home page."
+      message: "Terminal access is limited right now. Check back soon."
     });
   }
-  return redirect(res, "/#early-access");
+  return redirect(res, "/");
 }
 
 // Signed cookie set by previewUnlockHandler() on a correct PREVIEW_PASSCODE.
