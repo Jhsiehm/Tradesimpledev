@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "NODE_ENV=production node server.mjs",
-    "check": "node --check ai-brain.mjs && node --check social-pulse.mjs && node --check server.mjs && node --check public/app.js && node --check public/charts.js",
+    "check": "node --check ai-brain.mjs && node --check social-pulse.mjs && node --check server.mjs && node --check public/app.js && node --check public/charts.js && for f in lib/*.mjs routes/*.mjs; do [ -e \"$f\" ] || continue; node --check \"$f\" || exit 1; done",
     "dev:3010": "PORT=3010 node server.mjs"
   },
   "engines": {

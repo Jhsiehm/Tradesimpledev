@@ -10,18 +10,70 @@
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { createReadStream, readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { appendFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { extname, join, normalize, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
-  createHmac,
   createPublicKey,
   createVerify,
   randomBytes,
   scryptSync,
   timingSafeEqual
 } from "node:crypto";
+import {
+  ROOT,
+  PUBLIC_DIR,
+  DATA_DIR,
+  PORT,
+  APP_URL,
+  isTrustedProxy,
+  requestIsHttps,
+  clientIp,
+  BASE_SECURITY_HEADERS,
+  responseHeaders,
+  sendJson,
+  sendHtml,
+  sendText,
+  redirect,
+  contentType,
+  sendStatic,
+  sendImportsStatic,
+  escapeHtmlText,
+  FEATURE_GATES,
+  featureEnabled,
+  checkFeature,
+  checkFeaturePage,
+  checkIpWindowLimit,
+  apiRateLimitGuard,
+  readJson,
+  fetchWithTimeout,
+  safeText
+} from "./lib/http.mjs";
+import {
+  SESSION_COOKIE,
+  CSRF_COOKIE,
+  OAUTH_COOKIE,
+  SESSION_TTL_SECONDS,
+  AUTH_SECRET,
+  INSECURE_AUTH_SECRETS,
+  authSecretIsInsecure,
+  unixNow,
+  b64url,
+  safeEqual,
+  signObject,
+  verifyObject,
+  parseCookies,
+  cookieAttrs,
+  csrfCookieAttrs,
+  newCsrfToken,
+  ensureCsrfCookie,
+  requiresCsrf,
+  validateCsrf,
+  createSession,
+  getSession,
+  setSessionCookie,
+  clearAuthCookies
+} from "./lib/session.mjs";
 import {
   dbReady,
   dbSelect,
@@ -87,9 +139,6 @@ import {
 import { aggregateLobbyingForBills, fetchLdaFilings, TICKER_CLIENT_HINTS } from "./src/core/ldaLobbying.mjs";
 import { isStrictDataMode, productionReadiness } from "./src/core/productionDataMode.mjs";
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = join(ROOT, "public");
-const DATA_DIR = join(ROOT, "data");
 const WAITLIST_FILE = join(DATA_DIR, "waitlist.jsonl");
 const TRENDING_TOPICS_FILE = join(DATA_DIR, "trending-topics.json");
 const CONTRACT_WATCH_FILE = join(DATA_DIR, "contract-watch.json");
@@ -151,97 +200,10 @@ function previewAccessGranted(req) {
   return Boolean(payload?.granted && payload.exp > unixNow());
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FEATURE GATES — Launch Phase Control
-// ═══════════════════════════════════════════════════════════════════════════
-const FEATURE_GATES = {
-  // WEEK 1 LAUNCH — ONLY THESE ENABLED
-  THESIS_ENABLED: true,
-  PAPER_TRADING_ENABLED: true,
-  MARKETS_ENABLED: true,
-  PUBLIC_SHARES_ENABLED: true,
-  SESSION_ENABLED: true,
-  WAITLIST_ENABLED: true,
-
-  // MONTH 2+ — DISABLED FOR NOW
-  BILLS_EXPLORER_ENABLED: true,
-  CONTRACTS_ANALYZER_ENABLED: true,
-  LOBBYING_EXPLORER_ENABLED: false,
-  ANALYSIS_LAB_ENABLED: false,
-  CRYPTO_TRACKER_ENABLED: false,
-  FUNDS_HYPOTHETICALS_ENABLED: false,
-  SETTINGS_PAGE_ENABLED: false,
-  RELATIONSHIP_MAPS_ENABLED: false,
-  AI_RESEARCH_ENABLED: false,
-  ALERTS_MONITORING_ENABLED: false,
-  ADVANCED_ANALYTICS_ENABLED: false
-};
-
-if (process.env.LAUNCH_PHASE === "beta-extended") {
-  FEATURE_GATES.BILLS_EXPLORER_ENABLED = true;
-  FEATURE_GATES.ANALYSIS_LAB_ENABLED = true;
-}
-
-if (process.env.LAUNCH_PHASE === "full-feature") {
-  Object.keys(FEATURE_GATES).forEach((key) => {
-    FEATURE_GATES[key] = true;
-  });
-}
-
-function featureEnabled(featureName) {
-  return Boolean(FEATURE_GATES[featureName]);
-}
-
-function checkFeature(featureName, res) {
-  if (!featureEnabled(featureName)) {
-    sendJson(res, 403, {
-      error: "feature_not_available",
-      message: "This feature is not yet available in the beta."
-    });
-    return false;
-  }
-  return true;
-}
-
 function serverAiProviderEnabled() {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY);
 }
 
-const PORT = Number(process.env.PORT || 3000);
-
-const INSECURE_AUTH_SECRETS = new Set([
-  "",
-  "dev-only-secret-change-before-deploying",
-  "replace-with-a-long-random-string",
-  "changeme",
-  "secret"
-]);
-
-function isPlaceholderAppUrl(url) {
-  const u = String(url || "").trim().toLowerCase();
-  return !u || u.includes("localhost") || u.includes("127.0.0.1") || u.includes("0.0.0.0");
-}
-
-function resolveAppUrl() {
-  const explicit = String(process.env.APP_URL || "").trim().replace(/\/$/, "");
-  if (explicit && !isPlaceholderAppUrl(explicit)) return explicit;
-  const railwayHost = String(process.env.RAILWAY_PUBLIC_DOMAIN || "").trim();
-  if (railwayHost) return `https://${railwayHost}`;
-  return `http://localhost:${PORT}`;
-}
-
-const APP_URL = resolveAppUrl();
-const AUTH_SECRET = String(process.env.AUTH_SECRET || "").trim()
-  || "dev-only-secret-change-before-deploying";
-
-function authSecretIsInsecure() {
-  return INSECURE_AUTH_SECRETS.has(AUTH_SECRET);
-}
-const SESSION_COOKIE = "ts_session";
-const CSRF_COOKIE = "ts_csrf";
-const OAUTH_COOKIE = "ts_oauth";
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
-const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES || 65_536);
 const AUTH_RATE_LIMIT_MAX = Number(process.env.AUTH_RATE_LIMIT_MAX || 10);
 const AUTH_RATE_LIMIT_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 
@@ -256,33 +218,6 @@ const PREVIEW_TTL_SECONDS = Number(process.env.PREVIEW_TTL_SECONDS || 60 * 60 * 
 const PREVIEW_RATE_LIMIT_MAX = Number(process.env.PREVIEW_RATE_LIMIT_MAX || 10);
 const PREVIEW_RATE_LIMIT_WINDOW_MS = Number(process.env.PREVIEW_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 
-// Shared by requestIsHttps() and clientIp(): only trust proxy-supplied
-// X-Forwarded-* headers when we know a real proxy (Railway, or an explicit
-// opt-in) sits in front of us. Otherwise a client could set these headers
-// directly and spoof its own IP or the request's apparent scheme.
-function isTrustedProxy() {
-  return (
-    process.env.TRUST_PROXY === "true" ||
-    Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PUBLIC_DOMAIN)
-  );
-}
-
-function requestIsHttps(req) {
-  if (isTrustedProxy()) {
-    const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-    if (proto === "https") return true;
-  }
-  return APP_URL.startsWith("https://");
-}
-
-function clientIp(req) {
-  if (isTrustedProxy()) {
-    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-    if (forwarded) return forwarded;
-  }
-  return req.socket?.remoteAddress || "anon";
-}
-
 function sanitizeRelativePath(raw, fallback = "/dashboard?view=home") {
   const next = String(raw || "").trim();
   if (!next.startsWith("/") || next.startsWith("//")) return fallback;
@@ -295,23 +230,6 @@ function sanitizeRelativePath(raw, fallback = "/dashboard?view=home") {
   }
   return next;
 }
-const BASE_SECURITY_HEADERS = {
-  "x-content-type-options": "nosniff",
-  "x-frame-options": "DENY",
-  "referrer-policy": "strict-origin-when-cross-origin",
-  "permissions-policy": "camera=(), microphone=(), geolocation=()",
-  // CSP: allow same-origin scripts/styles + Google Fonts + GSAP CDN + Anthropic API (for BYOK browser calls)
-  "content-security-policy": [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https:",
-    "media-src 'self' https://assets.mixkit.co",
-    "connect-src 'self' https://api.anthropic.com https://openai.com https://generativelanguage.googleapis.com",
-    "frame-ancestors 'none'"
-  ].join("; ")
-};
 // The "Markets" view alone requests ~50+ unique symbols. At Finnhub's free-tier
 // ~60 req/min cap, a 30s TTL means ~50 calls every 30s (~100/min) — over budget.
 // 60s TTL halves the steady-state floor to ~50/min, and the worker-pool fetch
@@ -475,9 +393,6 @@ const SHARE_RATE_LIMIT_WINDOW_MS = Number(process.env.SHARE_RATE_LIMIT_WINDOW_MS
 // can fan out to a dozen-plus endpoints per view) is never affected; it's a
 // backstop against abuse/loops, not a precise per-endpoint budget. Tune via
 // env if real traffic patterns need a different ceiling.
-const apiRateLimit = new Map();
-const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
-const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60_000);
 const EDGAR_SNAPSHOT_CACHE_TTL_MS = Number(process.env.EDGAR_SNAPSHOT_CACHE_TTL_MS || 6 * 60 * 60_000);
 const edgarSnapshotCache = new Map();
 // File-level write lock — prevents concurrent writes corrupting flat JSON/JSONL data files.
@@ -2899,42 +2814,6 @@ function warmQuoteCatalogCache() {
   })();
 }
 
-function requestIp(req) {
-  // Only trust proxy-supplied IP headers behind a known proxy — otherwise a
-  // client can set these directly to spoof its IP and evade the IP-windowed
-  // rate limiters this feeds (share endpoints, the general /api/ backstop).
-  if (isTrustedProxy()) {
-    const raw =
-      req.headers["cf-connecting-ip"] ||
-      req.headers["x-real-ip"] ||
-      req.headers["x-forwarded-for"];
-    if (raw) return String(Array.isArray(raw) ? raw[0] : raw).split(",")[0].trim();
-  }
-  return String(req.socket?.remoteAddress || "unknown");
-}
-
-function checkIpWindowLimit(bucket, req, { max, windowMs }) {
-  const now = Date.now();
-  const ip = requestIp(req);
-  let entry = bucket.get(ip);
-  if (!entry || now > entry.resetAt) {
-    entry = { count: 0, resetAt: now + windowMs };
-  }
-  entry.count += 1;
-  bucket.set(ip, entry);
-
-  if (bucket.size > 1000) {
-    for (const [key, val] of bucket.entries()) {
-      if (now > val.resetAt) bucket.delete(key);
-    }
-  }
-
-  return {
-    ok: entry.count <= max,
-    retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000))
-  };
-}
-
 function enforceShareRateLimit(req, res) {
   const check = checkIpWindowLimit(shareRateLimit, req, {
     max: SHARE_RATE_LIMIT_MAX,
@@ -2952,66 +2831,6 @@ function enforceShareRateLimit(req, res) {
     retryAfterSeconds: check.retryAfterSeconds
   }));
   return true;
-}
-
-function featureComingSoonPage(featureName) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <link rel="icon" type="image/png" href="/favicon.png"/>
-  <link rel="apple-touch-icon" href="/favicon.png"/>
-  <title>Coming Soon | TradeSimple</title>
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #0a0a0a;
-      color: #e8e6e0;
-      padding: 2rem;
-      max-width: 40rem;
-      margin: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    }
-    .card {
-      border: 1px solid rgba(200,255,0,0.2);
-      border-radius: 8px;
-      padding: 2rem;
-      text-align: center;
-      background: rgba(255,255,255,0.02);
-    }
-    h1 { color: #C8FF00; font-size: 2rem; margin: 0 0 0.5rem; }
-    p { line-height: 1.6; color: #ccc; margin: 1rem 0; }
-    .cta {
-      display: inline-block;
-      margin-top: 1rem;
-      padding: 0.75rem 1.5rem;
-      background: #C8FF00;
-      color: #0a0a0a;
-      text-decoration: none;
-      border-radius: 6px;
-      font-weight: 700;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Coming soon</h1>
-    <p><strong>${escapeHtmlText(featureName)}</strong> is not yet available in the beta.</p>
-    <p>Launch week is focused on thesis workflows, paper trading, and source-backed stock cards.</p>
-    <a href="/dashboard?view=thesis" class="cta">Back to Thesis</a>
-  </div>
-</body>
-</html>`;
-}
-
-function checkFeaturePage(featureName, res, label, { head = false } = {}) {
-  if (featureEnabled(featureName)) return true;
-  sendHtml(res, 403, featureComingSoonPage(label), { head });
-  return false;
 }
 
 /** Strip trailing slashes so /dashboard/ and /dashboard resolve the same shell. */
@@ -3034,20 +2853,7 @@ async function route(req, res) {
   // never reach the authenticated-block gate further down. Endpoints with
   // their own tighter limiter (auth, share) are still bound by it too; this
   // is just an outer ceiling, not a replacement for those.
-  if (pathname.startsWith("/api/")) {
-    const apiLimit = checkIpWindowLimit(apiRateLimit, req, {
-      max: API_RATE_LIMIT_MAX,
-      windowMs: API_RATE_LIMIT_WINDOW_MS
-    });
-    if (!apiLimit.ok) {
-      res.writeHead(429, responseHeaders({
-        "content-type": "application/json; charset=utf-8",
-        "cache-control": "no-store",
-        "retry-after": String(apiLimit.retryAfterSeconds)
-      }));
-      return res.end(JSON.stringify({ error: "rate_limited", message: "Too many requests. Please slow down." }));
-    }
-  }
+  if (pathname.startsWith("/api/") && apiRateLimitGuard(req, res)) return;
 
   if (pathname === "/") return sendLandingIndex(res);
   if (pathname === "/favicon.ico") return sendStatic(res, "favicon.png");
@@ -3423,88 +3229,6 @@ function injectLandingCanonicalMeta(html) {
       /<meta name="ts-app-origin" content="[^"]*"\/>/,
       `<meta name="ts-app-origin" content="${escapeHtmlText(base)}" />`
     );
-}
-
-async function sendStatic(res, relativePath, req = null) {
-  const safePath = normalize(relativePath || "index.html").replace(/^(\.\.[/\\])+/, "");
-  const filePath = join(PUBLIC_DIR, safePath);
-  if (!filePath.startsWith(PUBLIC_DIR)) return sendText(res, 403, "Forbidden");
-  if (!existsSync(filePath)) return sendText(res, 404, "Not found");
-  const fileStat = await stat(filePath);
-  if (!fileStat.isFile()) return sendText(res, 404, "Not found");
-
-  const type = contentType(filePath);
-  const isMedia = type.startsWith("video/") || type.startsWith("audio/");
-  const cacheControl = isMedia ? "public, max-age=86400, immutable" : "no-store";
-  const baseHeaders = responseHeaders({
-    "content-type": type,
-    "cache-control": cacheControl,
-    "accept-ranges": "bytes",
-    "content-length": String(fileStat.size)
-  });
-
-  if (req?.method === "HEAD") {
-    res.writeHead(200, baseHeaders);
-    res.end();
-    return;
-  }
-
-  const rangeHeader = req?.headers?.range;
-  if (isMedia && rangeHeader) {
-    const match = /^bytes=(\d*)-(\d*)$/i.exec(String(rangeHeader).trim());
-    if (match) {
-      const size = fileStat.size;
-      let start = match[1] ? Number.parseInt(match[1], 10) : 0;
-      let end = match[2] ? Number.parseInt(match[2], 10) : size - 1;
-      if (Number.isNaN(start) || start < 0 || start >= size) {
-        res.writeHead(416, responseHeaders({
-          "content-range": `bytes */${size}`,
-          "accept-ranges": "bytes"
-        }));
-        res.end();
-        return;
-      }
-      end = Math.min(end, size - 1);
-      if (Number.isNaN(end) || end < start) end = size - 1;
-      const chunkSize = end - start + 1;
-      res.writeHead(206, responseHeaders({
-        "content-type": type,
-        "cache-control": cacheControl,
-        "accept-ranges": "bytes",
-        "content-range": `bytes ${start}-${end}/${size}`,
-        "content-length": String(chunkSize)
-      }));
-      createReadStream(filePath, { start, end }).pipe(res);
-      return;
-    }
-  }
-
-  if (isMedia) {
-    res.writeHead(200, baseHeaders);
-    createReadStream(filePath).pipe(res);
-    return;
-  }
-
-  const body = await readFile(filePath);
-  res.writeHead(200, baseHeaders);
-  res.end(body);
-}
-
-async function sendImportsStatic(res, pathname) {
-  const base = join(ROOT, "src", "imports");
-  const suffix = decodeURIComponent(pathname.replace(/^\/src\/imports\/?/, ""));
-  if (!suffix || suffix.includes("..")) return sendText(res, 403, "Forbidden");
-  const filePath = normalize(join(base, suffix));
-  if (!filePath.startsWith(base)) return sendText(res, 403, "Forbidden");
-  if (!existsSync(filePath)) return sendText(res, 404, "Not found");
-  const fileStat = await stat(filePath);
-  if (!fileStat.isFile()) return sendText(res, 404, "Not found");
-  const body = await readFile(filePath);
-  res.writeHead(200, responseHeaders({
-    "content-type": contentType(filePath),
-    "cache-control": "no-store"
-  }));
-  res.end(body);
 }
 
 function publicConfig() {
@@ -6613,15 +6337,6 @@ function normalizeStockSymbol(value) {
 function normalizeReaderMode(value) {
   const mode = String(value || "investor").toLowerCase();
   return ["citizen", "investor", "analyst"].includes(mode) ? mode : "investor";
-}
-
-function escapeHtmlText(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function publicStockCard(res, pathname, { head = false } = {}) {
@@ -15029,106 +14744,6 @@ function oauthProvider(name) {
   return { ...provider, configured: Boolean(provider?.clientId && provider?.clientSecret) };
 }
 
-function getSession(req) {
-  const cookies = parseCookies(req);
-  const session = verifyObject(cookies[SESSION_COOKIE]);
-  if (!session || session.exp < unixNow()) return null;
-  return session;
-}
-
-function setSessionCookie(res, user, req) {
-  res.setHeader("set-cookie", [
-    `${SESSION_COOKIE}=${createSession(user)}; ${cookieAttrs(SESSION_TTL_SECONDS, req)}`,
-    `${CSRF_COOKIE}=${newCsrfToken()}; ${csrfCookieAttrs(SESSION_TTL_SECONDS, req)}`
-  ]);
-}
-
-function newCsrfToken() {
-  return b64url(randomBytes(24));
-}
-
-function csrfCookieAttrs(maxAge, req) {
-  const secure = requestIsHttps(req) ? "; Secure" : "";
-  return `Path=/; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-}
-
-function ensureCsrfCookie(res, req, maxAge = SESSION_TTL_SECONDS) {
-  const token = newCsrfToken();
-  res.setHeader("set-cookie", `${CSRF_COOKIE}=${token}; ${csrfCookieAttrs(maxAge, req)}`);
-  return token;
-}
-
-function clearAuthCookies(res, req) {
-  res.setHeader("set-cookie", [
-    `${SESSION_COOKIE}=; ${cookieAttrs(0, req)}`,
-    `${CSRF_COOKIE}=; ${csrfCookieAttrs(0, req)}`
-  ]);
-}
-
-function requiresCsrf(req) {
-  const method = String(req.method || "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
-  return true;
-}
-
-function validateCsrf(req) {
-  const cookies = parseCookies(req);
-  const cookieToken = String(cookies[CSRF_COOKIE] || "");
-  const headerToken = String(req.headers["x-csrf-token"] || "");
-  if (!cookieToken || !headerToken) return false;
-  return safeEqual(cookieToken, headerToken);
-}
-
-function cookieAttrs(maxAge, req) {
-  const secure = requestIsHttps(req) ? "; Secure" : "";
-  return `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-}
-
-function createSession(user) {
-  return signObject({ user, exp: unixNow() + SESSION_TTL_SECONDS });
-}
-
-function signObject(value) {
-  const payload = b64url(Buffer.from(JSON.stringify(value)));
-  const sig = hmac(payload);
-  return `${payload}.${sig}`;
-}
-
-function verifyObject(value) {
-  if (!value || !value.includes(".")) return null;
-  const [payload, sig] = value.split(".");
-  if (!safeEqual(hmac(payload), sig)) return null;
-  try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function hmac(value) {
-  return createHmac("sha256", AUTH_SECRET).update(value).digest("base64url");
-}
-
-function safeEqual(a, b) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  return Object.fromEntries(
-    header
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const index = part.indexOf("=");
-        return [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
-      })
-  );
-}
-
 function alpacaConfig() {
   const baseUrl = process.env.ALPACA_TRADING_BASE_URL || "https://paper-api.alpaca.markets";
   const live = baseUrl.includes("api.alpaca.markets") && !baseUrl.includes("paper-api");
@@ -15180,37 +14795,6 @@ async function submitAlpacaPaperOrder({ symbol, qty, side, type = "market" }) {
   return response.json();
 }
 
-async function readJson(req) {
-  const chunks = [];
-  let total = 0;
-  for await (const chunk of req) {
-    total += chunk.length;
-    if (total > MAX_JSON_BODY_BYTES) {
-      throw new Error("body_too_large");
-    }
-    chunks.push(chunk);
-  }
-  if (!chunks.length) return {};
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new Error("invalid_json");
-  }
-}
-
-async function fetchWithTimeout(url, options = {}, timeout = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function safeText(response) {
-  return (await response.text()).slice(0, 1000);
-}
 
 function filterBills(bills, query) {
   if (!query) return bills;
@@ -16421,75 +16005,6 @@ function normalizeLiveCongressBill(bill) {
       ? `Potential exposure for ${tickers.join(", ")} — monitor for committee action or lobbying filings.`
       : "No ticker mapping available. Monitor for sector-level impact."
   };
-}
-
-function sendJson(res, status, body) {
-  res.writeHead(status, responseHeaders({
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store"
-  }));
-  res.end(JSON.stringify(body));
-}
-
-function sendHtml(res, status, html, { head = false } = {}) {
-  res.writeHead(status, responseHeaders({
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store"
-  }));
-  if (head) return res.end();
-  res.end(html);
-}
-
-function sendText(res, status, text) {
-  res.writeHead(status, responseHeaders({ "content-type": "text/plain; charset=utf-8" }));
-  res.end(text);
-}
-
-function redirect(res, location) {
-  res.writeHead(302, responseHeaders({ location }));
-  res.end();
-}
-
-function responseHeaders(headers = {}) {
-  const merged = { ...BASE_SECURITY_HEADERS, ...headers };
-  if (
-    APP_URL.startsWith("https://") ||
-    process.env.RAILWAY_ENVIRONMENT ||
-    process.env.RAILWAY_PUBLIC_DOMAIN
-  ) {
-    merged["strict-transport-security"] = "max-age=31536000; includeSubDomains";
-  }
-  return merged;
-}
-
-function contentType(filePath) {
-  return {
-    ".html": "text/html; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".svg": "image/svg+xml",
-    ".json": "application/json; charset=utf-8",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
-    ".ico": "image/x-icon",
-    ".webm": "video/webm",
-    ".mp4": "video/mp4",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".ttf": "font/ttf",
-    ".txt": "text/plain; charset=utf-8"
-  }[extname(filePath)] || "application/octet-stream";
-}
-
-function b64url(value) {
-  return Buffer.from(value).toString("base64url");
-}
-
-function unixNow() {
-  return Math.floor(Date.now() / 1000);
 }
 
 function loadEnvFile(name) {
