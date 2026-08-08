@@ -567,6 +567,53 @@ html[data-theme="light"] .footer-brand span {
   animation: fadeUp 0.5s ease 0.7s forwards;
 }
 
+/* Fade the scrolling ticker out before it reaches the edge labels so a
+   price never visually collides with the "Illustrative" tag. */
+.ts-ticker-tape::before,
+.ts-ticker-tape::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  z-index: 4;
+  pointer-events: none;
+}
+.ts-ticker-tape::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(5, 5, 5, 0.9), rgba(5, 5, 5, 0));
+}
+.ts-ticker-tape::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(5, 5, 5, 0.9), rgba(5, 5, 5, 0));
+}
+html[data-theme="light"] .ts-ticker-tape::before {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+}
+html[data-theme="light"] .ts-ticker-tape::after {
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+}
+
+.ts-ticker-illustrative-tag {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(5, 5, 5, 0.92);
+  font-size: 0.65rem;
+  opacity: 0.75;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+html[data-theme="light"] .ts-ticker-illustrative-tag {
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .ts-ticker-track {
   display: flex;
   align-items: center;
