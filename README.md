@@ -1,177 +1,94 @@
-# TradeSimple Terminal
+# TradeSimple
 
-TradeSimple is a **research beta** — a runnable full-stack policy-and-markets terminal (not a brokerage). It ships as a server-backed app with:
+**Read the record before the headline.**
 
-- Product landing page
-- Google, Apple, and local demo sign-in routes
-- Signed HTTP-only session cookies
-- Auth-gated dashboard
-- Server-side market, crypto, Congress.gov, Senate LDA, Alpaca, and optional AI routes
-- Analysis Lab with plain-English fundamentals, lightweight charts, policy impact chains, and API signal explanations
-- Paper/simulated order entry with live trading blocked unless explicitly enabled
+TradeSimple is an open, verifiable attempt to answer one question: does the public record — votes, contracts, lobbying — actually move markets before the headline does, and can that claim survive being checked?
 
-## Railway deploy (common crash fix)
+Every signal it surfaces becomes a timestamped, hash-chained prediction. Nothing can be quietly deleted, reordered, or backdated after the outcome is known. You don't have to trust our track record — you can verify it.
 
-Railway sets `NODE_ENV=production`. If **`AUTH_SECRET` is missing**, the server exits immediately on boot:
+> **Status: research beta.** Not a brokerage, not investment advice, not a finished product. Paper trading only. See [Safety Boundary](#safety-boundary).
 
-```text
-[FATAL] AUTH_SECRET is the default dev value. Set AUTH_SECRET in .env before deploying. Exiting.
-```
+---
 
-**Required variables** in Railway → your service → Variables:
+## Why this exists
 
-| Variable | Value |
-|----------|--------|
-| `AUTH_SECRET` | Long random string (32+ chars) — **required** |
-| `APP_URL` | `https://YOUR-SERVICE.up.railway.app` (no trailing slash). **Optional on Railway** — if unset or still `localhost`, the server uses `RAILWAY_PUBLIC_DOMAIN` for canonical/OG links and welcome emails. |
-| `PORT` | Leave unset — Railway injects this automatically |
+Most "politician trading" tools show you portfolios after the fact — but the 45-day disclosure window means the trade is often already over by the time it's public. That's not a data problem, it's a timing problem.
 
-**Recommended for Twitter / OAuth / accounts:**
+TradeSimple starts one step earlier: **votes → contract awards → lobbying disclosures → exposed tickers**, sourced from Congress.gov, USASpending, and Senate LDA filings, with every claim timestamped and source-labeled.
 
-| Variable | Value |
-|----------|--------|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase project (run `supabase/schema.sql` first) |
-| `FINNHUB_API_KEY` | Live stock quotes |
-| `DATA_ACCURACY_MODE` | `demo` for soft launch without every API key, or `production` when keys are set |
+## The ledger (the actual point)
 
-Google redirect URI: `https://YOUR-SERVICE.up.railway.app/auth/callback/google`
+This is the part that makes the claims checkable instead of just asserted:
 
-`railway.json` in this repo sets `startCommand` to `node server.mjs` (same as local). Redeploy after adding `AUTH_SECRET`.
+- **Append-only, hash-chained** — every prediction event hashes the previous one. You can't silently edit history without breaking the chain, and anyone can verify it.
+- **Calibration-scored** — we track not just "was it right" but whether stated confidence was honest (Brier score + reliability curve). A confident miss is punished harder than a hedged one.
+- **Alpha, not beta** — scored against excess return vs. SPY, so a defense stock rising with the whole market doesn't count as signal.
+- **Public and inspectable** — see [`/track-record`](#) for the live ledger.
 
-## Run
+Read the full methodology in [`prediction-ledger.mjs`](./prediction-ledger.mjs).
+
+**Where it currently stands, honestly:** a calibrated composite score (CRS) validated on defense-IT contractors (Spearman ρ = 0.40, p = 0.0006) — but it does *not* generalize cleanly to other sectors tested so far (e.g. detention/corrections). That failure is logged in the ledger, not hidden from it. This is a hypothesis under public test, not a proven edge — treat it accordingly.
+
+## What's in the repo
+
+- Full-stack terminal: server-backed app, auth-gated dashboard, paper trading only (live trading gated off by default)
+- Analysis Lab — plain-English fundamentals, policy impact chains, source-labeled signal explanations
+- Prediction ledger — the falsifiable track record described above
+- Public, shareable detail pages for stocks, bills, contracts, and lobbying filings (no login required)
+
+## Quick start
 
 ```bash
+git clone https://github.com/Jhsiehm/Tradesimpledev.git
+cd Tradesimpledev
+cp .env.example .env.local   # fill in the keys you want — see Configuration below
 node server.mjs
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. No npm dependencies required to run locally.
 
-This project intentionally has no npm dependencies because the current workspace runtime exposes `node` but not `npm`/`pnpm`.
+## Configuration
 
-### Public detail pages (shareable, no login)
+<details>
+<summary>Environment variables and provider setup</summary>
 
-| Route | API |
-|-------|-----|
-| `/stock/NVDA` | `GET /api/share/stock?symbol=NVDA` |
-| `/bill/S.1836-119` | `GET /api/share/bill?billId=...` |
-| `/contract/LMT` | `GET /api/share/contract?symbol=LMT` |
-| `/lobby/{filingId}` | `GET /api/share/lobby?filingId=...` |
+| Variable | Purpose |
+|----------|---------|
+| `AUTH_SECRET` | Required in production — 32+ char random string |
+| `FINNHUB_API_KEY` | Live equity quotes (primary provider) |
+| `CONGRESS_API_KEY` | Live Congress.gov bill records |
+| `SENATE_LDA_API_KEY` | Lobbying filings at the higher rate limit |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Durable ledger storage |
+| `DATA_ACCURACY_MODE` | `demo` for soft launch, `production` for fully-sourced data |
 
-The dashboard links to these from Bills, Contracts, Lobbying, and the Thesis Lab signal map. Thesis map node positions can be dragged in **Edit layout** mode (saved per ticker in `localStorage`).
+Full variable list in [`.env.example`](./.env.example). Deployment notes (Railway, hybrid Finnhub/yfinance data stack) in [`docs/`](./docs).
 
-## Configure
+</details>
 
-Copy `.env.example` to `.env.local` and fill in the keys you want:
+## API routes
 
-```bash
-cp .env.example .env.local
-```
+<details>
+<summary>Public and session-gated endpoints</summary>
 
-Important redirect URIs:
+- `GET /api/market/quotes?symbols=SPY,NVDA`
+- `GET /api/analysis/stock?symbol=NVDA`
+- `GET /api/congress/bills?q=NVDA`
+- `GET /api/lobbying`
+- `GET /api/trading/account` · `POST /api/trading/orders` (paper only)
+- `POST /api/research/ask`
 
-- Google: `http://localhost:3000/auth/callback/google`
-- Apple: `http://localhost:3000/auth/callback/apple`
+All routes except `/api/config`, `/api/session`, and `/api/waitlist` require a signed session. Full list in [source](./server.mjs).
 
-Provider notes:
-
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` enable Google sign-in.
-- `APPLE_CLIENT_ID` and `APPLE_CLIENT_SECRET` enable Apple sign-in. Apple's client secret is a JWT generated from your Apple developer team/key.
-- `FINNHUB_API_KEY` enables live equity quote snapshots (primary provider).
-- Optional **yfinance sidecar** for quotes and history when Finnhub fails or is unset (see below).
-- `COINGECKO_API_KEY` enables crypto pricing; set `COINGECKO_PRO=true` for the Pro API hostname.
-- `CONGRESS_API_KEY` enables live Congress.gov bill records.
-- `SENATE_LDA_API_KEY` enables authenticated LDA.gov lobbying filings at the higher registered-user rate limit.
-- Alpaca defaults to `https://paper-api.alpaca.markets`. Live trading requires both a live endpoint and `ALLOW_LIVE_TRADING=true`.
-
-### Live + accurate production mode
-
-Set `DATA_ACCURACY_MODE=production` in `.env.local` (see `.env.example`). In this mode:
-
-- Bill status and sponsors come from **Congress.gov** (no fictional action dates on linked bills).
-- Lobbying dollars on bill cards come from **Senate LDA** matched filings only (seed lobbying $ removed).
-- Historical analogs use **verified fact packs** with source links (`src/data/verifiedHistoricalFacts.mjs`).
-- Pass/fail % impact ranges stay **scenario models** (labeled, not forecasts).
-- `/api/health/data` reports feed readiness; the dashboard shows a source freshness bar.
-
-Start locally:
-
-```bash
-./scripts/start-production.sh
-```
-
-Open `http://localhost:3010/dashboard` (stop any existing server on that port first). Check health: `GET /api/health/data` (requires session cookie after `/auth/demo`).
-
-## Market data: Finnhub vs yfinance (hybrid)
-
-TradeSimple uses a **hybrid** stack:
-
-| Provider | Role | Best for |
-|----------|------|----------|
-| **Finnhub** | Primary when `FINNHUB_API_KEY` is set | Licensed/delayed live quotes and candles with a stable API key |
-| **yfinance** (Python) | Fallback and enrichment via `scripts/yf_bridge.py` | Free history and quotes without an API key; fundamentals-friendly Yahoo data |
-| **Yahoo chart HTTP** | Last resort before Stooq/modeled data | Same underlying Yahoo source, no Python install |
-
-**Opinion:** Finnhub is the better choice for **production live quotes** (clearer licensing, consistent API). yfinance is the better choice for **local dev and free history** when you do not want another API key or Finnhub is rate-limited.
-
-### Enable the yfinance sidecar
-
-```bash
-cd "/Users/joshuaugyenlhundruphsiehmetters/Documents/TradeSimple v1"
-python3 -m venv .venv-yfinance
-source .venv-yfinance/bin/activate
-pip install -r scripts/requirements-yfinance.txt
-# Recommended if you have the local clone:
-pip install -e "/Users/joshuaugyenlhundruphsiehmetters/Downloads/yfinance-main"
-```
-
-In `.env.local`:
-
-```bash
-YFINANCE_ENABLED=true
-YFINANCE_VENV=/Users/joshuaugyenlhundruphsiehmetters/Documents/TradeSimple v1/.venv-yfinance
-```
-
-Smoke-test the bridge:
-
-```bash
-python3 scripts/yf_bridge.py quote NVDA
-python3 scripts/yf_bridge.py history NVDA 6m
-```
-
-Then run `node server.mjs` — quotes/history will tag `source: "yfinance"` when the bridge succeeds.
-
-Set `YFINANCE_ENABLED=false` to skip Python entirely. Missing Python or yfinance never crashes the Node server.
+</details>
 
 ## Safety Boundary
 
-This is not a registered broker-dealer, investment adviser, or live trading product. It is a software foundation for research and paper trading. Before real-money trading, add:
+TradeSimple is **not** a registered broker-dealer, investment adviser, or live trading product. It's a software foundation for research and paper trading. Signals are informational only — not financial advice. Before any real-money use, it would need broker onboarding, KYC/AML, order review and audit logs, and a data-license review it does not currently have.
 
-- Broker onboarding or OAuth through a regulated broker
-- KYC/AML and suitability flow where legally required
-- Order review, risk checks, and audit logs
-- Terms, disclosures, and data-provider license review
-- Persistent database-backed accounts and encrypted user secrets
-- Rate limiting, monitoring, and incident response
+## Contributing
 
-## API Routes
+Issues and PRs welcome — especially around sector generalization testing, additional data sources, or calibration methodology. See [`docs/`](./docs) for internal design notes.
 
-- `GET /api/config`
-- `GET /api/session`
-- `POST /api/waitlist`
-- `GET /api/market/quotes?symbols=SPY,NVDA`
-- `GET /api/analysis/stock?symbol=NVDA`
-- `GET /api/crypto?ids=bitcoin,ethereum`
-- `GET /api/congress/bills?q=NVDA`
-- `GET /api/lobbying`
-- `GET /api/trading/account`
-- `POST /api/trading/orders`
-- `POST /api/research/ask`
+---
 
-All routes except `/api/config`, `/api/session`, and `/api/waitlist` require a signed session.
-
-Waitlist submissions are appended to `data/waitlist.jsonl`, which is ignored by git.
-
-## Product Prompt
-
-The design and explanation rules for future dashboard extensions live in `docs/analysis-ui-prompt.md`.
+*Built by [Joshua Metters](https://github.com/Jhsiehm) and Taekyong K.*
