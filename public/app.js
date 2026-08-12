@@ -54,7 +54,65 @@ function disabledFeatureFallbackView() {
   return isViewEnabled("thesis") ? "thesis" : "overview";
 }
 
-const MOBILE_BOTTOM_PRIMARY_VIEWS = new Set(["overview", "signals", "markets", "trade"]);
+const MOBILE_INTEL_VIEWS = new Set(["signals", "bills", "lobbying", "fec", "contracts", "analysis", "track-record", "settings"]);
+
+function mobileIntelSheetEl() {
+  return $("#mobile-intel-sheet");
+}
+
+function setMobileIntelOpen(open) {
+  const sheet = mobileIntelSheetEl();
+  const btn = $("#mobile-bottom-nav")?.querySelector("[data-mobile-action='intel']");
+  if (!sheet) return;
+  sheet.hidden = !open;
+  sheet.setAttribute("aria-hidden", open ? "false" : "true");
+  document.body.classList.toggle("mobile-intel-open", open);
+  btn?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function closeMobileIntelNav() {
+  setMobileIntelOpen(false);
+}
+
+function setupMobileNav() {
+  const nav = $("#mobile-bottom-nav");
+  const sheet = mobileIntelSheetEl();
+  if (!nav || nav.dataset.bound === "true") return;
+  nav.dataset.bound = "true";
+
+  nav.querySelector("[data-mobile-action='intel']")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setMobileIntelOpen(Boolean(sheet?.hidden));
+  });
+
+  sheet?.querySelectorAll("[data-mobile-intel-close]").forEach((el) => {
+    el.addEventListener("click", closeMobileIntelNav);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileIntelNav();
+  });
+}
+
+function syncMobileBottomNav(view) {
+  const nav = $("#mobile-bottom-nav");
+  if (!nav) return;
+  nav.querySelectorAll("[data-view]").forEach((btn) => {
+    const active = btn.dataset.view === view;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-current", active ? "page" : "false");
+  });
+  const intelBtn = nav.querySelector("[data-mobile-action='intel']");
+  if (intelBtn) {
+    const intelActive = MOBILE_INTEL_VIEWS.has(view);
+    intelBtn.classList.toggle("is-active", intelActive);
+    intelBtn.setAttribute("aria-current", intelActive ? "page" : "false");
+  }
+  const sheet = mobileIntelSheetEl();
+  sheet?.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.view === view);
+  });
+}
 
 const HOLDING_PALETTE = ["#5eead4", "#93c5fd", "#fcd34d", "#f87171", "#c4b5fd", "#a78bfa", "#fb923c", "#60a5fa", "#e879f9", "#4ade80"];
 
@@ -3692,8 +3750,7 @@ async function initDashboard() {
   setupFocusBar();
   setupTabFilters();
   setupFeedHealthDrawer();
-  setupMobileSidebarDrawer();
-  setupMobileBottomNav();
+  setupMobileNav();
   setupDashChromeMetrics();
   setupClassbarScrollHide();
   setupGuidedDemo();
@@ -4529,60 +4586,6 @@ function syncDashChromeHeights() {
   root.style.setProperty("--dash-sticky-filter-top", `${classH + stackH + railH}px`);
 }
 
-function closeMobileSidebarNav() {
-  const sidebar = $("#main-sidebar");
-  const hamBtn = $("#ham-btn");
-  const moreBtn = $("#mobile-bottom-nav")?.querySelector("[data-mobile-action='more']");
-  if (!sidebar?.classList.contains("nav-open")) return;
-  sidebar.classList.remove("nav-open");
-  document.body.classList.remove("mobile-sidebar-open");
-  hamBtn?.setAttribute("aria-expanded", "false");
-  moreBtn?.setAttribute("aria-expanded", "false");
-}
-
-function openMobileSidebarNav() {
-  const sidebar = $("#main-sidebar");
-  const hamBtn = $("#ham-btn");
-  const moreBtn = $("#mobile-bottom-nav")?.querySelector("[data-mobile-action='more']");
-  if (!sidebar) return;
-  sidebar.classList.add("nav-open");
-  document.body.classList.add("mobile-sidebar-open");
-  hamBtn?.setAttribute("aria-expanded", "true");
-  moreBtn?.setAttribute("aria-expanded", "true");
-}
-
-function toggleMobileSidebarNav() {
-  const sidebar = $("#main-sidebar");
-  if (!sidebar) return;
-  if (sidebar.classList.contains("nav-open")) closeMobileSidebarNav();
-  else openMobileSidebarNav();
-}
-
-function setupMobileSidebarDrawer() {
-  const sidebar = $("#main-sidebar");
-  const hamBtn = $("#ham-btn");
-  if (!sidebar || sidebar.dataset.mobileDrawerBound === "true") return;
-  sidebar.dataset.mobileDrawerBound = "true";
-  hamBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleMobileSidebarNav();
-  });
-  sidebar.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.addEventListener("click", closeMobileSidebarNav);
-  });
-  document.addEventListener("click", (event) => {
-    if (!sidebar.classList.contains("nav-open")) return;
-    const target = event.target;
-    if (sidebar.contains(target)) return;
-    if (hamBtn?.contains(target)) return;
-    if ($("#mobile-bottom-nav")?.contains(target)) return;
-    closeMobileSidebarNav();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMobileSidebarNav();
-  });
-}
-
 function setupDashChromeMetrics() {
   syncDashChromeHeights();
   if (window.__dashChromeMetricsBound) return;
@@ -4599,41 +4602,6 @@ function setupDashChromeMetrics() {
     if (classbar) ro.observe(classbar);
     if (stack) ro.observe(stack);
     if (chromeRail) ro.observe(chromeRail);
-  }
-}
-
-function setupMobileBottomNav() {
-  const nav = $("#mobile-bottom-nav");
-  if (!nav || nav.dataset.bound === "true") return;
-  nav.dataset.bound = "true";
-  nav.querySelectorAll("[data-mobile-view]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.mobileView;
-      if (!isViewEnabled(view)) return;
-      closeMobileSidebarNav();
-      showView(view);
-    });
-  });
-  nav.querySelector("[data-mobile-action='more']")?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleMobileSidebarNav();
-  });
-}
-
-function syncMobileBottomNav(view) {
-  const nav = $("#mobile-bottom-nav");
-  if (!nav) return;
-  nav.querySelectorAll("[data-mobile-view]").forEach((btn) => {
-    const btnView = btn.dataset.mobileView;
-    const active = btnView === view;
-    btn.classList.toggle("is-active", active);
-    btn.setAttribute("aria-current", active ? "page" : "false");
-  });
-  const moreBtn = nav.querySelector("[data-mobile-action='more']");
-  if (moreBtn) {
-    const moreActive = !MOBILE_BOTTOM_PRIMARY_VIEWS.has(view);
-    moreBtn.classList.toggle("is-active", moreActive);
-    moreBtn.setAttribute("aria-current", moreActive ? "page" : "false");
   }
 }
 
@@ -9513,19 +9481,14 @@ function applyFeatureGateVisibility() {
   syncOnboardingSteps();
   document.querySelectorAll("[data-view]").forEach((button) => {
     const view = button.dataset.view;
-    button.hidden = !enabledViews.has(view);
-    button.setAttribute("aria-hidden", button.hidden ? "true" : "false");
-  });
-  document.querySelectorAll("[data-view-jump], [data-show-view], [data-onboarding-go]").forEach((button) => {
-    const view = button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo;
-    if (!view) return;
-    const enabled = isViewEnabled(view);
+    const enabled = enabledViews.has(view);
     button.hidden = !enabled;
     button.disabled = !enabled;
     button.setAttribute("aria-hidden", enabled ? "false" : "true");
   });
-  document.querySelectorAll("#mobile-bottom-nav [data-mobile-view]").forEach((button) => {
-    const view = button.dataset.mobileView;
+  document.querySelectorAll("[data-view-jump], [data-show-view], [data-onboarding-go]").forEach((button) => {
+    const view = button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo;
+    if (!view) return;
     const enabled = isViewEnabled(view);
     button.hidden = !enabled;
     button.disabled = !enabled;
@@ -9559,7 +9522,7 @@ function setupNavigation() {
     button.addEventListener("click", () => {
       const view = button.dataset.view || button.dataset.viewJump;
       if (!isViewEnabled(view)) return;
-      closeMobileSidebarNav();
+      closeMobileIntelNav();
       showView(view);
     });
   });
@@ -9590,7 +9553,7 @@ function showView(view, updateUrl = true) {
     showView(disabledFeatureFallbackView(), updateUrl);
     return;
   }
-  closeMobileSidebarNav();
+  closeMobileIntelNav();
 
   /* Research UI lives in the global drawer; there is no #view-research — pair drawer with Bills so nav/state stay coherent. */
   if (view === "research") {

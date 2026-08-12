@@ -90,13 +90,6 @@
       <div class="main-column">
       <div class="topbar-stack">
         <header class="topbar">
-          <button class="ham-btn topbar-menu-btn" id="ham-btn" type="button" aria-label="More sections" aria-expanded="false" aria-controls="main-sidebar">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="2" y="5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-              <rect x="2" y="9.25" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-              <rect x="2" y="13.5" width="16" height="1.5" rx="0.75" fill="currentColor"/>
-            </svg>
-          </button>
           <label class="search-box">
             <span>Search</span>
             <input id="terminal-search" placeholder="Ticker, bill, issue area" />
@@ -1945,27 +1938,48 @@
     <button type="button" class="research-drawer-btn" id="research-drawer-btn">Ask AI</button>
 
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Primary navigation">
-      <button type="button" class="mobile-bottom-nav-item is-active" data-mobile-view="overview" aria-current="page">
+      <button type="button" class="mobile-bottom-nav-item is-active" data-view="overview" aria-current="page">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5Z"/></svg>
         <span class="mobile-bottom-nav-label">Home</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="signals">
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-action="intel" aria-label="Policy intel sections" aria-expanded="false" aria-controls="mobile-intel-sheet">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 18h16M7 14l3-4 3 2 4-6"/></svg>
-        <span class="mobile-bottom-nav-label">Signals</span>
+        <span class="mobile-bottom-nav-label">Intel</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="markets">
+      <button type="button" class="mobile-bottom-nav-item" data-view="markets">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15V9M12 17V7M16 13v-4"/></svg>
         <span class="mobile-bottom-nav-label">Markets</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-mobile-view="trade">
+      <button type="button" class="mobile-bottom-nav-item" data-view="thesis">
+        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 4h10v16l-5-3-5 3V4Z"/></svg>
+        <span class="mobile-bottom-nav-label">Thesis</span>
+      </button>
+      <button type="button" class="mobile-bottom-nav-item" data-view="trade">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>
         <span class="mobile-bottom-nav-label">Account</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-mobile-action="more" aria-label="More sections" aria-expanded="false" aria-controls="main-sidebar">
-        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
-        <span class="mobile-bottom-nav-label">More</span>
-      </button>
     </nav>
+
+    <div id="mobile-intel-sheet" class="mobile-intel-sheet" hidden aria-hidden="true">
+      <button type="button" class="mobile-intel-backdrop" data-mobile-intel-close tabindex="-1" aria-label="Close intel menu"></button>
+      <div class="mobile-intel-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-intel-title">
+        <header class="mobile-intel-head">
+          <h2 id="mobile-intel-title">Policy intel</h2>
+          <button type="button" class="button button-ghost compact" data-mobile-intel-close aria-label="Close">✕</button>
+        </header>
+        <div class="mobile-intel-grid" id="mobile-intel-grid">
+          <button type="button" class="mobile-intel-item" data-view="signals">Signals</button>
+          <button type="button" class="mobile-intel-item" data-view="bills">Bills</button>
+          <button type="button" class="mobile-intel-item" data-view="lobbying">Lobbying</button>
+          <button type="button" class="mobile-intel-item" data-view="fec">Money Trail</button>
+          <button type="button" class="mobile-intel-item" data-view="contracts">Contracts</button>
+          <button type="button" class="mobile-intel-item" data-view="analysis">Analysis</button>
+          <button type="button" class="mobile-intel-item" data-view="track-record">Track Record</button>
+          <button type="button" class="mobile-intel-item" data-view="settings">Settings</button>
+        </div>
+        <a class="button button-ghost compact mobile-intel-signout" href="/auth/logout">Sign out</a>
+      </div>
+    </div>
 
     <aside id="fec-detail-drawer" class="feed-health-drawer fec-detail-drawer" aria-label="FEC filing detail" aria-hidden="true" hidden>
       <div class="feed-health-backdrop" id="fec-detail-backdrop" tabindex="-1"></div>
