@@ -9642,6 +9642,10 @@ function syncOnboardingSteps() {
   }
 }
 
+function resolveNavView(button) {
+  return button.dataset.view || button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo || "";
+}
+
 function applyFeatureGateVisibility() {
   renderMobileIntelGrid();
   const enabledViews = new Set(buildNavigation().map((item) => item.id));
@@ -9654,7 +9658,7 @@ function applyFeatureGateVisibility() {
     button.setAttribute("aria-hidden", enabled ? "false" : "true");
   });
   document.querySelectorAll("[data-view-jump], [data-show-view], [data-onboarding-go]").forEach((button) => {
-    const view = button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo;
+    const view = resolveNavView(button);
     if (!view) return;
     const enabled = isViewEnabled(view);
     button.hidden = !enabled;
@@ -9681,10 +9685,6 @@ function applyFeatureGateVisibility() {
   });
   const fundsPanel = document.getElementById("hypothetical-funds-fold") || document.getElementById("hypothetical-funds-panel");
   if (fundsPanel) fundsPanel.hidden = !isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED");
-}
-
-function resolveNavView(button) {
-  return button.dataset.view || button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo || "";
 }
 
 function setupNavigation() {
