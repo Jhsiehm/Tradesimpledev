@@ -16395,10 +16395,10 @@ function normalizeLiveCongressBill(bill) {
     ...exposed,
     portfolioTickers: tickers,
     signal: tickers.length
-      ? `Live Congress.gov bill — may affect ${tickers.join(", ")}.`
+      ? `Live Congress.gov bill at ${stage.label || "committee"} stage — mapped to ${tickers.slice(0, 4).join(", ")}${tickers.length > 4 ? ` +${tickers.length - 4} more` : ""}.`
       : "Live Congress.gov bill. No ticker mapping available yet.",
     impact: tickers.length
-      ? `Potential exposure for ${tickers.join(", ")} — monitor for committee action or lobbying filings.`
+      ? `${stage.label || "In progress"}: ${String(bill.title || "Bill").slice(0, 96)}${String(bill.title || "").length > 96 ? "…" : ""}`
       : "No ticker mapping available. Monitor for sector-level impact."
   };
 }

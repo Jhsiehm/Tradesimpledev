@@ -5598,10 +5598,10 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
   border-left: 3px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--bg-2);
-  padding: var(--space-2) 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 8px;
   cursor: pointer;
   box-shadow: var(--elev-inset);
   transition:
@@ -5614,12 +5614,142 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
   transform: translateY(-1px);
   box-shadow: var(--elev-inset), 0 6px 20px rgba(0, 0, 0, 0.22);
 }
+.sc-card:active {
+  transform: translateY(0);
+}
 .sc-card-conviction--high { border-left-color: var(--green); }
 .sc-card-conviction--medium { border-left-color: var(--amber); }
 .sc-card-conviction--low { border-left-color: var(--red); }
-.sc-card--bill  { border-left-color: #d4a017; }
+.sc-card-conviction.sc-card--bill { border-left-color: inherit; }
+.sc-card-conviction.sc-card--bill.sc-card-conviction--high { border-left-color: var(--green); }
+.sc-card-conviction.sc-card--bill.sc-card-conviction--medium { border-left-color: var(--amber); }
+.sc-card-conviction.sc-card--bill.sc-card-conviction--low { border-left-color: var(--red); }
+.sc-card--bill:not(.sc-card-conviction) { border-left-color: #d4a017; }
 .sc-card--contract { border-left-color: #4a9eff; }
 .sc-card--lobbying { border-left-color: #5ec972; }
+.sc-card-score-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sc-conviction-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.sc-conviction-num {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sc-conviction-denom {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.sc-conviction-score--high .sc-conviction-num { color: var(--green); }
+.sc-conviction-score--medium .sc-conviction-num { color: var(--amber); }
+.sc-conviction-score--low .sc-conviction-num { color: var(--red); }
+.sc-conviction-info {
+  margin-left: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-data);
+  font-size: 10px;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+  align-self: center;
+}
+.sc-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+.sc-tier-pill--high { color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, var(--line)); background: rgba(200,255,0,0.08); }
+.sc-tier-pill--medium { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 35%, var(--line)); background: rgba(239,159,39,0.08); }
+.sc-tier-pill--low { color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, var(--line)); background: rgba(226,75,74,0.08); }
+.sc-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sc-meta-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.sc-meta-field--tickers { flex: 1 1 100%; }
+.sc-meta-icon {
+  color: var(--faint);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.sc-meta-val { color: var(--muted); }
+.sc-meta-tickers {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  text-transform: none;
+}
+.sc-meta-empty { color: var(--faint); font-style: italic; text-transform: none; }
+.sc-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sc-card-cta { color: var(--green); }
+.sc-card-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+.sc-card:hover .sc-card-chevron { color: var(--green); }
+.sc-ticker-pill.is-held {
+  color: var(--green);
+  background: rgba(200,255,0,0.12);
+  border: 1px solid color-mix(in srgb, var(--green) 30%, var(--line));
+  font-weight: 700;
+}
+.sc-ticker-pill.is-watched {
+  color: var(--text);
+  background: rgba(255,255,255,0.1);
+  border: 1px solid var(--line-2);
+  font-weight: 600;
+}
 .sc-card-header {
   display: flex;
   align-items: center;
@@ -5649,7 +5779,7 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
 .sc-ticker-pill {
   font-size: 10px;
   font-weight: 600;
-  font-family: var(--mono);
+  font-family: var(--font-data);
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   padding: 1px 6px;
@@ -5666,11 +5796,21 @@ body:has(#view-analysis.active) .analysis-ticker-ai-btn { display: inline-flex; 
   flex-shrink: 0;
 }
 .sc-title {
-  font-size: 13px;
+  font-family: var(--font-ui);
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--fg);
   margin: 0;
+  letter-spacing: var(--tracking-ui, -0.02em);
+}
+.sc-sub {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 .sc-chain {
   display: flex;
@@ -6898,6 +7038,67 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .analysis-ticker-ai-btn {
     bottom: calc(var(--mobile-bottom-nav-h, 56px) + 12px);
     right: 12px;
+  }
+
+  body:has(#signal-context-bar:not([hidden])) .research-drawer-btn {
+    display: none;
+  }
+
+  .signal-context-bar {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--mobile-bottom-nav-h, 56px);
+    z-index: 198;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, color-mix(in srgb, var(--bg) 92%, transparent), transparent);
+  }
+
+  .signal-context-bar:not([hidden]) {
+    display: block;
+  }
+
+  .signal-context-bar-inner {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .signal-context-bar-inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .signal-context-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-md);
+    background: var(--bg-2);
+    color: var(--text);
+    font-family: var(--font-data);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .signal-context-chip-reason {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .signal-context-chip-cta {
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 0.04em;
   }
 
   /* Paper positions table fits without sideways scrolling once the two

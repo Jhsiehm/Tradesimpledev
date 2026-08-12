@@ -1964,6 +1964,144 @@ function billMomentum(bill) {
   return Number(bill?.legislativeMomentum ?? bill?.passageOdds ?? 0);
 }
 
+const CONVICTION_SCORE_HELP =
+  "Conviction score (0–100): modeled likelihood of near-term market-moving legislative action, based on stage, lobbying pressure, and recency.";
+
+function convictionTier(score) {
+  const n = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
+  if (n >= 67) return { score: n, band: "high", label: "High", className: "high" };
+  if (n >= 34) return { score: n, band: "medium", label: "Medium", className: "medium" };
+  return { score: n, band: "low", label: "Low", className: "low" };
+}
+
+function isBoilerplateBillCopy(text) {
+  const s = String(text || "").trim();
+  if (!s) return true;
+  return (
+    /^Potential exposure for .+ — monitor for committee action/i.test(s) ||
+    /^Live Congress\.gov bill — may affect/i.test(s) ||
+    /^No ticker mapping available/i.test(s)
+  );
+}
+
+function signalCardSummary(bill) {
+  const status = billStatusInfo(bill);
+  const candidates = [
+    bill.plainEnglish,
+    bill.signal,
+    bill.catalyst?.label,
+    status.nextStep,
+    status.marketMeaning,
+    bill.impact
+  ];
+  for (const raw of candidates) {
+    if (raw && !isBoilerplateBillCopy(raw)) return briefDisplayCopy(raw);
+  }
+  const stage = status.label || bill.status || "In progress";
+  const action = bill.latestAction ? String(bill.latestAction).slice(0, 120) : "";
+  if (action) return `${stage}: ${action}`;
+  return twelveWordSummary(bill.title || bill.shortTitle || "");
+}
+
+function userRelevantTickers() {
+  const held = new Set(paperPositionSymbols().map(normalizeWatchSymbol));
+  const watched = new Set((state.watchlistSymbols || []).map(normalizeWatchSymbol));
+  return { held, watched };
+}
+
+function renderHighlightedTickers(tickers, limit = 6) {
+  const { held, watched } = userRelevantTickers();
+  const list = (tickers || []).filter(Boolean).slice(0, limit);
+  if (!list.length) return `<span class="sc-meta-empty">No tickers mapped</span>`;
+  return list
+    .map((t) => {
+      const sym = normalizeWatchSymbol(t);
+      const cls = held.has(sym) ? " is-held" : watched.has(sym) ? " is-watched" : "";
+      const title = held.has(sym) ? "You hold this" : watched.has(sym) ? "On your watchlist" : "";
+      return `<span class="sc-ticker-pill${cls}"${title ? ` title="${escapeHtml(title)}"` : ""}>${escapeHtml(sym)}</span>`;
+    })
+    .join("");
+}
+
+function renderSignalCardMeta(bill, tier) {
+  const source = bill.exactCongressRecord ? "Congress.gov" : bill.id ? "Policy feed" : "Source";
+  const date = formatSignalDate(bill.latestActionDate || bill.introduced);
+  const tickers = bill.affected || [];
+  return `<div class="sc-meta-row" aria-label="Bill metadata">
+    <span class="sc-meta-field"><span class="sc-meta-icon" aria-hidden="true">SRC</span><span class="sc-meta-val">${escapeHtml(source)}</span></span>
+    ${date ? `<span class="sc-meta-field"><span class="sc-meta-icon" aria-hidden="true">DATE</span><span class="sc-meta-val">${escapeHtml(date)}</span></span>` : ""}
+    <span class="sc-meta-field sc-meta-field--tickers"><span class="sc-meta-icon" aria-hidden="true">TKR</span><span class="sc-meta-val sc-meta-tickers">${renderHighlightedTickers(tickers)}</span></span>
+    <span class="sc-meta-field"><span class="sc-meta-icon" aria-hidden="true">RISK</span><span class="sc-tier-pill sc-tier-pill--${tier.className}">${escapeHtml(tier.label)}</span></span>
+  </div>`;
+}
+
+function topSignalTickerMentions(cardLimit = 8) {
+  const bills = policyBills()
+    .slice()
+    .sort((a, b) => billMomentum(b) - billMomentum(a))
+    .slice(0, cardLimit);
+  const counts = new Map();
+  for (const bill of bills) {
+    for (const t of bill.affected || []) {
+      const sym = normalizeWatchSymbol(t);
+      if (!sym) continue;
+      counts.set(sym, (counts.get(sym) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function renderSignalContextBar() {
+  const bar = $("#signal-context-bar");
+  const inner = $("#signal-context-bar-inner");
+  if (!bar || !inner) return;
+  const onSignals = $("#view-signals")?.classList.contains("active");
+  const fab = $("#research-drawer-btn");
+  if (!onSignals || !isFeatureEnabled("AI_RESEARCH_ENABLED")) {
+    bar.hidden = true;
+    if (fab) fab.hidden = false;
+    return;
+  }
+  const mentions = topSignalTickerMentions();
+  const { held } = userRelevantTickers();
+  const focus = state.focusSymbol ? normalizeWatchSymbol(state.focusSymbol) : "";
+  let pick = focus && mentions.find(([sym]) => sym === focus);
+  if (!pick) pick = mentions.find(([sym]) => held.has(sym));
+  if (!pick) pick = mentions.find(([, count]) => count >= 2);
+  if (!pick && focus) pick = [focus, 1];
+  if (!pick) {
+    bar.hidden = true;
+    if (fab) fab.hidden = false;
+    return;
+  }
+  const [sym, count] = pick;
+  const reason =
+    count >= 2
+      ? `${escapeHtml(sym)} in ${count} cards today`
+      : held.has(sym)
+        ? `${escapeHtml(sym)} in your holdings`
+        : `${escapeHtml(sym)} in focus`;
+  inner.innerHTML = `<button type="button" class="signal-context-chip" data-context-symbol="${escapeHtml(sym)}">
+    <span class="signal-context-chip-reason">${reason}</span>
+    <span class="signal-context-chip-cta">Ask about ${escapeHtml(sym)} →</span>
+  </button>`;
+  bar.hidden = false;
+  if (fab) fab.hidden = true;
+}
+
+function setupSignalContextBar() {
+  if (setupSignalContextBar._bound) return;
+  setupSignalContextBar._bound = true;
+  document.getElementById("signal-context-bar-inner")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".signal-context-chip");
+    if (!btn) return;
+    const sym = btn.dataset.contextSymbol;
+    if (!sym) return;
+    setFocusSymbol(sym, { render: true });
+    openGlobalResearchDrawer();
+  });
+}
+
 function billActionTimestamp(bill) {
   const raw = bill?.latestActionDate || bill?.introduced || bill?.updatedAt || "";
   const t = Date.parse(String(raw));
@@ -4009,7 +4147,10 @@ async function initDashboard() {
     revealTerminalBoot();
     return;
   }
-  if (isFeatureEnabled("AI_RESEARCH_ENABLED")) setupResearchDrawer();
+  if (isFeatureEnabled("AI_RESEARCH_ENABLED")) {
+    setupResearchDrawer();
+    setupSignalContextBar();
+  }
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
   state.config = config;
   state.session = session;
@@ -6029,6 +6170,7 @@ function renderSignalsDesk() {
   renderSignalFeed();
   renderPolicyCatalysts();
   renderSignalsConvictionList();
+  renderSignalContextBar();
   renderLiveAlerts();
   renderTabFilterContexts();
   renderMorningBrief();
@@ -9668,21 +9810,24 @@ function normalizeText(value) {
 
 function signalCard(bill) {
   const m = billMomentum(bill);
-  const convBand = m >= 67 ? "high" : m < 35 ? "low" : "medium";
-  const conf = billConfidenceLabel(bill);
-  const status = billStatusInfo(bill);
-  const tickers = (bill.affected || []).slice(0, 4);
-  const source = bill.exactCongressRecord ? "Congress.gov" : bill.id || "Policy feed";
+  const tier = convictionTier(m);
+  const summary = signalCardSummary(bill);
   return `
-    <article class="sc-card intel-card sc-card--bill sc-card-conviction sc-card-conviction--${convBand} actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
-      <div class="sc-card-header">
+    <article class="sc-card intel-card sc-card-conviction sc-card-conviction--${tier.band} sc-card--bill actionable-card" ${drilldownAttrs("bills", { billId: bill.id }, `Open ${bill.id} in Bills`)}>
+      <div class="sc-card-score-row">
+        <div class="sc-conviction-score sc-conviction-score--${tier.className}" title="${escapeHtml(CONVICTION_SCORE_HELP)}">
+          <span class="sc-conviction-num">${tier.score}</span><span class="sc-conviction-denom">/100</span>
+          <button type="button" class="sc-conviction-info" aria-label="${escapeHtml(CONVICTION_SCORE_HELP)}" title="${escapeHtml(CONVICTION_SCORE_HELP)}">?</button>
+        </div>
         <span class="sc-type-badge">Bill</span>
-        <span class="score-badge ${m >= 67 ? "high" : m < 35 ? "low" : "medium"}">${m}/100</span>
-        <span class="mini-pill muted">${escapeHtml(conf)}</span>
       </div>
       <h3 class="sc-title">${escapeHtml(bill.title)}</h3>
-      ${signalScanLineHtml({ source, date: bill.latestActionDate || bill.introduced, tickers, band: momentumBandLabel(m) })}
-      <p class="sc-sub">${escapeHtml(bill.impact || bill.signal || status.label || "")}</p>
+      ${renderSignalCardMeta(bill, tier)}
+      <p class="sc-sub">${escapeHtml(summary)}</p>
+      <div class="sc-card-footer">
+        <span class="sc-card-cta">View bill</span>
+        <svg class="sc-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
     </article>
   `;
 }
@@ -9904,6 +10049,7 @@ function showView(view, updateUrl = true) {
   } else {
     stopFundPulseRefresh();
   }
+  renderSignalContextBar();
 }
 
 function setupAnalysisControls() {
@@ -11055,10 +11201,7 @@ function renderGuidedDemoChecklist() {
 }
 
 function momentumBandLabel(score) {
-  const n = Number(score);
-  if (n >= 67) return "High";
-  if (n >= 35) return "Medium";
-  return "Low";
+  return convictionTier(score).label;
 }
 
 function signalScanLineHtml({ source, date, tickers, band }) {
@@ -11522,6 +11665,10 @@ function clearSkeleton(selector) {
 
 function setupLegisCardDelegation() {
   document.addEventListener("click", (e) => {
+    if (e.target.closest(".sc-conviction-info")) {
+      e.stopPropagation();
+      return;
+    }
     const askBtn = e.target.closest("[data-ask-why]");
     if (askBtn) { askWhyForBill(askBtn.dataset.askWhy); return; }
     const methodBtn = e.target.closest("[data-methodology-bill]");
