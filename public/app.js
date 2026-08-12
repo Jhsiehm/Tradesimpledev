@@ -118,6 +118,11 @@ function setupMobileNav() {
     if (event.target.closest("[data-mobile-intel-close]")) closeMobileIntelNav();
   });
 
+  $("#mobile-intel-ask-btn")?.addEventListener("click", () => {
+    closeMobileIntelNav();
+    openGlobalResearchDrawer();
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeMobileIntelNav();
   });
@@ -623,10 +628,18 @@ function renderTabFilterContexts() {
 
 function syncResearchFabLabel() {
   const btn = $("#research-drawer-btn") || document.querySelector(".research-drawer-btn");
-  if (!btn) return;
+  const intelAsk = $("#mobile-intel-ask-btn");
   const sym = state.focusSymbol || state.activeAnalysisSymbol;
-  btn.textContent = sym ? `Ask about ${sym}` : "Ask AI";
-  btn.setAttribute("aria-label", sym ? `Ask AI about ${sym}` : "Ask AI research assistant");
+  const label = sym ? `Ask about ${sym}` : "Ask AI";
+  const aria = sym ? `Ask AI about ${sym}` : "Ask AI research assistant";
+  if (btn) {
+    btn.textContent = label;
+    btn.setAttribute("aria-label", aria);
+  }
+  if (intelAsk) {
+    intelAsk.textContent = label;
+    intelAsk.setAttribute("aria-label", aria);
+  }
 }
 
 function focusNoLinkageHtml(view) {
@@ -9684,7 +9697,7 @@ function applyFeatureGateVisibility() {
     document.querySelector("[data-thesis-outer='build']")?.classList.add("active");
     document.getElementById("thesis-pane-build")?.classList.add("active");
   }
-  document.querySelectorAll(".research-drawer-btn, .research-drawer-global, .byok-settings-btn, #analysis-ticker-ai-btn").forEach((el) => {
+  document.querySelectorAll(".research-drawer-btn, .research-drawer-global, .byok-settings-btn, #analysis-ticker-ai-btn, #mobile-intel-ask-btn").forEach((el) => {
     el.hidden = !isFeatureEnabled("AI_RESEARCH_ENABLED");
   });
   const fundsPanel = document.getElementById("hypothetical-funds-fold") || document.getElementById("hypothetical-funds-panel");

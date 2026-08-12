@@ -6687,10 +6687,14 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+    align-items: start;
   }
 
   .mobile-intel-item {
-    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
     padding: 10px 12px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -6699,8 +6703,14 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
     font-family: var(--mono);
     font-size: 12px;
     letter-spacing: 0.04em;
-    text-align: left;
+    line-height: 1.2;
+    text-align: center;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-intel-item:active {
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .mobile-intel-item.is-active {
@@ -6714,14 +6724,26 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   }
 
   .mobile-intel-signout {
-    display: flex;
-    width: 100%;
-    justify-content: center;
+    display: inline-flex;
     margin-top: 12px;
+  }
+
+  .mobile-intel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
   }
 
   body.mobile-intel-open {
     overflow: hidden;
+  }
+
+  body.mobile-intel-open .research-drawer-btn {
+    display: none;
   }
 
   .terminal-brand {
