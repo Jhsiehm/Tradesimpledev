@@ -4169,7 +4169,11 @@ html[data-theme="light"] body[data-page="dashboard"] tbody tr:hover td {
     display: none;
   }
 
-  body[data-page="dashboard"] .terminal-table--holdings th,
+  body[data-page="dashboard"] .terminal-table--holdings th {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
   body[data-page="dashboard"] .terminal-table--holdings td {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -5457,7 +5461,7 @@ body[data-page="dashboard"] .guided-empty-state {
 body[data-page="dashboard"] .guided-empty-state strong {
   display: block;
   font-family: var(--font-ui);
-  font-size: 0.9375rem;
+  font-size: var(--text-base, 0.9375rem);
   font-weight: 600;
   letter-spacing: var(--tracking-ui, -0.02em);
   color: var(--text);
@@ -6341,6 +6345,139 @@ html[data-theme="light"] body[data-page="dashboard"] .portfolio-command-hero {
 @media (max-width: 760px) {
   body[data-page="dashboard"] .terminal-table--markets tbody tr.markets-row {
     box-shadow: none;
+  }
+}
+
+/* ── Unified terminal context bar ───────────────────────────── */
+body[data-page="dashboard"] .terminal-context-bar {
+  border-bottom: 1px solid var(--gotham-line, var(--line));
+  background: color-mix(in srgb, var(--bg-3) 55%, transparent);
+}
+
+body[data-page="dashboard"] .terminal-context-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+}
+
+body[data-page="dashboard"] .terminal-context-meta {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  line-height: 1.35;
+}
+
+body[data-page="dashboard"] .feed-scope-bar--embedded {
+  display: inline-flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+body[data-page="dashboard"] .dash-chrome-rail .ts-focus-bar--context {
+  position: static;
+  top: auto;
+  border-top: 1px solid var(--gotham-line, var(--line));
+  border-bottom: 0;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+}
+
+body[data-page="dashboard"] .ts-focus-bar-inner .mobile-context-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+body[data-page="dashboard"] .ts-focus-bar-inner .mobile-context-seg {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-3);
+  color: var(--text);
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+body[data-page="dashboard"] .ts-focus-bar-inner .mobile-context-seg:hover {
+  border-color: var(--line-2);
+  color: var(--green);
+}
+
+/* ── Shared intel card surface ─────────────────────────────── */
+body[data-page="dashboard"] .legis-card,
+body[data-page="dashboard"] .bridge-card,
+body[data-page="dashboard"] .intel-card:not(.morning-brief-card),
+body[data-page="dashboard"] .fec-feed-card {
+  border-radius: 4px;
+  background: var(--bg-2);
+  box-shadow: none;
+}
+
+body[data-page="dashboard"] .legis-card,
+body[data-page="dashboard"] .bridge-card {
+  border: 1px solid var(--gotham-line, var(--line));
+  border-left-width: 3px;
+}
+
+body[data-page="dashboard"] .mini-pill.demo {
+  color: var(--faint);
+  border-color: var(--line);
+  background: transparent;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-page="dashboard"] .link-chip {
+  border-radius: 4px;
+}
+
+@media (max-width: 760px) {
+  body[data-page="dashboard"] .ts-focus-hint {
+    display: none;
+  }
+
+  body[data-page="dashboard"] .terminal-context-bar-inner {
+    padding: 8px 12px;
+  }
+
+  body[data-page="dashboard"] .feed-scope-bar--embedded .feed-scope-chip {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 375px) {
+  body[data-page="dashboard"] .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  body[data-page="dashboard"] .terminal-table--contracts th:nth-child(4),
+  body[data-page="dashboard"] .terminal-table--contracts td:nth-child(4),
+  body[data-page="dashboard"] .terminal-table--contracts th:nth-child(7),
+  body[data-page="dashboard"] .terminal-table--contracts td:nth-child(7) {
+    display: none;
+  }
+
+  body[data-page="dashboard"] .terminal-table--markets th:nth-child(6),
+  body[data-page="dashboard"] .terminal-table--markets td:nth-child(6) {
+    display: none;
   }
 }
 

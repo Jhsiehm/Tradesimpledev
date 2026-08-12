@@ -215,23 +215,30 @@
             <div class="ticker-tape" id="ticker-tape">Loading market feed...</div>
           </div>
         </div>
-        <div id="mobile-context-bar" class="mobile-context-bar" hidden role="navigation" aria-label="Ticker context">
-          <div class="mobile-context-inner" id="mobile-context-inner"></div>
-        </div>
       </div>
 
       <div class="dash-chrome-rail" aria-label="Terminal status">
-        <div id="ts-focus-bar" class="ts-focus-bar" hidden role="region" aria-label="Ticker focus">
-          <div class="ts-focus-bar-inner">
-            <span class="ts-focus-label">Focus</span>
-            <strong class="ts-focus-symbol" id="ts-focus-symbol">—</strong>
-            <span class="ts-focus-hint muted" id="ts-focus-hint">Filtering tabs to this ticker</span>
-            <a class="ts-focus-link link-button" id="ts-focus-markets-link" href="#" hidden>Browse Markets</a>
-            <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
+        <div class="terminal-context-bar" id="terminal-context-bar">
+          <div class="terminal-context-bar-inner">
+            <p class="terminal-context-meta" id="terminal-context-meta" aria-live="polite">System status · Mixed data</p>
+            <div class="feed-scope-bar feed-scope-bar--embedded" id="feed-scope-bar" role="group" aria-label="Policy feed scope">
+              <button type="button" class="feed-scope-chip is-active" data-feed-scope="watchlist">Your watchlist</button>
+              <button type="button" class="feed-scope-chip" data-feed-scope="all">All policy</button>
+            </div>
+          </div>
+          <div id="ts-focus-bar" class="ts-focus-bar ts-focus-bar--context" hidden role="region" aria-label="Ticker focus">
+            <div class="ts-focus-bar-inner">
+              <span class="ts-focus-label">Focus</span>
+              <strong class="ts-focus-symbol" id="ts-focus-symbol">—</strong>
+              <div class="mobile-context-inner" id="mobile-context-inner"></div>
+              <span class="ts-focus-hint muted" id="ts-focus-hint">Filtering tabs to this ticker</span>
+              <a class="ts-focus-link link-button" id="ts-focus-markets-link" href="#" hidden>Browse Markets</a>
+              <button type="button" class="ts-focus-clear button button-ghost compact" id="ts-focus-clear" aria-label="Clear ticker focus">Clear</button>
+            </div>
           </div>
         </div>
         <details class="dash-meta-fold system-status-fold" id="system-status-fold">
-          <summary class="dash-meta-fold-summary" id="system-status-summary">System status</summary>
+          <summary class="dash-meta-fold-summary" id="system-status-summary">Source feeds</summary>
           <div class="system-status-body">
             <div id="data-accuracy-banner" class="data-accuracy-banner" hidden role="status" aria-live="polite"></div>
             <section id="source-freshness-bar" class="source-freshness-bar" aria-label="Data source freshness">
@@ -245,10 +252,6 @@
             </p>
           </div>
         </details>
-        <div class="feed-scope-bar" id="feed-scope-bar" role="group" aria-label="Policy feed scope">
-          <button type="button" class="feed-scope-chip is-active" data-feed-scope="watchlist">Your watchlist</button>
-          <button type="button" class="feed-scope-chip" data-feed-scope="all">All policy</button>
-        </div>
         <aside id="guided-demo-checklist" class="guided-demo-checklist" hidden aria-label="60-second demo path">
           <div class="guided-demo-head">
             <span class="guided-demo-title">Demo path · ~60s</span>
@@ -2045,29 +2048,29 @@
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5Z"/></svg>
         <span class="mobile-bottom-nav-label">Home</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-mobile-action="intel" aria-label="Policy intel sections" aria-expanded="false" aria-controls="mobile-intel-sheet">
+      <button type="button" class="mobile-bottom-nav-item" data-view="signals">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 18h16M7 14l3-4 3 2 4-6"/></svg>
-        <span class="mobile-bottom-nav-label">Intel</span>
+        <span class="mobile-bottom-nav-label">Signals</span>
       </button>
       <button type="button" class="mobile-bottom-nav-item" data-view="markets">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15V9M12 17V7M16 13v-4"/></svg>
         <span class="mobile-bottom-nav-label">Markets</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-view="thesis">
-        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 4h10v16l-5-3-5 3V4Z"/></svg>
-        <span class="mobile-bottom-nav-label">Thesis</span>
-      </button>
       <button type="button" class="mobile-bottom-nav-item" data-view="trade">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>
         <span class="mobile-bottom-nav-label">Account</span>
       </button>
+      <button type="button" class="mobile-bottom-nav-item" data-mobile-action="intel" aria-label="More sections" aria-expanded="false" aria-controls="mobile-intel-sheet">
+        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+        <span class="mobile-bottom-nav-label">More</span>
+      </button>
     </nav>
 
     <div id="mobile-intel-sheet" class="mobile-intel-sheet" hidden aria-hidden="true">
-      <button type="button" class="mobile-intel-backdrop" data-mobile-intel-close tabindex="-1" aria-label="Close intel menu"></button>
+      <button type="button" class="mobile-intel-backdrop" data-mobile-intel-close tabindex="-1" aria-label="Close menu"></button>
       <div class="mobile-intel-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-intel-title">
         <header class="mobile-intel-head">
-          <h2 id="mobile-intel-title">Policy intel</h2>
+          <h2 id="mobile-intel-title">More</h2>
           <button type="button" class="button button-ghost compact" data-mobile-intel-close aria-label="Close">✕</button>
         </header>
         <!-- Populated from NAV_ITEMS in app.js (single catalog with sidebar). -->
