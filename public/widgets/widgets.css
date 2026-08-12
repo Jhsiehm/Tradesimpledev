@@ -1,44 +1,22 @@
-/* TradeSimple widget dashboard — chrome only; colors/type from design-tokens.css */
+/* TradeSimple widget board — minimal chrome; tokens from design-tokens.css */
 
 .widget-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-height: 60vh;
-}
-
-.widget-dashboard-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1);
-  padding-bottom: var(--space-1);
-  border-bottom: var(--border-hairline-solid);
-}
-
-.widget-dashboard-toolbar-meta {
-  font-family: var(--font-data);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.widget-add-wrap {
   position: relative;
+  min-height: calc(100vh - 180px);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .widget-picker {
   position: absolute;
-  right: 0;
-  top: calc(100% + var(--space-half));
-  z-index: 20;
-  min-width: 240px;
+  z-index: 30;
+  min-width: 180px;
   background: var(--color-bg-panel);
   border: var(--border-hairline-solid);
   border-radius: var(--widget-radius);
   padding: var(--space-half);
+  box-shadow: none;
 }
 
 .widget-picker[hidden] {
@@ -46,24 +24,25 @@
 }
 
 .widget-picker-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  display: block;
   width: 100%;
   padding: var(--space-1) var(--space-1-5);
   border: 0;
   border-left: var(--border-source-tab-width) solid transparent;
   background: transparent;
   color: var(--color-text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
   text-align: left;
   cursor: pointer;
 }
 
-.widget-picker-item:hover {
+.widget-picker-item:hover,
+.widget-picker-item:focus-visible {
   background: var(--color-bg-panel-hover);
+  outline: none;
 }
 
 .widget-picker-item[data-source="trade"] { border-left-color: var(--color-source-trade); }
@@ -72,51 +51,13 @@
 .widget-picker-item[data-source="legislation"] { border-left-color: var(--color-source-legislation); }
 
 .widget-picker-item strong {
-  font-family: var(--font-data);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
   font-weight: 500;
-}
-
-.widget-picker-item span {
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
 }
 
 .widget-grid {
   position: relative;
   width: 100%;
-  min-height: 320px;
-}
-
-.widget-grid-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 280px;
-  padding: var(--space-3);
-  border: var(--border-hairline-solid);
-  background: var(--color-bg-panel);
-}
-
-.widget-grid-empty h2 {
-  margin: 0;
-  font-family: var(--font-data);
-  font-size: var(--text-sm);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--color-text-primary);
-}
-
-.widget-grid-empty p {
-  margin: 0;
-  max-width: 36rem;
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  min-height: calc(100vh - 180px);
 }
 
 .widget-item {
@@ -298,24 +239,35 @@
   gap: var(--space-1);
 }
 
+#view-dashboard.view.active {
+  min-height: calc(100vh - 120px);
+}
+
+/* Widget board stays blank — suppress terminal coaching chrome on this view */
+body:has(#view-dashboard.active) #guided-demo-checklist,
+body:has(#view-dashboard.active) .terminal-start-note {
+  display: none !important;
+}
+
 @media (max-width: 720px) {
+  .widget-dashboard,
+  .widget-grid {
+    min-height: calc(100vh - 220px);
+  }
+
   .widget-item {
+    position: relative !important;
     left: 0 !important;
+    top: auto !important;
     width: 100% !important;
+    height: auto !important;
+    min-height: 140px;
+    margin-bottom: var(--space-1);
   }
 
   .widget-grid {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-    min-height: 0;
-  }
-
-  .widget-item {
-    position: relative !important;
-    top: auto !important;
-    height: auto !important;
-    min-height: 140px;
   }
 
   .widget-resize-handle {
