@@ -2185,8 +2185,10 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
 .legis-card h3,
 .bridge-card h3 {
   margin: 8px 0 7px;
+  font-family: var(--font-ui);
   font-size: 15px;
   line-height: 1.35;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 .legis-card p,
