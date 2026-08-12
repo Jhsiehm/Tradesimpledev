@@ -19,15 +19,118 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=type-contract-1" />
-    <link rel="stylesheet" href="/assets/styles.css?v=type-contract-1" />
-    <link rel="stylesheet" href="/assets/bill-card.css?v=type-contract-1" />
-    <link rel="stylesheet" href="/assets/brief-shell.css?v=type-contract-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=type-contract-1" />
-    <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=type-contract-1" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=ui-integrate-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=ui-integrate-1" />
+    <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-1" />
+    <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=ui-integrate-1" />
+    <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=ui-integrate-1" />
+    <style id="terminal-boot-critical">
+      body[data-boot="loading"] .dash-classbar,
+      body[data-boot="loading"] .terminal-shell,
+      body[data-boot="loading"] .mobile-bottom-nav,
+      body[data-boot="loading"] .research-drawer-btn,
+      body[data-boot="loading"] .analysis-ticker-ai-btn {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      .terminal-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(ellipse at 50% 0%, rgba(141, 253, 171, 0.08), transparent 48%),
+          #0a0b09;
+        color: #ece8e0;
+        font-family: "Geist Mono", ui-monospace, monospace;
+      }
+      body:not([data-boot="loading"]) .terminal-boot {
+        display: none !important;
+      }
+      .terminal-boot-inner {
+        width: min(420px, 100%);
+      }
+      .terminal-boot-brand {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #8dfdab;
+        margin-bottom: 18px;
+      }
+      .terminal-boot-title {
+        margin: 0 0 18px;
+        font-size: 15px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #ece8e0;
+      }
+      .terminal-boot-feeds {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+      .terminal-boot-feeds li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        font-size: 12px;
+        color: #aaa89c;
+      }
+      .terminal-boot-feeds li[data-status="ready"] { color: #8dfdab; border-color: rgba(141, 253, 171, 0.35); }
+      .terminal-boot-feeds li[data-status="fallback"] { color: #ffb340; border-color: rgba(255, 179, 64, 0.35); }
+      .terminal-boot-feeds li[data-status="error"] { color: #f06862; border-color: rgba(240, 104, 98, 0.35); }
+      .terminal-boot-note {
+        margin: 16px 0 0;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #787870;
+      }
+      .terminal-boot-pulse {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #8dfdab;
+        box-shadow: 0 0 0 0 rgba(141, 253, 171, 0.5);
+        animation: terminal-boot-pulse 1.4s ease-out infinite;
+        display: inline-block;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      @keyframes terminal-boot-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(141, 253, 171, 0.45); }
+        70% { box-shadow: 0 0 0 10px rgba(141, 253, 171, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(141, 253, 171, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .terminal-boot-pulse { animation: none; }
+      }
+    </style>
   </head>
-  <body data-page="dashboard">
+  <body data-page="dashboard" data-boot="loading">
     <a class="skip-link" href="#workspace-main">Skip to content</a>
+    <div id="terminal-boot" class="terminal-boot" role="status" aria-live="polite" aria-busy="true">
+      <div class="terminal-boot-inner">
+        <div class="terminal-boot-brand"><span class="terminal-boot-pulse" aria-hidden="true"></span>TradeSimple</div>
+        <p class="terminal-boot-title">Connecting terminal feeds</p>
+        <ul class="terminal-boot-feeds" id="terminal-boot-feeds">
+          <li data-boot-feed="market" data-status="pending"><span>Markets</span><span data-boot-state>…</span></li>
+          <li data-boot-feed="bills" data-status="pending"><span>Congress</span><span data-boot-state>…</span></li>
+          <li data-boot-feed="lobbying" data-status="pending"><span>Lobbying (LDA)</span><span data-boot-state>…</span></li>
+          <li data-boot-feed="contracts" data-status="pending"><span>USASpending</span><span data-boot-state>…</span></li>
+          <li data-boot-feed="fec" data-status="pending"><span>FEC</span><span data-boot-state>…</span></li>
+          <li data-boot-feed="account" data-status="pending"><span>Account</span><span data-boot-state>…</span></li>
+        </ul>
+        <p class="terminal-boot-note" id="terminal-boot-note">Desk opens when core sources respond — no half-loaded terminal.</p>
+      </div>
+    </div>
     <div class="dash-classbar dash-telemetry-strip" role="status" aria-live="polite">
       <span class="dash-telemetry-sources" id="dash-telemetry-sources">CONGRESS.GOV · SENATE LDA · USASPENDING · FEC.GOV</span>
       <span class="dash-telemetry-sync" id="dash-telemetry-sync">LAST SYNC …</span>

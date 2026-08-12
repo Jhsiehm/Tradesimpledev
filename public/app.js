@@ -1450,6 +1450,153 @@ function orderSuccessMessage(response) {
   return `${base}${brokerNote} <span class="order-success-links">${links.join(" · ")}</span>`;
 }
 
+const BOOT_FEED_TIMEOUT_MS = 12000;
+const BOOT_DEFERRED_QUOTES_MS = 4500;
+
+function setBootFeedStatus(key, status, detail = "") {
+  const row = document.querySelector(`[data-boot-feed="${key}"]`);
+  if (!row) return;
+  row.dataset.status = status;
+  const stateEl = row.querySelector("[data-boot-state]");
+  if (!stateEl) return;
+  if (detail) {
+    stateEl.textContent = detail;
+    return;
+  }
+  stateEl.textContent =
+    status === "ready" ? "live"
+    : status === "fallback" ? "reference"
+    : status === "error" ? "unavailable"
+    : status === "skip" ? "off"
+    : "…";
+}
+
+function bootMetaStatus(meta) {
+  if (!meta) return "error";
+  const src = String(meta.source || "").toLowerCase();
+  if (!src) return meta.updatedAt ? "fallback" : "error";
+  if (
+    src.includes("fallback")
+    || src.includes("sample")
+    || src.includes("seed")
+    || src.includes("static")
+    || src.includes("unavailable")
+    || src.includes("feature_disabled")
+  ) {
+    return src.includes("feature_disabled") ? "skip" : "fallback";
+  }
+  return "ready";
+}
+
+function revealTerminalBoot({ timedOut = false } = {}) {
+  const note = $("#terminal-boot-note");
+  if (timedOut && note) {
+    note.textContent = "Opened with available feeds — some sources may still catch up.";
+  }
+  const boot = $("#terminal-boot");
+  document.body.removeAttribute("data-boot");
+  if (boot) {
+    boot.setAttribute("aria-busy", "false");
+    boot.hidden = true;
+  }
+}
+
+async function runTerminalBootGate() {
+  if (document.body.getAttribute("data-boot") !== "loading") {
+    await refreshTerminalData();
+    return;
+  }
+
+  const note = $("#terminal-boot-note");
+  const started = Date.now();
+  let timedOut = false;
+  let timeoutId = 0;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      if (note) note.textContent = "Opening with available feeds…";
+      resolve("timeout");
+    }, BOOT_FEED_TIMEOUT_MS);
+  });
+
+  const track = async (key, task) => {
+    setBootFeedStatus(key, "pending");
+    try {
+      await task();
+      const row = document.querySelector(`[data-boot-feed="${key}"]`);
+      if (row?.dataset.status === "skip" || row?.dataset.status === "ready" || row?.dataset.status === "fallback") {
+        return row.dataset.status;
+      }
+      const status = bootMetaStatus(state.dataMeta[key]);
+      setBootFeedStatus(key, status);
+      return status;
+    } catch (error) {
+      console.warn(`[boot:${key}]`, error);
+      setBootFeedStatus(key, "error");
+      return "error";
+    }
+  };
+
+  const bootTasks = Promise.allSettled([
+    track("account", () => refreshAccountFeed({ render: false })),
+    track("market", () => refreshMarketFeed({
+      render: false,
+      awaitDeferred: true,
+      deferredBudgetMs: BOOT_DEFERRED_QUOTES_MS
+    }).then(() => {
+      const live = (state.quotes || []).filter((q) => quoteHasRenderablePrice(q) && !String(q.source || "").includes("fallback")).length;
+      const any = (state.quotes || []).some((q) => quoteHasRenderablePrice(q));
+      rememberFeedMeta("market", {
+        source: live > 0 ? (state.quoteFeedSource || "market") : any ? "fallback_static" : "unavailable",
+        updatedAt: new Date().toISOString()
+      }, state.quoteFeedSource || "market");
+      setBootFeedStatus("market", live > 0 ? "ready" : any ? "fallback" : "error", live > 0 ? `${live} live` : any ? "reference" : "unavailable");
+    })),
+    track("bills", async () => {
+      await refreshPolicyFeed({ render: false });
+      setBootFeedStatus("bills", bootMetaStatus(state.dataMeta.bills));
+      if (!isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
+        setBootFeedStatus("lobbying", "skip", "off");
+      } else {
+        setBootFeedStatus("lobbying", bootMetaStatus(state.dataMeta.lobbying));
+      }
+    }),
+    track("fec", () => refreshFecPulse({ render: false, force: true })),
+    track("contracts", async () => {
+      if (!isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+        setBootFeedStatus("contracts", "skip", "off");
+        return;
+      }
+      await refreshContractsFeed({ render: false });
+    }),
+    refreshTrendingFeed({ render: false }),
+    refreshContractWatchFeed({ render: false })
+  ]);
+
+  try {
+    await Promise.race([bootTasks, timeoutPromise]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+  // Ensure lobbying/bills rows reflect latest meta even if race timed out mid-flight
+  if (state.dataMeta.bills) setBootFeedStatus("bills", bootMetaStatus(state.dataMeta.bills));
+  if (!isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) setBootFeedStatus("lobbying", "skip", "off");
+  else if (state.dataMeta.lobbying) setBootFeedStatus("lobbying", bootMetaStatus(state.dataMeta.lobbying));
+  if (!isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) setBootFeedStatus("contracts", "skip", "off");
+  else if (state.dataMeta.contracts) setBootFeedStatus("contracts", bootMetaStatus(state.dataMeta.contracts));
+  if (state.dataMeta.fec) setBootFeedStatus("fec", bootMetaStatus(state.dataMeta.fec));
+  if (state.dataMeta.account) setBootFeedStatus("account", bootMetaStatus(state.dataMeta.account));
+
+  renderTerminalData();
+  const elapsed = Date.now() - started;
+  if (note && !timedOut) {
+    note.textContent = `Synced in ${(elapsed / 1000).toFixed(1)}s — opening desk.`;
+  }
+  // Brief beat so the ready states are readable, then reveal
+  await new Promise((r) => window.setTimeout(r, timedOut ? 120 : 280));
+  revealTerminalBoot({ timedOut });
+}
+
 const LIVE_FEED_INTERVALS = {
   marketMs: 30000,
   cryptoMs: 30000,
@@ -3768,9 +3915,12 @@ async function initDashboard() {
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
 
   const [config, session] = await Promise.all([fetchJson("/api/config"), fetchJson("/api/session")]);
-  if (await redirectToOnboardingIfNeeded(session, params)) return;
   syncFeatureGatesFromConfig(config);
   applyFeatureGateVisibility();
+  if (await redirectToOnboardingIfNeeded(session, params)) {
+    revealTerminalBoot();
+    return;
+  }
   if (isFeatureEnabled("AI_RESEARCH_ENABLED")) setupResearchDrawer();
   if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
   state.config = config;
@@ -3833,17 +3983,21 @@ async function initDashboard() {
     );
   }
 
-  await Promise.allSettled([
-    refreshTerminalData(),
-    isFeatureEnabled("ANALYSIS_LAB_ENABLED") ? loadAnalysis(state.activeAnalysisSymbol) : Promise.resolve(),
-    loadTradeHistory(state.tradeSymbol, state.tradeRange)
-  ]);
-  if (isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) void refreshContractsFeed();
-  renderSinceLastVisitStrip();
-  if (isDemo && initialView === "overview") maybeScrollDemoMorningBrief();
-  maybeOpenWatchlistPrompt();
-  setupEdgarControls();
-  startLiveFeeds();
+  try {
+    await Promise.allSettled([
+      runTerminalBootGate(),
+      isFeatureEnabled("ANALYSIS_LAB_ENABLED") ? loadAnalysis(state.activeAnalysisSymbol) : Promise.resolve(),
+      loadTradeHistory(state.tradeSymbol, state.tradeRange)
+    ]);
+    renderSinceLastVisitStrip();
+    if (isDemo && initialView === "overview") maybeScrollDemoMorningBrief();
+    maybeOpenWatchlistPrompt();
+    setupEdgarControls();
+    startLiveFeeds();
+  } catch (error) {
+    console.error("[boot] terminal init failed", error);
+    revealTerminalBoot({ timedOut: true });
+  }
 }
 
 function startLiveFeeds() {
@@ -4920,7 +5074,7 @@ async function refreshPortfolioChartLive() {
   renderPortfolioChart();
 }
 
-async function refreshMarketFeed({ render = true } = {}) {
+async function refreshMarketFeed({ render = true, awaitDeferred = false, deferredBudgetMs = 5000 } = {}) {
   const universe = quoteSymbolUniverse();
   const hot = hotQuoteSymbols();
   const deferred = universe.filter((symbol) => !hot.includes(symbol));
@@ -4934,7 +5088,7 @@ async function refreshMarketFeed({ render = true } = {}) {
 
   if (deferred.length) {
     markQuoteSymbolsPending(deferred);
-    void fetchQuotesBatched(deferred, {
+    const deferredPromise = fetchQuotesBatched(deferred, {
       onChunk: (partial) => applyBatch(partial)
     })
       .then((secondary) => {
@@ -4943,6 +5097,7 @@ async function refreshMarketFeed({ render = true } = {}) {
           if (quoteHasRenderablePrice(quoteFor(symbol))) clearQuoteSymbolPending(symbol);
         });
         if (render) renderMarkets();
+        return secondary;
       })
       .catch((error) => {
         console.warn("[market] deferred quotes fetch failed", error);
@@ -4951,7 +5106,16 @@ async function refreshMarketFeed({ render = true } = {}) {
           renderSourceBadges();
           renderMarkets();
         }
+        throw error;
       });
+    if (awaitDeferred) {
+      await Promise.race([
+        deferredPromise.catch(() => null),
+        new Promise((resolve) => window.setTimeout(resolve, deferredBudgetMs))
+      ]);
+    } else {
+      void deferredPromise;
+    }
   }
 
   if (!render && $("#view-overview")?.classList.contains("active") && state.account) {
