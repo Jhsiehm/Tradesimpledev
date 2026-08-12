@@ -57,8 +57,8 @@ function disabledFeatureFallbackView() {
 /* Single nav catalog — sidebar labels, mobile Intel sheet, and feature gates share this. */
 const NAV_ITEMS = [
   { id: "overview", label: "Home" },
-  { id: "thesis", label: "Thesis Lab" },
-  { id: "signals", label: "Signals", mobileIntel: true },
+  { id: "thesis", label: "Thesis Lab", mobileIntel: true },
+  { id: "signals", label: "Signals" },
   { id: "bills", label: "Bills", mobileIntel: true },
   { id: "lobbying", label: "Lobbying", mobileIntel: true },
   { id: "fec", label: "Money Trail", mobileIntel: true },
@@ -305,6 +305,7 @@ function renderFeedScopeToggle() {
   bar.querySelectorAll("[data-feed-scope]").forEach((chip) => {
     chip.classList.toggle("is-active", chip.dataset.feedScope === scope);
   });
+  renderTerminalContextMeta();
 }
 
 function refreshPolicyScopedViews() {
@@ -541,6 +542,16 @@ function syncFocusUrlParam() {
   window.history.replaceState({}, "", clean ? `${window.location.pathname}?${clean}` : window.location.pathname);
 }
 
+function renderTerminalContextMeta() {
+  const meta = $("#terminal-context-meta");
+  if (!meta) return;
+  const mode = state.dataHealth?.dataMode || inferClientDataMode();
+  const modeLbl = mode === "live" ? "Live" : mode === "mixed" ? "Mixed" : "Scenario";
+  const scopeLbl = isWatchlistScope() ? "Watchlist" : "All policy";
+  const focus = state.focusSymbol ? ` · Focus ${state.focusSymbol}` : "";
+  meta.textContent = `${scopeLbl} · ${modeLbl} data${focus}`;
+}
+
 function renderFocusBar() {
   const bar = $("#ts-focus-bar");
   if (!bar) return;
@@ -549,12 +560,14 @@ function renderFocusBar() {
   const symEl = $("#ts-focus-symbol");
   const hint = $("#ts-focus-hint");
   const marketsLink = $("#ts-focus-markets-link");
+  const clearBtn = $("#ts-focus-clear");
   if (symEl) symEl.textContent = sym || "—";
   if (hint) {
     hint.textContent = sym
       ? "Bills, contracts, lobbying, markets, and signals respect this ticker until you clear it."
       : "";
   }
+  if (clearBtn) clearBtn.hidden = !sym;
   if (marketsLink) {
     marketsLink.hidden = !sym;
     marketsLink.onclick = (e) => {
@@ -562,6 +575,9 @@ function renderFocusBar() {
       showView("markets");
     };
   }
+  renderTerminalContextMeta();
+  renderMobileContextBar();
+  syncDashChromeHeights();
 }
 
 function renderTabFilterContexts() {
@@ -4105,12 +4121,12 @@ async function loadDataHealth() {
 function renderSystemStatusChrome() {
   renderDataAccuracyBanner();
   renderSourceFreshnessBar();
+  renderTerminalContextMeta();
   const summary = $("#system-status-summary");
   if (!summary) return;
   const mode = state.dataHealth?.dataMode || inferClientDataMode();
   const modeLbl = mode === "live" ? "Live" : mode === "mixed" ? "Mixed" : "Scenario";
-  const focus = state.focusSymbol ? ` · Focus ${state.focusSymbol}` : "";
-  summary.textContent = `System status · ${modeLbl} data${focus}`;
+  summary.textContent = `Source feeds · ${modeLbl} data`;
 }
 
 function renderDataAccuracyBanner() {
@@ -4243,7 +4259,7 @@ function feedFreshnessChip(label, meta, serverFeed, { extra = "" } = {}) {
   const isFallback = src === "sample" || String(src).includes("fallback") || serverFeed?.fallback;
   const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
   const detail = extra ? ` · ${extra}` : "";
-  const srcLabel = label === "FEC" ? (isLive ? "Live FEC" : isFallback ? "Sample FEC" : sourceLabel(src)) : sourceLabel(src);
+  const srcLabel = label === "FEC" ? (isLive ? "Live FEC" : isFallback ? "Demo data" : sourceLabel(src)) : sourceLabel(src);
   return `<span class="source-freshness-chip ${isLive ? "is-live" : isFallback ? "is-fallback" : ""}" title="${escapeHtml(srcLabel)}">
     <span class="dot" aria-hidden="true"></span>
     <span>${escapeHtml(label)} · ${escapeHtml(when)}${escapeHtml(detail)}</span>
@@ -4391,7 +4407,7 @@ function renderFeedHealthDrawer() {
       const isLive = src === "fec" || (serverFeed?.status === "connected" && !serverFeed?.fallback && !String(src).includes("fallback") && src !== "sample");
       const isFallback = src === "sample" || String(src).includes("fallback") || serverFeed?.fallback;
       const pillClass = isLive ? "green" : isFallback ? "amber" : "";
-      const pill = isLive ? "Live" : isFallback || src === "sample" ? (label === "FEC" ? "Sample FEC" : "Fallback") : "Connecting";
+      const pill = isLive ? "Live" : isFallback || src === "sample" ? (label === "FEC" ? "Demo" : "Fallback") : "Connecting";
       const when = freshnessText(meta?.updatedAt || serverFeed?.lastSuccessAt);
       const extra =
         label === "Bills" && meta?.liveBillCount != null
@@ -4797,22 +4813,15 @@ function focusContextCounts(sym) {
 }
 
 function renderMobileContextBar() {
-  const bar = $("#mobile-context-bar");
   const inner = $("#mobile-context-inner");
-  if (!bar || !inner) return;
+  if (!inner) return;
   const sym = state.focusSymbol;
   if (!sym) {
-    bar.hidden = true;
     inner.innerHTML = "";
-    syncDashChromeHeights();
     return;
   }
   const counts = focusContextCounts(sym);
-  bar.hidden = false;
   inner.innerHTML = `
-    <button type="button" class="mobile-context-seg" data-mobile-context-view="analysis" aria-label="Analysis for ${escapeHtml(sym)}">
-      <strong>${escapeHtml(sym)}</strong>
-    </button>
     <button type="button" class="mobile-context-seg" data-mobile-context-view="bills" aria-label="Bills for ${escapeHtml(sym)}">
       Bills (${counts.bills})
     </button>
@@ -4824,16 +4833,9 @@ function renderMobileContextBar() {
     </button>`;
   inner.querySelectorAll("[data-mobile-context-view]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const view = btn.dataset.mobileContextView;
-      if (view === "analysis") {
-        state.activeAnalysisSymbol = sym;
-        const sel = $("#analysis-symbol");
-        if (sel) setSymbolPickerValue(sel, sym, { notify: false });
-      }
-      showView(view);
+      showView(btn.dataset.mobileContextView);
     });
   });
-  syncDashChromeHeights();
 }
 
 function freshnessText(value) {
@@ -5283,8 +5285,8 @@ const FEC_TOPIC_FILTERS = {
 function fecSourceBadge(source) {
   const isLive = source === "fec";
   return {
-    label: isLive ? "Live FEC" : "Sample FEC",
-    className: isLive ? "green" : "amber"
+    label: isLive ? "Live FEC" : "Demo",
+    className: isLive ? "green" : "demo"
   };
 }
 
@@ -5381,7 +5383,7 @@ function renderFecView() {
         isWatchlistScope() && !state.focusSymbol
           ? watchlistEmptyStateHtml()
           : payload?.source === "sample"
-            ? `<strong>Showing illustrative FEC pulses.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
+            ? `<strong>Demo FEC pulses shown.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
             : `<strong>No pulses match this filter.</strong> Try another sector or clear focus.`;
       emptyEl.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     }
@@ -9033,17 +9035,14 @@ function legisAlertCard(bill, options = {}) {
       <div class="bill-signal-col">
         <div class="signal-label-sm">Legislative & lobbying signals</div>
         <div class="signal-row-item">
-          <span class="signal-ico">⚖️</span>
           <span class="signal-lbl">Lobbying pressure</span>
           <span class="signal-val ${lobbyScore >= 67 ? "dn" : lobbyScore >= 40 ? "amber-text" : ""}">${lobbyScore}/100 (${escapeHtml(lobbyConf)})</span>
         </div>
         <div class="signal-row-item">
-          <span class="signal-ico">👥</span>
           <span class="signal-lbl">Cosponsors</span>
           <span class="signal-val ${bipartisan ? "up" : ""}">${bill.cosponsors || 0} (${bill.bipartisanCosponsors || 0} bipartisan${bipartisan ? " ✓" : ""})</span>
         </div>
         <div class="signal-row-item">
-          <span class="signal-ico">📅</span>
           <span class="signal-lbl">Floor scheduled</span>
           <span class="signal-val ${bill.floorScheduled ? "up" : "muted"}">${bill.floorScheduled ? "Yes ✓" : "Not yet"}</span>
         </div>
@@ -10620,7 +10619,7 @@ function setDisabled(link, title) {
 function sourceLabel(source) {
   const s = String(source || "unknown");
   if (s === "fec") return "Live FEC";
-  if (s === "sample") return "Sample FEC";
+  if (s === "sample") return "Demo";
   return s.replaceAll("_", " ");
 }
 

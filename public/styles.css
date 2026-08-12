@@ -1404,6 +1404,7 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
 }
 .mini-pill.green { color: var(--green); border-color: var(--green-2); background: rgba(200, 255, 0, 0.09); }
 .mini-pill.amber { color: var(--amber); border-color: rgba(239, 159, 39, 0.34); background: rgba(239, 159, 39, 0.08); }
+.mini-pill.demo { color: var(--faint); border-color: var(--line); background: transparent; letter-spacing: 0.08em; text-transform: uppercase; font-size: 9px; }
 .mini-pill.red { color: var(--red); border-color: rgba(226, 75, 74, 0.34); background: rgba(226, 75, 74, 0.08); }
 .source-pill, .live-source-pill {
   gap: 6px;
@@ -2569,13 +2570,14 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
   margin-bottom: 8px;
 }
 .signal-row-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
   margin-bottom: 6px;
   font-size: 12px;
 }
-.signal-ico { font-size: 12px; width: 18px; text-align: center; flex-shrink: 0; }
+.signal-ico { display: none; }
 .signal-lbl { color: var(--muted); flex: 1; }
 .signal-val { font-family: var(--mono); font-size: 11px; font-weight: 500; }
 .signal-val.amber-text { color: var(--amber); }
