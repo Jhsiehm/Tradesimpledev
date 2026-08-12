@@ -1,8 +1,30 @@
 /*
- * TradeSimple v1 — Design Tokens
+ * TradeSimple v1 — Design Tokens (SINGLE SOURCE OF TRUTH)
  * ─────────────────────────────────────────────────────────────────────────────
- * ZONE: Landing = editorial (Fraunces display, Geist UI, restrained lime)
- * ZONE: Dashboard = terminal density (Geist Mono data, freshness telemetry)
+ *
+ * CANONICAL FONT STACK (production — do not add faces without founder sign-off):
+ *   --font-display  Fraunces      → marketing heroes, brand wordmark, AI brief prose
+ *   --font-ui       Geist         → sentences, body copy, form labels, UI chrome text
+ *   --font-data     Geist Mono    → tickers, timestamps, nav labels, section chrome,
+ *                                  badges, tables, buttons, source IDs, stats
+ *
+ * ZONE RULES
+ *   Landing  = editorial moments allowed (display for hero / manifesto only)
+ *   Dashboard / terminal = mono carries chrome; UI sans for sentences; display
+ *                          ONLY for AI thesis / brief prose — never section titles
+ *
+ * TYPE ROLE → TOKEN (use these names in new CSS; legacy aliases below map 1:1)
+ *   data / chrome / label / badge / tab / ticker / timestamp  →  var(--font-data) or var(--mono)
+ *   sentence / paragraph / helper / form body                 →  var(--font-ui)   or var(--sans)
+ *   hero / brand mark / AI brief sentence                     →  var(--font-display) or var(--serif)
+ *
+ * FORBIDDEN IN PRODUCTION CSS (experiment leftovers — never reintroduce):
+ *   Cormorant Garamond, Outfit, Space Mono, JetBrains Mono, IBM Plex Mono,
+ *   DM Serif Display, Patrick Hand. Preview HTML sandboxes may use them locally
+ *   but must NOT leak stacks into public/*.css or assets/*.css.
+ *
+ * TYPE RULE: If it's a sentence, it's not mono — use var(--font-ui).
+ * Mono (--font-data) is for tickers, timestamps, source IDs, and data tables.
  *
  * LIME RATIONING — DO:
  *   • Primary CTA buttons (solid lime / black text)
@@ -13,18 +35,17 @@
  *   • Section eyebrows (use muted gray mono)
  *   • Body copy, nav links, or decorative borders
  *   • Dashboard data rows (use semantic green/amber/red only)
- *
- * TYPE RULE: If it's a sentence, it's not mono — use var(--font-ui).
- * Mono (--font-data) is for tickers, timestamps, source IDs, and data tables.
  */
 
 :root {
-  /* ── Fonts ── */
+  /* ── Fonts (canonical) ── */
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-data: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  /* Landing-only handwriting accent (signature moments). Do not use on dashboard. */
+  --font-hand: "Caveat", "Segoe Print", "Comic Sans MS", cursive;
 
-  /* Legacy aliases (migrate callers to semantic names) */
+  /* Legacy aliases — prefer semantic --font-* names in new code */
   --serif: var(--font-display);
   --sans: var(--font-ui);
   --mono: var(--font-data);
@@ -90,6 +111,33 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 150ms;
   --dur-state: 180ms;
+}
+
+/* Role utilities — prefer these over one-off font-family declarations */
+.ts-type-data,
+.ts-type-chrome,
+.ts-type-label {
+  font-family: var(--font-data);
+  letter-spacing: var(--tracking-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.ts-type-ui,
+.ts-type-body {
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-ui);
+  line-height: var(--leading-normal);
+}
+
+.ts-type-display,
+.ts-type-brief {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-ui);
+  line-height: var(--leading-tight);
+}
+
+.ts-type-hand {
+  font-family: var(--font-hand);
 }
 
 @media (min-width: 1024px) {
