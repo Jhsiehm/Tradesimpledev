@@ -25,6 +25,18 @@ data/               — Seed JSON/JSONL files (bills, lobbying, contracts, paper
 src/lib/supabase.mjs — Zero-dep Supabase REST client (server-side only)
 ```
 
+### Type system (single contract — do not fork)
+Canonical tokens live in `src/imports/design-tokens.css`. Production may load only:
+- **Fraunces** (`--font-display` / `--serif`) — landing heroes, brand wordmark, AI brief prose
+- **Geist** (`--font-ui` / `--sans`) — sentences, body copy, form text
+- **Geist Mono** (`--font-data` / `--mono`) — tickers, timestamps, nav/section chrome, badges, tables, stats
+- **Caveat** (`--font-hand`) — landing signature accents only; never on dashboard
+
+Dashboard section titles (e.g. page-header h1) use mono, not serif. Never hardcode
+Cormorant, Outfit, Space Mono, JetBrains Mono, IBM Plex Mono, or DM Serif in production CSS.
+Preview HTML sandboxes may experiment locally but must not leak stacks into `public/*.css`.
+Always load `design-tokens.css` before other stylesheets. Prefer `var(--font-*)` over redeclaring stacks.
+
 ### Module system
 `"type": "module"` in package.json — everything is ESM. Use `import`/`export`, NOT `require`.
 Server entry: `node server.mjs`. Start command: `npm run dev` (port 3000).
