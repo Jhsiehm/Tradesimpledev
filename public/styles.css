@@ -716,10 +716,19 @@ button { color: inherit; }
   width: 100%;
   height: 34px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md, 4px);
   background: var(--bg-3);
   color: var(--text);
   outline: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.search-box input::placeholder {
+  font-family: var(--font-data);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 .search-box input { padding: 0 12px 0 64px; }
 .search-box input:focus,
@@ -2310,6 +2319,55 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
   font-size: 13px;
   color: var(--muted);
   line-height: 1.65;
+}
+
+.bill-intel-block {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg-3) 88%, transparent);
+  display: grid;
+  gap: 8px;
+}
+
+.bill-intel-block--compact {
+  padding: 8px 10px;
+  gap: 6px;
+}
+
+.bill-intel-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 88px) minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bill-intel-row--lede {
+  align-items: start;
+}
+
+.bill-intel-k {
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.bill-intel-v {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--muted);
+}
+
+.bill-intel-v.mono {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text);
 }
 
 /* Stage tracker */
@@ -6805,8 +6863,14 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   .terminal-table--holdings td:nth-child(2),
   .terminal-table--holdings th:nth-child(3),
   .terminal-table--holdings td:nth-child(3) { display: none; }
-  .terminal-table--holdings th,
-  .terminal-table--holdings td { white-space: normal; overflow-wrap: anywhere; }
+  .terminal-table--holdings th {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  .terminal-table--holdings td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 
   /* Overview metrics grid */
   .overview-metrics-grid,

@@ -1006,6 +1006,13 @@ function applyQuoteBatchToState(data, { render = true } = {}) {
   } else if (data.quotes?.length) {
     state.quoteFeedError = "";
   }
+  const hydrated =
+    (data.quotes || []).some((q) => quoteHasRenderablePrice(q)) ||
+    (state.quotes || []).some((q) => quoteHasRenderablePrice(q));
+  if (hydrated) {
+    state.quotesHydratedAt = state.quotesHydratedAt || new Date().toISOString();
+    state.marketsCatalogQuotesLoaded = true;
+  }
   rememberFeedMeta("market", data, data.source || "quotes");
   if (!render) return;
   renderSourceBadges();
@@ -1927,9 +1934,14 @@ async function loadDashboardBootstrap() {
 }
 
 function formatSpendZ(z) {
-  if (z == null || Number.isNaN(Number(z))) return "—";
+  if (z == null || Number.isNaN(Number(z))) return { label: "—", raw: null };
   const n = Number(z);
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}σ`;
+  if (Math.abs(n) > 20) return { label: "—", raw: n };
+  const clamped = Math.max(-99.9, Math.min(99.9, n));
+  return {
+    label: `${clamped >= 0 ? "+" : ""}${clamped.toFixed(1)}σ`,
+    raw: n
+  };
 }
 
 function lobbyZClass(z) {
@@ -1982,6 +1994,35 @@ function briefDisplayCopy(text) {
   return String(text || "")
     .replace(/\s*—\s*/g, ", ")
     .trim();
+}
+
+function renderBillIntelBlock(bill, options = {}) {
+  const mechanism = bill.plainEnglish || bill.signal || bill.impact || "";
+  const tickers = (bill.affected || []).filter(Boolean).slice(0, 8);
+  const catalyst =
+    bill.catalyst?.label ||
+    bill.catalyst?.dateLabel ||
+    bill.latestActionDate ||
+    "";
+  const source = bill.id || bill.displayId || "";
+  if (!mechanism && !tickers.length && !catalyst) return "";
+
+  const tickerRow = tickers.length
+    ? `<div class="bill-intel-row"><span class="bill-intel-k">Tickers</span><span class="bill-intel-v mono">${tickers.map((t) => escapeHtml(t)).join(", ")}</span></div>`
+    : "";
+  const catalystRow = catalyst
+    ? `<div class="bill-intel-row"><span class="bill-intel-k">Catalyst</span><span class="bill-intel-v">${escapeHtml(catalyst)}</span></div>`
+    : "";
+  const sourceRow = source
+    ? `<div class="bill-intel-row"><span class="bill-intel-k">Source</span><span class="bill-intel-v mono">${escapeHtml(source)}</span></div>`
+    : "";
+
+  return `<div class="bill-intel-block${options.compact ? " bill-intel-block--compact" : ""}">
+    ${mechanism ? `<div class="bill-intel-row bill-intel-row--lede"><span class="bill-intel-k">Mechanism</span><p class="bill-intel-v">${escapeHtml(mechanism)}</p></div>` : ""}
+    ${tickerRow}
+    ${catalystRow}
+    ${sourceRow}
+  </div>`;
 }
 
 function industryStanceForBill(bill) {
@@ -3004,7 +3045,7 @@ function renderAnalysisBillsTable(symbol) {
       <tr id="${detailId}" class="analysis-bill-detail-row" hidden>
         <td colspan="7">
           <div class="analysis-bill-detail">
-            <p>${escapeHtml(bill.plainEnglish || bill.signal || "")}</p>
+            ${renderBillIntelBlock(bill, { compact: true })}
             <h4>Lobbying firms and spend</h4>
             <ul class="analysis-bill-lobby-list">${lobbyRows}</ul>
             <h4>Watch for:</h4>
@@ -3313,6 +3354,11 @@ const state = {
   bills: [],
   lobbying: [],
   account: null,
+  billsLoadedAt: null,
+  lobbyingLoadedAt: null,
+  fecPulseLoadedAt: null,
+  accountLoadedAt: null,
+  quotesHydratedAt: null,
   contracts: [],
   contractsLoadedAt: null,
   contractCache: {},
@@ -4921,6 +4967,7 @@ async function refreshTerminalData() {
 async function refreshAccountFeed({ render = true } = {}) {
   const account = await fetchJson("/api/trading/account");
   state.account = account;
+  state.accountLoadedAt = new Date().toISOString();
   rememberFeedMeta("account", account, "local_paper");
   recordPortfolioEquitySnapshot(account);
   if (render) {
@@ -5185,6 +5232,8 @@ async function refreshPolicyFeed({ render = true } = {}) {
   window._policyBillsForByok = state.bills || [];
   state.policyCatalysts = bills.catalysts || [];
   state.lobbying = lobbying.filings || [];
+  state.billsLoadedAt = new Date().toISOString();
+  state.lobbyingLoadedAt = new Date().toISOString();
   rememberFeedMeta("bills", bills, bills.source || "bills");
   rememberFeedMeta("lobbying", lobbying, lobbying.source || "lobbying");
   renderSystemStatusChrome();
@@ -5204,6 +5253,7 @@ async function refreshFecPulse({ render = true, force = false } = {}) {
   try {
     const data = await fetchJson(`/api/fec/pulse${force ? "?refresh=1" : ""}`);
     state.fecPulse = data;
+    state.fecPulseLoadedAt = new Date().toISOString();
     rememberFeedMeta("fec", data, data.source || "fec");
     if (render) {
       renderSourceBadges();
@@ -5218,6 +5268,7 @@ async function refreshFecPulse({ render = true, force = false } = {}) {
     return data;
   } catch (err) {
     console.warn("[fec] pulse unavailable", err);
+    state.fecPulseLoadedAt = state.fecPulseLoadedAt || new Date().toISOString();
     return null;
   }
 }
@@ -5328,12 +5379,10 @@ function renderFecPulseStrip() {
     return;
   }
   const top = filtered[0];
-  const badge = fecSourceBadge(payload.source);
   strip.hidden = false;
   inner.innerHTML = `
     <article class="fec-pulse-card intel-card intel-card--fec">
       <div class="fec-pulse-head">
-        <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
         <span class="fec-pulse-committee">${escapeHtml(top.committee || "Committee")} · ${escapeHtml(top.chamber || "")}</span>
       </div>
       <p class="fec-pulse-line">${escapeHtml(top.plainEnglish || top.label || "")}</p>
@@ -5349,6 +5398,11 @@ function renderFecPulseStrip() {
 }
 
 function renderFecView() {
+  if (!state.fecPulseLoadedAt) {
+    showSkeleton("#fec-feed", 4, "card");
+    return;
+  }
+  clearSkeleton("#fec-feed");
   const feedEl = $("#fec-feed");
   const emptyEl = $("#fec-feed-empty");
   const sourceEl = $("#fec-source");
@@ -5397,7 +5451,6 @@ function renderFecView() {
       return `
       <article class="money-trail-card fec-feed-card intel-card intel-card--fec" data-fec-pulse-key="${escapeHtml(pulseKey)}">
         <div class="fec-pulse-head">
-          <span class="mini-pill ${badge.className}">${escapeHtml(badge.label)}</span>
           <span class="fec-pulse-committee">${escapeHtml(pulse.committee || "Committee")} · ${escapeHtml(pulse.chamber || "")}</span>
         </div>
         <h3 class="fec-feed-title">${escapeHtml(pulse.label || pulse.committee || "Committee cluster")}</h3>
@@ -5779,7 +5832,13 @@ function renderTape() {
 }
 
 function renderOverview() {
-  if (!state.account) showSkeleton("#holdings-body", 4, "row");
+  const accountLoading = !state.accountLoadedAt;
+  const hasPositions = (state.account?.positions || []).length > 0;
+  const quotesLoading = hasPositions && !state.quotesHydratedAt;
+  if (accountLoading || quotesLoading) {
+    showSkeleton("#holdings-body", 3, "row");
+    if (accountLoading) return;
+  }
   let investedValue = 0;
   let cost = 0;
   let dayChange = 0;
@@ -5932,6 +5991,10 @@ function renderOverview() {
 function renderSignalsConvictionList() {
   const el = $("#signal-list");
   if (!el) return;
+  if (!state.billsLoadedAt) {
+    showSkeleton("#signal-list", 4, "card");
+    return;
+  }
   const type = state.signalsTypeFilter || "all";
   if (type === "contracts" || type === "trending") {
     const hint = type === "contracts"
@@ -6619,6 +6682,12 @@ function renderWatchlistStrip() {
 function renderMarkets() {
   const tbody = $("#market-body");
   if (!tbody) return;
+  const quotesReady = state.marketsCatalogQuotesLoaded || state.quotesHydratedAt;
+  if (!quotesReady && (state.marketsQuotesLoading || !state.quotesHydratedAt)) {
+    showSkeleton("#market-body", 8, "row");
+    return;
+  }
+  clearSkeleton("#market-body");
   updateMarketsTableMeta();
   syncMarketsDeskToggleVisibility();
 
@@ -6948,6 +7017,10 @@ function renderContractDetailPanel(row) {
 function renderBills() {
   renderBillsGuided();
   if (billsGuidedMode() === "guided") return;
+  if (!state.billsLoadedAt) {
+    showSkeleton("#bill-feed", 5, "card");
+    return;
+  }
   clearSkeleton("#bill-feed");
   const query = ($("#bill-filter")?.value || "").toLowerCase();
   const bills = filteredBillsRows();
@@ -7019,8 +7092,7 @@ function renderBills() {
                 <p class="muted">Urgency ${Number(catalyst.urgency || 0)}/100 · ${escapeHtml(catalyst.source || "modeled status")}</p>
               </div>
             </div>
-            <p>${escapeHtml(bill.plainEnglish || bill.signal || "")}</p>
-            ${renderBillFecBlockFromPulse(bill)}
+            ${renderBillIntelBlock(bill)}
             ${momentumDriversHtml(bill)}
             <table>
               <thead><tr><th>Firm</th><th>Stance</th><th>Amount</th><th>Issue Area</th></tr></thead>
@@ -7066,6 +7138,11 @@ function renderBillAlertCards() {
 
 function renderLobbying() {
   renderLobbyBridge();
+  if (!state.lobbyingLoadedAt) {
+    showSkeleton("#lobby-feed", 4, "card");
+    return;
+  }
+  clearSkeleton("#lobby-feed");
   const feedEl = $("#lobby-feed");
   const emptyEl = $("#lobby-feed-empty");
   const sourceEl = $("#lobby-source");
@@ -7104,7 +7181,9 @@ function renderLobbying() {
     const fConf = filing.filingConfidence || "Low";
     const z = filing.spendSpikeZ;
     const spikeX = filing.spikeVsTrail;
-    const zLabel = formatSpendZ(z);
+    const zFormatted = formatSpendZ(z);
+    const zLabel = zFormatted.label;
+    const zTitle = zFormatted.raw != null && Math.abs(zFormatted.raw) > 20 ? ` title="${escapeHtml(String(zFormatted.raw))}"` : "";
     const zPillClass = lobbyZClass(z);
     const spikeLine =
       spikeX != null && !Number.isNaN(Number(spikeX))
@@ -7117,7 +7196,7 @@ function renderLobbying() {
         <a class="lobby-card-title-link" href="${escapeHtml(pageUrl)}"><h3>${escapeHtml(filing.client)}</h3></a>
         <div class="meta-line lobby-card-metrics">
           <span class="mini-pill ${pressure >= 67 ? "red" : pressure >= 40 ? "amber" : ""}">Pressure ${pressure}/100</span>
-          <span class="lobby-z-pill mini-pill ${zPillClass}">Z ${escapeHtml(zLabel)}</span>
+          <span class="lobby-z-pill mini-pill ${zPillClass}"${zTitle}>Z ${escapeHtml(zLabel)}</span>
           <span class="mini-pill lobby-spike-pill">${escapeHtml(spikeLine)}</span>
           <span class="mini-pill">Filing: ${escapeHtml(fConf)}</span>
         </div>
@@ -9075,7 +9154,7 @@ function legisAlertCard(bill, options = {}) {
           <span class="conf-badge">Policy exposure: ${exposure}/100 · Confidence: ${escapeHtml(conf)}</span>
         </div>
       </div>
-      <p class="bill-plain-english">${escapeHtml(bill.plainEnglish || bill.shortTitle || bill.signal || "")}</p>
+      ${renderBillIntelBlock(bill, { compact: true })}
       <div class="passage-meter" aria-label="Legislative momentum ${momentum} out of 100">
         <span style="width:${Math.max(0, Math.min(100, momentum))}%"></span>
       </div>
@@ -9776,11 +9855,10 @@ function showView(view, updateUrl = true) {
     renderAccount();
   }
   if (view === "markets" && isViewEnabled("markets")) {
-    renderMarkets();
-    if (!state.marketsCatalogQuotesLoaded) {
-      showSkeleton("#market-body", 8, "row");
-      void loadMarketsData().finally(() => clearSkeleton("#market-body"));
+    if (!state.marketsCatalogQuotesLoaded && !state.quotesHydratedAt) {
+      void loadMarketsData();
     }
+    renderMarkets();
   }
   if (view === "overview" || view === "signals") {
     renderSinceLastVisitStrip();
@@ -9789,11 +9867,9 @@ function showView(view, updateUrl = true) {
     renderOverview();
   }
   if (view === "signals" && isViewEnabled("signals")) {
-    if (!state.bills?.length && !state.trending?.length) showSkeleton("#signal-list", 4, "card");
     renderSignalsDesk();
   }
   if (view === "bills" && isFeatureEnabled("BILLS_EXPLORER_ENABLED")) {
-    if (!state.bills?.length) showSkeleton("#bill-feed", 5, "card");
     renderBills();
   }
   if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
@@ -9806,16 +9882,16 @@ function showView(view, updateUrl = true) {
     }
   }
   if (view === "lobbying" && isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")) {
-    if (!state.lobbying?.length) {
-      showSkeleton("#lobby-feed", 4, "card");
-      void refreshPolicyFeed().finally(() => clearSkeleton("#lobby-feed"));
-    } else renderLobbying();
+    if (!state.lobbyingLoadedAt) {
+      void refreshPolicyFeed();
+    }
+    renderLobbying();
   }
   if (view === "fec" && isViewEnabled("fec")) {
-    if (!state.fecPulse?.pulses?.length) {
-      showSkeleton("#fec-feed", 4, "card");
-      void refreshFecPulse().finally(() => clearSkeleton("#fec-feed"));
-    } else renderFecView();
+    if (!state.fecPulseLoadedAt) {
+      void refreshFecPulse();
+    }
+    renderFecView();
   }
   if (view === "track-record" && isFeatureEnabled("ADVANCED_ANALYTICS_ENABLED")) void loadTrackRecord();
   if (view === "thesis") {

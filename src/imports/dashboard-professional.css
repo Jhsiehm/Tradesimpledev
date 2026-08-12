@@ -4223,7 +4223,11 @@ html[data-theme="light"] body[data-page="dashboard"] tbody tr:hover td {
     display: none;
   }
 
-  body[data-page="dashboard"] .terminal-table--holdings th,
+  body[data-page="dashboard"] .terminal-table--holdings th {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
   body[data-page="dashboard"] .terminal-table--holdings td {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -5515,7 +5519,7 @@ body[data-page="dashboard"] .guided-empty-state {
 body[data-page="dashboard"] .guided-empty-state strong {
   display: block;
   font-family: var(--font-ui);
-  font-size: 0.9375rem;
+  font-size: var(--text-base, 0.9375rem);
   font-weight: 600;
   letter-spacing: var(--tracking-ui, -0.02em);
   color: var(--text);
