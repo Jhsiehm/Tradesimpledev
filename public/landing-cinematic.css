@@ -27,9 +27,9 @@
   --lc-surface: rgba(12, 12, 12, 0.88);
   --lc-accent: var(--signal-green);
   --lc-accent-on: #071004;
-  --mono: "Space Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-  --serif: "Fraunces", Georgia, "Times New Roman", serif;
-  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono: var(--font-data);
+  --serif: var(--font-display);
+  --sans: var(--font-ui);
   --shadow-terminal:
     0 48px 120px rgba(10, 14, 8, 0.58),
     0 16px 40px rgba(10, 14, 8, 0.32),
@@ -263,7 +263,7 @@ html[data-theme="light"] .ts-hero-dark-overlay {
   background: var(--signal-green);
   color: #080808;
   border-bottom: 1px solid #080808;
-  font-family: var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--sans);
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.24em;
@@ -326,7 +326,7 @@ html[data-theme="light"] .ts-hero-dark-overlay {
 }
 
 .ts-scribble-text {
-  font-family: "Caveat", "Patrick Hand", cursive;
+  font-family: var(--font-hand);
   font-size: 16px;
   font-weight: 600;
   line-height: 1.05;
@@ -426,7 +426,7 @@ html[data-theme="light"] .ts-nav.is-scrolled {
 
 .ts-brand span,
 .footer-brand span {
-  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-family: var(--font-data);
   font-style: normal;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -626,7 +626,7 @@ html[data-theme="light"] .ts-ticker-illustrative-tag {
 }
 
 .ts-ticker-track span {
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 13px;
   color: rgba(244, 241, 232, 0.7);
 }
@@ -686,7 +686,7 @@ html[data-theme="light"] .ts-ticker-illustrative-tag {
   align-items: center;
   gap: 9px;
   margin-bottom: 22px;
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 11px;
@@ -708,7 +708,7 @@ html[data-theme="light"] .ts-ticker-illustrative-tag {
 .ts-hero-copy h1 {
   margin: 0;
   max-width: none;
-  font-family: var(--serif, "Fraunces", Georgia, "Times New Roman", serif);
+  font-family: var(--serif);
   font-size: clamp(2.3rem, 6.2vw, 4.35rem);
   font-weight: 500;
   line-height: 1.08;
@@ -795,7 +795,7 @@ html[data-theme="light"] .ts-ticker-illustrative-tag {
 .ts-subcopy {
   max-width: 600px;
   margin-top: 34px;
-  font-family: "Outfit", var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-ui), var(--sans, ui-sans-serif, system-ui, sans-serif);
   font-size: clamp(16px, 1.7vw, 17px);
   font-style: normal;
   font-weight: 400;
@@ -892,7 +892,7 @@ html[data-theme="light"] .ts-secondary-cta--ghost {
   padding-top: 14px;
   border-top: 1px solid rgba(141, 253, 171, 0.12);
   color: rgba(232, 228, 220, 0.45);
-  font-family: "Space Mono", "JetBrains Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   font-size: 11px;
   font-weight: 400;
   line-height: 1.55;
@@ -966,7 +966,7 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
   background: var(--signal-green-dim);
   border: 1px solid var(--border-green);
   color: var(--signal-green);
-  font-family: var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--sans);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0;
@@ -974,7 +974,7 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
 
 .ts-source-card strong {
   display: block;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--signal-green);
@@ -2224,7 +2224,7 @@ html[data-theme="light"] .terminal-entry-instruction .term-em {
 /* ── CHAPTER SECTIONS (post-hero) ───────────────────────── */
 .chapter-eyebrow {
   margin: 0 0 14px;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -2321,7 +2321,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 }
 
 .landing-cinematic .sig-h {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: -0.02em;
 }
@@ -2342,7 +2342,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 }
 
 .landing-cinematic .wl-h {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-weight: 400;
 }
 
@@ -2372,7 +2372,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 }
 
 .ts-section h2 {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(2rem, 4vw, 3.25rem);
   font-weight: 400;
   line-height: 1.08;
@@ -2409,7 +2409,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 
 .pipeline-step span {
   display: block;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 10px;
   color: var(--signal-green);
   margin-bottom: 12px;
@@ -2469,7 +2469,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 .ts-class-row strong {
   display: block;
   color: var(--text-main);
-  font-family: var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--sans);
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0;
@@ -2589,7 +2589,7 @@ html[data-theme="light"] .landing-cinematic .mech-cell {
 }
 
 .ts-cta-final h2 {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(2.25rem, 5vw, 3.75rem);
   margin-bottom: 20px;
 }
@@ -3057,7 +3057,7 @@ body.briefing-open {
   border: none;
   padding: 0;
   cursor: pointer;
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 13px;
   color: rgba(244, 241, 232, 0.7);
   transition: color 0.15s ease, text-shadow 0.15s ease;
@@ -3291,7 +3291,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 }
 
 .sig-expand-label {
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -3308,7 +3308,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 }
 
 .sig-expand-chain {
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--text-faint);
 }
@@ -3320,7 +3320,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 }
 
 .sig-expand-hint {
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: 10px;
   color: var(--text-faint);
   transition: color 0.2s ease;
@@ -3471,7 +3471,7 @@ html[data-theme="light"] .ts-ticker-item.is-active {
 .landing-cinematic .s-h,
 .landing-cinematic .wl-h,
 .landing-cinematic .ts-cta-final h2 {
-  font-family: var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--sans);
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -4376,7 +4376,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
 
 .archive-access-section .chapter-eyebrow {
   color: var(--signal-green);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -4388,7 +4388,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
   max-width: 680px;
   margin: 0 0 20px;
   color: var(--text-main);
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-family: var(--font-display);
   font-size: clamp(3rem, 7vw, 6.2rem);
   font-style: normal;
   font-weight: 400;
@@ -4399,7 +4399,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
 .archive-access-section .reveal > p:not(.chapter-eyebrow) {
   max-width: 560px;
   color: rgba(232, 228, 220, 0.58);
-  font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(15px, 1.6vw, 16px);
   font-style: normal;
   font-weight: 400;
@@ -4424,7 +4424,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
   display: block;
   margin-bottom: 14px;
   color: var(--signal-green);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -4438,7 +4438,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
   border-radius: 0;
   border-color: rgba(232, 228, 220, 0.14);
   background: rgba(0, 0, 0, 0.42);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
 }
 
 .access-dossier .ts-primary-cta {
@@ -4449,7 +4449,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
 .access-dossier .wl-status {
   margin: 14px 0 0;
   color: rgba(232, 228, 220, 0.34);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-style: normal;
 }
@@ -4464,7 +4464,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
 
 .access-checklist span {
   color: rgba(232, 228, 220, 0.46);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 11px;
   font-style: normal;
   font-weight: 400;
@@ -4475,7 +4475,7 @@ body.ts-hero-reveal-unlocked .ts-hero-reveal > .ts-hero-content {
 .archive-access-section .access-actions .ts-primary-cta,
 .archive-access-section .access-actions .ts-secondary-cta,
 .archive-access-section .access-dossier .ts-secondary-cta {
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
 }
 
 .archive-access-section .access-actions .ts-primary-cta {
@@ -5284,7 +5284,7 @@ html[data-theme="light"] .landing-cinematic .nav-divider {
 }
 
 .landing-cinematic .ts-kicker {
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.06em;
   line-height: 1.5;
@@ -5558,7 +5558,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
   margin-inline: auto;
   text-align: center;
   font-size: clamp(2.3rem, 6.2vw, 4.35rem);
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif);
   font-weight: 500;
   line-height: 1.08;
   letter-spacing: -0.01em;
@@ -5643,7 +5643,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic #enter .chapter-eyebrow,
 .landing-cinematic .archive-access-section .chapter-eyebrow {
   color: var(--signal-green);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -5653,14 +5653,14 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 
 .landing-cinematic #enter h2,
 .landing-cinematic .archive-access-section h2 {
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-family: var(--font-display);
   font-style: normal;
   font-weight: 400;
 }
 
 .landing-cinematic #enter .reveal > p:not(.chapter-eyebrow),
 .landing-cinematic .archive-access-section .reveal > p:not(.chapter-eyebrow) {
-  font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(15px, 1.6vw, 16px);
   font-style: normal;
   font-weight: 400;
@@ -5670,7 +5670,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 
 .landing-cinematic #enter .access-dossier label {
   color: var(--signal-green);
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -5679,7 +5679,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic #enter .access-dossier .wl-input,
 .landing-cinematic #enter .access-dossier .wl-status,
 .landing-cinematic #enter .access-checklist span {
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
 }
 
 .landing-cinematic #enter .access-checklist span {
@@ -5691,7 +5691,7 @@ html[data-theme="light"] .landing-cinematic .fec-marketing-card {
 .landing-cinematic #enter .access-actions .ts-primary-cta,
 .landing-cinematic #enter .access-actions .ts-secondary-cta,
 .landing-cinematic #enter .access-dossier .ts-secondary-cta {
-  font-family: "Space Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family: var(--font-data);
 }
 
 .landing-cinematic #enter .access-actions .ts-primary-cta,
@@ -5913,8 +5913,8 @@ html[data-theme="dark"] .severity-action {
 /* ── SIGNAL DOCK TYPE (landing-signal-dock-type-1) ─────── */
 .landing-cinematic .ts-hero-visual .ts-cinematic-wall .cinema-signal-dock,
 .landing-cinematic .cinema-signal-dock {
-  --dock-mono: "Space Mono", "IBM Plex Mono", Consolas, monospace;
-  --dock-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --dock-mono: var(--font-data);
+  --dock-sans: var(--font-ui);
   --dock-ivory: #e8e4dc;
   --dock-ivory-muted: rgba(232, 228, 220, 0.44);
   --dock-mint: var(--signal-green);
@@ -6161,7 +6161,7 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 
 /* ── HERO COPY TYPE (landing-hero-type-1) ─────────────── */
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-kicker {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   font-size: 11px;
   font-weight: 400;
   font-style: normal;
@@ -6172,7 +6172,7 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy h1,
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-hero-headline {
-  font-family: var(--serif, "Fraunces", Georgia, "Times New Roman", serif) !important;
+  font-family: var(--serif) !important;
   font-style: normal;
   font-weight: 500 !important;
   text-shadow: none !important;
@@ -6182,7 +6182,7 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-subcopy,
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-subcopy .ts-scatter-ch {
-  font-family: "Outfit", var(--sans, ui-sans-serif, system-ui, sans-serif) !important;
+  font-family: var(--font-ui), var(--sans, ui-sans-serif, system-ui, sans-serif) !important;
   font-size: clamp(16px, 1.7vw, 17px);
   font-style: normal !important;
   font-weight: 400;
@@ -6191,16 +6191,16 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .terminal-entry-instruction,
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .terminal-entry-instruction .ts-scatter-ch {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace) !important;
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace) !important;
   font-style: normal !important;
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-primary-cta {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-secondary-cta {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
 }
 
 .landing-cinematic .ts-hero-reveal .ts-hero-copy .ts-kicker .ts-scatter-ch {
@@ -6242,7 +6242,7 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 .landing-cinematic .ts-hero-stage-tagline {
   margin: 0;
   max-width: 36rem;
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   font-size: clamp(10px, 1.1vw, 11px);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6251,7 +6251,7 @@ html[data-theme="light"] .landing-cinematic .cinema-signal-dock .landing-trendin
 }
 
 .landing-cinematic .ts-hero-stage-cta {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -6313,7 +6313,7 @@ html[data-theme="light"] .landing-cinematic .ts-hero-stage-cta {
   display: grid;
   place-items: center;
   border: 1px solid rgba(141, 253, 171, 0.45);
-  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -6327,7 +6327,7 @@ html[data-theme="light"] .landing-cinematic .ts-hero-stage-cta {
 }
 
 .landing-cinematic .ts-manifesto-portal-body em {
-  font-family: "Space Mono", var(--mono, ui-monospace, monospace);
+  font-family: var(--font-data), var(--mono, ui-monospace, monospace);
   font-style: normal;
   font-size: 9px;
   letter-spacing: 0.1em;
@@ -6336,14 +6336,14 @@ html[data-theme="light"] .landing-cinematic .ts-hero-stage-cta {
 }
 
 .landing-cinematic .ts-manifesto-portal-body strong {
-  font-family: "Outfit", var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-ui), var(--sans, ui-sans-serif, system-ui, sans-serif);
   font-size: 13px;
   font-weight: 500;
   color: rgba(232, 228, 220, 0.92);
 }
 
 .landing-cinematic .ts-manifesto-portal-arrow {
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 14px;
   color: var(--signal-green);
   opacity: 0.85;
@@ -6441,7 +6441,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 
 .landing-cinematic .ts-receipt-type {
   display: block;
-  font-family: var(--mono, "Space Mono", monospace);
+  font-family: var(--font-data);
   font-size: 0.62rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -6451,7 +6451,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 
 .landing-cinematic .ts-receipt-ticker {
   display: block;
-  font-family: var(--mono, "Space Mono", monospace);
+  font-family: var(--font-data);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -6459,7 +6459,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 }
 
 .landing-cinematic .ts-receipt-move {
-  font-family: var(--mono, "Space Mono", monospace);
+  font-family: var(--font-data);
   font-size: clamp(1.35rem, 3vw, 1.85rem);
   font-weight: 700;
   line-height: 1;
@@ -6486,7 +6486,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
   margin-top: auto;
   padding-top: 0.85rem;
   border-top: 1px solid var(--line);
-  font-family: var(--mono, "Space Mono", monospace);
+  font-family: var(--font-data);
   font-size: 0.65rem;
   letter-spacing: 0.06em;
   color: var(--faint);
@@ -6508,7 +6508,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 
 .landing-cinematic .ts-receipt-disclaimer {
   margin-top: 1.25rem;
-  font-family: var(--mono, "Space Mono", monospace);
+  font-family: var(--font-data);
   font-size: 0.68rem;
   line-height: 1.55;
   color: var(--faint);
@@ -6546,7 +6546,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 
 .landing-cinematic .ts-edge-card h3 {
   margin: 0.35rem 0 0.45rem;
-  font-family: "Outfit", var(--sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-ui), var(--sans, ui-sans-serif, system-ui, sans-serif);
   font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.25;
@@ -6569,7 +6569,7 @@ html[data-theme="light"] .landing-cinematic .ts-manifesto-portal-arrow {
 
 .landing-cinematic .methodology-watermark span {
   position: absolute;
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: clamp(2rem, 8vw, 5rem);
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -6606,7 +6606,7 @@ body.manifesto-page {
 }
 
 .manifesto-back {
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6624,7 +6624,7 @@ body.manifesto-page {
 }
 
 .manifesto-page-stamp {
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -6637,7 +6637,7 @@ html[data-theme="light"] .manifesto-page-stamp {
 }
 
 .manifesto-page-hero h1 {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(2.2rem, 6vw, 3.4rem);
   font-weight: 500;
   line-height: 1.08;
@@ -6645,7 +6645,7 @@ html[data-theme="light"] .manifesto-page-stamp {
 }
 
 .manifesto-page-lede {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: 1.05rem;
   line-height: 1.6;
   color: var(--muted);
@@ -6659,7 +6659,7 @@ html[data-theme="light"] .manifesto-page-stamp {
 }
 
 .manifesto-page-block h2 {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(1.35rem, 3vw, 1.75rem);
   font-weight: 600;
   line-height: 1.2;
@@ -6693,7 +6693,7 @@ html[data-theme="light"] .manifesto-page-stamp {
 .manifesto-stand-grid strong {
   display: block;
   margin-bottom: 0.2rem;
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6716,7 +6716,7 @@ html[data-theme="light"] .manifesto-page-stamp {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 0.75rem;
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   color: var(--faint);
 }
@@ -6740,7 +6740,7 @@ html[data-theme="light"] .manifesto-page-stamp {
 
 .manifesto-signal-grid h3 {
   margin: 0 0 0.35rem;
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -6771,7 +6771,7 @@ html[data-theme="light"] .manifesto-signal-grid h3 {
 
 .manifesto-page-hero-cinematic .manifesto-page-kicker {
   margin: 0 0 0.85rem;
-  font-family: "Space Mono", monospace;
+  font-family: var(--font-data);
   font-size: clamp(11px, 1.2vw, 12px);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -6785,7 +6785,7 @@ html[data-theme="light"] .manifesto-signal-grid h3 {
 
 .manifesto-staccato p {
   margin: 0;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-ui);
   font-size: clamp(1rem, 2.2vw, 1.12rem);
   line-height: 1.45;
   color: var(--muted);
@@ -6817,7 +6817,7 @@ html[data-theme="light"] .manifesto-signal-grid h3 {
 
 .manifesto-page-closer {
   margin: 0 0 1.25rem;
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(1.35rem, 3.5vw, 1.75rem);
   font-weight: 500;
   line-height: 1.25;

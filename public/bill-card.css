@@ -41,7 +41,7 @@ body {
 }
 
 .bill-card-hero h1 {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif);
   font-size: clamp(1.85rem, 4vw, 2.55rem);
   font-weight: 600;
   line-height: 1.12;
@@ -536,7 +536,7 @@ html[data-theme="light"] .bill-card-panel {
   border: none;
   background: transparent;
   padding: 0.42rem 0.95rem;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.68rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -701,7 +701,7 @@ html[data-theme="light"] .bill-card-panel {
 .bill-step-viewport::after {
   content: "+";
   position: absolute;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.85rem;
   line-height: 1;
   opacity: 0.4;
@@ -766,7 +766,7 @@ html[data-theme="light"] .bill-card-panel {
 /* headlines */
 
 .bill-guided-title {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(2.1rem, 6vw, 3.1rem);
   font-weight: 400;
   line-height: 1.08;
@@ -775,7 +775,7 @@ html[data-theme="light"] .bill-card-panel {
 }
 
 .bill-step-title {
-  font-family: var(--serif, "DM Serif Display", Georgia, serif);
+  font-family: var(--font-display);
   font-size: clamp(1.7rem, 5vw, 2.5rem);
   font-weight: 400;
   line-height: 1.12;
@@ -800,7 +800,7 @@ html[data-theme="light"] .bill-card-panel {
 
 .dossier-stamp {
   display: inline-block;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.66rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -872,7 +872,7 @@ html[data-theme="light"] .bill-card-panel {
 
 .bill-guided-fact-label {
   display: block;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -905,7 +905,7 @@ html[data-theme="light"] .bill-card-panel {
 
 .bill-guided-scores .score-label {
   display: block;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -974,7 +974,7 @@ html[data-theme="light"] .bill-card-panel {
 }
 
 .bill-stage-lbl {
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.62rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -995,7 +995,7 @@ html[data-theme="light"] .bill-card-panel {
 .bill-stage-here {
   position: absolute;
   top: 0;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -1024,7 +1024,7 @@ html[data-theme="light"] .bill-card-panel {
   align-items: center;
   gap: 0.55rem;
   margin: 0 0 0.8rem;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -1117,7 +1117,7 @@ html[data-theme="light"] .bill-card-panel {
   border-radius: 0;
   min-height: 46px;
   padding: 0 1.5rem;
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1160,7 +1160,7 @@ html[data-theme="light"] .bill-card-panel {
   border: 1px solid var(--green, #c8ff00);
   background: color-mix(in srgb, var(--green, #c8ff00) 12%, transparent);
   color: var(--green, #c8ff00);
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1277,7 +1277,7 @@ html[data-theme="light"] .bill-card-panel {
 }
 
 .bill-collapse-hint {
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1631,7 +1631,7 @@ html[data-theme="light"] .bill-ai-lede-wrap .ai-analysis-bullets {
 }
 
 .intelligence-annex-id {
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -1641,7 +1641,7 @@ html[data-theme="light"] .bill-ai-lede-wrap .ai-analysis-bullets {
 }
 
 .intelligence-annex-title {
-  font-family: var(--serif, "Fraunces", Georgia, serif);
+  font-family: var(--serif);
   font-size: clamp(1.35rem, 3vw, 1.75rem);
   font-weight: 600;
   line-height: 1.15;
@@ -1742,7 +1742,7 @@ html[data-theme="light"] .bill-ai-lede-wrap .ai-analysis-bullets {
 }
 
 .bill-card-page.intelligence-file .money-context-expand summary {
-  font-family: var(--mono, "Geist Mono", monospace);
+  font-family: var(--mono);
   font-size: 0.62rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
