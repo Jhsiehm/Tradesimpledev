@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/imports/design-tokens.css?v=ui-integrate-2" />
-    <link rel="stylesheet" href="/assets/styles.css?v=ui-integrate-2" />
+    <link rel="stylesheet" href="/assets/styles.css?v=intel-buttons-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=ui-integrate-2" />
@@ -2070,16 +2070,8 @@
           <h2 id="mobile-intel-title">Policy intel</h2>
           <button type="button" class="button button-ghost compact" data-mobile-intel-close aria-label="Close">✕</button>
         </header>
-        <div class="mobile-intel-grid" id="mobile-intel-grid">
-          <button type="button" class="mobile-intel-item" data-view="signals">Signals</button>
-          <button type="button" class="mobile-intel-item" data-view="bills">Bills</button>
-          <button type="button" class="mobile-intel-item" data-view="lobbying">Lobbying</button>
-          <button type="button" class="mobile-intel-item" data-view="fec">Money Trail</button>
-          <button type="button" class="mobile-intel-item" data-view="contracts">Contracts</button>
-          <button type="button" class="mobile-intel-item" data-view="analysis">Analysis</button>
-          <button type="button" class="mobile-intel-item" data-view="track-record">Track Record</button>
-          <button type="button" class="mobile-intel-item" data-view="settings">Settings</button>
-        </div>
+        <!-- Populated from NAV_ITEMS in app.js (single catalog with sidebar). -->
+        <div class="mobile-intel-grid" id="mobile-intel-grid"></div>
         <a class="button button-ghost compact mobile-intel-signout" href="/auth/logout">Sign out</a>
       </div>
     </div>
@@ -2196,7 +2188,7 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=morning-brief-pro-2" defer></script>
+    <script src="/assets/app.js?v=intel-buttons-1" defer></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {

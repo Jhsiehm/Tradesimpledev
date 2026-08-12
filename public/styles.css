@@ -6590,6 +6590,10 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
   display: none;
 }
 
+.mobile-intel-sheet[hidden] {
+  display: none !important;
+}
+
 .sidebar-brand-row {
   display: flex;
   align-items: center;
@@ -6624,21 +6628,20 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
     display: none !important;
   }
 
-  .mobile-intel-sheet {
+  /* Only show when open — never set display:block on the base rule or it
+     overrides [hidden] and leaves a non-interactive overlay on screen. */
+  .mobile-intel-sheet:not([hidden]) {
     display: block;
     position: fixed;
     inset: 0;
     z-index: 130;
-    pointer-events: none;
-  }
-
-  .mobile-intel-sheet:not([hidden]) {
     pointer-events: auto;
   }
 
   .mobile-intel-backdrop {
     position: absolute;
     inset: 0;
+    z-index: 0;
     border: 0;
     padding: 0;
     background: rgba(0, 0, 0, 0.55);
@@ -6650,6 +6653,7 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
     left: 0;
     right: 0;
     bottom: var(--mobile-bottom-nav-h, 56px);
+    z-index: 1;
     max-height: min(62vh, 420px);
     overflow: auto;
     overscroll-behavior: contain;
@@ -6658,6 +6662,7 @@ canvas#thesisMapCanvas:active { cursor: grabbing; }
     border-radius: 12px 12px 0 0;
     box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.35);
     padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    pointer-events: auto;
   }
 
   .mobile-intel-head {
