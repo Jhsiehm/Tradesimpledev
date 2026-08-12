@@ -57,7 +57,7 @@ function disabledFeatureFallbackView() {
 /* Single nav catalog — sidebar labels, mobile Intel sheet, and feature gates share this. */
 const NAV_ITEMS = [
   { id: "overview", label: "Home" },
-  { id: "dashboard", label: "Dashboard", mobileIntel: true },
+  { id: "dashboard", label: "Widget Board", mobileIntel: true },
   { id: "thesis", label: "Thesis Lab", mobileIntel: true },
   { id: "signals", label: "Signals" },
   { id: "bills", label: "Bills", mobileIntel: true },
