@@ -71,7 +71,7 @@ body[data-page="dashboard"] .workspace {
 }
 
 body[data-page="dashboard"] .page-header h1 {
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-data, 0.06em);
 }
 
 body[data-page="dashboard"] .portfolio-terminal-card {
@@ -622,12 +622,6 @@ body[data-page="dashboard"] .view {
 @keyframes dash-view-in {
   from { opacity: 0; transform: translate3d(0, 8px, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-body[data-page="dashboard"] .page-header h1 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
 }
 body[data-page="dashboard"] .surface-emphasis {
   border-color: color-mix(in srgb, var(--green) 22%, var(--line));
@@ -1211,7 +1205,7 @@ body[data-page="dashboard"] .quote-fallback-prominent:not([hidden]) {
   display: none !important;
 }
 
-/* Overview: serif only on h1 */
+/* Overview: sans portfolio hero; mono panel chrome */
 body[data-page="dashboard"] .dashboard-overview-view .panel-head h2,
 body[data-page="dashboard"] .dashboard-overview-view .portfolio-command-copy p,
 body[data-page="dashboard"] .dashboard-overview-view .portfolio-terminal-head span,
@@ -1220,11 +1214,13 @@ body[data-page="dashboard"] .dashboard-overview-view .signal-plain {
 }
 
 body[data-page="dashboard"] .dashboard-overview-view .portfolio-command h1 {
-  font-family: var(--serif);
-  font-weight: 400;
+  font-family: var(--font-ui);
+  font-weight: 600;
   max-width: 22ch;
   font-size: clamp(1.55rem, 2.4vw, 2.15rem);
   margin-top: 0;
+  letter-spacing: var(--tracking-ui, -0.02em);
+  text-transform: none;
 }
 
 body[data-page="dashboard"] .portfolio-command-hero {
@@ -1829,10 +1825,11 @@ body[data-page="dashboard"] .terminal-view .page-header {
 }
 
 body[data-page="dashboard"] .terminal-view .page-header h1 {
-  font-family: var(--serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  font-family: var(--font-data);
+  font-weight: 500;
+  letter-spacing: var(--tracking-data, 0.06em);
+  text-transform: uppercase;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
 }
 
 body[data-page="dashboard"] .terminal-view .page-header p {
@@ -1852,10 +1849,12 @@ body[data-page="dashboard"] .terminal-view .page-header .status-pill {
 
 body[data-page="dashboard"] .terminal-view .panel-head-quiet h2,
 body[data-page="dashboard"] .terminal-view .panel-head h2 {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-transform: none;
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 body[data-page="dashboard"] .terminal-view .panel-head-quiet span,
@@ -1966,10 +1965,10 @@ body[data-page="dashboard"] #view-analysis .terminal-hero-card .mini-pill.green 
 }
 
 body[data-page="dashboard"] #view-analysis .terminal-hero-card h2 {
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: clamp(1.25rem, 2vw, 1.55rem);
-  letter-spacing: -0.02em;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  letter-spacing: var(--tracking-ui, -0.02em);
   color: var(--text);
 }
 
@@ -3426,16 +3425,26 @@ body[data-page="dashboard"] .workspace > .view.active > section.mt {
   margin-top: 0;
 }
 
-/* Typography hierarchy */
+/* Typography hierarchy — mono section chrome; sans for portfolio hero */
 body[data-page="dashboard"] .page-header h1,
-body[data-page="dashboard"] .terminal-view .page-header h1,
+body[data-page="dashboard"] .terminal-view .page-header h1 {
+  font-family: var(--font-data);
+  font-weight: 500;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  line-height: 1.2;
+  letter-spacing: var(--tracking-data, 0.06em);
+  text-transform: uppercase;
+  max-width: none;
+}
+
 body[data-page="dashboard"] .portfolio-command h1 {
-  font-family: var(--serif);
+  font-family: var(--font-ui);
   font-weight: 600;
-  font-size: clamp(1.5rem, 2.4vw, 1.65rem);
+  font-size: clamp(1.55rem, 2.4vw, 2.15rem);
   line-height: 1.08;
-  letter-spacing: -0.02em;
-  max-width: 28ch;
+  letter-spacing: var(--tracking-ui, -0.02em);
+  text-transform: none;
+  max-width: 22ch;
 }
 
 body[data-page="dashboard"] .page-header p,
@@ -4283,12 +4292,13 @@ body[data-page="dashboard"] .dash-view-header-copy {
 body[data-page="dashboard"] .dash-view-header-copy h1,
 body[data-page="dashboard"] .overview-hero-title {
   margin: 0 0 6px;
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: clamp(1.35rem, 2.2vw, 1.6rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  max-width: 28ch;
+  font-family: var(--font-data);
+  font-weight: 500;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  line-height: 1.2;
+  letter-spacing: var(--tracking-data, 0.06em);
+  text-transform: uppercase;
+  max-width: none;
 }
 
 body[data-page="dashboard"] .dash-view-purpose {
@@ -5069,19 +5079,15 @@ body[data-page="dashboard"] .fec-pulse-strip-inner {
 }
 
 body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card {
-  border-radius: 0;
+  border-radius: var(--elev-radius-md);
   border: 1px solid var(--gotham-line, var(--line));
   padding: 14px 16px;
-  box-shadow: none;
-}
-
-body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card::before {
-  display: none;
+  box-shadow: var(--elev-shadow);
 }
 
 body[data-page="dashboard"] .fec-pulse-strip .fec-pulse-card.intel-card:hover {
   border-color: var(--gotham-line-2, var(--line-2));
-  box-shadow: none;
+  box-shadow: var(--elev-shadow);
 }
 
 body[data-page="dashboard"] .fec-pulse-strip .mini-pill,
@@ -5170,9 +5176,11 @@ body[data-page="dashboard"] .fec-feed-card {
 
 body[data-page="dashboard"] .fec-feed-title {
   margin: 0;
-  font-size: 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.35;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 body[data-page="dashboard"] .fec-feed-meta {
@@ -5242,10 +5250,11 @@ body[data-page="dashboard"] .explain-panel {
 }
 
 body[data-page="dashboard"] .explain-panel-title {
-  font-family: var(--serif);
-  font-size: 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
   font-weight: 600;
   margin: 0 0 0.35rem;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 body[data-page="dashboard"] .explain-panel-lede {
@@ -5440,7 +5449,7 @@ body[data-page="dashboard"] .overview-metrics-wrap {
   margin-bottom: var(--elev-gap-section);
 }
 
-/* Panel heads — mono label + serif title */
+/* Panel heads — mono section chrome + optional caption */
 body[data-page="dashboard"] .panel-head > div,
 body[data-page="dashboard"] .panel-head:not(:has(> div)) {
   display: flex;
@@ -5449,14 +5458,17 @@ body[data-page="dashboard"] .panel-head:not(:has(> div)) {
 }
 
 body[data-page="dashboard"] .panel-head h2 {
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+body[data-page="dashboard"] .panel-head:has(.muted) h2 {
   order: 2;
-  font-family: var(--serif);
-  font-size: 1.0625rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  text-transform: none;
-  color: var(--text);
-  line-height: 1.2;
 }
 
 body[data-page="dashboard"] .panel-head .muted,
@@ -5471,11 +5483,20 @@ body[data-page="dashboard"] .panel-head > span.muted {
   line-height: 1.4;
 }
 
+body[data-page="dashboard"] .panel-head > span:not(.muted):not(.mini-pill) {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
 body[data-page="dashboard"] .panel-head-quiet h2 {
-  font-family: var(--serif);
-  font-size: 1rem;
-  letter-spacing: -0.02em;
-  text-transform: none;
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* Empty states — museum label */
@@ -5493,10 +5514,10 @@ body[data-page="dashboard"] .guided-empty-state {
 
 body[data-page="dashboard"] .guided-empty-state strong {
   display: block;
-  font-family: var(--serif);
-  font-size: 1.05rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-ui, -0.02em);
   color: var(--text);
   margin-bottom: 6px;
 }
@@ -5504,6 +5525,24 @@ body[data-page="dashboard"] .guided-empty-state strong {
 body[data-page="dashboard"] .guided-empty-state .button,
 body[data-page="dashboard"] .guided-empty-state .link-button {
   margin-top: 10px;
+}
+
+/* Card content titles — UI sans (not display serif) */
+body[data-page="dashboard"] .legis-card h3,
+body[data-page="dashboard"] .bridge-card h3,
+body[data-page="dashboard"] .signal-secondary-title,
+body[data-page="dashboard"] .sc-card-conviction .sc-title {
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-ui, -0.02em);
+}
+
+body[data-page="dashboard"] .bill-step-title {
+  font-family: var(--font-data);
+  font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: var(--tracking-data, 0.06em);
+  text-transform: uppercase;
 }
 
 /* Micro-motion on interactive chrome */
