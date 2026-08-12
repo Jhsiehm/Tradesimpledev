@@ -3597,9 +3597,16 @@ body[data-page="dashboard"] .panel,
 body[data-page="dashboard"] .stat-card,
 body[data-page="dashboard"] .signal-card,
 body[data-page="dashboard"] .bill-card,
-body[data-page="dashboard"] .lobby-card,
-body[data-page="dashboard"] .crypto-card {
+body[data-page="dashboard"] .lobby-card {
   border-radius: 4px;
+  border-color: var(--gotham-line);
+  background: var(--bg-2);
+  box-shadow: var(--gotham-elev);
+  backdrop-filter: none;
+}
+
+body[data-page="dashboard"] .crypto-card {
+  border-radius: var(--radius-sm);
   border-color: var(--gotham-line);
   background: var(--bg-2);
   box-shadow: var(--gotham-elev);
