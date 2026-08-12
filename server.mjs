@@ -30,7 +30,9 @@ import {
   fetchPortfolioRow,
   savePortfolioRow,
   fetchWatchlistRow,
-  saveWatchlistRow
+  saveWatchlistRow,
+  fetchDashboardLayoutRow,
+  saveDashboardLayoutRow
 } from "./src/lib/supabase.mjs";
 import {
   aiScorecardHandler,
@@ -3313,6 +3315,8 @@ async function route(req, res) {
     if (pathname === "/api/portfolio" && req.method === "PATCH") return patchPortfolio(req, res, session);
     if (pathname === "/api/watchlist" && req.method === "GET") return getWatchlist(res, session);
     if (pathname === "/api/watchlist" && req.method === "PATCH") return patchWatchlist(req, res, session);
+    if (pathname === "/api/dashboard/layout" && req.method === "GET") return getDashboardLayout(res, session);
+    if (pathname === "/api/dashboard/layout" && req.method === "PUT") return putDashboardLayout(req, res, session);
     if (pathname === "/api/settings/anthropic" && req.method === "POST") {
       if (!checkFeature("SETTINGS_PAGE_ENABLED", res)) return;
       return saveAnthropicSettings(req, res);
@@ -3709,6 +3713,72 @@ async function patchWatchlist(req, res, session) {
   const result = await saveWatchlistRow(session.user.id, symbols);
   if (!result) return sendJson(res, 502, { error: "database_error" });
   sendJson(res, 200, { ok: true, symbols: result.symbols, source: "supabase" });
+}
+
+function normalizeDashboardWidgets(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item, idx) => {
+      if (!item || typeof item !== "object") return null;
+      const type = String(item.type || "").trim();
+      if (!type) return null;
+      return {
+        i: String(item.i || `${type}-${idx}`).slice(0, 80),
+        type: type.slice(0, 64),
+        x: Math.max(0, Math.min(11, Number(item.x) || 0)),
+        y: Math.max(0, Math.min(200, Number(item.y) || 0)),
+        w: Math.max(2, Math.min(12, Number(item.w) || 4)),
+        h: Math.max(2, Math.min(12, Number(item.h) || 4)),
+        props: item.props && typeof item.props === "object" ? item.props : {}
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 40);
+}
+
+async function getDashboardLayout(res, session) {
+  if (isDemoSession(session)) {
+    return sendJson(res, 200, { widgets: [], source: "demo_local" });
+  }
+  if (!dbReady) {
+    return sendJson(res, 200, {
+      widgets: [],
+      source: "local_session",
+      message: "Supabase not configured; layout persists in the browser only."
+    });
+  }
+  const row = await fetchDashboardLayoutRow(session.user.id);
+  if (!row) return sendJson(res, 200, { widgets: [], source: "supabase" });
+  sendJson(res, 200, {
+    widgets: normalizeDashboardWidgets(row.widgets),
+    updated_at: row.updated_at,
+    source: "supabase"
+  });
+}
+
+async function putDashboardLayout(req, res, session) {
+  const body = await readJson(req);
+  const widgets = normalizeDashboardWidgets(body?.widgets);
+  if (isDemoSession(session)) {
+    return sendJson(res, 200, { ok: true, widgets, source: "demo_local" });
+  }
+  if (!dbReady) {
+    return sendJson(res, 200, {
+      ok: true,
+      widgets,
+      source: "local_session",
+      message: "Supabase not configured; layout persists in the browser only."
+    });
+  }
+  await upsertUserProfile(session.user);
+  const result = await saveDashboardLayoutRow(session.user.id, widgets);
+  if (!result) return sendJson(res, 502, { error: "database_error" });
+  sendJson(res, 200, {
+    ok: true,
+    widgets: normalizeDashboardWidgets(result.widgets),
+    updated_at: result.updated_at,
+    source: "supabase"
+  });
 }
 
 async function waitlistAdmin(req, res) {

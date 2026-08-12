@@ -142,3 +142,28 @@ export async function saveWatchlistRow(userId, symbols) {
     "user_id"
   );
 }
+
+/** Fetch widget dashboard layout for a user, or null if missing / error */
+export async function fetchDashboardLayoutRow(userId) {
+  if (!dbReady) return null;
+  const rows = await dbSelect(
+    "dashboard_layouts",
+    `user_id=eq.${encodeURIComponent(userId)}&select=widgets,updated_at`
+  );
+  if (!rows?.length) return null;
+  return rows[0];
+}
+
+/** Upsert widget dashboard layout keyed by user_id */
+export async function saveDashboardLayoutRow(userId, widgets) {
+  if (!dbReady) return null;
+  return dbUpsert(
+    "dashboard_layouts",
+    {
+      user_id: userId,
+      widgets: Array.isArray(widgets) ? widgets : [],
+      updated_at: new Date().toISOString()
+    },
+    "user_id"
+  );
+}
