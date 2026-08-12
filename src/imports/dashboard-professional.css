@@ -353,7 +353,7 @@ body[data-page="dashboard"] .terminal-brand {
 body[data-page="dashboard"] .terminal-brand .brand-name {
   display: block;
   line-height: 1;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-family: var(--font-data);
   font-style: normal;
   font-weight: 500;
   font-size: 12px;
@@ -624,7 +624,7 @@ body[data-page="dashboard"] .view {
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 body[data-page="dashboard"] .page-header h1 {
-  font-family: "DM Serif Display", Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: -0.02em;
   font-size: clamp(1.35rem, 2.2vw, 1.75rem);
@@ -2566,7 +2566,7 @@ body[data-page="dashboard"] .research-journey-step:hover {
 }
 
 body[data-page="dashboard"] .research-journey-num {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-data);
   font-size: 0.75rem;
   opacity: 0.7;
 }

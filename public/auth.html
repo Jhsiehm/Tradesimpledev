@@ -9,13 +9,13 @@
 <link rel="apple-touch-icon" href="/favicon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="/src/imports/design-tokens.css?v=theme-contrast-1"/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/src/imports/design-tokens.css?v=type-contract-1"/>
 <style>
   :root{
     --bg:#0a0b09;--bg-2:#10110f;--lime:#C8FF00;--amber:#FFA500;--red:#e0524d;
     --text:#E8E4DC;--muted:#8C8C82;--faint:#4A4A4A;--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);
-    --mono:"Geist Mono",ui-monospace,monospace;--sans:"Geist",system-ui,sans-serif;--serif:"Fraunces",Georgia,serif;
+    --mono:var(--font-data);--sans:var(--font-ui);--serif:var(--font-display);
     --ease:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -49,7 +49,7 @@
   .brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:10px;text-decoration:none;color:inherit}
   .brand-logo{width:56px;height:56px;object-fit:contain;display:block;flex-shrink:0}
   .brand b{
-    font-family:"JetBrains Mono","Space Mono",monospace;
+    font-family:var(--font-data);
     font-style:normal;
     font-weight:500;
     letter-spacing:.1em;

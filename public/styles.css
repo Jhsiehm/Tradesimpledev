@@ -1,3 +1,4 @@
+/* Font stacks mirror src/imports/design-tokens.css — load tokens first; do not fork faces here. */
 :root {
   color-scheme: dark;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
@@ -926,7 +927,7 @@ html[data-theme="light"] .theme-toggle-btn.is-active {
 }
 
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.page-header h1 { margin: 0 0 4px; font-family: var(--serif); font-size: clamp(1.35rem, 2.2vw, 1.75rem); font-weight: 400; letter-spacing: -0.02em; }
+.page-header h1 { margin: 0 0 4px; font-family: var(--font-data); font-size: clamp(1.05rem, 1.6vw, 1.25rem); font-weight: 500; letter-spacing: var(--tracking-data, 0.04em); text-transform: uppercase; }
 .page-header p { max-width: 100%; margin: 0; color: var(--faint); overflow-wrap: anywhere; }
 
 .portfolio-command {
@@ -946,11 +947,11 @@ html[data-theme="light"] .theme-toggle-btn.is-active {
 .portfolio-command h1 {
   max-width: 780px;
   margin: 14px 0 12px;
-  font-family: var(--serif);
+  font-family: var(--font-ui);
   font-size: clamp(38px, 5vw, 64px);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 0.98;
-  letter-spacing: 0;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 .portfolio-command p {
@@ -4369,17 +4370,20 @@ html[data-theme="light"] .position-row-highlight { background: rgba(46, 125, 82,
 
 .stat-card-wide { grid-column: 2 / 4; }
 
-/* ── Dashboard terminal: serif headlines, sans body ── */
+/* ── Dashboard terminal: mono section chrome; sans for page heroes ── */
 .terminal-shell .page-header h1 {
-  font-family: var(--serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-data);
+  font-weight: 500;
+  letter-spacing: var(--tracking-data, 0.04em);
+  text-transform: uppercase;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
 }
 
 .terminal-shell .portfolio-command h1 {
-  font-family: var(--serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: var(--tracking-ui, -0.02em);
+  text-transform: none;
   line-height: 1.08;
 }
 
@@ -4819,10 +4823,10 @@ td:nth-child(1), td.numeric, .num, .mono { font-family: var(--mono); }
   font-family: var(--mono); font-size: 11px; color: var(--faint);
 }
 
-.page-header h1 { font-family: var(--serif); font-size: clamp(1.35rem, 2.2vw, 1.75rem); font-weight: 400; color: var(--text); letter-spacing: -0.02em; }
+.page-header h1 { font-family: var(--font-data); font-size: clamp(1.05rem, 1.6vw, 1.25rem); font-weight: 500; color: var(--text); letter-spacing: var(--tracking-data, 0.04em); text-transform: uppercase; }
 .page-header p, p, .muted { font-family: var(--sans); font-size: 13px; line-height: 1.6; color: var(--muted); }
 .stat-card strong, .analysis-price-row strong, .odds { font-family: var(--mono); }
-.terminal-brand span:last-child { font-family: var(--serif); }
+.terminal-brand span:last-child { font-family: var(--font-display); }
 
 .stat-card:hover { border-color: var(--line-2); }
 button, a, .button, input, select, textarea, .nav-item, .range-chip, .prompt-chip { transition: color 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease; }

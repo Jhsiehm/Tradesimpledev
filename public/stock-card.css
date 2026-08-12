@@ -19,9 +19,9 @@
   --red: #e05a52;
   --amber: #efb45a;
   --blue: #7fb2df;
-  --mono: "Geist Mono", Consolas, monospace;
-  --sans: "Geist", system-ui, sans-serif;
-  --serif: "Fraunces", Georgia, serif;
+  --mono: var(--font-data);
+  --sans: var(--font-ui);
+  --serif: var(--font-display);
 }
 
 html[data-theme="light"] {

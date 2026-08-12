@@ -84,7 +84,7 @@ Safe areas for design consolidation:
 
 - Keep v1 as the runtime and apply the Manus identity to the static landing page.
 - Bring over the terminal classification language, CRS tiers, proof/status strips, cinematic archive wall, user-triggered soundtrack, and sharper source-backed product copy.
-- Adopt the `tradesimple (2)` editorial font stack on the landing page: Cormorant Garamond for manifesto/headlines and Space Mono for terminal labels.
+- Adopt the canonical TradeSimple type contract from `src/imports/design-tokens.css`: Fraunces for landing heroes / brand / AI brief prose, Geist for sentences, Geist Mono for terminal chrome and data. Do **not** reintroduce Cormorant Garamond, Outfit, Space Mono, or JetBrains Mono into production CSS.
 - Avoid copying the mock localStorage database or unsupported claims.
 
 ### Phase 1: Bridge And Map
