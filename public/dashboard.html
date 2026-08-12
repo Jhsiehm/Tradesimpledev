@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=markets-list-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-2" />
-    <link rel="stylesheet" href="/assets/widgets/widgets.css?v=widget-board-3" />
+    <link rel="stylesheet" href="/assets/widgets/widgets.css?v=top-view-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=markets-list-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=ui-integrate-2" />
     <style id="terminal-boot-critical">
@@ -164,7 +164,7 @@
         <nav class="side-nav" aria-label="Terminal sections">
           <span class="nav-section-label">Research</span>
           <button class="nav-item active" data-view="overview">Home</button>
-          <button class="nav-item" data-view="dashboard">Widget Board</button>
+          <button class="nav-item" data-view="dashboard">Top View</button>
           <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
@@ -439,8 +439,8 @@
         </section>
 
         <section class="view terminal-view" id="view-dashboard">
-          <div id="widget-dashboard-root" class="widget-dashboard" aria-label="Widget board">
-            <div class="widget-picker" data-widget-picker hidden role="menu" aria-label="Widgets"></div>
+          <div id="widget-dashboard-root" class="widget-dashboard" aria-label="Top View">
+            <div class="widget-picker" data-widget-picker hidden role="menu" aria-label="Add to Top View"></div>
             <div class="widget-grid" data-widget-grid></div>
           </div>
         </section>
@@ -2035,7 +2035,7 @@
       </button>
       <button type="button" class="mobile-bottom-nav-item" data-view="dashboard">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4h7v7H4V4Zm9 0h7v5h-7V4ZM4 13h7v7H4v-7Zm9 3h7v4h-7v-4Z"/></svg>
-        <span class="mobile-bottom-nav-label">Board</span>
+        <span class="mobile-bottom-nav-label">Top</span>
       </button>
       <button type="button" class="mobile-bottom-nav-item" data-view="markets">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15V9M12 17V7M16 13v-4"/></svg>
@@ -2176,8 +2176,8 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=widget-board-2" defer></script>
-    <script type="module" src="/assets/widgets/dashboardTab.js?v=widget-board-2"></script>
+    <script src="/assets/app.js?v=top-view-1" defer></script>
+    <script type="module" src="/assets/widgets/dashboardTab.js?v=top-view-1"></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {

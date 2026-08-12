@@ -5,6 +5,7 @@ import { escapeHtml } from "../shared/formatters.js";
 
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_MOVE_PX = 14;
+const MOBILE_MQ = "(max-width: 720px)";
 
 function uid(type) {
   return `${type}-${Math.random().toString(16).slice(2, 10)}`;
@@ -13,12 +14,17 @@ function uid(type) {
 export function createWidgetGrid(root) {
   const gridEl = root.querySelector("[data-widget-grid]");
   const pickerEl = root.querySelector("[data-widget-picker]");
+  const mobileMq = window.matchMedia(MOBILE_MQ);
 
   let widgets = [];
   let dragging = null;
   let resizing = null;
   let longPress = null;
   let ignoreClickUntil = 0;
+
+  function isMobile() {
+    return mobileMq.matches;
+  }
 
   function colWidth() {
     const width = gridEl.clientWidth || root.clientWidth || 960;
@@ -49,14 +55,32 @@ export function createWidgetGrid(root) {
     await mountWidgetShell(node, def, item.props || {});
   }
 
+  function syncModeClass() {
+    root.classList.toggle("is-mobile-stack", isMobile());
+    gridEl.classList.toggle("is-mobile-stack", isMobile());
+  }
+
   async function render() {
-    gridEl.style.height = `${gridHeight()}px`;
-    gridEl.innerHTML = widgets
-      .map(
-        (item) => `
+    syncModeClass();
+    const mobile = isMobile();
+
+    if (mobile) {
+      gridEl.style.height = "";
+      gridEl.innerHTML = widgets
+        .map(
+          (item) => `
+      <div class="widget-item" data-widget-id="${escapeHtml(item.i)}" data-widget-type="${escapeHtml(item.type)}"></div>`
+        )
+        .join("");
+    } else {
+      gridEl.style.height = `${gridHeight()}px`;
+      gridEl.innerHTML = widgets
+        .map(
+          (item) => `
       <div class="widget-item" data-widget-id="${escapeHtml(item.i)}" data-widget-type="${escapeHtml(item.type)}" style="${layoutStyle(item)}"></div>`
-      )
-      .join("");
+        )
+        .join("");
+    }
 
     await Promise.all(
       [...gridEl.querySelectorAll(".widget-item")].map(async (node) => {
@@ -84,7 +108,7 @@ export function createWidgetGrid(root) {
     renderPicker();
     const rootRect = root.getBoundingClientRect();
     const left = Math.max(8, Math.min(clientX - rootRect.left - 20, rootRect.width - 220));
-    const top = Math.max(8, Math.min(clientY - rootRect.top - 12, rootRect.height - 160));
+    const top = Math.max(8, Math.min(clientY - rootRect.top - 12, rootRect.height - 200));
     pickerEl.style.left = `${left}px`;
     pickerEl.style.top = `${top}px`;
     pickerEl.hidden = false;
@@ -111,8 +135,10 @@ export function createWidgetGrid(root) {
     const resizeHandle = target.closest("[data-widget-resize-handle]");
     const dragHandle = target.closest("[data-widget-drag-handle]");
     const itemEl = target.closest(".widget-item");
+    const mobile = isMobile();
 
-    if (resizeHandle && itemEl) {
+    // Desktop-only drag/resize; mobile is a stacked list.
+    if (!mobile && resizeHandle && itemEl) {
       clearLongPress();
       const item = widgets.find((w) => w.i === itemEl.dataset.widgetId);
       if (!item) return;
@@ -129,7 +155,7 @@ export function createWidgetGrid(root) {
       return;
     }
 
-    if (dragHandle && itemEl) {
+    if (!mobile && dragHandle && itemEl) {
       clearLongPress();
       const item = widgets.find((w) => w.i === itemEl.dataset.widgetId);
       if (!item) return;
@@ -145,9 +171,8 @@ export function createWidgetGrid(root) {
       return;
     }
 
-    // Long-press on empty board (or non-interactive widget body) opens picker.
-    if (!itemEl || target.closest(".widget-body")) {
-      if (itemEl) return; // don't long-press-add over an existing widget body
+    // Long-press empty board to add.
+    if (!itemEl) {
       clearLongPress();
       longPress = {
         x: event.clientX,
@@ -156,6 +181,7 @@ export function createWidgetGrid(root) {
         timer: setTimeout(() => {
           if (!longPress) return;
           openPickerAt(longPress.x, longPress.y);
+          ignoreClickUntil = Date.now() + 450;
           if (navigator.vibrate) {
             try {
               navigator.vibrate(12);
@@ -175,6 +201,8 @@ export function createWidgetGrid(root) {
       const dy = event.clientY - longPress.y;
       if (dx * dx + dy * dy > LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) clearLongPress();
     }
+
+    if (isMobile()) return;
 
     if (dragging) {
       const item = widgets.find((w) => w.i === dragging.id);
@@ -252,6 +280,11 @@ export function createWidgetGrid(root) {
   function onClick(event) {
     const t = event.target;
     if (!(t instanceof Element)) return;
+    if (Date.now() < ignoreClickUntil) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const addType = t.closest("[data-add-type]")?.dataset?.addType;
     if (addType) {
       addWidget(addType);
@@ -263,18 +296,31 @@ export function createWidgetGrid(root) {
   }
 
   function onContextMenu(event) {
-    // Suppress native menu so long-press stays the add gesture.
     if (event.target instanceof Element && event.target.closest(".widget-dashboard")) {
       event.preventDefault();
     }
   }
 
   function onResize() {
+    syncModeClass();
+    if (isMobile()) {
+      gridEl.style.height = "";
+      gridEl.querySelectorAll(".widget-item").forEach((node) => {
+        node.removeAttribute("style");
+      });
+      return;
+    }
     gridEl.style.height = `${gridHeight()}px`;
     gridEl.querySelectorAll(".widget-item").forEach((node) => {
       const item = widgets.find((w) => w.i === node.dataset.widgetId);
       if (item) node.style.cssText = layoutStyle(item);
     });
+  }
+
+  function onMqChange() {
+    dragging = null;
+    resizing = null;
+    void render();
   }
 
   async function init() {
@@ -291,6 +337,11 @@ export function createWidgetGrid(root) {
   root.addEventListener("click", onClick);
   root.addEventListener("contextmenu", onContextMenu);
   window.addEventListener("resize", onResize);
+  if (typeof mobileMq.addEventListener === "function") {
+    mobileMq.addEventListener("change", onMqChange);
+  } else {
+    mobileMq.addListener(onMqChange);
+  }
 
   return {
     init,
@@ -304,6 +355,11 @@ export function createWidgetGrid(root) {
       root.removeEventListener("click", onClick);
       root.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("resize", onResize);
+      if (typeof mobileMq.removeEventListener === "function") {
+        mobileMq.removeEventListener("change", onMqChange);
+      } else {
+        mobileMq.removeListener(onMqChange);
+      }
     }
   };
 }

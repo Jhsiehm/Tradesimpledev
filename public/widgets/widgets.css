@@ -1,11 +1,18 @@
-/* TradeSimple widget board — minimal chrome; tokens from design-tokens.css */
+/* Top View — Trade Republic–like stacked tiles; Geist tokens only */
 
 .widget-dashboard {
+  --widget-radius: 12px;
+  --widget-gap: 12px;
+  --widget-pad-x: 14px;
+  --widget-pad-y: 12px;
   position: relative;
   min-height: calc(100vh - 180px);
+  padding: var(--space-2);
+  padding-bottom: calc(var(--space-4) + var(--mobile-bottom-nav-h, 0px));
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+  box-sizing: border-box;
 }
 
 .widget-picker {
@@ -16,7 +23,6 @@
   border: var(--border-hairline-solid);
   border-radius: var(--widget-radius);
   padding: var(--space-half);
-  box-shadow: none;
 }
 
 .widget-picker[hidden] {
@@ -29,6 +35,7 @@
   padding: var(--space-1) var(--space-1-5);
   border: 0;
   border-left: var(--border-source-tab-width) solid transparent;
+  border-radius: calc(var(--widget-radius) - 4px);
   background: transparent;
   color: var(--color-text-primary);
   font-family: var(--font-data);
@@ -57,7 +64,7 @@
 .widget-grid {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 180px);
+  min-height: calc(100vh - 220px);
 }
 
 .widget-item {
@@ -94,7 +101,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-1-5);
+  padding: var(--widget-pad-y) var(--widget-pad-x);
   border-bottom: var(--border-hairline-solid);
   font-family: var(--font-data);
   font-size: var(--text-xs);
@@ -158,7 +165,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--space-1-5);
+  padding: var(--widget-pad-y) var(--widget-pad-x) calc(var(--widget-pad-y) + 4px);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   color: var(--color-text-primary);
@@ -210,7 +217,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-1);
-  padding: var(--space-half) 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--color-border-hairline);
   font-variant-numeric: tabular-nums;
 }
@@ -243,34 +250,60 @@
   min-height: calc(100vh - 120px);
 }
 
-/* Widget board stays blank — suppress terminal coaching chrome on this view */
+/* Top View canvas — suppress terminal coaching + Ask-AI FAB overlaps */
 body:has(#view-dashboard.active) #guided-demo-checklist,
-body:has(#view-dashboard.active) .terminal-start-note {
+body:has(#view-dashboard.active) .terminal-start-note,
+body:has(#view-dashboard.active) .research-drawer-btn,
+body:has(#view-dashboard.active) #signal-context-bar,
+body:has(#view-dashboard.active) .dash-chrome-rail {
   display: none !important;
 }
 
+/* Mobile / narrow: pure stacked tiles — no absolute geometry */
 @media (max-width: 720px) {
-  .widget-dashboard,
-  .widget-grid {
-    min-height: calc(100vh - 220px);
+  .widget-dashboard {
+    min-height: calc(100vh - 160px);
+    padding: 12px 12px calc(24px + var(--mobile-bottom-nav-h, 56px));
   }
 
-  .widget-item {
+  .widget-grid,
+  .widget-grid.is-mobile-stack {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--widget-gap);
+    min-height: calc(100vh - 200px);
+    height: auto !important;
+  }
+
+  .widget-item,
+  .widget-grid.is-mobile-stack .widget-item {
     position: relative !important;
-    left: 0 !important;
+    inset: auto !important;
+    left: auto !important;
     top: auto !important;
     width: 100% !important;
     height: auto !important;
-    min-height: 140px;
-    margin-bottom: var(--space-1);
+    min-height: 0;
+    margin: 0;
   }
 
-  .widget-grid {
-    display: flex;
-    flex-direction: column;
+  .widget-card {
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .widget-body {
+    overflow: visible;
   }
 
   .widget-resize-handle {
     display: none;
+  }
+
+  .widget-header {
+    cursor: default;
+    touch-action: manipulation;
   }
 }
