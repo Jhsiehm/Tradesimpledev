@@ -19,10 +19,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=ui-integrate-2" />
+    <link rel="stylesheet" href="/src/imports/design-tokens.css?v=widget-dash-1" />
     <link rel="stylesheet" href="/assets/styles.css?v=markets-list-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-2" />
+    <link rel="stylesheet" href="/assets/widgets/widgets.css?v=widget-dash-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=markets-list-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=ui-integrate-2" />
     <style id="terminal-boot-critical">
@@ -163,6 +164,7 @@
         <nav class="side-nav" aria-label="Terminal sections">
           <span class="nav-section-label">Research</span>
           <button class="nav-item active" data-view="overview">Home</button>
+          <button class="nav-item" data-view="dashboard">Dashboard</button>
           <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
@@ -434,6 +436,33 @@
               </table>
             </div>
           </section>
+        </section>
+
+        <section class="view terminal-view" id="view-dashboard">
+          <div class="page-header dash-view-header">
+            <div class="dash-view-header-copy">
+              <h1>Dashboard</h1>
+              <p class="dash-view-purpose">Pin CRS scores, awards, predictions, and watchlist panels — drag, resize, and keep your layout.</p>
+            </div>
+            <div class="dash-view-header-rail">
+              <span class="status-pill" data-widget-meta>No widgets pinned</span>
+            </div>
+          </div>
+          <div id="widget-dashboard-root" class="widget-dashboard" aria-label="Widget dashboard">
+            <div class="widget-dashboard-toolbar">
+              <span class="widget-dashboard-toolbar-meta">Pinned facts · independent refresh</span>
+              <div class="widget-add-wrap">
+                <button type="button" class="button button-secondary compact" data-widget-add>+ Add widget</button>
+                <div class="widget-picker" data-widget-picker hidden role="menu" aria-label="Add widget"></div>
+              </div>
+            </div>
+            <div class="widget-grid-empty" data-widget-empty>
+              <h2>No widgets pinned</h2>
+              <p>Add one to start tracking a CRS score, contract award, prediction ledger row, or watchlist.</p>
+              <button type="button" class="button button-secondary compact" data-widget-add>Add widget</button>
+            </div>
+            <div class="widget-grid" data-widget-grid hidden></div>
+          </div>
         </section>
 
         <section class="view terminal-view" id="view-signals">
@@ -2167,7 +2196,8 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=intel-buttons-1" defer></script>
+    <script src="/assets/app.js?v=widget-dash-1" defer></script>
+    <script type="module" src="/assets/widgets/dashboardTab.js?v=widget-dash-1"></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {

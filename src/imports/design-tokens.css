@@ -111,6 +111,29 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 150ms;
   --dur-state: 180ms;
+
+  /* ── Widget dashboard (intel-terminal chrome; faces stay Geist/Fraunces) ── */
+  --color-bg-base: var(--bg-deep);
+  --color-bg-panel: #101512;
+  --color-bg-panel-hover: #141a16;
+  --color-border-hairline: #1e2822;
+  --color-border-hairline-strong: #2a3630;
+  --color-text-primary: var(--text-main);
+  --color-text-secondary: var(--text-muted);
+  --color-text-tertiary: var(--text-faint);
+  --color-signal-positive: var(--signal-green);
+  --color-signal-negative: var(--risk-red);
+  --color-signal-neutral: var(--warning-amber);
+  --color-source-trade: var(--signal-green);
+  --color-source-lobbying: var(--warning-amber);
+  --color-source-contract: var(--info-blue);
+  --color-source-legislation: #9b7fe8;
+  --tracking-label: var(--tracking-data);
+  --border-hairline-solid: 1px solid var(--color-border-hairline);
+  --border-source-tab-width: 3px;
+  --widget-radius: 0px;
+  --space-half: 4px;
+  --space-1-5: 12px;
 }
 
 /* Role utilities — prefer these over one-off font-family declarations */
@@ -163,6 +186,11 @@ html[data-theme="light"] {
   --border-soft: rgba(0, 0, 0, 0.14);
   --border-hairline: rgba(0, 0, 0, 0.10);
   --green: var(--signal-green);
+  --color-bg-panel: #f7f4ec;
+  --color-bg-panel-hover: #efebe1;
+  --color-border-hairline: rgba(0, 0, 0, 0.12);
+  --color-border-hairline-strong: rgba(0, 0, 0, 0.2);
+  --color-source-legislation: #6b4fc4;
 }
 
 html[data-theme="dark"] {

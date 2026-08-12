@@ -50,6 +50,17 @@ create table if not exists public.watchlists (
   unique (user_id)
 );
 
+-- ── DASHBOARD LAYOUTS ─────────────────────────────────────────────────────────
+-- Widget sandbox layout per user. widgets is a JSON array of
+-- { i, type, x, y, w, h, props? } grid items.
+create table if not exists public.dashboard_layouts (
+  id          uuid        primary key default gen_random_uuid(),
+  user_id     text        references public.profiles(id) on delete cascade,
+  widgets     jsonb       not null default '[]'::jsonb,
+  updated_at  timestamptz default now(),
+  unique (user_id)
+);
+
 -- ── PREDICTION EVENTS ─────────────────────────────────────────────────────────
 -- Optional durability mirror of the canonical hash-chained ledger
 -- (data/predictions.jsonl). Append-only: predictions + their resolutions.
@@ -86,6 +97,7 @@ alter table public.profiles          enable row level security;
 alter table public.waitlist          enable row level security;
 alter table public.portfolios        enable row level security;
 alter table public.watchlists        enable row level security;
+alter table public.dashboard_layouts enable row level security;
 alter table public.prediction_events enable row level security;
 alter table public.lda_unmatched_clients enable row level security;
 
@@ -104,4 +116,8 @@ create or replace trigger trg_portfolios_updated_at
 
 create or replace trigger trg_watchlists_updated_at
   before update on public.watchlists
+  for each row execute function public.set_updated_at();
+
+create or replace trigger trg_dashboard_layouts_updated_at
+  before update on public.dashboard_layouts
   for each row execute function public.set_updated_at();
