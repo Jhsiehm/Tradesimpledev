@@ -4932,10 +4932,6 @@ body[data-page="dashboard"] .mobile-bottom-nav {
     display: block;
   }
 
-  body[data-page="dashboard"] .ham-btn {
-    opacity: 1;
-  }
-
   body[data-page="dashboard"] .trust-feed-chip {
     max-width: 52vw;
     font-size: 10px;
