@@ -2599,8 +2599,34 @@ body[data-page="dashboard"] .lobby-card-title-link {
   text-decoration: none;
 }
 
+body[data-page="dashboard"] .lobby-card-title-link h3 {
+  font-family: var(--font-data, var(--mono));
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
 body[data-page="dashboard"] .lobby-card-title-link:hover h3 {
   text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+body[data-page="dashboard"] #view-lobbying .page-header h1 {
+  font-family: var(--font-data, var(--mono));
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+}
+
+body[data-page="dashboard"] #view-lobbying .panel-head h2,
+body[data-page="dashboard"] #view-lobbying .panel-head-quiet h2 {
+  font-family: var(--font-data, var(--mono));
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 
 body[data-page="dashboard"] .guided-empty-state {
