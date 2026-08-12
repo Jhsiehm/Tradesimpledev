@@ -57,9 +57,9 @@ function disabledFeatureFallbackView() {
 /* Single nav catalog — sidebar labels, mobile Intel sheet, and feature gates share this. */
 const NAV_ITEMS = [
   { id: "overview", label: "Home" },
-  { id: "dashboard", label: "Dashboard", mobileIntel: true },
+  { id: "dashboard", label: "Top View" },
   { id: "thesis", label: "Thesis Lab", mobileIntel: true },
-  { id: "signals", label: "Signals" },
+  { id: "signals", label: "Signals", mobileIntel: true },
   { id: "bills", label: "Bills", mobileIntel: true },
   { id: "lobbying", label: "Lobbying", mobileIntel: true },
   { id: "fec", label: "Money Trail", mobileIntel: true },
@@ -10025,7 +10025,22 @@ function showView(view, updateUrl = true) {
     renderOverview();
   }
   if (view === "dashboard") {
-    void window.TradeSimpleWidgets?.init?.();
+    const boot = () => window.TradeSimpleWidgets?.init?.();
+    if (window.TradeSimpleWidgets?.init) {
+      void boot();
+    } else {
+      // Module script may still be loading — retry briefly.
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        if (window.TradeSimpleWidgets?.init) {
+          clearInterval(timer);
+          void boot();
+        } else if (tries >= 40) {
+          clearInterval(timer);
+        }
+      }, 50);
+    }
   }
   if (view === "signals" && isViewEnabled("signals")) {
     renderSignalsDesk();

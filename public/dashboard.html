@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="/assets/styles.css?v=markets-list-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-2" />
-    <link rel="stylesheet" href="/assets/widgets/widgets.css?v=widget-dash-1" />
+    <link rel="stylesheet" href="/assets/widgets/widgets.css?v=top-view-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=markets-list-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=ui-integrate-2" />
     <style id="terminal-boot-critical">
@@ -164,7 +164,7 @@
         <nav class="side-nav" aria-label="Terminal sections">
           <span class="nav-section-label">Research</span>
           <button class="nav-item active" data-view="overview">Home</button>
-          <button class="nav-item" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="dashboard">Top View</button>
           <button class="nav-item nav-item-primary" data-view="thesis">Thesis Lab</button>
           <button class="nav-item" data-view="signals">Signals</button>
           <button class="nav-item" data-view="bills">Bills</button>
@@ -439,29 +439,9 @@
         </section>
 
         <section class="view terminal-view" id="view-dashboard">
-          <div class="page-header dash-view-header">
-            <div class="dash-view-header-copy">
-              <h1>Dashboard</h1>
-              <p class="dash-view-purpose">Pin CRS scores, awards, predictions, and watchlist panels — drag, resize, and keep your layout.</p>
-            </div>
-            <div class="dash-view-header-rail">
-              <span class="status-pill" data-widget-meta>No widgets pinned</span>
-            </div>
-          </div>
-          <div id="widget-dashboard-root" class="widget-dashboard" aria-label="Widget dashboard">
-            <div class="widget-dashboard-toolbar">
-              <span class="widget-dashboard-toolbar-meta">Pinned facts · independent refresh</span>
-              <div class="widget-add-wrap">
-                <button type="button" class="button button-secondary compact" data-widget-add>+ Add widget</button>
-                <div class="widget-picker" data-widget-picker hidden role="menu" aria-label="Add widget"></div>
-              </div>
-            </div>
-            <div class="widget-grid-empty" data-widget-empty>
-              <h2>No widgets pinned</h2>
-              <p>Add one to start tracking a CRS score, contract award, prediction ledger row, or watchlist.</p>
-              <button type="button" class="button button-secondary compact" data-widget-add>Add widget</button>
-            </div>
-            <div class="widget-grid" data-widget-grid hidden></div>
+          <div id="widget-dashboard-root" class="widget-dashboard" aria-label="Top View">
+            <div class="widget-picker" data-widget-picker hidden role="menu" aria-label="Add to Top View"></div>
+            <div class="widget-grid" data-widget-grid></div>
           </div>
         </section>
 
@@ -2053,9 +2033,9 @@
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5Z"/></svg>
         <span class="mobile-bottom-nav-label">Home</span>
       </button>
-      <button type="button" class="mobile-bottom-nav-item" data-view="signals">
-        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 18h16M7 14l3-4 3 2 4-6"/></svg>
-        <span class="mobile-bottom-nav-label">Signals</span>
+      <button type="button" class="mobile-bottom-nav-item" data-view="dashboard">
+        <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4h7v7H4V4Zm9 0h7v5h-7V4ZM4 13h7v7H4v-7Zm9 3h7v4h-7v-4Z"/></svg>
+        <span class="mobile-bottom-nav-label">Top</span>
       </button>
       <button type="button" class="mobile-bottom-nav-item" data-view="markets">
         <svg class="mobile-bottom-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15V9M12 17V7M16 13v-4"/></svg>
@@ -2196,8 +2176,8 @@
 
     <script src="/assets/charts.js?v=mobile-ux-1"></script>
     <script src="/assets/brief-shell.js?v=brief-shell-1" defer></script>
-    <script src="/assets/app.js?v=widget-dash-1" defer></script>
-    <script type="module" src="/assets/widgets/dashboardTab.js?v=widget-dash-1"></script>
+    <script src="/assets/app.js?v=top-view-1" defer></script>
+    <script type="module" src="/assets/widgets/dashboardTab.js?v=top-view-1"></script>
     <script>
     /* ── CONTRACT CAUSALITY PANEL ─────────────────────────────────────────── */
     (function () {
