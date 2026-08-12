@@ -67,6 +67,18 @@ create table if not exists public.prediction_events (
 create index if not exists idx_prediction_events_seq on public.prediction_events(seq);
 create index if not exists idx_prediction_events_ticker on public.prediction_events(ticker);
 
+-- ── LDA UNMATCHED CLIENTS ────────────────────────────────────────────────────
+-- Tracks lobbying clients that didn't resolve to a ticker, so alias coverage
+-- can be expanded deliberately, prioritized by cumulative $ observed.
+create table if not exists public.lda_unmatched_clients (
+  client_key      text        primary key,
+  client_display  text        not null,
+  total_amount    numeric     not null default 0,
+  filings_seen    integer     not null default 1,
+  first_seen_at   timestamptz default now(),
+  last_seen_at    timestamptz default now()
+);
+
 -- ── ROW-LEVEL SECURITY ────────────────────────────────────────────────────────
 -- The server uses the service-role key which bypasses RLS.
 -- Enable RLS on each table anyway so the anon key can never read data directly.
@@ -75,6 +87,7 @@ alter table public.waitlist          enable row level security;
 alter table public.portfolios        enable row level security;
 alter table public.watchlists        enable row level security;
 alter table public.prediction_events enable row level security;
+alter table public.lda_unmatched_clients enable row level security;
 
 -- ── HELPER: auto-update updated_at ───────────────────────────────────────────
 create or replace function public.set_updated_at()

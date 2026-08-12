@@ -71,7 +71,7 @@ No API key. Respect rate limits — TradeSimple caches responses in memory (`USA
 
 ## Recipient resolution flow
 
-1. Known name from `CONTRACT_COMPANY_NAMES` or `FUNDAMENTALS[symbol].name`
+1. Known name from `COMPANY_ALIASES` or `FUNDAMENTALS[symbol].name`
 2. `spending_by_award` with `recipient_search_text` / `keywords`
 3. Fallback: `POST /recipient/` with `keyword`, `award_type: "contracts"`
 4. Fallback: `POST /autocomplete/recipient/` → re-query `/recipient/` with matched name

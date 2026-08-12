@@ -1,39 +1,12 @@
 /**
  * Map Senate LDA filings to policy bills by issue keywords and client names.
  */
-
-export const TICKER_CLIENT_HINTS = {
-  LLY: ["lilly", "eli lilly"],
-  MRK: ["merck"],
-  PFE: ["pfizer"],
-  ABBV: ["abbvie"],
-  UNH: ["unitedhealth"],
-  CVS: ["cvs"],
-  NVDA: ["nvidia"],
-  INTC: ["intel"],
-  TSM: ["taiwan semiconductor", "tsmc"],
-  AMAT: ["applied materials"],
-  ASML: ["asml"],
-  AMZN: ["amazon"],
-  AAPL: ["apple"],
-  GOOGL: ["google", "alphabet"],
-  META: ["meta platforms", "facebook"],
-  COIN: ["coinbase"],
-  BTC: ["bitcoin", "blockchain"],
-  ETH: ["ethereum"],
-  TSLA: ["tesla"],
-  ENPH: ["enphase"],
-  FSLR: ["first solar"],
-  MSFT: ["microsoft"],
-  GEO: ["geo group", "the geo group"],
-  CXW: ["corecivic", "core civic", "corrections corporation"],
-  PLTR: ["palantir"],
-  BAH: ["booz allen", "booz allen hamilton"],
-  LMT: ["lockheed martin", "lockheed"],
-  SPCX: ["spacex", "space exploration technologies", "space exploration technologies corp"],
-  LDOS: ["leidos"],
-  SAIC: ["saic", "science applications international"]
-};
+import { dbReady, dbSelect, dbUpsert } from "../lib/supabase.mjs";
+import {
+  COMPANY_ALIASES,
+  resolveTickersInText,
+  resolveSectorGroupTickersInText
+} from "./companyAliases.mjs";
 
 const HOMELAND_ISSUE_KEYWORDS = [
   "immigration",
@@ -59,6 +32,10 @@ function filingHaystack(filing) {
   return normalizeHaystack(
     [filing.client, filing.registrant, filing.issue, ...(filing.issues || [])].join(" ")
   );
+}
+
+function normalizedClientKey(value) {
+  return normalizeHaystack(value);
 }
 
 function billCorpus(bill) {
@@ -101,7 +78,8 @@ function billKeywordSet(bill) {
   for (const tag of bill.tags || []) pushTokens(tag);
   for (const kw of bill.ldaKeywords || []) pushTokens(kw);
   for (const ticker of bill.affected || []) {
-    for (const hint of TICKER_CLIENT_HINTS[ticker] || [ticker.toLowerCase()]) {
+    const aliases = COMPANY_ALIASES[ticker]?.aliases || [ticker.toLowerCase()];
+    for (const hint of aliases) {
       pushTokens(hint);
     }
   }
@@ -114,12 +92,10 @@ function billKeywordSet(bill) {
 function clientMatchesBillTickers(filing, bill) {
   const hay = filingHaystack(filing);
   if (!hay) return false;
-  for (const ticker of bill.affected || []) {
-    for (const hint of TICKER_CLIENT_HINTS[ticker] || []) {
-      if (hint.length >= 3 && hay.includes(hint)) return true;
-    }
-  }
-  return false;
+  const matched = new Set(resolveTickersInText(hay));
+  const matchedSector = resolveSectorGroupTickersInText(hay);
+  for (const ticker of matchedSector) matched.add(ticker);
+  return (bill.affected || []).some((ticker) => matched.has(String(ticker || "").toUpperCase()));
 }
 
 function filingHasHomelandIssue(filing) {
@@ -223,6 +199,39 @@ export function aggregateLobbyingForBills(bills, filings) {
     });
   }
   return overlays;
+}
+
+export async function recordUnmatchedLdaClients(filings) {
+  if (!dbReady) return { recorded: 0, skipped: true };
+  let recorded = 0;
+  for (const filing of filings || []) {
+    const hay = filingHaystack(filing);
+    const matches = resolveTickersInText(hay);
+    const sectorMatches = resolveSectorGroupTickersInText(hay);
+    if (matches.length || sectorMatches.length) continue;
+    const display = String(filing.client || filing.registrant || "").trim();
+    const key = normalizedClientKey(display);
+    if (!key) continue;
+    const amount = Number(filing.amount || filing.expenses || 0);
+    const existing = await dbSelect(
+      "lda_unmatched_clients",
+      `client_key=eq.${encodeURIComponent(key)}&select=client_key,total_amount,filings_seen`
+    );
+    const row = existing?.[0];
+    await dbUpsert(
+      "lda_unmatched_clients",
+      {
+        client_key: key,
+        client_display: display || key,
+        total_amount: Number(row?.total_amount || 0) + (Number.isFinite(amount) ? amount : 0),
+        filings_seen: Number(row?.filings_seen || 0) + 1,
+        last_seen_at: new Date().toISOString()
+      },
+      "client_key"
+    );
+    recorded += 1;
+  }
+  return { recorded, skipped: false };
 }
 
 export async function fetchLdaFilings({ apiKey, fetchFn = fetch, limit = 200 } = {}) {
