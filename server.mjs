@@ -83,7 +83,15 @@ import {
   readCongressCache,
   writeCongressCache
 } from "./src/core/dataRefreshState.mjs";
-import { aggregateLobbyingForBills, fetchLdaFilings, TICKER_CLIENT_HINTS } from "./src/core/ldaLobbying.mjs";
+import { aggregateLobbyingForBills, fetchLdaFilings, recordUnmatchedLdaClients } from "./src/core/ldaLobbying.mjs";
+import {
+  COMPANY_ALIASES,
+  SECTOR_GROUP_ALIASES,
+  resolveTickerForName,
+  resolveTickersInText,
+  resolveSectorGroupTickersInText,
+  displayNameForTicker
+} from "./src/core/companyAliases.mjs";
 import { isStrictDataMode, productionReadiness } from "./src/core/productionDataMode.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -941,32 +949,10 @@ function buildDashboardPolicyBlurbs() {
   return blurbs;
 }
 
-const CONTRACT_COMPANY_NAMES = {
-  LMT: "Lockheed Martin",
-  BAH: "Booz Allen Hamilton",
-  LDOS: "Leidos",
-  SAIC: "Science Applications International",
-  PLTR: "Palantir Technologies",
-  SPCX: "Space Exploration Technologies Corp.",
-  GEO: "The GEO Group",
-  CXW: "CoreCivic"
-};
-
-/** Extra USASpending search names for tickers that do not match a federal recipient keyword. */
-const CONTRACT_SEARCH_HINTS = {
-  NOC: "Northrop Grumman",
-  GD: "General Dynamics",
-  HII: "Huntington Ingalls",
-  LHX: "L3Harris Technologies",
-  BA: "Boeing",
-  RTX: "RTX Corporation",
-  SPCX: "Space Exploration Technologies"
-};
-
 function buildContractWatchlist() {
   return Object.keys(CONTRACT_PROFILES).map((symbol) => ({
     symbol,
-    company: FUNDAMENTALS[symbol]?.name || CONTRACT_COMPANY_NAMES[symbol] || symbol
+    company: FUNDAMENTALS[symbol]?.name || displayNameForTicker(symbol) || symbol
   }));
 }
 
@@ -974,8 +960,7 @@ function resolveTradableSymbolName(symbol) {
   const sym = String(symbol || "").toUpperCase();
   return (
     FUNDAMENTALS[sym]?.name ||
-    CONTRACT_COMPANY_NAMES[sym] ||
-    CONTRACT_SEARCH_HINTS[sym] ||
+    displayNameForTicker(sym) ||
     sym
   );
 }
@@ -999,15 +984,14 @@ function getTradableSymbolCatalog() {
   };
 
   for (const sym of Object.keys(CONTRACT_PROFILES)) add(sym, "contract", resolveTradableSymbolName(sym));
-  for (const [sym, name] of Object.entries(CONTRACT_COMPANY_NAMES)) add(sym, "contract", name);
-  for (const [sym, name] of Object.entries(CONTRACT_SEARCH_HINTS)) add(sym, "contract", name);
+  for (const [sym, def] of Object.entries(COMPANY_ALIASES)) add(sym, "alias", def?.name);
   for (const sym of Object.keys(FUNDAMENTALS)) add(sym, "seed", FUNDAMENTALS[sym]?.name);
   for (const sym of Object.keys(MARKET_FALLBACK)) add(sym, "seed", resolveTradableSymbolName(sym));
   for (const bill of POLICY_BILLS) {
     for (const sym of bill.affected || []) add(sym, "bill", resolveTradableSymbolName(sym));
   }
-  for (const syms of Object.values(LOBBY_CLIENT_TICKERS)) {
-    for (const sym of syms) add(sym, "lobby", resolveTradableSymbolName(sym));
+  for (const syms of Object.values(SECTOR_GROUP_ALIASES)) {
+    for (const sym of syms.tickers || []) add(sym, "lobby", resolveTradableSymbolName(sym));
   }
   for (const bucket of BILL_KEYWORD_BUCKETS) {
     for (const sym of bucket.tickers || []) add(sym, "bill", resolveTradableSymbolName(sym));
@@ -2362,25 +2346,6 @@ const FIGURE_LINKS = [
 
 const FUND_TAGS = new Set(["legislation", "contracts", "lobbying", "figures", "custom"]);
 
-const LOBBY_CLIENT_TICKERS = {
-  "eli lilly": ["LLY"],
-  "abbvie": ["ABBV"],
-  "nvidia": ["NVDA"],
-  "amazon": ["AMZN"],
-  "coinbase": ["COIN"],
-  "apple": ["AAPL"],
-  "google": ["GOOGL"],
-  "meta": ["META"],
-  "microsoft": ["MSFT"],
-  "intel": ["INTC"],
-  "phrma": ["LLY", "MRK", "PFE", "ABBV"],
-  "geo group": ["GEO"],
-  "corecivic": ["CXW"],
-  "palantir": ["PLTR"],
-  "spacex": ["SPCX"],
-  "space exploration": ["SPCX"]
-};
-
 // Agency signal scores: higher = less analyst coverage = more informational value
 // Calibrated from empirical data:
 //   HHS/VA contracts → +4.1% mean 20-day abnormal return (n=41)
@@ -3191,6 +3156,7 @@ async function route(req, res) {
   if (pathname === "/api/waitlist" && req.method === "POST") return waitlistSignup(req, res);
   if (pathname === "/api/preview/unlock" && req.method === "POST") return previewUnlockHandler(req, res);
   if (pathname === "/api/admin/waitlist" && req.method === "GET") return waitlistAdmin(req, res);
+  if (pathname === "/api/admin/lda-unmatched" && req.method === "GET") return ldaUnmatchedAdmin(req, res);
   if (pathname === "/api/admin/trending" && req.method === "POST") return trendingAdminHandler(req, res);
   if (pathname === "/api/admin/contract-watch" && req.method === "POST") return contractWatchAdminHandler(req, res);
   if (pathname === "/api/admin/validate-bills" && req.method === "GET") return validateBillsAdmin(req, res);
@@ -3767,6 +3733,34 @@ async function waitlistAdmin(req, res) {
   }
 }
 
+async function ldaUnmatchedAdmin(req, res) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret || !safeEqual(String(req.headers["x-admin-secret"] || ""), secret)) {
+    logAdminAuthFailure("admin/lda-unmatched", req);
+    return sendJson(res, 401, { error: "unauthorized" });
+  }
+  if (!adminRateLimitOk(req)) {
+    return sendJson(res, 429, { error: "rate_limited", message: "Too many attempts. Try again later." });
+  }
+  if (!dbReady) {
+    return sendJson(res, 200, {
+      source: "disabled",
+      entries: [],
+      count: 0,
+      message: "Supabase not configured."
+    });
+  }
+  const rows = await dbSelect(
+    "lda_unmatched_clients",
+    "select=client_key,client_display,total_amount,filings_seen,first_seen_at,last_seen_at&order=total_amount.desc&order=filings_seen.desc&limit=50"
+  );
+  return sendJson(res, 200, {
+    source: "supabase",
+    count: rows?.length || 0,
+    entries: rows || []
+  });
+}
+
 async function notifyDispatchSignup(email, source) {
   const apiKey = String(process.env.RESEND_API_KEY || "").trim();
   const notifyEmail = String(process.env.DISPATCH_NOTIFY_EMAIL || "").trim();
@@ -4340,18 +4334,7 @@ function topicKeywordsMatch(text, keywords = []) {
 }
 
 function inferTickerFromRecipientName(name = "") {
-  const upper = String(name || "").toUpperCase();
-  if (!upper) return null;
-  const nameMap = { ...CONTRACT_COMPANY_NAMES, ...CONTRACT_SEARCH_HINTS };
-  for (const [sym, label] of Object.entries(nameMap)) {
-    const token = String(label || "").toUpperCase().split(/\s+/)[0];
-    if (token.length >= 4 && upper.includes(token)) return sym;
-  }
-  for (const sym of Object.keys(CONTRACT_PROFILES)) {
-    const hint = resolveContractCompanyName(sym);
-    if (hint && upper.includes(String(hint).toUpperCase().slice(0, Math.min(10, hint.length)))) return sym;
-  }
-  return null;
+  return resolveTickerForName(name);
 }
 
 async function loadTrendingTopicsStore() {
@@ -5497,8 +5480,7 @@ function calendarQuarterKey(dateStr) {
  * Auto-populate the ledger from LDA lobbying-spend changes, mirroring
  * autoRecordSignalPredictions()/autoRecordCRSPredictions() but for quarter-
  * over-quarter lobbying income deltas instead of legislation or contract
- * awards. Scoped to CONTRACT_PROFILES tickers via the same TICKER_CLIENT_HINTS
- * map used to attribute LDA filings to companies elsewhere in this file.
+ * awards. Scoped to CONTRACT_PROFILES tickers via COMPANY_ALIASES.
  *
  * IMPORTANT — direction is intentionally BEARISH: our backtest found lobbying
  * spend increases correlated with NEGATIVE forward abnormal returns
@@ -5530,13 +5512,10 @@ async function autoRecordLobbyingPredictions() {
 
     let recorded = 0;
     for (const symbol of Object.keys(CONTRACT_PROFILES)) {
-      const hints = TICKER_CLIENT_HINTS[symbol];
-      if (!hints || !hints.length) continue;
-
       const byQuarter = new Map();
       for (const filing of filings) {
-        const hay = `${filing.client || ""} ${filing.registrant || ""}`.toLowerCase();
-        if (!hints.some((hint) => hay.includes(hint))) continue;
+        const hay = `${filing.client || ""} ${filing.registrant || ""}`;
+        if (!resolveTickersInText(hay).includes(symbol)) continue;
         const qKey = calendarQuarterKey(filing.postedAt);
         if (!qKey) continue;
         byQuarter.set(qKey, (byQuarter.get(qKey) || 0) + Number(filing.amount || 0));
@@ -7938,8 +7917,7 @@ function contractCausalitySnapshot(symbol) {
 
 function resolveContractCompanyName(symbol) {
   return (
-    CONTRACT_COMPANY_NAMES[symbol] ||
-    CONTRACT_SEARCH_HINTS[symbol] ||
+    displayNameForTicker(symbol) ||
     FUNDAMENTALS[symbol]?.name ||
     symbol
   );
@@ -11118,6 +11096,9 @@ async function refreshLdaLobbyingCache({ limit } = {}) {
     fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000),
     ...(limit ? { limit } : {})
   });
+  await recordUnmatchedLdaClients(filings).catch((err) => {
+    console.warn("[lobbying] unmatched-client upsert failed", err?.message || err);
+  });
   const billPool = allBrowsablePolicyBills().map((b) => applyBillMarketExposure(b));
   const overlays = aggregateLobbyingForBills(billPool, filings);
   billLobbyingOverlay.clear();
@@ -11875,11 +11856,9 @@ function billCongressUrl(bill) {
 }
 
 function lobbyTickersForClient(client) {
-  const key = String(client || "").toLowerCase();
-  for (const [needle, tickers] of Object.entries(LOBBY_CLIENT_TICKERS)) {
-    if (key.includes(needle)) return tickers;
-  }
-  return [];
+  const companyTickers = resolveTickersInText(client);
+  const sectorTickers = resolveSectorGroupTickersInText(client);
+  return [...new Set([...companyTickers, ...sectorTickers])];
 }
 
 function parseFundSymbolsInput(raw) {
@@ -15408,15 +15387,6 @@ function findRelatedSeedExposure(bill, tags) {
 
 const BROAD_MEGACAP_TICKERS = new Set(["NVDA", "AAPL", "AMZN", "GOOGL", "META", "MSFT", "SPY"]);
 
-function corpusIncludesLobbyClient(corpus, client) {
-  const needle = String(client || "").toLowerCase().trim();
-  if (!needle) return false;
-  if (needle.length <= 4) {
-    return new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(corpus);
-  }
-  return corpus.includes(needle);
-}
-
 function inferBillMarketExposure(bill) {
   const corpus = billExposureCorpus(bill);
   const lower = corpus.toLowerCase();
@@ -15449,9 +15419,8 @@ function inferBillMarketExposure(bill) {
     if (!keywordHits.length && !committeeHits.length) dominantTier = hit.tier || dominantTier;
   }
 
-  for (const [client, syms] of Object.entries(LOBBY_CLIENT_TICKERS)) {
-    if (corpusIncludesLobbyClient(lower, client)) syms.forEach((t) => tickerSet.add(t));
-  }
+  resolveTickersInText(lower).forEach((ticker) => tickerSet.add(ticker));
+  resolveSectorGroupTickersInText(lower).forEach((ticker) => tickerSet.add(ticker));
 
   const tags = inferTags(corpus);
   tags.forEach((t) => sectorSet.add(t));
