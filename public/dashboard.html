@@ -2340,15 +2340,10 @@
         loadCausality(currentCTicker);
       }
 
-      // Init when the contracts view becomes active
+      // Init when the contracts view becomes active (via showView delegation in app.js)
       function watchContractsView() {
-        var panel = document.getElementById("causality-panel");
-        if (!panel) return;
-        // Observe nav clicks
-        document.querySelectorAll("[data-view='contracts']").forEach(function (btn) {
-          btn.addEventListener("click", function () {
-            if (!cache[currentCTicker]) loadCausality(currentCTicker);
-          });
+        window.addEventListener("ts:view-contracts", function () {
+          if (!cache[currentCTicker]) loadCausality(currentCTicker);
         });
         // Also init immediately if contracts is already active
         var view = document.getElementById("view-contracts");
@@ -2356,11 +2351,11 @@
       }
 
       function bootCausality() {
+        watchContractsView();
         var first = document.querySelector(".causality-ticker-btn.active");
         currentCTicker = first ? first.dataset.cticker : "";
         if (currentCTicker) {
           initCausality();
-          watchContractsView();
         }
       }
 

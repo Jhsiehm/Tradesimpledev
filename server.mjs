@@ -27,7 +27,6 @@ import {
   dbSelect,
   dbUpsert,
   dbInsert,
-  dbPatch,
   fetchPortfolioRow,
   savePortfolioRow,
   fetchWatchlistRow,
@@ -276,11 +275,7 @@ function requestIsHttps(req) {
 }
 
 function clientIp(req) {
-  if (isTrustedProxy()) {
-    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-    if (forwarded) return forwarded;
-  }
-  return req.socket?.remoteAddress || "anon";
+  return requestIp(req);
 }
 
 function sanitizeRelativePath(raw, fallback = "/dashboard?view=home") {
@@ -2173,6 +2168,8 @@ const POLICY_STAKEHOLDERS = remapStakeholderKeys(RAW_POLICY_STAKEHOLDERS);
 
 /** In-memory Congress.gov overlays refreshed on interval and /api/congress/bills. */
 const congressLiveCache = new Map();
+let congressBillsLastNetworkRefreshAt = 0;
+const CONGRESS_REQUEST_REFRESH_MS = Number(process.env.CONGRESS_REFRESH_MS || 900_000);
 const liveBillAnalysisCache = new Map();
 /** Bills discovered from Congress.gov list (not in POLICY_BILLS seeds). */
 const liveCongressBillRegistry = new Map();
@@ -2549,35 +2546,51 @@ function buildGovernmentMoneyTrail(symbol, awardAmount, agencyName, programName)
   };
 }
 
+function contractCausalityMetrics(sym) {
+  const profile = CONTRACT_PROFILES[sym] || null;
+  const depScore = computeGovernmentDependencyScore(sym);
+  const relatedBills = findRelatedBillsForSymbol(sym);
+  const govPct = profile ? Math.round(profile.governmentRevenuePct * 100) : null;
+  const renewalPct = profile ? Math.round(profile.renewalRisk * 100) : null;
+  const budgetNum = profile
+    ? profile.agencyBudgetRisk === "high"
+      ? 80
+      : profile.agencyBudgetRisk === "medium"
+        ? 55
+        : 25
+    : null;
+  const primaryAgency = profile?.primaryAgencies?.[0] || "Federal agencies";
+  const agSig = agencySignalScore(primaryAgency);
+  const bars = profile
+    ? [
+        { label: `${primaryAgency.split(" ").slice(-1)[0]} exposure`, value: govPct, display: `${govPct}%` },
+        { label: "Renewal risk", value: renewalPct, display: String(renewalPct) },
+        { label: "Award novelty", value: 100 - agSig, display: String(100 - agSig) },
+        { label: "Budget risk", value: budgetNum, display: profile.agencyBudgetRisk }
+      ]
+    : [];
+  const evidence = [
+    { source: "USASpending", title: "What was awarded?", detail: "Federal award amount, agency, recipient, date, and program fields." },
+    { source: "SAM.gov", title: "Was it expected?", detail: "Solicitations, sources-sought notices, deadlines, and incumbent context." },
+    { source: "Congress.gov", title: "What funds it?", detail: "Appropriations bills, authorization, committee actions, and latest status." },
+    {
+      source: "10-K / SEC",
+      title: "Does revenue depend on it?",
+      detail: govPct
+        ? `~${govPct}% government revenue${profile?.archetype ? ` (${profile.archetype})` : ""}. Customer concentration, backlog, and risk factor language.`
+        : "Check 10-K for government revenue concentration and risk factor language."
+    },
+    { source: "LDA / lobbying", title: "Who is pushing?", detail: "Lobbying spend, issue area pressure, and bill-aligned activity around agency budgets." }
+  ];
+  return { sym, profile, depScore, relatedBills, govPct, renewalPct, budgetNum, primaryAgency, agSig, bars, evidence };
+}
+
 async function contractCausality(res, url, req = null) {
   const symbol = (url.searchParams.get("symbol") || "").toUpperCase().trim();
   if (!symbol) return sendJson(res, 400, { error: "symbol_required" });
 
-  const profile = CONTRACT_PROFILES[symbol] || null;
-  const depScore = computeGovernmentDependencyScore(symbol);
-  const relatedBills = POLICY_BILLS.filter((b) => (b.affected || []).includes(symbol));
-
-  // Bars are always derived from contract profile (if present)
-  const govPct     = profile ? Math.round(profile.governmentRevenuePct * 100) : null;
-  const renewalPct = profile ? Math.round(profile.renewalRisk * 100) : null;
-  const budgetNum  = profile ? (profile.agencyBudgetRisk === "high" ? 80 : profile.agencyBudgetRisk === "medium" ? 55 : 25) : null;
-  const primaryAgency  = profile?.primaryAgencies?.[0] || "Federal agencies";
-  const agSig = agencySignalScore(primaryAgency);
-
-  const bars = profile ? [
-    { label: `${primaryAgency.split(" ").slice(-1)[0]} exposure`, value: govPct, display: `${govPct}%` },
-    { label: "Renewal risk", value: renewalPct, display: String(renewalPct) },
-    { label: "Award novelty", value: 100 - agSig, display: String(100 - agSig) },
-    { label: "Budget risk", value: budgetNum, display: profile.agencyBudgetRisk }
-  ] : [];
-
-  const evidence = [
-    { source: "USASpending",    title: "What was awarded?",         detail: "Federal award amount, agency, recipient, date, and program fields." },
-    { source: "SAM.gov",        title: "Was it expected?",           detail: "Solicitations, sources-sought notices, deadlines, and incumbent context." },
-    { source: "Congress.gov",   title: "What funds it?",             detail: "Appropriations bills, authorization, committee actions, and latest status." },
-    { source: "10-K / SEC",     title: "Does revenue depend on it?", detail: govPct ? `~${govPct}% government revenue${profile?.archetype ? ` (${profile.archetype})` : ""}. Customer concentration, backlog, and risk factor language.` : "Check 10-K for government revenue concentration and risk factor language." },
-    { source: "LDA / lobbying", title: "Who is pushing?",            detail: "Lobbying spend, issue area pressure, and bill-aligned activity around agency budgets." }
-  ];
+  const { profile, depScore, relatedBills, bars, evidence, govPct, renewalPct, budgetNum, primaryAgency, agSig } =
+    contractCausalityMetrics(symbol);
 
   // If AI key is available, generate dynamic analysis
   if (process.env.ANTHROPIC_API_KEY) {
@@ -3922,6 +3935,56 @@ async function waitlistSignup(req, res) {
   sendJson(res, 200, { ok: true, message: successMsg });
 }
 
+function summarizeQuoteFeedSource(quotes) {
+  const liveCount = quotes.filter((q) => q.source === "finnhub").length;
+  const yfinanceCount = quotes.filter((q) => q.source === "yfinance").length;
+  const publicCount = quotes.filter(
+    (q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public"
+  ).length;
+  const fallbackCount = quotes.filter((q) => q.source === "fallback_static").length;
+  const source =
+    fallbackCount === quotes.length
+      ? "fallback"
+      : liveCount === quotes.length
+        ? "finnhub"
+        : yfinanceCount === quotes.length
+          ? "yfinance"
+          : publicCount === quotes.length
+            ? yfinanceCount
+              ? "yfinance"
+              : "yahoo_chart"
+            : "mixed_live";
+  return {
+    source,
+    liveCount,
+    yfinanceCount,
+    publicCount,
+    fallbackCount,
+    estimatedInputs: publicCount && !liveCount ? 1 : 0
+  };
+}
+
+function attachQuoteEnvelopeMeta(envelope, summary, filteredQuotes, symbolCount) {
+  const { fallbackCount } = summary;
+  if (fallbackCount > 0) {
+    envelope.staticQuoteCount = fallbackCount;
+    envelope.liveQuoteCount = filteredQuotes.length - fallbackCount;
+    if (fallbackCount === filteredQuotes.length) {
+      envelope.fallback = true;
+      envelope.fallbackNote =
+        "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
+    } else {
+      envelope.partialFallback = true;
+      envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
+    }
+  }
+  if (filteredQuotes.length < symbolCount) {
+    envelope.partial = true;
+    envelope.pendingCount = symbolCount - filteredQuotes.length;
+  }
+  return envelope;
+}
+
 async function marketQuotesCatalog(res) {
   const symbols = getCatalogQuoteSymbols();
   const filteredQuotes = [];
@@ -3945,51 +4008,19 @@ async function marketQuotesCatalog(res) {
     }
   }
   if (needsLiveRefresh.length) queueBackgroundQuoteRefresh(needsLiveRefresh);
-  const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
-  const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
-  const publicCount = filteredQuotes.filter(
-    (q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public"
-  ).length;
-  const fallbackCount = filteredQuotes.filter((q) => q.source === "fallback_static").length;
-  const source =
-    fallbackCount === filteredQuotes.length
-      ? "fallback"
-      : liveCount === filteredQuotes.length
-        ? "finnhub"
-        : yfinanceCount === filteredQuotes.length
-          ? "yfinance"
-          : publicCount === filteredQuotes.length
-            ? yfinanceCount
-              ? "yfinance"
-              : "yahoo_chart"
-            : "mixed_live";
+  const quoteSummary = summarizeQuoteFeedSource(filteredQuotes);
   const envelope = {
-    source,
+    source: quoteSummary.source,
     catalog: true,
     symbolCount: symbols.length,
     quotes: filteredQuotes,
     confidence: scoreConfidence({
-      missingInputs: Math.max(0, symbols.length - filteredQuotes.length) + fallbackCount,
-      estimatedInputs: publicCount && !liveCount ? 1 : 0
+      missingInputs: Math.max(0, symbols.length - filteredQuotes.length) + quoteSummary.fallbackCount,
+      estimatedInputs: quoteSummary.estimatedInputs
     }),
     updatedAt: new Date().toISOString()
   };
-  if (fallbackCount > 0) {
-    envelope.staticQuoteCount = fallbackCount;
-    envelope.liveQuoteCount = filteredQuotes.length - fallbackCount;
-    if (fallbackCount === filteredQuotes.length) {
-      envelope.fallback = true;
-      envelope.fallbackNote =
-        "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
-    } else {
-      envelope.partialFallback = true;
-      envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
-    }
-  }
-  if (filteredQuotes.length < symbols.length) {
-    envelope.partial = true;
-    envelope.pendingCount = symbols.length - filteredQuotes.length;
-  }
+  attachQuoteEnvelopeMeta(envelope, quoteSummary, filteredQuotes, symbols.length);
   noteFeedSuccess("market", { source: envelope.source, recordCount: filteredQuotes.length });
   sendJson(res, 200, envelope);
 }
@@ -4028,46 +4059,17 @@ async function marketQuotes(res, url) {
       returnedSymbols.add(symbol);
     }
   }
-  const liveCount = filteredQuotes.filter((q) => q.source === "finnhub").length;
-  const yfinanceCount = filteredQuotes.filter((q) => q.source === "yfinance").length;
-  const publicCount = filteredQuotes.filter((q) => q.source === "yahoo_chart" || q.source === "yfinance" || q.source === "stooq_public").length;
-  const fallbackCount = filteredQuotes.filter((q) => q.source === "fallback_static").length;
-  const source =
-    fallbackCount === filteredQuotes.length
-      ? "fallback"
-      : liveCount === filteredQuotes.length
-        ? "finnhub"
-        : yfinanceCount === filteredQuotes.length
-          ? "yfinance"
-          : publicCount === filteredQuotes.length
-            ? yfinanceCount ? "yfinance" : "yahoo_chart"
-            : "mixed_live";
-
+  const quoteSummary = summarizeQuoteFeedSource(filteredQuotes);
   const envelope = {
-    source,
+    source: quoteSummary.source,
     quotes: filteredQuotes,
     confidence: scoreConfidence({
-      missingInputs: Math.max(0, symbols.length - filteredQuotes.length) + fallbackCount,
-      estimatedInputs: publicCount && !liveCount ? 1 : 0
+      missingInputs: Math.max(0, symbols.length - filteredQuotes.length) + quoteSummary.fallbackCount,
+      estimatedInputs: quoteSummary.estimatedInputs
     }),
     updatedAt: new Date().toISOString()
   };
-  if (fallbackCount > 0) {
-    envelope.staticQuoteCount = fallbackCount;
-    envelope.liveQuoteCount = filteredQuotes.length - fallbackCount;
-    if (fallbackCount === filteredQuotes.length) {
-      envelope.fallback = true;
-      envelope.fallbackNote =
-        "Live quotes unavailable. Prices shown are static reference data and do not reflect current market conditions.";
-    } else {
-      envelope.partialFallback = true;
-      envelope.fallbackNote = `${fallbackCount} symbol${fallbackCount === 1 ? "" : "s"} using static reference prices; others are live or delayed market data.`;
-    }
-  }
-  if (filteredQuotes.length < symbols.length) {
-    envelope.partial = true;
-    envelope.pendingCount = symbols.length - filteredQuotes.length;
-  }
+  attachQuoteEnvelopeMeta(envelope, quoteSummary, filteredQuotes, symbols.length);
   const pendingLive = filteredQuotes
     .filter((q) => q.pending && q.source === "fallback_static")
     .map((q) => q.symbol);
@@ -6104,7 +6106,7 @@ async function policyTrailHandler(res, url) {
     };
   });
 
-  const bills = POLICY_BILLS.filter((b) => (b.affected || []).includes(ticker)).map((b) => ({
+  const bills = findRelatedBillsForSymbol(ticker).map((b) => ({
     id: b.id,
     title: b.shortTitle || b.title,
     linkReason: `${ticker} listed in bill affected tickers (verified POLICY_BILLS map)`,
@@ -7870,42 +7872,8 @@ async function publicFecCard(req, res, pathname, { head = false } = {}) {
 }
 
 function contractCausalitySnapshot(symbol) {
-  const sym = String(symbol || "").toUpperCase().trim();
-  const profile = CONTRACT_PROFILES[sym] || null;
-  const depScore = computeGovernmentDependencyScore(sym);
-  const relatedBills = POLICY_BILLS.filter((b) => (b.affected || []).includes(sym));
-  const govPct = profile ? Math.round(profile.governmentRevenuePct * 100) : null;
-  const renewalPct = profile ? Math.round(profile.renewalRisk * 100) : null;
-  const budgetNum = profile
-    ? profile.agencyBudgetRisk === "high"
-      ? 80
-      : profile.agencyBudgetRisk === "medium"
-        ? 55
-        : 25
-    : null;
-  const primaryAgency = profile?.primaryAgencies?.[0] || "Federal agencies";
-  const agSig = agencySignalScore(primaryAgency);
-  const bars = profile
-    ? [
-        { label: `${primaryAgency.split(" ").slice(-1)[0]} exposure`, value: govPct, display: `${govPct}%` },
-        { label: "Renewal risk", value: renewalPct, display: String(renewalPct) },
-        { label: "Award novelty", value: 100 - agSig, display: String(100 - agSig) },
-        { label: "Budget risk", value: budgetNum, display: profile.agencyBudgetRisk }
-      ]
-    : [];
-  const evidence = [
-    { source: "USASpending", title: "What was awarded?", detail: "Federal award amount, agency, recipient, date, and program fields." },
-    { source: "SAM.gov", title: "Was it expected?", detail: "Solicitations, sources-sought notices, deadlines, and incumbent context." },
-    { source: "Congress.gov", title: "What funds it?", detail: "Appropriations bills, authorization, committee actions, and latest status." },
-    {
-      source: "10-K / SEC",
-      title: "Does revenue depend on it?",
-      detail: govPct
-        ? `~${govPct}% government revenue${profile?.archetype ? ` (${profile.archetype})` : ""}.`
-        : "Check 10-K for government revenue concentration."
-    },
-    { source: "LDA / lobbying", title: "Who is pushing?", detail: "Lobbying spend and bill-aligned activity around agency budgets." }
-  ];
+  const { sym, profile, depScore, relatedBills, bars, evidence, govPct, renewalPct, budgetNum, primaryAgency, agSig } =
+    contractCausalityMetrics(symbol);
   if (!profile) {
     return {
       symbol: sym,
@@ -8845,7 +8813,7 @@ async function buildStockSnapshot(
     plainBull: "The live price feed is connected, but fundamentals are not mapped yet.",
     plainBear: "Without fundamentals, this ticker should be treated as quote-only."
   };
-  const relatedBills = POLICY_BILLS.filter((bill) => (bill.affected || []).includes(symbol));
+  const relatedBills = findRelatedBillsForSymbol(symbol);
   const policyExposure = relatedBills.reduce((max, bill) => Math.max(max, computeLegislativeMomentum(bill)), 0);
   // Government contract intelligence — company level (for radar) and event level (for cards)
   const contractProfile = CONTRACT_PROFILES[symbol] || null;
@@ -11127,6 +11095,7 @@ async function refreshCongressLiveCache() {
     bumpLandingSignalCacheVersion();
     liveBillAnalysisCache.clear();
   }
+  congressBillsLastNetworkRefreshAt = Date.now();
   const decorated = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
   const liveBillCount = decorated.filter((b) => b.exactCongressRecord).length;
   noteFeedSuccess("bills", {
@@ -11138,15 +11107,16 @@ async function refreshCongressLiveCache() {
   return { updated: updates.size, dynamic: dynamicCount, trending: trendingCount };
 }
 
-async function refreshLdaLobbyingCache() {
+async function refreshLdaLobbyingCache({ limit } = {}) {
   const key = process.env.SENATE_LDA_API_KEY;
   if (!key) {
     billLobbyingOverlay.clear();
-    return { matched: 0, filings: 0 };
+    return { matched: 0, filings: 0, rawFilings: [] };
   }
   const filings = await fetchLdaFilings({
     apiKey: key,
-    fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000)
+    fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000),
+    ...(limit ? { limit } : {})
   });
   const billPool = allBrowsablePolicyBills().map((b) => applyBillMarketExposure(b));
   const overlays = aggregateLobbyingForBills(billPool, filings);
@@ -11160,7 +11130,7 @@ async function refreshLdaLobbyingCache() {
     source: "senate_lda",
     recordCount: filings.length
   });
-  return { matched, filings: filings.length };
+  return { matched, filings: filings.length, rawFilings: filings };
 }
 
 function dataHealthRoute(res) {
@@ -11329,11 +11299,20 @@ async function congressBills(res, url) {
 
   try {
     const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
+    const now = Date.now();
+    const shouldRefreshCongress =
+      url.searchParams.get("force") === "1"
+      || now - congressBillsLastNetworkRefreshAt >= CONGRESS_REQUEST_REFRESH_MS;
+    let seedUpdatesMap = new Map();
+    let dynamicCount = 0;
 
-    const [seedUpdatesMap, dynamicCount] = await Promise.all([
-      refreshSeedBillMetadata(key),
-      refreshDynamicCongressRegistry(key)
-    ]);
+    if (shouldRefreshCongress) {
+      [seedUpdatesMap, dynamicCount] = await Promise.all([
+        refreshSeedBillMetadata(key),
+        refreshDynamicCongressRegistry(key)
+      ]);
+      congressBillsLastNetworkRefreshAt = now;
+    }
 
     const refreshedSeeds = POLICY_BILLS.map((bill) => {
       const base = mergeCongressLiveIntoBill(bill);
@@ -11411,8 +11390,8 @@ async function lobbying(res) {
   }
   try {
     if (!ldaKey) throw new Error("lda_not_configured");
-    const raw = await fetchLdaFilings({ apiKey: ldaKey, fetchFn: fetchWithTimeout, limit: 80 });
-    const filings = raw.map((item) =>
+    const { rawFilings } = await refreshLdaLobbyingCache({ limit: 80 });
+    const filings = rawFilings.map((item) =>
       decorateLobbyingFiling({
         client: item.client,
         registrant: item.registrant,
@@ -11424,7 +11403,6 @@ async function lobbying(res) {
         source: "senate_lda"
       })
     );
-    void refreshLdaLobbyingCache().catch((err) => console.warn("[lda] bill overlay refresh failed:", err.message));
     noteFeedSuccess("lobbying", { source: "senate_lda", recordCount: filings.length });
     cachedLobbyFilingsForShare = filings;
     sendJson(res, 200, {
@@ -12415,7 +12393,7 @@ function evidenceFromNewsItem(item, symbol) {
 function collectThesisEvidencePool(symbol, recentNews = []) {
   const sym = String(symbol || "").toUpperCase();
   const pool = [];
-  const relatedBills = POLICY_BILLS.filter((bill) => (bill.affected || []).includes(sym));
+  const relatedBills = findRelatedBillsForSymbol(sym);
   relatedBills.slice(0, 4).forEach((bill) => pool.push(evidenceFromBill(bill, sym)));
   const profile = CONTRACT_PROFILES[sym];
   if (profile) pool.push(evidenceFromContractProfile(sym, profile));
@@ -12822,8 +12800,10 @@ async function fundPulseRoute(res, session, fundId) {
 }
 
 function policyExposureForSymbol(symbol) {
-  const relatedBills = POLICY_BILLS.filter((bill) => (bill.affected || []).includes(symbol));
-  return relatedBills.reduce((max, bill) => Math.max(max, computeLegislativeMomentum(bill)), 0);
+  return findRelatedBillsForSymbol(symbol).reduce(
+    (max, bill) => Math.max(max, computeLegislativeMomentum(bill)),
+    0
+  );
 }
 
 function findThesis(account, thesisId) {
@@ -12967,7 +12947,7 @@ async function buildThesisMonitorContext(symbol, thesisText, direction, extra = 
     policyExposure: currentPolicy,
     policyDelta,
     snapshotPolicy: snapPolicy,
-    relatedBills: POLICY_BILLS.filter((bill) => (bill.affected || []).includes(sym)),
+    relatedBills: findRelatedBillsForSymbol(sym),
     recentNews,
     fundamentals: FUNDAMENTALS[sym] || null
   };
@@ -13419,7 +13399,7 @@ function buildThesisSignals(symbol, thesisText, direction, context = {}) {
   const lower = text.toLowerCase();
   const fundamentals = context.fundamentals || FUNDAMENTALS[sym] || null;
   const govDependent = Boolean(CONTRACT_PROFILES[sym]);
-  const relatedBills = context.relatedBills || POLICY_BILLS.filter((bill) => (bill.affected || []).includes(sym));
+  const relatedBills = context.relatedBills || findRelatedBillsForSymbol(sym);
   const now = new Date().toISOString();
   const signals = [];
   const evidenceFlat = [];
@@ -14593,7 +14573,7 @@ async function researchAsk(req, res, session) {
 
   let bill = null;
   if (billId) {
-    bill = POLICY_BILLS.find((b) => b.id === billId);
+    bill = resolvePolicyBill(billId);
     if (!bill) return sendJson(res, 400, { error: "unknown_bill_id", billId });
   }
 

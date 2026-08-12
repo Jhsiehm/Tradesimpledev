@@ -1640,6 +1640,7 @@ async function runTerminalBootGate() {
   if (state.dataMeta.account) setBootFeedStatus("account", bootMetaStatus(state.dataMeta.account));
 
   renderTerminalData();
+  await loadDataHealth();
   const elapsed = Date.now() - started;
   if (note && !timedOut) {
     note.textContent = `Synced in ${(elapsed / 1000).toFixed(1)}s — opening desk.`;
@@ -2251,9 +2252,6 @@ function renderPolicyCatalysts() {
       : `<article class="empty-state">No near-term Congress catalysts loaded yet. Refresh bills or try a ticker filter.</article>`;
   targets.forEach((target) => {
     target.innerHTML = html;
-    target.querySelectorAll("[data-feed-scope-set]").forEach((btn) => {
-      btn.addEventListener("click", () => setFeedScope(btn.dataset.feedScopeSet || "all"));
-    });
   });
   const source = $("#policy-catalyst-source");
   if (source) source.textContent = catalysts.length ? `${catalysts.length} active watches` : "Waiting";
@@ -4003,7 +4001,6 @@ async function initDashboard() {
   setupSignalChainInteraction();
   setupLegisCardDelegation();
   setupTrackRecordTabs();
-  if (isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED")) setupHypotheticalFunds();
 
   const [config, session] = await Promise.all([fetchJson("/api/config"), fetchJson("/api/session")]);
   syncFeatureGatesFromConfig(config);
@@ -4288,7 +4285,6 @@ function renderSourceFreshnessBar() {
     feedFreshnessChip("Crypto", state.dataMeta.crypto, feeds.crypto)
   ];
   grid.innerHTML = chips.join("");
-  renderDashTelemetryStrip();
 
   const link = $("#data-health-details-link");
   if (link) {
@@ -4907,7 +4903,6 @@ function setupRefreshAllControl() {
     try {
       await Promise.allSettled([
         refreshTerminalData(),
-        isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") ? refreshContractsFeed() : Promise.resolve(),
         isFeatureEnabled("ANALYSIS_LAB_ENABLED") ? loadAnalysis(state.activeAnalysisSymbol) : Promise.resolve(),
         loadTradeHistory(state.tradeSymbol, state.tradeRange)
       ]);
@@ -4949,18 +4944,24 @@ async function refreshTerminalData() {
     refreshAccountFeed({ render: false }),
     refreshMarketFeed({ render: false }),
     isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
-    refreshPolicyFeed({ render: false }),
+    refreshPolicyFeed({ render: false, force: true }),
     refreshFecPulse({ render: false, force: true }),
     refreshTrendingFeed({ render: false }),
-    refreshContractWatchFeed({ render: false })
+    refreshContractWatchFeed({ render: false }),
+    isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED") ? refreshContractsFeed({ render: false }) : Promise.resolve()
   ]);
 
   settled.forEach((result, index) => {
     if (result.status === "rejected") {
-      console.error(["account", "market", "crypto", "policy", "fec", "trending", "contractWatch"][index], "feed failed", result.reason);
+      console.error(
+        ["account", "market", "crypto", "policy", "fec", "trending", "contractWatch", "contracts"][index],
+        "feed failed",
+        result.reason
+      );
     }
   });
 
+  await loadDataHealth();
   renderTerminalData();
 }
 
@@ -5221,9 +5222,10 @@ async function refreshCryptoFeed({ render = true } = {}) {
   return data;
 }
 
-async function refreshPolicyFeed({ render = true } = {}) {
+async function refreshPolicyFeed({ render = true, force = false } = {}) {
+  const billsUrl = force ? "/api/congress/bills?force=1" : "/api/congress/bills";
   const [bills, lobbying] = await Promise.all([
-    fetchJson("/api/congress/bills"),
+    fetchJson(billsUrl),
     isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")
       ? fetchJson("/api/lobbying")
       : Promise.resolve({ filings: [], source: "feature_disabled", updatedAt: new Date().toISOString() })
@@ -5439,7 +5441,6 @@ function renderFecView() {
           : payload?.source === "sample"
             ? `<strong>Demo FEC pulses shown.</strong> Set FEC_API_KEY for live Open FEC filings — or clear sector/focus filters.`
             : `<strong>No pulses match this filter.</strong> Try another sector or clear focus.`;
-      emptyEl.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     }
     return;
   }
@@ -5938,12 +5939,6 @@ function renderOverview() {
     tradeModeEl.className = safety?.liveTradingEnabled ? "overview-metric-value amber" : "overview-metric-value";
   }
   $("#trade-mode-sub").textContent = safety?.liveTradingEnabled ? "Broker live mode enabled" : "Live trading locked by default";
-  const classMode = $("#dash-classbar-mode");
-  if (classMode) {
-    classMode.textContent = safety?.liveTradingEnabled
-      ? "Live mode · broker enabled"
-      : "Paper mode · simulated capital";
-  }
 
   const bills = (isWatchlistScope() && !state.focusSymbol
     ? policyBills().filter(billMatchesFocusFilter)
@@ -6018,7 +6013,6 @@ function renderSignalsConvictionList() {
       : isWatchlistScope()
         ? watchlistEmptyStateHtml()
         : `<div class="sc-empty muted">No conviction signals loaded yet.</div>`;
-    el.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     clearSkeleton("#signal-list");
     return;
   }
@@ -6122,7 +6116,6 @@ function renderTrendingSection() {
     feed.innerHTML = isWatchlistScope() && !state.focusSymbol
       ? watchlistEmptyStateHtml()
       : `<div class="sc-empty muted">No trending topics match this filter${state.focusSymbol ? ` for ${escapeHtml(state.focusSymbol)}` : ""}.</div>`;
-    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     const moreWrap = $("#trending-more-wrap");
     if (moreWrap) moreWrap.hidden = true;
     return;
@@ -7038,7 +7031,6 @@ function renderBills() {
         : query
           ? `<tr><td colspan="8">No bill matched that filter. Try a ticker like LLY, NVDA, AMZN, COIN, or TSLA.</td></tr>`
           : `<tr><td colspan="8"><div class="guided-empty-state"><strong>No bills loaded yet.</strong> Bill data is still connecting — hit Refresh in the top bar, or start by filtering for a ticker you own (LLY, NVDA, TSLA) once the feed arrives.</div></td></tr>`;
-    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     return;
   }
   feed.innerHTML = sortBillsForTable(bills).map((bill) => {
@@ -7363,8 +7355,10 @@ function populateFundBillPicker() {
 }
 
 function setupHypotheticalFunds() {
+  if (setupHypotheticalFunds._bound) return;
   const form = $("#fund-create-form");
   if (!form) return;
+  setupHypotheticalFunds._bound = true;
 
   state.fundTickerDraft = [];
   state.fundWeightDraft = {};
@@ -8274,7 +8268,6 @@ function renderTopSignal() {
     if (isWatchlistScope() && !state.focusSymbol) {
       el.hidden = false;
       el.innerHTML = watchlistEmptyStateHtml();
-      el.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     }
     return;
   }
@@ -9596,7 +9589,6 @@ function renderSignalFeed() {
     feed.innerHTML = isWatchlistScope() && !state.focusSymbol
       ? watchlistEmptyStateHtml()
       : `<div class="sc-empty muted">No signals${escapeHtml(focusMsg)} match this filter — waiting for bills and contract data.</div>`;
-    feed.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     if (footer) footer.hidden = true;
     return;
   }
@@ -9728,6 +9720,10 @@ function syncOnboardingSteps() {
   }
 }
 
+function resolveNavView(button) {
+  return button.dataset.view || button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo || "";
+}
+
 function applyFeatureGateVisibility() {
   renderMobileIntelGrid();
   const enabledViews = new Set(buildNavigation().map((item) => item.id));
@@ -9740,7 +9736,7 @@ function applyFeatureGateVisibility() {
     button.setAttribute("aria-hidden", enabled ? "false" : "true");
   });
   document.querySelectorAll("[data-view-jump], [data-show-view], [data-onboarding-go]").forEach((button) => {
-    const view = button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo;
+    const view = resolveNavView(button);
     if (!view) return;
     const enabled = isViewEnabled(view);
     button.hidden = !enabled;
@@ -9767,10 +9763,6 @@ function applyFeatureGateVisibility() {
   });
   const fundsPanel = document.getElementById("hypothetical-funds-fold") || document.getElementById("hypothetical-funds-panel");
   if (fundsPanel) fundsPanel.hidden = !isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED");
-}
-
-function resolveNavView(button) {
-  return button.dataset.view || button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo || "";
 }
 
 function setupNavigation() {
@@ -9823,6 +9815,7 @@ function showView(view, updateUrl = true) {
     if (!isFeatureEnabled("AI_RESEARCH_ENABLED")) return showView(disabledFeatureFallbackView(), updateUrl);
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === "bills"));
     document.querySelectorAll(".view").forEach((section) => section.classList.toggle("active", section.id === "view-bills"));
+    syncMobileBottomNav("bills");
     if (updateUrl) {
       const params = new URLSearchParams(window.location.search);
       params.set("view", "bills");
@@ -9873,6 +9866,7 @@ function showView(view, updateUrl = true) {
     renderBills();
   }
   if (view === "contracts" && isFeatureEnabled("CONTRACTS_ANALYZER_ENABLED")) {
+    window.dispatchEvent(new CustomEvent("ts:view-contracts"));
     renderContractsTabWatch();
     if (!state.contractsLoadedAt) {
       showSkeleton("#contracts-body", 6, "row");
@@ -11156,7 +11150,6 @@ function renderMorningBrief() {
     card.hidden = false;
     inner.innerHTML = isWatchlistScope() && !state.focusSymbol ? watchlistEmptyStateHtml() : "";
     if (!inner.innerHTML) card.hidden = true;
-    inner.querySelector("[data-feed-scope-set]")?.addEventListener("click", () => setFeedScope("all"));
     return;
   }
   card.hidden = false;
