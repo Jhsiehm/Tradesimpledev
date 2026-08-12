@@ -4330,20 +4330,24 @@ body[data-page="dashboard"] .sc-card-conviction {
 
 body[data-page="dashboard"] .sc-card-conviction .sc-title {
   margin: 0;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 body[data-page="dashboard"] .sc-card-conviction .sc-sub {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  letter-spacing: var(--tracking-ui, -0.02em);
 }
 
 /* Contracts tab hierarchy */
@@ -4982,7 +4986,7 @@ body[data-page="dashboard"] .sc-card-conviction--low::before {
 }
 
 body[data-page="dashboard"] .intel-card--bill::before,
-body[data-page="dashboard"] .sc-card--bill::before {
+body[data-page="dashboard"] .sc-card--bill:not(.sc-card-conviction)::before {
   background: color-mix(in srgb, var(--amber) 70%, var(--muted));
 }
 
