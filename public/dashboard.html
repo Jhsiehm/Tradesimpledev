@@ -2348,11 +2348,11 @@
       }
 
       function bootCausality() {
+        watchContractsView();
         var first = document.querySelector(".causality-ticker-btn.active");
         currentCTicker = first ? first.dataset.cticker : "";
         if (currentCTicker) {
           initCausality();
-          watchContractsView();
         }
       }
 

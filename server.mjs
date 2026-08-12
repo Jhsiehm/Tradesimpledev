@@ -11329,7 +11329,9 @@ async function congressBills(res, url) {
   try {
     const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
     const now = Date.now();
-    const shouldRefreshCongress = now - congressBillsLastNetworkRefreshAt >= CONGRESS_REQUEST_REFRESH_MS;
+    const shouldRefreshCongress =
+      url.searchParams.get("force") === "1"
+      || now - congressBillsLastNetworkRefreshAt >= CONGRESS_REQUEST_REFRESH_MS;
     let seedUpdatesMap = new Map();
     let dynamicCount = 0;
 

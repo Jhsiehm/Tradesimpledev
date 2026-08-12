@@ -4896,7 +4896,7 @@ async function refreshTerminalData() {
     refreshAccountFeed({ render: false }),
     refreshMarketFeed({ render: false }),
     isFeatureEnabled("CRYPTO_TRACKER_ENABLED") ? refreshCryptoFeed({ render: false }) : Promise.resolve(),
-    refreshPolicyFeed({ render: false }),
+    refreshPolicyFeed({ render: false, force: true }),
     refreshFecPulse({ render: false, force: true }),
     refreshTrendingFeed({ render: false }),
     refreshContractWatchFeed({ render: false }),
@@ -5173,9 +5173,10 @@ async function refreshCryptoFeed({ render = true } = {}) {
   return data;
 }
 
-async function refreshPolicyFeed({ render = true } = {}) {
+async function refreshPolicyFeed({ render = true, force = false } = {}) {
+  const billsUrl = force ? "/api/congress/bills?force=1" : "/api/congress/bills";
   const [bills, lobbying] = await Promise.all([
-    fetchJson("/api/congress/bills"),
+    fetchJson(billsUrl),
     isFeatureEnabled("LOBBYING_EXPLORER_ENABLED")
       ? fetchJson("/api/lobbying")
       : Promise.resolve({ filings: [], source: "feature_disabled", updatedAt: new Date().toISOString() })
