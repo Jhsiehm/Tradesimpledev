@@ -3,8 +3,8 @@ import { GRID, loadLayout, nextOpenSlot, saveLayout } from "./layoutStore.js";
 import { mountWidgetShell } from "./WidgetShell.js";
 import { escapeHtml } from "../shared/formatters.js";
 
-const LONG_PRESS_MS = 520;
-const LONG_PRESS_MOVE_PX = 10;
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_MOVE_PX = 14;
 
 function uid(type) {
   return `${type}-${Math.random().toString(16).slice(2, 10)}`;
