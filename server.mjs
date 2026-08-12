@@ -8705,10 +8705,12 @@ async function shareStockSnapshot(req, res, url) {
 
   const symbol = normalizeStockSymbol(url.searchParams.get("symbol"));
   const readerMode = normalizeReaderMode(url.searchParams.get("mode") || url.searchParams.get("readerMode"));
+  const range = String(url.searchParams.get("range") || "6m").toLowerCase();
 
   try {
     const payload = await buildStockSnapshot(symbol, {
       readerMode,
+      range,
       public: true,
       includeNarrator: true,
       includeEdgar: true,
@@ -8722,7 +8724,7 @@ async function shareStockSnapshot(req, res, url) {
       share: {
         canonicalPath: `/stock/${encodeURIComponent(symbol)}`,
         canonicalUrl: `${APP_URL}/stock/${encodeURIComponent(symbol)}`,
-        canonicalEndpoint: `/api/share/stock?symbol=${encodeURIComponent(symbol)}&mode=${encodeURIComponent(readerMode)}`,
+        canonicalEndpoint: `/api/share/stock?symbol=${encodeURIComponent(symbol)}&mode=${encodeURIComponent(readerMode)}&range=${encodeURIComponent(range)}`,
         title: `${symbol} government-to-market explainer`,
         disclaimer:
           "Market data may be delayed. TradeSimple explains policy-market relationships, not investment advice.",
@@ -8740,8 +8742,10 @@ async function shareStockSnapshot(req, res, url) {
 async function stockAnalysis(res, url) {
   const symbol = normalizeStockSymbol(url.searchParams.get("symbol"));
   const readerMode = normalizeReaderMode(url.searchParams.get("mode") || url.searchParams.get("readerMode"));
+  const range = String(url.searchParams.get("range") || "6m").toLowerCase();
   const payload = await buildStockSnapshot(symbol, {
     readerMode,
+    range,
     public: false,
     includeNarrator: true,
     includeEdgar: false,
@@ -8756,6 +8760,7 @@ async function buildStockSnapshot(
   {
     readerMode,
     mode,
+    range = "6m",
     public: isPublic = false,
     includeNarrator = false,
     includeEdgar = false,
@@ -8804,7 +8809,10 @@ async function buildStockSnapshot(
   const volatilityRisk = Math.min(100, Math.round(Number(fundamentals.beta || 1) * 38));
   const policyGraph = buildPolicyNetwork(symbol);
 
-  const analysisChartRange = "6m";
+  const VALID_ANALYSIS_RANGES = new Set(["1d", "1w", "1m", "3m", "6m", "1y", "5y"]);
+  const analysisChartRange = VALID_ANALYSIS_RANGES.has(String(range || "").toLowerCase())
+    ? String(range).toLowerCase()
+    : "6m";
   const historyPayload = await fetchMarketHistoryPayload(symbol, analysisChartRange);
   const histSampled = downsampleHistoryPoints(historyPayload.points || [], 200);
   const priceTrendFromHistory =

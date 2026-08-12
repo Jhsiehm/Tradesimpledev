@@ -196,6 +196,7 @@
           <label class="search-box">
             <span>Search</span>
             <input id="terminal-search" placeholder="Ticker, bill, issue area" />
+            <ul id="terminal-search-results" class="terminal-search-results" role="listbox" hidden></ul>
           </label>
           <div class="topbar-end">
             <button type="button" id="ts-book-summary" class="topbar-status-chip ts-book-summary" title="Edit your watchlist" aria-haspopup="dialog" aria-controls="watchlist-prompt-modal" hidden>Your book · — names</button>
@@ -731,6 +732,14 @@
                   <div class="chart-title">
                     <span>Price path</span>
                     <strong id="sparkline-caption">Modeled trend</strong>
+                  </div>
+                  <div class="range-chip-row" role="group" aria-label="Chart range">
+                    <button class="range-chip" type="button" data-analysis-range="1d">1D</button>
+                    <button class="range-chip" type="button" data-analysis-range="1w">1W</button>
+                    <button class="range-chip" type="button" data-analysis-range="1m">1M</button>
+                    <button class="range-chip" type="button" data-analysis-range="3m">3M</button>
+                    <button class="range-chip active" type="button" data-analysis-range="6m">6M</button>
+                    <button class="range-chip" type="button" data-analysis-range="1y">1Y</button>
                   </div>
                   <div id="analysis-sparkline" class="sparkline-wrap" aria-label="Price trend chart"></div>
                 </div>

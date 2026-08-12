@@ -1860,6 +1860,85 @@ function isTrackedTicker(sym) {
   return tradableSymbolRows().some((row) => row.symbol === sym) || marketSymbols().includes(sym) || portfolioTickerSet().has(sym);
 }
 
+function syncAnalysisRangeChips(activeRange) {
+  const next = String(activeRange || "6m").toLowerCase();
+  document.querySelectorAll("[data-analysis-range]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.analysisRange === next);
+  });
+}
+
+function searchCatalog(query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return [];
+  const seen = new Set();
+  const results = [];
+  for (const row of tradableSymbolRows()) {
+    const symbol = String(row?.symbol || "").toUpperCase();
+    if (!symbol) continue;
+    const name = String(row?.name || "").trim();
+    const symbolMatch = symbol.toLowerCase().startsWith(q);
+    const nameMatch = name.toLowerCase().includes(q);
+    if (!symbolMatch && !nameMatch) continue;
+    if (seen.has(`ticker:${symbol}`)) continue;
+    seen.add(`ticker:${symbol}`);
+    results.push({ type: "ticker", symbol, name: name || symbol });
+    if (results.length >= 8) return results;
+  }
+  for (const bill of state.bills || []) {
+    const hay = [bill.id, bill.title, ...(bill.affected || [])].join(" ").toLowerCase();
+    if (!hay.includes(q)) continue;
+    const id = String(bill.id || "");
+    if (!id || seen.has(`bill:${id}`)) continue;
+    seen.add(`bill:${id}`);
+    results.push({ type: "bill", id, title: bill.title || id, affected: bill.affected || [] });
+    if (results.length >= 8) break;
+  }
+  return results;
+}
+
+function hideTerminalSearchResults() {
+  const list = $("#terminal-search-results");
+  if (!list) return;
+  list.hidden = true;
+  list.innerHTML = "";
+}
+
+function renderTerminalSearchResults(results) {
+  const list = $("#terminal-search-results");
+  if (!list) return;
+  const rows = Array.isArray(results) ? results : [];
+  if (!rows.length) return hideTerminalSearchResults();
+  list.innerHTML = rows
+    .map((row) => {
+      if (row.type === "ticker") {
+        return `<li><button type="button" class="terminal-search-result" data-terminal-result-type="ticker" data-terminal-result-symbol="${escapeHtml(row.symbol)}" role="option" aria-selected="false"><strong>${escapeHtml(row.symbol)}</strong><span>${escapeHtml(row.name || row.symbol)}</span></button></li>`;
+      }
+      return `<li><button type="button" class="terminal-search-result" data-terminal-result-type="bill" data-terminal-result-id="${escapeHtml(row.id)}" data-terminal-result-symbol="${escapeHtml((row.affected || [])[0] || "")}" role="option" aria-selected="false"><strong>${escapeHtml(row.id)}</strong><span>${escapeHtml(row.title || row.id)}</span></button></li>`;
+    })
+    .join("");
+  list.hidden = false;
+  list.querySelectorAll(".terminal-search-result").forEach((button) => {
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => {
+      const type = button.dataset.terminalResultType;
+      if (type === "ticker") {
+        const symbol = normalizeWatchSymbol(button.dataset.terminalResultSymbol || "");
+        if (!symbol) return;
+        window.location.href = `/dashboard?view=analysis&symbol=${encodeURIComponent(symbol)}`;
+        return;
+      }
+      const billId = String(button.dataset.terminalResultId || "").trim();
+      const symbol = normalizeWatchSymbol(button.dataset.terminalResultSymbol || "");
+      if (symbol) setFocusSymbol(symbol, { render: true });
+      showView("bills");
+      const filter = $("#bill-filter");
+      if (filter) filter.value = billId;
+      renderBills();
+      hideTerminalSearchResults();
+    });
+  });
+}
+
 function populateSymbolSelects() {
   const symbols = mergePickerSymbolRows(pickerExtraSymbols()).map((row) => row.symbol);
   for (const id of ["analysis-symbol", "order-symbol"]) {
@@ -2645,6 +2724,7 @@ function setupMarketsWatchToggle() {
 }
 
 let marketsSearchTimer = null;
+let terminalSearchTimer = null;
 
 function resolveDefaultMarketsFilter() {
   try {
@@ -3535,6 +3615,7 @@ const state = {
   activeAnalysisSymbol: "NVDA",
   readerMode: getStoredReaderMode(),
   tradeSymbol: "NVDA",
+  analysisRange: "6m",
   tradeRange: "1d",
   tradeHistory: null,
   portfolioEquityHistory: [],
@@ -4106,6 +4187,7 @@ async function initDashboard() {
   setupForms();
   setupFilters();
   setupAnalysisControls();
+  setupAnalysisRangeControls();
   setupTradeControls();
   setupRefreshAllControl();
   setupDashPolishControls();
@@ -8660,7 +8742,7 @@ function renderUnifiedPolicyTrail(data) {
   `;
 }
 
-async function loadAnalysis(symbol) {
+async function loadAnalysis(symbol, range = state.analysisRange || "6m") {
   if (!isFeatureEnabled("ANALYSIS_LAB_ENABLED")) {
     state.activeAnalysisSymbol = symbol;
     state.analysis = null;
@@ -8678,8 +8760,9 @@ async function loadAnalysis(symbol) {
 
   try {
     const mode = state.readerMode || getStoredReaderMode();
+    const requestedRange = String(range || state.analysisRange || "6m").toLowerCase();
     const analysis = await fetchJson(
-      `/api/share/stock?symbol=${encodeURIComponent(symbol)}&mode=${encodeURIComponent(mode)}`
+      `/api/share/stock?symbol=${encodeURIComponent(symbol)}&mode=${encodeURIComponent(mode)}&range=${encodeURIComponent(requestedRange)}`
     );
     const policyNetwork = analysis.policyNetwork || {
       focusSymbol: symbol,
@@ -8690,6 +8773,8 @@ async function loadAnalysis(symbol) {
       source: analysis.source || {}
     };
     state.analysis = analysis;
+    state.analysisRange = String(analysis?.charts?.priceTrendRange || requestedRange || "6m").toLowerCase();
+    syncAnalysisRangeChips(state.analysisRange);
     state.policyNetwork = policyNetwork;
     if (policyNetwork.catalysts?.length) state.policyCatalysts = policyNetwork.catalysts;
     renderAnalysis();
@@ -10066,8 +10151,20 @@ function setupAnalysisControls() {
       params.set("symbol", state.activeAnalysisSymbol);
       window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
     }
-    loadAnalysis(state.activeAnalysisSymbol);
+    loadAnalysis(state.activeAnalysisSymbol, state.analysisRange);
   });
+}
+
+function setupAnalysisRangeControls() {
+  document.querySelectorAll("[data-analysis-range]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-analysis-range]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      state.analysisRange = button.dataset.analysisRange || "6m";
+      loadAnalysis(state.activeAnalysisSymbol, state.analysisRange);
+    });
+  });
+  syncAnalysisRangeChips(state.analysisRange);
 }
 
 function setupTradeControls() {
@@ -10118,20 +10215,30 @@ function setupFilters() {
       renderBills();
     });
   }
-  $("#terminal-search").addEventListener("input", (event) => {
-    const query = event.target.value.trim().toUpperCase();
-    if (!query) return;
-    if (isTrackedTicker(query)) {
-      setFocusSymbol(query, { render: true });
-      showView("markets");
-    }
-    if (state.bills.some((bill) => [bill.id, bill.title, ...(bill.affected || [])].join(" ").toUpperCase().includes(query))) {
-      setFocusSymbol(query, { render: true });
-      showView("bills");
-      $("#bill-filter").value = query;
-      renderBills();
-    }
-  });
+  const terminalSearch = $("#terminal-search");
+  if (terminalSearch) {
+    terminalSearch.addEventListener("input", (event) => {
+      clearTimeout(terminalSearchTimer);
+      const query = event.target.value || "";
+      terminalSearchTimer = setTimeout(() => {
+        renderTerminalSearchResults(searchCatalog(query));
+      }, 200);
+    });
+    terminalSearch.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hideTerminalSearchResults();
+        terminalSearch.blur();
+      }
+    });
+    terminalSearch.addEventListener("blur", () => {
+      window.setTimeout(hideTerminalSearchResults, 120);
+    });
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target?.closest(".search-box")) return;
+      hideTerminalSearchResults();
+    });
+  }
 }
 
 // ── BYOK helpers ─────────────────────────────────────────────────────────────

@@ -743,6 +743,54 @@ button { color: inherit; }
   outline-offset: 2px;
 }
 .filter-row input { padding: 0 12px; }
+.terminal-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+.terminal-search-results li + li {
+  margin-top: 4px;
+}
+.terminal-search-result {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  padding: 7px 9px;
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+}
+.terminal-search-result strong {
+  font-family: var(--font-data);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.terminal-search-result span {
+  position: static;
+  transform: none;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-transform: none;
+}
+.terminal-search-result:hover,
+.terminal-search-result:focus-visible {
+  border-color: var(--line-2);
+  background: color-mix(in srgb, var(--green) 7%, transparent);
+  outline: none;
+}
 .ticker-tape { white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .theme-toggle {
@@ -2926,6 +2974,13 @@ html[data-theme="light"] .position-row-highlight { background: rgba(46, 125, 82,
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.range-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
 .range-chip {
