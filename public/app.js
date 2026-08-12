@@ -629,10 +629,8 @@ function renderTabFilterContexts() {
       marketsCtx.textContent = `${n} asset${n === 1 ? "" : "s"} · Crypto${focusSuffix}`;
     } else {
       const rows = filteredMarketsRows();
-      const filter = state.marketsFilter || "all";
-      const label = marketsFilterLabel(filter);
       marketsCtx.hidden = false;
-      marketsCtx.textContent = `${rows.length} symbol${rows.length === 1 ? "" : "s"} · ${label}${focusSuffix}`;
+      marketsCtx.textContent = `${rows.length} symbol${rows.length === 1 ? "" : "s"} · Equities & ETFs${focusSuffix}`;
     }
   }
 }
@@ -1918,13 +1916,9 @@ async function loadDashboardBootstrap() {
     populateSymbolSelects();
     renderCausalityTickerRow();
     try {
-      if (!sessionStorage.getItem(MARKETS_FILTER_STORAGE_KEY) && !localStorage.getItem(MARKETS_FILTER_STORAGE_KEY)) {
-        state.marketsFilter = resolveDefaultMarketsFilter();
-        const bar = $("#markets-filter-bar");
-        bar?.querySelectorAll("[data-markets-filter]").forEach((chip) => {
-          chip.classList.toggle("is-active", chip.dataset.marketsFilter === state.marketsFilter);
-        });
-      }
+      // Grouped Markets list supersedes chip filters — always show the full catalog.
+      state.marketsFilter = "all";
+      persistMarketsFilter("all");
     } catch (_) {}
   } catch (error) {
     console.warn("[bootstrap] dashboard config unavailable", error);
@@ -2637,10 +2631,10 @@ function setupMarketsWatchToggle() {
       renderMarkets();
       return;
     }
-    const row = event.target.closest(".markets-row[data-symbol]");
-    if (!row || event.target.closest("a, button, [data-watch-toggle]")) return;
+    const row = event.target.closest(".markets-list-row[data-symbol]");
+    if (!row || event.target.closest("[data-watch-toggle]")) return;
     const sym = row.dataset.symbol;
-    if (sym) setFocusSymbol(sym, { render: true });
+    if (sym) window.location.href = `/dashboard?view=analysis&symbol=${encodeURIComponent(sym)}`;
   });
 }
 
@@ -2739,20 +2733,10 @@ function setupMarketsFilters() {
   const bar = $("#markets-filter-bar");
   if (!bar || bar.dataset.ready === "true") return;
   bar.dataset.ready = "true";
-  state.marketsFilter = resolveDefaultMarketsFilter();
+  // Grouped list replaces chip filters; keep predicate pipeline on "all".
+  state.marketsFilter = "all";
+  persistMarketsFilter("all");
   state.marketsSearch = state.focusSymbol || "";
-  bar.querySelectorAll("[data-markets-filter]").forEach((chip) => {
-    chip.classList.toggle("is-active", chip.dataset.marketsFilter === state.marketsFilter);
-    chip.addEventListener("click", () => {
-      const next = chip.dataset.marketsFilter || "all";
-      state.marketsFilter = next;
-      persistMarketsFilter(next);
-      bar.querySelectorAll("[data-markets-filter]").forEach((node) => {
-        node.classList.toggle("is-active", node.dataset.marketsFilter === next);
-      });
-      renderMarkets();
-    });
-  });
   const search = $("#markets-search");
   if (search) {
     if (state.focusSymbol) search.value = state.focusSymbol;
@@ -6814,57 +6798,92 @@ function renderWatchlistStrip() {
   }).join("");
 }
 
+function marketsGroupedRows() {
+  const rows = filteredMarketsRows();
+  const groups = [
+    { key: "watchlist", label: "Watchlist", rows: [] },
+    { key: "policy", label: "Policy-Linked", rows: [] },
+    { key: "indices", label: "Indices & ETFs", rows: [] },
+    { key: "other", label: "Market", rows: [] }
+  ];
+  for (const row of rows) {
+    if (isOnWatchlist(row.symbol)) groups[0].rows.push(row);
+    else if (marketsRowIsIndexEtf(row)) groups[2].rows.push(row);
+    else if (["contract", "bill", "lobby"].some((s) => symbolHasSource(row, s))) groups[1].rows.push(row);
+    else groups[3].rows.push(row);
+  }
+  for (const g of groups) {
+    g.rows.sort((a, b) => marketsSourceSortKey(a) - marketsSourceSortKey(b) || a.symbol.localeCompare(b.symbol));
+  }
+  return groups.filter((g) => g.rows.length);
+}
+
+function marketsInlineTagsHtml(row) {
+  const tags = [];
+  if (symbolHasSource(row, "contract")) tags.push(`<span class="ml-tag contract">Contract</span>`);
+  const bills = billsForSymbol(row.symbol);
+  if (bills.length) {
+    tags.push(`<span class="ml-tag bill">${bills.length === 1 ? "1 bill" : `${bills.length} bills`}</span>`);
+  }
+  if (symbolHasSource(row, "lobby")) tags.push(`<span class="ml-tag lobby">Lobbying</span>`);
+  return tags.length ? `<div class="ml-tag-row">${tags.slice(0, 2).join("")}</div>` : "";
+}
+
+function marketsRowHtml(row) {
+  const sym = row.symbol;
+  const quote = quoteFor(sym);
+  const pctRaw = quote ? Number(quote.changePercent ?? quote.pct ?? 0) : null;
+  const pct = Number.isFinite(pctRaw) ? pctRaw : null;
+  const pctCls = pct == null ? "muted" : pct >= 0 ? "up" : "down";
+  const pctTxt = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${fmt(pct)}%`;
+  const watching = isOnWatchlist(sym);
+  const tile = sym.charAt(0);
+  const tileCls = symbolHasSource(row, "contract") ? "contract" : symbolHasSource(row, "lobby") ? "lobby" : "";
+  return `
+    <div class="markets-list-row" data-symbol="${escapeHtml(sym)}">
+      <div class="ml-tile ${tileCls}">${escapeHtml(tile)}</div>
+      <div class="ml-identity">
+        <div class="ml-sym-row">
+          <span class="ml-sym">${escapeHtml(sym)}</span>
+          <button type="button" class="ml-star${watching ? " is-active" : ""}" data-watch-toggle="${escapeHtml(sym)}" aria-label="${watching ? "Remove from watchlist" : "Add to watchlist"}">${watching ? "★" : "☆"}</button>
+        </div>
+        <div class="ml-name">${escapeHtml(row.name || sym)}</div>
+        ${marketsInlineTagsHtml(row)}
+      </div>
+      <div class="ml-quote">
+        <div class="ml-price">${marketsQuoteCellHtml(sym)}</div>
+        <div class="ml-delta ${pctCls}">${pctTxt}</div>
+      </div>
+    </div>`;
+}
+
 function renderMarkets() {
-  const tbody = $("#market-body");
-  if (!tbody) return;
+  const list = $("#markets-list");
+  if (!list) return;
   const quotesReady = state.marketsCatalogQuotesLoaded || state.quotesHydratedAt;
   if (!quotesReady && (state.marketsQuotesLoading || !state.quotesHydratedAt)) {
-    showSkeleton("#market-body", 8, "row");
+    showSkeleton("#markets-list", 8, "row");
     return;
   }
-  clearSkeleton("#market-body");
+  clearSkeleton("#markets-list");
   updateMarketsTableMeta();
   syncMarketsDeskToggleVisibility();
 
-  const rows = filteredMarketsRows();
-  if (!rows.length) {
+  const groups = marketsGroupedRows();
+  if (!groups.length) {
     const focusHint = state.focusSymbol
-      ? `No markets row for <strong>${escapeHtml(state.focusSymbol)}</strong> with these filters.`
-      : "No symbols match this filter.";
-    tbody.innerHTML = `<tr><td colspan="7" class="markets-empty-row">${focusHint} Try <strong>All</strong> or <button type="button" class="link-button" id="markets-clear-focus-inline">clear focus</button>.</td></tr>`;
+      ? `No markets row for <strong>${escapeHtml(state.focusSymbol)}</strong>.`
+      : "No symbols match this search.";
+    list.innerHTML = `<div class="markets-empty-row">${focusHint} Try another ticker or <button type="button" class="link-button" id="markets-clear-focus-inline">clear focus</button>.</div>`;
     $("#markets-clear-focus-inline")?.addEventListener("click", () => clearFocusSymbol());
     renderTabFilterContexts();
     return;
   }
 
-  tbody.innerHTML = rows.map((row) => {
-    const sym = row.symbol;
-    const focusMatch = state.focusSymbol && normalizeWatchSymbol(sym) === state.focusSymbol;
-    const quote = quoteFor(sym);
-    const pctRaw = quote ? Number(quote.changePercent ?? quote.pct ?? 0) : null;
-    const pct = pctRaw != null && Number.isFinite(pctRaw) ? pctRaw : null;
-    const chg = quote?.change != null ? Number(quote.change) : null;
-    const pctCls = pct == null ? "muted" : pct >= 0 ? "up" : "down";
-    const pctTxt = pct == null ? "—" : `${pct >= 0 ? "+" : ""}${fmt(pct)}%`;
-    const chgTxt = chg == null ? "—" : signed(chg);
-    const watching = isOnWatchlist(sym);
-    const policyHtml = marketsPolicySignalHtml(sym);
-    return `
-      <tr class="markets-row markets-card-row clickable-row${focusMatch ? " is-focus-match" : ""}" data-symbol="${escapeHtml(sym)}">
-        <td class="mono ticker-link-cell markets-ticker-cell">
-          <a class="markets-ticker-link" href="${escapeHtml(stockPageUrl(sym))}" onclick="event.stopPropagation()">${escapeHtml(sym)}</a>
-          <span class="markets-ticker-name">${escapeHtml(row.name || sym)}</span>
-          ${shareCardLink(sym, "Share")}
-        </td>
-        <td class="markets-name-cell">${escapeHtml(row.name || sym)}</td>
-        <td class="mono num">${marketsQuoteCellHtml(sym)}</td>
-        <td class="mono num ${pctCls}">${chgTxt} <span class="markets-pct">(${pctTxt})</span></td>
-        <td class="markets-sources-cell"><div class="markets-source-badges">${marketsSourceBadgesHtml(row)}</div></td>
-        <td class="markets-links-cell"><div class="markets-link-row">${marketsConnectedLinksHtml(row)}</div><div class="markets-policy-signal">${policyHtml}</div></td>
-        <td><button type="button" class="button button-secondary compact watch-toggle-btn${watching ? " is-watching" : ""}" data-watch-toggle="${escapeHtml(sym)}" title="${watching ? "Remove from watchlist" : "Add to watchlist"}">${watching ? "★" : "☆"}</button></td>
-      </tr>
-    `;
-  }).join("");
+  list.innerHTML = groups.map((g) => `
+    <div class="markets-group-head"><span>${escapeHtml(g.label)}</span><span>${g.rows.length}</span></div>
+    ${g.rows.map(marketsRowHtml).join("")}
+  `).join("");
   renderTabFilterContexts();
 }
 

@@ -20,10 +20,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/imports/design-tokens.css?v=ui-integrate-2" />
-    <link rel="stylesheet" href="/assets/styles.css?v=intel-buttons-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=markets-list-1" />
     <link rel="stylesheet" href="/assets/bill-card.css?v=ui-integrate-2" />
     <link rel="stylesheet" href="/assets/brief-shell.css?v=ui-integrate-2" />
-    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=ui-integrate-2" />
+    <link rel="stylesheet" href="/src/imports/dashboard-professional.css?v=markets-list-1" />
     <link rel="stylesheet" href="/src/imports/dashboard-premium.css?v=ui-integrate-2" />
     <style id="terminal-boot-critical">
       body[data-boot="loading"] .dash-classbar,
@@ -565,36 +565,8 @@
                 <span class="sr-only">Search symbols</span>
                 <input type="search" id="markets-search" class="markets-search-input" placeholder="Search ticker or name…" autocomplete="off" />
               </label>
-              <div class="markets-filter-chips" role="group" aria-label="Filter markets by category">
-                <button type="button" class="markets-filter-chip is-active" data-markets-filter="all">All</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="contract">Contract</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="legislation">Legislation</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="lobbying">Lobbying</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="indices">Indices &amp; ETFs</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="market">Mega-cap</button>
-                <button type="button" class="markets-filter-chip" data-markets-filter="watchlist">Watchlist</button>
-                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="defense">Defense</button>
-                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="crypto">Crypto</button>
-                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="tech">Tech</button>
-                <button type="button" class="markets-filter-chip markets-filter-chip--topic" data-markets-filter="pharma">Pharma</button>
-              </div>
             </div>
-            <div class="table-wrap">
-              <table class="terminal-table terminal-table--markets terminal-table--scan">
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Name</th>
-                    <th class="num">Price</th>
-                    <th class="num">Change</th>
-                    <th>Sources</th>
-                    <th>Connected</th>
-                    <th>Watch</th>
-                  </tr>
-                </thead>
-                <tbody id="market-body"></tbody>
-              </table>
-            </div>
+            <div class="markets-list" id="markets-list"></div>
           </section>
           </div>
           <div id="markets-crypto-panel" hidden>
