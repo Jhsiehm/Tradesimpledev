@@ -54,7 +54,24 @@ function disabledFeatureFallbackView() {
   return isViewEnabled("thesis") ? "thesis" : "overview";
 }
 
-const MOBILE_INTEL_VIEWS = new Set(["signals", "bills", "lobbying", "fec", "contracts", "analysis", "track-record", "settings"]);
+/* Single nav catalog — sidebar labels, mobile Intel sheet, and feature gates share this. */
+const NAV_ITEMS = [
+  { id: "overview", label: "Home" },
+  { id: "thesis", label: "Thesis Lab" },
+  { id: "signals", label: "Signals", mobileIntel: true },
+  { id: "bills", label: "Bills", mobileIntel: true },
+  { id: "lobbying", label: "Lobbying", mobileIntel: true },
+  { id: "fec", label: "Money Trail", mobileIntel: true },
+  { id: "contracts", label: "Contracts", mobileIntel: true },
+  { id: "analysis", label: "Analysis", mobileIntel: true },
+  { id: "markets", label: "Markets" },
+  { id: "track-record", label: "Track Record", mobileIntel: true },
+  { id: "trade", label: "Account" },
+  { id: "settings", label: "Settings", mobileIntel: true }
+];
+
+const MOBILE_INTEL_ITEMS = NAV_ITEMS.filter((item) => item.mobileIntel);
+const MOBILE_INTEL_VIEWS = new Set(MOBILE_INTEL_ITEMS.map((item) => item.id));
 
 function mobileIntelSheetEl() {
   return $("#mobile-intel-sheet");
@@ -74,6 +91,18 @@ function closeMobileIntelNav() {
   setMobileIntelOpen(false);
 }
 
+function renderMobileIntelGrid() {
+  const grid = $("#mobile-intel-grid");
+  if (!grid) return;
+  const html = MOBILE_INTEL_ITEMS.map(
+    (item) =>
+      `<button type="button" class="mobile-intel-item" data-view="${escapeHtml(item.id)}">${escapeHtml(item.label)}</button>`
+  ).join("");
+  if (grid.dataset.catalog === "nav-items" && grid.innerHTML === html) return;
+  grid.dataset.catalog = "nav-items";
+  grid.innerHTML = html;
+}
+
 function setupMobileNav() {
   const nav = $("#mobile-bottom-nav");
   const sheet = mobileIntelSheetEl();
@@ -85,8 +114,8 @@ function setupMobileNav() {
     setMobileIntelOpen(Boolean(sheet?.hidden));
   });
 
-  sheet?.querySelectorAll("[data-mobile-intel-close]").forEach((el) => {
-    el.addEventListener("click", closeMobileIntelNav);
+  sheet?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-mobile-intel-close]")) closeMobileIntelNav();
   });
 
   document.addEventListener("keydown", (event) => {
@@ -5421,10 +5450,6 @@ function openFecDetailDrawer(pulseKey) {
   drawer.hidden = false;
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
-  body.querySelector("[data-view-jump]")?.addEventListener("click", () => {
-    closeFecDetailDrawer();
-    showView("signals");
-  });
   const clusterKey = pulse.clusterKey || pulseKey;
   fetchJson(`/api/fec/filing/${encodeURIComponent(clusterKey)}`)
     .then((detail) => {
@@ -6046,9 +6071,6 @@ function renderTrendingSection() {
     moreWrap.hidden = !hasMore;
     if (hasMore) moreBtn.textContent = `Show ${filtered.length - SIGNALS_DESK_PREVIEW} more trending`;
   }
-  feed.querySelectorAll("[data-show-view]").forEach((el) => {
-    el.addEventListener("click", () => showView(el.dataset.showView || "signals"));
-  });
 }
 
 async function refreshTrendingFeed({ render = true } = {}) {
@@ -9596,21 +9618,9 @@ function signalCard(bill) {
 }
 
 function buildNavigation() {
-  const navItems = [
-    { id: "overview", label: "Home", enabled: isViewEnabled("overview") },
-    { id: "thesis", label: "Thesis Lab", enabled: isViewEnabled("thesis") },
-    { id: "signals", label: "Signals", enabled: isViewEnabled("signals") },
-    { id: "trade", label: "Account", enabled: isViewEnabled("trade") },
-    { id: "bills", label: "Bills", enabled: isViewEnabled("bills") },
-    { id: "lobbying", label: "Lobbying", enabled: isViewEnabled("lobbying") },
-    { id: "fec", label: "FEC Filings", enabled: isViewEnabled("fec") },
-    { id: "contracts", label: "Contracts", enabled: isViewEnabled("contracts") },
-    { id: "analysis", label: "Analysis", enabled: isViewEnabled("analysis") },
-    { id: "markets", label: "Markets", enabled: isViewEnabled("markets") },
-    { id: "track-record", label: "Track Record", enabled: isViewEnabled("track-record") },
-    { id: "settings", label: "Settings", enabled: isViewEnabled("settings") }
-  ];
-  return navItems.filter((item) => item.enabled);
+  return NAV_ITEMS
+    .filter((item) => isViewEnabled(item.id))
+    .map((item) => ({ id: item.id, label: item.label, enabled: true }));
 }
 
 function syncOnboardingSteps() {
@@ -9641,6 +9651,7 @@ function syncOnboardingSteps() {
 }
 
 function applyFeatureGateVisibility() {
+  renderMobileIntelGrid();
   const enabledViews = new Set(buildNavigation().map((item) => item.id));
   syncOnboardingSteps();
   document.querySelectorAll("[data-view]").forEach((button) => {
@@ -9680,15 +9691,25 @@ function applyFeatureGateVisibility() {
   if (fundsPanel) fundsPanel.hidden = !isFeatureEnabled("FUNDS_HYPOTHETICALS_ENABLED");
 }
 
+function resolveNavView(button) {
+  return button.dataset.view || button.dataset.viewJump || button.dataset.showView || button.dataset.onboardingGo || "";
+}
+
 function setupNavigation() {
   applyFeatureGateVisibility();
-  document.querySelectorAll("[data-view], [data-view-jump]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const view = button.dataset.view || button.dataset.viewJump;
-      if (!isViewEnabled(view)) return;
-      closeMobileIntelNav();
-      showView(view);
-    });
+  if (setupNavigation._bound) return;
+  setupNavigation._bound = true;
+  /* One delegated handler for sidebar, bottom tabs, Intel sheet, jump links, and cards. */
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-view], [data-view-jump], [data-show-view], [data-onboarding-go]");
+    if (!button || button.disabled) return;
+    const view = resolveNavView(button);
+    if (!view || !isViewEnabled(view)) return;
+    event.preventDefault();
+    if (button.dataset.onboardingGo) closeOnboardingModal();
+    if (button.closest("#fec-detail-drawer")) closeFecDetailDrawer();
+    closeMobileIntelNav();
+    showView(view);
   });
 }
 
@@ -11109,9 +11130,6 @@ function renderMorningBrief() {
         `<button type="button" class="mb-action mb-action--ghost" data-drill-action="bills" data-bill-id="${escapeHtml(bill.id)}" role="link" tabindex="0">View bill</button>`
       )}`;
   }
-  inner.querySelectorAll("[data-view-jump]").forEach((btn) => {
-    btn.addEventListener("click", () => showView(btn.dataset.viewJump));
-  });
 }
 
 function isOnboardingComplete() {
@@ -11243,12 +11261,6 @@ function setupOnboardingModal() {
   modal.dataset.bound = "true";
   const close = () => closeOnboardingModal();
   modal.querySelectorAll("[data-close-onboarding]").forEach((el) => el.addEventListener("click", close));
-  modal.querySelectorAll("[data-onboarding-go]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      showView(btn.dataset.onboardingGo);
-      close();
-    });
-  });
   $("#onboarding-finish")?.addEventListener("click", () => {
     close();
     if (isViewEnabled("thesis")) showView("thesis");
@@ -11446,8 +11458,6 @@ function setupLegisCardDelegation() {
     if (askBtn) { askWhyForBill(askBtn.dataset.askWhy); return; }
     const methodBtn = e.target.closest("[data-methodology-bill]");
     if (methodBtn) { openMethodologyModal({ billId: methodBtn.dataset.methodologyBill }); return; }
-    const viewBtn = e.target.closest("[data-show-view]");
-    if (viewBtn) { showView(viewBtn.dataset.showView); return; }
   });
 }
 
