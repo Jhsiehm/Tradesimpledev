@@ -27,7 +27,6 @@ import {
   dbSelect,
   dbUpsert,
   dbInsert,
-  dbPatch,
   fetchPortfolioRow,
   savePortfolioRow,
   fetchWatchlistRow,
@@ -276,11 +275,7 @@ function requestIsHttps(req) {
 }
 
 function clientIp(req) {
-  if (isTrustedProxy()) {
-    const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-    if (forwarded) return forwarded;
-  }
-  return req.socket?.remoteAddress || "anon";
+  return requestIp(req);
 }
 
 function sanitizeRelativePath(raw, fallback = "/dashboard?view=home") {
@@ -2173,6 +2168,8 @@ const POLICY_STAKEHOLDERS = remapStakeholderKeys(RAW_POLICY_STAKEHOLDERS);
 
 /** In-memory Congress.gov overlays refreshed on interval and /api/congress/bills. */
 const congressLiveCache = new Map();
+let congressBillsLastNetworkRefreshAt = 0;
+const CONGRESS_REQUEST_REFRESH_MS = Number(process.env.CONGRESS_REFRESH_MS || 900_000);
 const liveBillAnalysisCache = new Map();
 /** Bills discovered from Congress.gov list (not in POLICY_BILLS seeds). */
 const liveCongressBillRegistry = new Map();
@@ -11127,6 +11124,7 @@ async function refreshCongressLiveCache() {
     bumpLandingSignalCacheVersion();
     liveBillAnalysisCache.clear();
   }
+  congressBillsLastNetworkRefreshAt = Date.now();
   const decorated = POLICY_BILLS.map((b) => decorateBill(mergeCongressLiveIntoBill(b)));
   const liveBillCount = decorated.filter((b) => b.exactCongressRecord).length;
   noteFeedSuccess("bills", {
@@ -11138,15 +11136,16 @@ async function refreshCongressLiveCache() {
   return { updated: updates.size, dynamic: dynamicCount, trending: trendingCount };
 }
 
-async function refreshLdaLobbyingCache() {
+async function refreshLdaLobbyingCache({ limit } = {}) {
   const key = process.env.SENATE_LDA_API_KEY;
   if (!key) {
     billLobbyingOverlay.clear();
-    return { matched: 0, filings: 0 };
+    return { matched: 0, filings: 0, rawFilings: [] };
   }
   const filings = await fetchLdaFilings({
     apiKey: key,
-    fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000)
+    fetchFn: (url, opts) => fetchWithTimeout(url, opts || {}, 12_000),
+    ...(limit ? { limit } : {})
   });
   const billPool = allBrowsablePolicyBills().map((b) => applyBillMarketExposure(b));
   const overlays = aggregateLobbyingForBills(billPool, filings);
@@ -11160,7 +11159,7 @@ async function refreshLdaLobbyingCache() {
     source: "senate_lda",
     recordCount: filings.length
   });
-  return { matched, filings: filings.length };
+  return { matched, filings: filings.length, rawFilings: filings };
 }
 
 function dataHealthRoute(res) {
@@ -11329,11 +11328,18 @@ async function congressBills(res, url) {
 
   try {
     const seedIds = new Set(POLICY_BILLS.map((b) => b.id));
+    const now = Date.now();
+    const shouldRefreshCongress = now - congressBillsLastNetworkRefreshAt >= CONGRESS_REQUEST_REFRESH_MS;
+    let seedUpdatesMap = new Map();
+    let dynamicCount = 0;
 
-    const [seedUpdatesMap, dynamicCount] = await Promise.all([
-      refreshSeedBillMetadata(key),
-      refreshDynamicCongressRegistry(key)
-    ]);
+    if (shouldRefreshCongress) {
+      [seedUpdatesMap, dynamicCount] = await Promise.all([
+        refreshSeedBillMetadata(key),
+        refreshDynamicCongressRegistry(key)
+      ]);
+      congressBillsLastNetworkRefreshAt = now;
+    }
 
     const refreshedSeeds = POLICY_BILLS.map((bill) => {
       const base = mergeCongressLiveIntoBill(bill);
@@ -11411,8 +11417,8 @@ async function lobbying(res) {
   }
   try {
     if (!ldaKey) throw new Error("lda_not_configured");
-    const raw = await fetchLdaFilings({ apiKey: ldaKey, fetchFn: fetchWithTimeout, limit: 80 });
-    const filings = raw.map((item) =>
+    const { rawFilings } = await refreshLdaLobbyingCache({ limit: 80 });
+    const filings = rawFilings.map((item) =>
       decorateLobbyingFiling({
         client: item.client,
         registrant: item.registrant,
@@ -11424,7 +11430,6 @@ async function lobbying(res) {
         source: "senate_lda"
       })
     );
-    void refreshLdaLobbyingCache().catch((err) => console.warn("[lda] bill overlay refresh failed:", err.message));
     noteFeedSuccess("lobbying", { source: "senate_lda", recordCount: filings.length });
     cachedLobbyFilingsForShare = filings;
     sendJson(res, 200, {
@@ -14593,7 +14598,7 @@ async function researchAsk(req, res, session) {
 
   let bill = null;
   if (billId) {
-    bill = POLICY_BILLS.find((b) => b.id === billId);
+    bill = resolvePolicyBill(billId);
     if (!bill) return sendJson(res, 400, { error: "unknown_bill_id", billId });
   }
 
